@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: dataweave-api
+  # 默认 profile：H2 内存库，零外部依赖
+  datasource:
+    url: jdbc:h2:mem:dataweave;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: always          # H2 下始终加载 schema.sql / data.sql
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+  h2:
+    console:
+      enabled: true
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.dataweave: INFO
+
+---
+# pg profile：PostgreSQL + Redis（不激活时不影响启动）
+spring:
+  config:
+    activate:
+      on-profile: pg
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dataweave
+    driver-class-name: org.postgresql.Driver
+    username: dataweave
+    password: dataweave
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+  data:
+    redis:
+      host: localhost
+      port: 6379

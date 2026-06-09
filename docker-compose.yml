@@ -1,0 +1,36 @@
+# DataWeave 生产态依赖：PostgreSQL + Redis
+# 开发态默认用后端内置 H2，无需启动本文件；接真实库时 `docker compose up -d` 后用后端 pg profile。
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: dataweave-postgres
+    environment:
+      POSTGRES_DB: dataweave
+      POSTGRES_USER: dataweave
+      POSTGRES_PASSWORD: dataweave
+    ports:
+      - "5432:5432"
+    volumes:
+      - dataweave-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataweave"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dataweave-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - dataweave-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dataweave-pg:
+  dataweave-redis:

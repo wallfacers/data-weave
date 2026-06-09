@@ -1,0 +1,14 @@
+/tmp/
+*.log
+# build artifacts
+frontend/.next/
+frontend/node_modules/
+backend/**/target/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+# Claude local settings
+.claude/settings.local.json
+.playwright-mcp/
