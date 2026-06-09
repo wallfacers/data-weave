@@ -19,6 +19,8 @@
     "@copilotkit/react-core": "^1.59.5",
     "@hugeicons/core-free-icons": "^4.2.0",
     "@hugeicons/react": "^1.1.6",
+    "@phosphor-icons/react": "^2.1.10",
+    "@remixicon/react": "^4.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "next": "16.2.6",
