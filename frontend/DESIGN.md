@@ -97,8 +97,9 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 
 CopilotKit v2 在自身作用域 `[data-copilotkit]` 内用一套**零彩度中性灰**重定义了整套 shadcn 变量（`--background`/`--muted`/…）。若放任不管，暗色下对话面板会是冷中性黑，与本应用 taupe 主题不一致（面板像一块"冷黑矩形"嵌在暖黑 app 里）。
 
-- 修复在 `app/globals.css`：`html.dark [data-copilotkit] { --background: inherit; … }` 把这些变量改回 `inherit`，让 CopilotChat **继承 app 主题**（背景、文字、边框、primary 全部跟随）。`inherit` 写法与具体配色无关，换 preset 也不需改。
-- 选择器用 `html.dark`（特异度 0,2,1）以胜过 CopilotKit 的 `.dark [data-copilotkit]`（0,2,0）。
+- 修复在 `app/globals.css`：把这些变量改回继承/对齐 app 主题，让 CopilotChat **跟随 app 主题**（文字、边框、primary 全部跟随）。其中**对话面填充 `--background` / `--card` / `--popover` 对齐 `var(--sidebar)`**——让 Agent 悬浮面板的消息区与外层卡片、侧栏品牌区**同底色**，避免「标题条 sidebar 色、消息区却是页面底色」的割裂。
+- 选择器分两态：亮色用 `html [data-copilotkit]`（0,1,1）胜过 cpk base `[data-copilotkit]`（0,1,0）；暗色用 `html.dark [data-copilotkit]`（0,2,1）胜过 cpk 的 `.dark [data-copilotkit]`（0,2,0）。
+- Agent 面板（`agent-rail.tsx` 展开态）外层卡片用 `bg-sidebar` + `border` + `shadow-lg` 构成悬浮抬升层，故对话面填充也对齐 sidebar 以保持一体。
 - 输入框小药丸 `.copilotKitInput` 用的是写死的 arbitrary class（`cpk:dark:bg-[#303030]`，不读变量），保留为抬升输入区，未强行对齐。
 - ⚠️ dev 调试坑：globals.css 编译后的 CSS chunk 文件名**不带 hash**，浏览器会缓存旧版；改完用**硬刷新**（Ctrl+Shift+R / DevTools Disable cache）确认，**无需清 `.next`**。
 

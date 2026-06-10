@@ -179,6 +179,10 @@ export function buildSyntaxTheme(mode: "light" | "dark"): ThemeRegistration {
     colors: {
       "editor.background": p.bg,
       "editor.foreground": p.fg,
+      // 当前行高亮：emerald 品牌色极淡底色，无边框（#RRGGBBAA，shikiToMonaco 不吃 rgba）
+      "editor.lineHighlightBackground":
+        mode === "dark" ? "#34d39918" : "#05966915",
+      "editor.lineHighlightBorder": "#00000000",
       // 括号对配色（Monaco 默认彩虹）统一压成 operator 灰，避免与 emerald 主题冲突
       "editorBracketHighlight.foreground1": p.operator,
       "editorBracketHighlight.foreground2": p.operator,

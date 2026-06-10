@@ -129,15 +129,28 @@
 
 /* CopilotKit v2 在 [data-copilotkit] 作用域里用自己的「中性灰阶」重定义了整套
    shadcn 变量（--background/--muted/... 全为零彩度），导致对话面板是冷中性黑、
-   与本应用的暖调 taupe 主题不一致。把这些变量改回 inherit，让 CopilotChat
-   继承 app 主题（背景、文字、边框、primary 全部跟随）。
-   higher specificity（html.dark）以胜过 cpk 的 .dark [data-copilotkit] 规则。 */
+   与本应用的暖调 taupe 主题不一致。把这些变量改回继承/对齐 app 主题，让 CopilotChat
+   的文字、边框、primary 跟随项目；其中**对话面填充（--background/--card/--popover）
+   对齐 var(--sidebar)**，与 Agent 悬浮面板外层卡片、侧栏品牌区同底色（避免"标题条
+   sidebar 色、消息区却是页面底色"的割裂）。
+
+   亮色：cpk base `[data-copilotkit]`(0,1,0) 被下面 `html [data-copilotkit]`(0,1,1) 胜过。
+   暗色：cpk `.dark [data-copilotkit]`(0,2,0) 需 `html.dark [data-copilotkit]`(0,2,1) 才能胜过。 */
+html [data-copilotkit] {
+  /* cpk 在本作用域把 --sidebar 也改成了它的中性版，必须先 inherit 回 app 的真值，
+     var(--sidebar) 才指向项目 taupe sidebar，而非 cpk 的零彩度灰。 */
+  --sidebar: inherit;
+  --background: var(--sidebar);
+  --card: var(--sidebar);
+  --popover: var(--sidebar);
+}
 html.dark [data-copilotkit] {
-  --background: inherit;
+  --sidebar: inherit;
+  --background: var(--sidebar);
   --foreground: inherit;
-  --card: inherit;
+  --card: var(--sidebar);
   --card-foreground: inherit;
-  --popover: inherit;
+  --popover: var(--sidebar);
   --popover-foreground: inherit;
   --secondary: inherit;
   --secondary-foreground: inherit;

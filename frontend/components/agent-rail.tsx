@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -10,6 +10,10 @@ import {
 
 import { AgentChat } from "@/components/agent-chat"
 import { Button } from "@/components/ui/button"
+
+/** 悬浮球初始位置：视口右侧距边 24px、垂直居中偏下 */
+const INITIAL_POS = { x: -1, y: -1 } // -1 表示首次渲染时按视口计算
+const DRAG_THRESHOLD = 4 // px：超过此距离才算拖拽，否则视为点击
 
 /** 路由 → 模块名映射，用于标题行上下文展示 */
 const MODULE_LABELS: Record<string, string> = {
@@ -41,52 +45,122 @@ export function AgentRail() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  // ── 悬浮球拖拽 ──────────────────────────────────────────────
+  // pos 用 fixed 定位坐标（右下角为初始位），首次渲染按 window 计算。
+  const [pos, setPos] = useState<{ x: number; y: number }>(INITIAL_POS)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    dragging: boolean
+  } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  /** 首次渲染：把按钮放到视口右侧垂直居中偏下 */
+  const resolvePos = useCallback((p: { x: number; y: number }) => {
+    if (p.x >= 0) return p
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800
+    return { x: vw - 24 - 40, y: vh / 2 + 60 }
+  }, [])
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const cur = pos.x >= 0 ? pos : resolvePos(pos)
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        originX: cur.x,
+        originY: cur.y,
+        dragging: false,
+      }
+    },
+    [pos, resolvePos],
+  )
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    if (!d.dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+    d.dragging = true
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800
+    const size = 40 // 按钮尺寸
+    setPos({
+      x: Math.max(0, Math.min(d.originX + dx, vw - size)),
+      y: Math.max(0, Math.min(d.originY + dy, vh - size)),
+    })
+  }, [])
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    dragRef.current = null
+  }, [])
+
+  /** 仅在"没拖过"时响应 click，避免松手时误触打开面板 */
+  const handleClick = useCallback(() => {
+    if (dragRef.current?.dragging) return
+    setOpen(true)
+  }, [])
+
   const moduleName = MODULE_LABELS[pathname] ?? ""
   const contextObject = useContextObject(searchParams)
 
-  // 收起态：悬浮球
+  // 收起态：可拖拽悬浮球（fixed 定位）
   if (!open) {
+    const resolved = resolvePos(pos)
     return (
-      <div className="flex shrink-0 items-start pt-3 pr-3">
-        <Button
-          size="icon"
-          className="size-10 rounded-full bg-primary text-primary-foreground shadow-md"
-          onClick={() => setOpen(true)}
-          aria-label="展开 Agent 对话"
-        >
-          <HugeiconsIcon icon={AiChat01Icon} />
-        </Button>
-      </div>
+      <Button
+        ref={btnRef}
+        size="icon"
+        className="fixed z-50 size-10 cursor-grab rounded-full bg-primary text-primary-foreground shadow-md active:cursor-grabbing"
+        style={{ left: resolved.x, top: resolved.y }}
+        aria-label="展开 Agent 对话"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onClick={handleClick}
+      >
+        <HugeiconsIcon icon={AiChat01Icon} />
+      </Button>
     )
   }
 
-  // 展开态：右舷面板
+  // 展开态：右舷悬浮面板。外层 w-[440px] 仅占位（保留独立列、不遮挡内容），
+  // 四周留间距让内层卡片"浮"起来；内层用 bg-card + border + shadow-lg
+  // 构成抬升层（背景区分 + 边框包裹），圆角走 DESIGN.md 的 --radius-lg。
   return (
-    <div className="flex w-[420px] shrink-0 flex-col overflow-hidden">
-      {/* 标题行：14 高，无下边框（遵守无分割线规则） */}
-      <div className="flex h-14 shrink-0 items-center gap-2 px-4">
-        <span className="text-sm font-medium">Agent</span>
-        {moduleName && (
-          <span className="text-xs text-muted-foreground">
-            当前：{moduleName}
-            {contextObject && ` · ${contextObject}`}
-          </span>
-        )}
-        <div className="flex-1" />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => setOpen(false)}
-          aria-label="收起 Agent 对话"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} />
-        </Button>
-      </div>
+    <div className="flex w-[440px] shrink-0 flex-col p-3 pl-1.5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
+        {/* 标题行：14 高，无下边框（遵守无分割线规则） */}
+        <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+          <span className="text-sm font-medium">Agent</span>
+          {moduleName && (
+            <span className="text-xs text-muted-foreground">
+              当前：{moduleName}
+              {contextObject && ` · ${contextObject}`}
+            </span>
+          )}
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setOpen(false)}
+            aria-label="收起 Agent 对话"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} />
+          </Button>
+        </div>
 
-      {/* Agent 对话区 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <AgentChat />
+        {/* Agent 对话区 */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <AgentChat />
+        </div>
       </div>
     </div>
   )
