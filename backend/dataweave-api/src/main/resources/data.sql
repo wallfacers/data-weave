@@ -155,6 +155,44 @@ INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, 
 (1, 1, 1, 1, 'CREATE', 'WORKFLOW', '1', '{"name":"每日 GMV 工作流"}', TIMESTAMP '2026-06-06 00:00:00'),
 (2, 1, 1, 1, 'DIAGNOSE', 'TASK_INSTANCE', '1', '{"result":"OOM@node-3"}', TIMESTAMP '2026-06-10 02:08:00');
 
+-- ===== 域 H · Agent 策略规则（policy_rules）=====
+-- 分级维度：爆炸半径 × 可逆性 × 资源归属 × 环境。归属/环境/数量阈值在 PolicyEngine 运行时抬升，
+-- 此处只定基础等级。宁严勿松：未匹配的写动作由引擎默认按 L2 处理。
+-- CMD_PREFIX 用于 node_exec 命令串首词裁决；TOOL 用于 MCP 工具名裁决。
+INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, description, enabled, sort_order, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+-- 只读命令前缀（L0）
+(1,  'CMD_PREFIX', 'df',                NULL, 'L0', '磁盘用量（只读）',           1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(2,  'CMD_PREFIX', 'free',              NULL, 'L0', '内存用量（只读）',           1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(3,  'CMD_PREFIX', 'jstat',             NULL, 'L0', 'JVM GC 统计（只读）',        1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(4,  'CMD_PREFIX', 'tail',              NULL, 'L0', '看日志尾部（只读）',         1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(5,  'CMD_PREFIX', 'grep',              NULL, 'L0', '过滤（只读）',               1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(6,  'CMD_PREFIX', 'cat',               NULL, 'L0', '看文件（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(7,  'CMD_PREFIX', 'dw logs',           NULL, 'L0', 'dw 看日志（只读）',          1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(8,  'CMD_PREFIX', 'dw task list',      NULL, 'L0', 'dw 任务列表（只读）',        1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(9,  'CMD_PREFIX', 'dw task show',      NULL, 'L0', 'dw 任务详情（只读）',        1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(10, 'CMD_PREFIX', 'dw task instances', NULL, 'L0', 'dw 实例列表（只读）',        1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 可逆例行写命令前缀（L1）
+(11, 'CMD_PREFIX', 'dw task rerun',     NULL, 'L1', 'dw 重跑（可逆例行）',        1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 禁止命令前缀（L4）
+(12, 'CMD_PREFIX', 'rm',                NULL, 'L4', '删除文件（禁止）',           1, 5,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(13, 'CMD_PREFIX', 'mkfs',             NULL, 'L4', '格式化（禁止）',             1, 5,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(14, 'CMD_PREFIX', 'shutdown',          NULL, 'L4', '关机（禁止）',               1, 5,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 只读 MCP 工具（L0）
+(20, 'TOOL', 'query_task_definitions',  NULL, 'L0', '查任务定义（只读）',         1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(21, 'TOOL', 'query_task_instances',    NULL, 'L0', '查任务实例（只读）',         1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(22, 'TOOL', 'query_fleet',             NULL, 'L0', '查机器集群（只读）',         1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(23, 'TOOL', 'query_metric',            NULL, 'L0', '查指标（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(24, 'TOOL', 'query_lineage',           NULL, 'L0', '查血缘（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(25, 'TOOL', 'query_diagnosis',         NULL, 'L0', '查诊断（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 可逆例行写 MCP 工具（L1）
+(30, 'TOOL', 'task_rerun',              NULL, 'L1', '重跑任务实例（可逆例行）',   1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(31, 'TOOL', 'create_task',             NULL, 'L1', '建任务并上线（可逆）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(32, 'TOOL', 'apply_fix',               NULL, 'L1', '一键修复（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(33, 'TOOL', 'node_exec',               NULL, 'L1', '节点受控执行（按命令串解析抬升）', 1, 25, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 不可逆 MCP 工具（L3，需二次确认）
+(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+
 INSERT INTO orders (id, order_amount, city, created_at) VALUES
 (1, 120.50, '上海', TIMESTAMP '2026-06-01 09:12:00'),
 (2, 89.00,  '北京', TIMESTAMP '2026-06-01 10:30:00'),
@@ -194,3 +232,8 @@ ALTER TABLE task_diagnosis ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE notification_channels ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE alert_rules ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE audit_log ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE policy_rules ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE agent_session ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE agent_run ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE agent_step ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;

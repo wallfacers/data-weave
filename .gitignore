@@ -4,6 +4,9 @@
 frontend/.next/
 frontend/node_modules/
 backend/**/target/
+# dw CLI 二进制（go build 产物，不入 git）
+cli/dw
+cli/dw-*
 
 # IDE / OS
 .idea/

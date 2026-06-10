@@ -45,10 +45,10 @@ type Palette = {
   regexp: string
 }
 
-// 亮色：近黑前景 + taupe muted 底，emerald 锚定 keyword
+// 亮色：近黑前景 + taupe 浅底（较 muted 略提亮一档，更近 card 白），emerald 锚定 keyword
 const LIGHT: Palette = {
   fg: "#1c1b17",
-  bg: "#f2f1ec",
+  bg: "#f8f7f3",
   comment: "#8a857a",
   keyword: "#047857",
   string: "#a16207",
@@ -61,10 +61,10 @@ const LIGHT: Palette = {
   regexp: "#be123c",
 }
 
-// 暗色：近白前景 + taupe 深灰底，emerald 提亮避免刺眼
+// 暗色：近白前景 + taupe 深灰底（较原值略提亮一档，向 card 靠拢），emerald 提亮避免刺眼
 const DARK: Palette = {
   fg: "#e9e7df",
-  bg: "#27261f",
+  bg: "#2e2d25",
   comment: "#857f74",
   keyword: "#34d399",
   string: "#d6b06a",

@@ -1,5 +1,6 @@
 package com.dataweave.api.application;
 
+import com.dataweave.api.interfaces.dto.PageContext;
 import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.FleetService;
 import com.dataweave.master.application.LineageService;
@@ -65,14 +66,20 @@ public class IntentRouter {
     }
 
     public AgentReply route(String message) {
+        return route(message, new PageContext(null, null, null, null, null));
+    }
+
+    /** 消费逐消息页面上下文：诊断意图优先用上下文中的 instanceId 定位对象，免用户复述（缺口①）。 */
+    public AgentReply route(String message, PageContext context) {
         String msg = message == null ? "" : message.trim();
+        PageContext ctx = context != null ? context : new PageContext(null, null, null, null, null);
         if (msg.isEmpty()) {
             return fallback();
         }
 
         // 0a) 诊断意图（优先于血缘，避免"失败"等关键词被吞）
-        if (containsAny(msg, "诊断", "为什么失败", "失败原因", "为啥失败", "排查", "跑挂", "报错原因")) {
-            return tryDiagnosis();
+        if (containsAny(msg, "诊断", "为什么失败", "失败原因", "为啥失败", "排查", "跑挂", "挂了", "为什么挂", "报错原因")) {
+            return tryDiagnosis(ctx);
         }
 
         // 0b) 查机器/集群意图
@@ -111,8 +118,11 @@ public class IntentRouter {
     }
 
     // ---- 诊断意图 ----
-    private AgentReply tryDiagnosis() {
-        Optional<TaskDiagnosis> opt = diagnosisService.diagnoseLatestFailure();
+    private AgentReply tryDiagnosis(PageContext ctx) {
+        Long instanceId = ctx != null ? ctx.instanceIdAsLong() : null;
+        Optional<TaskDiagnosis> opt = instanceId != null
+                ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
+                : diagnosisService.diagnoseLatestFailure();
         if (opt.isEmpty()) {
             return AgentReply.text("当前没有失败的任务实例可诊断。");
         }

@@ -18,7 +18,11 @@ import java.util.Optional;
 
 /**
  * 失败自诊断服务：采集失败实例上下文 → 调 {@link DiagnosisAnalyzer} 产出根因+建议 → 持久化；
- * 并支持对建议的一键修复执行（需用户确认后由上层调用）。
+ * 并支持对建议的一键修复执行。
+ *
+ * <p>修复执行已迁入 {@link GatedActionService} 闸门（agent-fabric-m1 收口缺口③）：applyFix 不再直接执行，
+ * 而是构造 {@link ActionRequest} 经 PolicyEngine 裁决 + agent_action 留痕，真实动作由
+ * {@link DefaultPlatformActionExecutor} 执行。
  */
 @Service
 public class DiagnosisService {
@@ -28,20 +32,20 @@ public class DiagnosisService {
     private final WorkerNodeRepository nodeRepository;
     private final TaskDiagnosisRepository diagnosisRepository;
     private final DiagnosisAnalyzer analyzer;
-    private final FleetService fleetService;
+    private final GatedActionService gatedActionService;
 
     public DiagnosisService(TaskInstanceRepository instanceRepository,
                             TaskDefRepository taskDefRepository,
                             WorkerNodeRepository nodeRepository,
                             TaskDiagnosisRepository diagnosisRepository,
                             DiagnosisAnalyzer analyzer,
-                            FleetService fleetService) {
+                            GatedActionService gatedActionService) {
         this.instanceRepository = instanceRepository;
         this.taskDefRepository = taskDefRepository;
         this.nodeRepository = nodeRepository;
         this.diagnosisRepository = diagnosisRepository;
         this.analyzer = analyzer;
-        this.fleetService = fleetService;
+        this.gatedActionService = gatedActionService;
     }
 
     /** 诊断最近一条失败实例；无失败实例则返回空。 */
@@ -105,71 +109,39 @@ public class DiagnosisService {
         return diagnosisRepository.findById(id);
     }
 
-    /**
-     * 执行修复建议（一键修复，需上层在用户确认后调用）。MVP 以 mock 推进体现效果：
-     * 重跑类 → 产生一条成功实例；迁移类 → 落到最空闲节点重跑；限权重 → 标记并提示。
-     * 执行后把诊断置 RESOLVED。
-     */
+    /** UI 默认入口（操作者为右舷用户）。 */
     public FixResult applyFix(Long diagnosisId, String action) {
+        return applyFix(diagnosisId, action, "ui-user", "UI");
+    }
+
+    /**
+     * 执行修复建议，经 PolicyEngine 闸门。dev 环境 RERUN 类按 L1 直执行并落痕；
+     * 若被裁决为审批/拒绝，返回相应反馈（success=false）。
+     *
+     * @param action RERUN / MIGRATE_NODE / RERUN_MORE_MEMORY / CAP_NODE_WEIGHT
+     */
+    public FixResult applyFix(Long diagnosisId, String action, String actor, String actorSource) {
         TaskDiagnosis diagnosis = diagnosisRepository.findById(diagnosisId).orElse(null);
         if (diagnosis == null) {
             return new FixResult(false, "未找到诊断记录 #" + diagnosisId, null);
         }
+        String act = action == null ? "RERUN" : action.trim().toUpperCase();
+        String summary = "一键修复 " + act + " · 诊断 #" + diagnosisId
+                + (diagnosis.getWorkerNodeCode() != null ? " · " + diagnosis.getWorkerNodeCode() : "");
 
-        String act = action == null ? "RERUN" : action.toUpperCase();
-        String message;
-        Long newInstanceId = null;
+        ActionRequest req = ActionRequest.builder()
+                .toolName("apply_fix")
+                .actionType("APPLY_FIX_" + act)
+                .targetType("DIAGNOSIS")
+                .targetId(String.valueOf(diagnosisId))
+                .ownedByPlatform(true)
+                .actor(actor)
+                .actorSource(actorSource)
+                .summary(summary)
+                .build();
 
-        switch (act) {
-            case "MIGRATE_NODE" -> {
-                String target = fleetService.pickLeastLoadedOnline()
-                        .map(WorkerNode::getNodeCode).orElse("node-online");
-                TaskInstance inst = rerunOnNode(diagnosis, target, "[fix] 迁移到 " + target + " 后重跑成功");
-                newInstanceId = inst.getId();
-                message = "已将任务迁移到空闲节点 " + target + " 重跑，运行成功。";
-            }
-            case "RERUN_MORE_MEMORY" -> {
-                String nodeCode = diagnosis.getWorkerNodeCode() != null
-                        ? diagnosis.getWorkerNodeCode() : "node-1";
-                TaskInstance inst = rerunOnNode(diagnosis, nodeCode, "[fix] 调大 executor 内存后重跑成功");
-                newInstanceId = inst.getId();
-                message = "已调大 executor 内存并在 " + nodeCode + " 重跑，运行成功。";
-            }
-            case "CAP_NODE_WEIGHT" -> message = "已为节点 " + diagnosis.getWorkerNodeCode()
-                    + " 设置调度权重上限，后续将减少该节点的任务并发（mock 生效）。";
-            default -> {
-                String nodeCode = diagnosis.getWorkerNodeCode() != null
-                        ? diagnosis.getWorkerNodeCode() : "node-1";
-                TaskInstance inst = rerunOnNode(diagnosis, nodeCode, "[fix] 原地重跑成功");
-                newInstanceId = inst.getId();
-                message = "已原地重跑，运行成功。";
-            }
-        }
-
-        diagnosis.setStatus("RESOLVED");
-        diagnosis.setUpdatedAt(LocalDateTime.now());
-        diagnosisRepository.save(diagnosis);
-        return new FixResult(true, message, newInstanceId);
-    }
-
-    private TaskInstance rerunOnNode(TaskDiagnosis diagnosis, String nodeCode, String log) {
-        LocalDateTime now = LocalDateTime.now();
-        TaskInstance inst = new TaskInstance();
-        inst.setTenantId(1L);   // MVP 默认租户/项目
-        inst.setProjectId(1L);  // MVP 默认租户/项目
-        inst.setTaskId(diagnosis.getTaskId());
-        inst.setRunMode("NORMAL");
-        inst.setState("SUCCESS");
-        inst.setAttempt(1);
-        inst.setWorkerNodeCode(nodeCode);
-        inst.setStartedAt(now);
-        inst.setFinishedAt(now);
-        inst.setLog(log);
-        inst.setCreatedAt(now);
-        inst.setUpdatedAt(now);
-        inst.setDeleted(0);
-        inst.setVersion(0L);
-        return instanceRepository.save(inst);
+        GateResult gr = gatedActionService.submit(req);
+        return new FixResult(gr.executed(), gr.message(), gr.resultInstanceId());
     }
 
     /**

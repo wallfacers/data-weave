@@ -1,5 +1,6 @@
 package com.dataweave.api.application;
 
+import com.dataweave.api.interfaces.dto.PageContext;
 import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.FleetService;
 import com.dataweave.master.application.LineageService;
@@ -75,6 +76,25 @@ class IntentRouterIntentTest {
         assertThat(reply.markdown()).contains("根因");
         assertThat(reply.markdown()).contains("Executor 内存不足，heap 耗尽");
         assertThat(reply.markdown()).contains("原地重跑");
+    }
+
+    @Test
+    void diagnosisIntent_withPageContextInstanceId_diagnosesThatInstance_noRestate() {
+        // 失败实例详情页问「为什么挂了」——上下文带 instanceId，无需复述对象（缺口①）
+        TaskDiagnosis diagnosis = new TaskDiagnosis();
+        diagnosis.setId(7L);
+        diagnosis.setTitle("OOM on node-3");
+        diagnosis.setRootCause("内存溢出");
+        when(diagnosisService.diagnoseInstance(100L)).thenReturn(diagnosis);
+
+        PageContext ctx = new PageContext("/ops", "/ops", null, "100", null);
+        AgentReply reply = router.route("为什么挂了", ctx);
+
+        assertThat(reply.customEventName()).isEqualTo("dataweave.diagnosis");
+        assertThat(reply.structured().get("id")).isEqualTo(7L);
+        // 用了上下文的 instanceId，而非 diagnoseLatestFailure
+        org.mockito.Mockito.verify(diagnosisService).diagnoseInstance(100L);
+        org.mockito.Mockito.verify(diagnosisService, org.mockito.Mockito.never()).diagnoseLatestFailure();
     }
 
     @Test

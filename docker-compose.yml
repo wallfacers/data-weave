@@ -31,6 +31,22 @@ services:
       timeout: 3s
       retries: 10
 
+  # workhorse-agent 大脑（agent.mode=workhorse 时启用）。仅本机暴露，dataweave-api 为唯一客户端。
+  # 默认不随 `docker compose up` 启动；用 `docker compose --profile workhorse up -d` 拉起。
+  # PROVISIONAL：image / 配置挂载以 workhorse 仓库 support-dataweave-headless-integration 落地为准。
+  workhorse:
+    image: ${WORKHORSE_IMAGE:-dataweave/workhorse-agent:latest}
+    container_name: dataweave-workhorse
+    profiles: ["workhorse"]
+    network_mode: host        # 绑 127.0.0.1:8787，直连宿主上的 dataweave-api:8080/mcp
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./deploy/workhorse/config.yaml:/etc/workhorse/config.yaml:ro
+      - ./deploy/workhorse/mcp.json:/etc/workhorse/mcp.json:ro
+    command: ["--config", "/etc/workhorse/config.yaml"]
+
 volumes:
   dataweave-pg:
   dataweave-redis:

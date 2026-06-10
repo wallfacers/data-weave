@@ -18,6 +18,7 @@ import {
   WorkflowSquare01Icon,
 } from "@hugeicons/core-free-icons"
 
+import { SettingsTrigger } from "@/components/settings-sheet"
 import {
   Sidebar,
   SidebarContent,
@@ -120,8 +121,14 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-          按 <kbd>D</kbd> 切换深浅色
+        <div className="flex items-center justify-between px-2 py-1.5">
+          <div className="flex items-center gap-2">
+            <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <HugeiconsIcon icon={SparklesIcon} className="size-3.5" />
+            </div>
+            <span className="text-sm font-semibold">DataWeave</span>
+          </div>
+          <SettingsTrigger />
         </div>
       </SidebarFooter>
     </Sidebar>

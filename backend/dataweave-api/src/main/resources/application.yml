@@ -16,6 +16,32 @@ spring:
 server:
   port: 8080
 
+# Agent 大脑模式与策略闸门（agent-fabric-m1）
+agent:
+  mode: mock                       # mock（默认零依赖）| workhorse（接 LLM 大脑）
+  workhorse:
+    base-url: http://127.0.0.1:8787
+
+policy:
+  environment: dev                 # dev | prod（prod 抬升 L1→L2）
+  batch-threshold: 50              # 批量 > N 抬升 L1→L2
+  approval-ttl-minutes: 30         # 审批单超时分钟
+
+mcp:
+  auth:
+    token: dataweave-local-mcp-token   # 部署须覆盖；workhorse mcp.json 用同一 token
+  output-threshold: 8000           # 工具输出超此字节截断 + 存档
+
+cli:
+  auth:
+    token: dataweave-local-cli-token   # dw CLI 写类操作 token（X-DW-Token）；部署须覆盖
+
+worker:
+  exec:
+    whitelist: df,tail,grep,cat,free,jstat,dw
+    timeout-seconds: 60
+    max-output-bytes: 65536
+
 logging:
   level:
     com.dataweave: INFO

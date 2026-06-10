@@ -17,16 +17,18 @@ frontend/                          # Next.js 16 (App Router) + React 19 + shadcn
   app/globals.css                  # 实际生效的 oklch 主题变量（preset 生成）
 
 backend/                           # Spring Boot 4.0 + Java 25，Maven 多模块（包根 com.dataweave）
-  dataweave-api/                   # 启动入口；WebFlux；AG-UI /agui 端点；Agent 编排；CORS/WebClient 配置
-  dataweave-master/                # 调度中心 + 工作流 + 指标/任务/血缘领域（Spring Data JDBC）
-  dataweave-worker/                # 任务执行器（TaskExecutor / ShellTaskExecutor 骨架）
+  dataweave-api/                   # 启动入口；WebFlux；AG-UI /agui + MCP /mcp 端点；桥接层；CORS/WebClient 配置
+  dataweave-master/                # 调度中心 + 工作流 + 指标/任务/血缘领域 + PolicyEngine/审计四表（Spring Data JDBC）
+  dataweave-worker/                # 任务执行器 + 受控命令执行（ControlledCommandExecutor）
   dataweave-alert/                 # 告警规则 + 通知通道（骨架）
   # 每模块内 DDD 四层：interfaces / application / domain / infrastructure
 
+cli/                               # dw Go 单二进制（薄壳调 master REST，独立构建，二进制不入 git）
+deploy/workhorse/                  # workhorse-agent 部署配置（config.yaml + mcp.json，provisional）
 docs/architecture.md               # 架构真相源
 openspec/                          # OpenSpec SDD：changes / specs / archive
   changes/<name>/                  # 一个变更一个目录（proposal + design + specs + tasks）
-docker-compose.yml                 # 生产态 PostgreSQL + Redis（开发态用内置 H2，可不启）
+docker-compose.yml                 # 生产态 PostgreSQL + Redis（+ workhorse profile，开发态用内置 H2）
 ```
 
 ## Tech Stack
@@ -38,7 +40,9 @@ docker-compose.yml                 # 生产态 PostgreSQL + Redis（开发态用
 | 后端     | Java 25, Spring Boot 4.0 / Spring Framework 7（**Jackson 3**）, WebFlux（AG-UI SSE）, Maven 多模块 |
 | 数据访问 | Spring Data JDBC + JdbcTemplate                                              |
 | 存储     | PostgreSQL（生产）/ **H2**（开发零依赖，DDL 兼容）· Redis（缓存/队列占位）       |
-| Agent    | MVP 规则 mock（`IntentRouter` + `MockLlmClient`），预留 `LlmClient` 接口      |
+| Agent    | 双模式 `agent.mode=mock\|workhorse`（默认 mock=`IntentRouter`；workhorse=真 LLM 大脑经桥接层）|
+| 工具/权限 | DataWeave MCP Server（`/mcp`，Bearer）暴露平台工具；写操作全经 `PolicyEngine` L0–L4 闸门 + 审计四表 |
+| CLI      | `dw`（Go 单二进制，`cli/`）：`task list/show/instances/rerun`、`logs cat`，调 master REST |
 | 设计系统 | `@google/design.md`（token 真相源 + lint/export）                            |
 | 规范     | OpenSpec（spec-driven，`/opsx:*`）                                            |
 
@@ -62,10 +66,26 @@ cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profile
 
 当前运行入口：前端 `http://localhost:3000`，后端 `http://localhost:8080`，前端经 `NEXT_PUBLIC_AGENT_URL`（默认 `http://localhost:8080/agui`）连后端。
 
+### Agent 大脑模式（agent-fabric-m1）
+
+- **`agent.mode=mock`（默认，零依赖）**：`IntentRouter` 规则路由，CI/克隆即跑。
+- **`agent.mode=workhorse`**：接 workhorse-agent 真 LLM 大脑。`AguiController` 经桥接层转发 workhorse 会话 SSE → AG-UI 事件。
+  ```bash
+  # 1) 起 workhorse（部署配置在 deploy/workhorse/，需 ANTHROPIC_API_KEY/OPENAI_API_KEY）
+  docker compose --profile workhorse up -d workhorse
+  # 2) 后端切 workhorse 模式
+  ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.arguments=--agent.mode=workhorse
+  ```
+- **MCP 端点**：`POST /mcp`（JSON-RPC：initialize/tools/list/tools/call，Bearer `mcp.auth.token`）。workhorse 经 `deploy/workhorse/mcp.json` 接入；token 两侧须一致。
+- **dw CLI**：`cd cli && ./build.sh`；`DW_API`（默认 `:8080`）、`DW_TOKEN`（写类操作 `X-DW-Token`，对应 `cli.auth.token`）。
+- **审计回放**：每次运行落 `agent_session/agent_run/agent_step/agent_action`，两模式同样留痕。
+
 ## Key Conventions
 
 - **依赖方向**：domain ← application ← infrastructure ← interfaces（外层依赖内层，绝不反向）。
-- **新增 Agent 能力**：在 `dataweave-api` 的 `IntentRouter` 加意图分支 → 调 master 的领域服务 → `AguiOrchestrator` 转成 AG-UI 事件。真模型替换只改 `LlmClient` 实现，不动编排骨架。
+- **新增 Agent 能力**：mock 模式在 `IntentRouter` 加意图分支；真大脑模式在 `McpToolRegistry` 注册平台工具（查询直通 master 领域服务，写操作经 `GatedActionService` 闸门）。两模式经同一 `AguiEvents` 出口产同构 AG-UI 事件。
+- **副作用操作必经闸门**：任何写工具（含 `node_exec`、CLI `rerun`、`applyFix`）构造 `ActionRequest` → `GatedActionService.submit` → `PolicyEngine` 裁决（L0/L1 直执行，L2/L3 建审批单返回 `PENDING_APPROVAL`，L4 拒绝）+ `agent_action` 留痕，**无绕过路径**。分级规则数据驱动（`policy_rules` 表）。
+- **MCP 工具新增**：在 `McpToolRegistry.registerTools()` 注册（name + JSON Schema + handler）；查询工具复用领域服务，写工具经闸门。`node_exec` 命令串安全解析在 `PolicyEngine`（重定向/分隔/子命令 → 抬升 L2）。
 - **AG-UI 事件序列**（`/agui`，`text/event-stream`，`type` 为 SCREAMING_SNAKE_CASE）：`RUN_STARTED → TEXT_MESSAGE_START → N×TEXT_MESSAGE_CONTENT(markdown) → TEXT_MESSAGE_END → [CUSTOM(name="dataweave.result")] → RUN_FINISHED`。文本走 Markdown（CopilotChat 原生渲染）；结构化结果走 `CUSTOM` 事件。
 - **指标口径不可篡改**：改口径 → `metrics` 新增递增 `version`，不 UPDATE 旧版本。
 - **Spring Boot 4 注意**：① Jackson 3 —— `ObjectMapper` 在 `tools.jackson.databind.*`，注解仍在 `com.fasterxml.jackson.annotation.*`；② 无 `WebClient.Builder` 自动配置，须自建 `@Bean`（见 `WebClientConfig`）；③ 部分 test/auto-config 注解迁了包，import 报错按实际包名调整。

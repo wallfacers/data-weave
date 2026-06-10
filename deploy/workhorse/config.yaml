@@ -1,0 +1,46 @@
+# workhorse-agent 部署配置 —— DataWeave 侧交付物（agent-fabric-m1）。
+# schema 对齐 workhorse 仓库 internal/config（support-dataweave-headless-integration 已落地）。
+# 落实 design D2「双闸门」与运行形态约束。api_key 为占位，部署时替换（勿提交真实 key）。
+
+server:
+  host: 127.0.0.1            # 仅本机绑定；dataweave-api 为唯一客户端（design 运行形态）
+  port: 8787
+  default_workdir: /var/lib/workhorse/agent-workdir
+
+# 大脑 LLM 提供方（anthropic / openai 双协议；无 ${ENV} 展开，key 须字面量，部署时覆盖）。
+providers:
+  default: anthropic
+  anthropic:
+    api_key: REPLACE_WITH_ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
+    fast_model: claude-opus-4-8
+
+models:
+  default: "anthropic:claude-opus-4-8"
+  fast: "anthropic:claude-opus-4-8"
+
+agent:
+  max_tokens: 8192
+  thinking:
+    enabled: true
+    budget_tokens: 4096
+
+# 双闸门（design D2）：workhorse 粗闸对所有 dataweave__* 工具 allow_permanent，
+# 细闸（L0–L4 分级 + 资源归属/环境判定 + 审批单）全部由 DataWeave PolicyEngine 在工具执行入口完成。
+# 避免同一动作被问两次（审批疲劳）；归属判定只有平台能做。
+# default_allowed_tools 移除内置副作用工具（bash/write/edit），宿主侧仅保留只读内置工具。
+tools:
+  default_permission: ""
+  default_allowed_tools:
+    - Read
+    - Grep
+    - ToolSearch
+    - "dataweave__*"
+  preset_rules:
+    - tool: "dataweave__*"
+      pattern: "**"
+      decision: allow_permanent
+
+# 平台工具经 MCP 接入（见同目录 mcp.json）。
+mcp:
+  config_path: /etc/workhorse/mcp.json

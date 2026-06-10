@@ -8,7 +8,7 @@ import {
   Cancel01Icon,
 } from "@hugeicons/core-free-icons"
 
-import { AgentChat } from "@/components/agent-chat"
+import { AgentChat, type AgentPageContext } from "@/components/agent-chat"
 import { Button } from "@/components/ui/button"
 
 /** 悬浮球初始位置：视口右侧距边 24px、垂直居中偏下 */
@@ -56,6 +56,8 @@ export function AgentRail() {
     dragging: boolean
   } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  /** 跨 pointerup→click 保留：拖拽过就阻止后续 click 打开面板 */
+  const didDragRef = useRef(false)
 
   /** 首次渲染：把按钮放到视口右侧垂直居中偏下 */
   const resolvePos = useCallback((p: { x: number; y: number }) => {
@@ -69,6 +71,7 @@ export function AgentRail() {
     (e: React.PointerEvent) => {
       e.currentTarget.setPointerCapture(e.pointerId)
       const cur = pos.x >= 0 ? pos : resolvePos(pos)
+      didDragRef.current = false
       dragRef.current = {
         startX: e.clientX,
         startY: e.clientY,
@@ -87,6 +90,7 @@ export function AgentRail() {
     const dy = e.clientY - d.startY
     if (!d.dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
     d.dragging = true
+    didDragRef.current = true
     const vw = typeof window !== "undefined" ? window.innerWidth : 1200
     const vh = typeof window !== "undefined" ? window.innerHeight : 800
     const size = 40 // 按钮尺寸
@@ -103,12 +107,21 @@ export function AgentRail() {
 
   /** 仅在"没拖过"时响应 click，避免松手时误触打开面板 */
   const handleClick = useCallback(() => {
-    if (dragRef.current?.dragging) return
+    if (didDragRef.current) return
     setOpen(true)
   }, [])
 
   const moduleName = MODULE_LABELS[pathname] ?? ""
   const contextObject = useContextObject(searchParams)
+
+  // 逐消息页面上下文：随导航/选中对象变化，经 AgentChat → forwardedProps 送达后端（缺口①）。
+  const pageContext: AgentPageContext = {
+    module: pathname,
+    pathname,
+    taskId: searchParams.get("taskId") ?? undefined,
+    instanceId: searchParams.get("instanceId") ?? undefined,
+    nodeId: searchParams.get("nodeId") ?? undefined,
+  }
 
   // 收起态：可拖拽悬浮球（fixed 定位）
   if (!open) {
@@ -159,7 +172,7 @@ export function AgentRail() {
 
         {/* Agent 对话区 */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <AgentChat />
+          <AgentChat context={pageContext} />
         </div>
       </div>
     </div>

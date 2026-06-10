@@ -1,0 +1,169 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - generic [ref=e12]:
+          - generic [ref=e13]: DataWeave
+          - generic [ref=e14]: AI 数据中台
+      - generic [ref=e15]:
+        - list [ref=e18]:
+          - listitem [ref=e19]:
+            - link "驾驶舱" [ref=e20] [cursor=pointer]:
+              - /url: /
+              - img [ref=e21]
+              - generic [ref=e26]: 驾驶舱
+        - generic [ref=e27]:
+          - generic [ref=e28]: 数据研发
+          - list [ref=e30]:
+            - listitem [ref=e31]:
+              - link "任务开发" [ref=e32] [cursor=pointer]:
+                - /url: /tasks
+                - img [ref=e33]
+                - generic [ref=e39]: 任务开发
+            - listitem [ref=e40]:
+              - link "调度运维" [ref=e41] [cursor=pointer]:
+                - /url: /ops
+                - img [ref=e42]
+                - generic [ref=e46]: 调度运维
+            - listitem [ref=e47]:
+              - link "数据集成" [ref=e48] [cursor=pointer]:
+                - /url: /integration
+                - img [ref=e49]
+                - generic [ref=e54]: 数据集成
+        - generic [ref=e55]:
+          - generic [ref=e56]: 数据资产
+          - list [ref=e58]:
+            - listitem [ref=e59]:
+              - link "指标体系" [ref=e60] [cursor=pointer]:
+                - /url: /metrics
+                - img [ref=e61]
+                - generic [ref=e63]: 指标体系
+            - listitem [ref=e64]:
+              - link "数据血缘" [ref=e65] [cursor=pointer]:
+                - /url: /lineage
+                - img [ref=e66]
+                - generic [ref=e71]: 数据血缘
+            - listitem [ref=e72]:
+              - link "资产目录" [ref=e73] [cursor=pointer]:
+                - /url: /catalog
+                - img [ref=e74]
+                - generic [ref=e79]: 资产目录
+        - generic [ref=e80]:
+          - generic [ref=e81]: 资源与诊断
+          - list [ref=e83]:
+            - listitem [ref=e84]:
+              - link "集群机器" [ref=e85] [cursor=pointer]:
+                - /url: /fleet
+                - img [ref=e86]
+                - generic [ref=e93]: 集群机器
+            - listitem [ref=e94]:
+              - link "失败诊断" [ref=e95] [cursor=pointer]:
+                - /url: /diagnosis
+                - img [ref=e96]
+                - generic [ref=e102]: 失败诊断
+            - listitem [ref=e103]:
+              - link "数据质量" [ref=e104] [cursor=pointer]:
+                - /url: /quality
+                - img [ref=e105]
+                - generic [ref=e107]: 数据质量
+            - listitem [ref=e108]:
+              - link "数据服务" [ref=e109] [cursor=pointer]:
+                - /url: /service
+                - img [ref=e110]
+                - generic [ref=e112]: 数据服务
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - img [ref=e117]
+          - generic [ref=e120]: DataWeave
+        - button "项目设置" [ref=e121]:
+          - img
+    - generic [ref=e122]:
+      - main [ref=e123]:
+        - generic [ref=e124]:
+          - button "Toggle Sidebar" [ref=e125]:
+            - img
+            - generic [ref=e126]: Toggle Sidebar
+          - generic [ref=e127]: DataWeave · 用 Agent 编织数据
+        - generic [ref=e129]:
+          - generic [ref=e130]:
+            - generic [ref=e131]:
+              - heading "驾驶舱" [level=1] [ref=e132]
+              - paragraph [ref=e133]: 调度运行全局态势一览
+            - button "集群机器" [ref=e134] [cursor=pointer]:
+              - img
+              - text: 集群机器
+          - generic [ref=e135]:
+            - generic [ref=e137]:
+              - img [ref=e139]
+              - generic [ref=e142]:
+                - generic [ref=e143]: "10"
+                - generic [ref=e144]: 总运行实例
+            - generic [ref=e146]:
+              - img [ref=e148]
+              - generic [ref=e151]:
+                - generic [ref=e152]: "4"
+                - generic [ref=e153]: 成功
+            - generic [ref=e155]:
+              - img [ref=e157]
+              - generic [ref=e159]:
+                - generic [ref=e160]: "1"
+                - generic [ref=e161]: 失败
+            - generic [ref=e163]:
+              - img [ref=e165]
+              - generic [ref=e170]:
+                - generic [ref=e171]: "1"
+                - generic [ref=e172]: 运行中
+          - generic [ref=e173]:
+            - generic [ref=e176]:
+              - img [ref=e177]
+              - text: 失败任务
+              - generic [ref=e179]: "1"
+            - table [ref=e182]:
+              - rowgroup [ref=e183]:
+                - 'row "实例 # 任务 # 节点 状态 结束时间 日志摘要" [ref=e184]':
+                  - 'columnheader "实例 #" [ref=e185]'
+                  - 'columnheader "任务 #" [ref=e186]'
+                  - columnheader "节点" [ref=e187]
+                  - columnheader "状态" [ref=e188]
+                  - columnheader "结束时间" [ref=e189]
+                  - columnheader "日志摘要" [ref=e190]
+              - rowgroup [ref=e191]:
+                - 'row "#1 #2 node-3 FAILED 06/10 02:07:51 java.lang.OutOfMemoryError: Java heap space at exe…" [ref=e192]':
+                  - cell "#1" [ref=e193]:
+                    - link "#1" [ref=e194] [cursor=pointer]:
+                      - /url: /diagnosis?instanceId=1
+                  - cell "#2" [ref=e195]
+                  - cell "node-3" [ref=e196]
+                  - cell "FAILED" [ref=e197]:
+                    - generic [ref=e198]: FAILED
+                  - cell "06/10 02:07:51" [ref=e199]
+                  - 'cell "java.lang.OutOfMemoryError: Java heap space at exe…" [ref=e200]'
+          - generic [ref=e201]:
+            - generic [ref=e204]:
+              - img [ref=e205]
+              - text: Agent 诊断中
+              - generic [ref=e211]: "0"
+            - paragraph [ref=e213]: 暂无诊断事项
+      - generic [ref=e215]:
+        - generic [ref=e216]:
+          - generic [ref=e217]: Agent
+          - generic [ref=e218]: 当前：驾驶舱
+          - button "收起 Agent 对话" [ref=e219]:
+            - img
+        - generic [ref=e225]:
+          - heading "How can I help you today?" [level=1] [ref=e227]
+          - generic [ref=e229]:
+            - generic:
+              - generic [ref=e232]:
+                - generic [ref=e233]:
+                  - button [disabled]:
+                    - img
+                - textbox "Type a message..." [active] [ref=e235]
+                - generic [ref=e237]:
+                  - button [disabled]:
+                    - img
+              - generic: AI can make mistakes. Please verify important information.
+  - button "Open Next.js Dev Tools" [ref=e243] [cursor=pointer]:
+    - img [ref=e244]
+  - alert [ref=e247]

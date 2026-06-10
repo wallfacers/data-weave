@@ -215,3 +215,19 @@ html.dark [data-copilotkit] [data-streamdown="code-block-body"] .shiki,
 html.dark [data-copilotkit] [data-streamdown="code-block-body"] pre {
   background-color: var(--shiki-dark-bg, var(--muted)) !important;
 }
+
+/* CopilotChat 容器（[data-copilotkit] 即 .copilotKitChat）自带纯白底（cpk 工具类
+   烤死的 #fff，不走 --background token），与右舷面板的 bg-sidebar、标题条「Agent
+   当前：…」割裂。改为透明 → 继承 agent-rail 卡片的 bg-sidebar，对话区与标题条同底色。 */
+html [data-copilotkit].copilotKitChat {
+  background: transparent !important;
+}
+
+/* AI 输入框（.copilotKitInput）原为纯白 pill（cpk:bg-white）+ 重阴影，与暖调面板不配套。
+   改为略深于面板的暖底（muted），不加硬边框（避免与面板卡片边框重合），靠底色差与轻阴影
+   界定输入区；留左右内缩使其不贴面板边。空状态由 cpk 默认上下左右居中（不覆盖 justify）。 */
+html [data-copilotkit] .copilotKitInput {
+  background: var(--muted) !important;
+  border: none !important;
+  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.06) !important;
+}
