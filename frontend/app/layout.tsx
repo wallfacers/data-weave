@@ -1,9 +1,11 @@
-import { Geist, Geist_Mono, Raleway, Figtree, Space_Grotesk, Inter } from "next/font/google"
+import { Geist, Geist_Mono, Raleway, Figtree, Space_Grotesk, Inter, Merriweather } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppShell } from "@/components/app-shell"
 import { cn } from "@/lib/utils";
+
+const merriweather = Merriweather({subsets:['latin'],variable:'--font-serif'});
 
 const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
 
@@ -28,7 +30,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable, interHeading.variable)}
+      className={cn("antialiased", fontMono.variable, inter.variable, interHeading.variable, "font-serif", merriweather.variable)}
     >
       <body>
         <ThemeProvider>

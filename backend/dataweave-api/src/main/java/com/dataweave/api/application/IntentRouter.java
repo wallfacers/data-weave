@@ -251,7 +251,7 @@ public class IntentRouter {
         String md = "我是 DataWeave Agent（当前为 MVP 规则 mock 引擎）。我现在支持以下问法：\n\n"
                 + "- **指标查询**：如「GMV 是多少」——返回指标值与口径溯源。\n"
                 + "- **Text-to-SQL**：如「orders 表有多少条」「查一下 orders」——生成只读 SQL 并返回表格。\n"
-                + "- **建任务**：如「创建一个任务，每天 8 点执行 \\`select count(*) from orders\\`」——建任务并上线。\n"
+                + "- **建任务**：如「创建一个任务，每天 8 点执行 `select count(*) from orders`」——建任务并上线。\n"
                 + "- **血缘问答**：如「GMV 受哪些表影响」——返回「指标 → SQL → 物理表」链路。\n\n"
                 + "请换一种上述问法再试。";
         return AgentReply.text(md);
