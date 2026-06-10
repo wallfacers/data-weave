@@ -2,11 +2,8 @@
 
 import { useState } from "react"
 import dynamic from "next/dynamic"
-import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Database01Icon, AiChat01Icon } from "@hugeicons/core-free-icons"
-
-import { Button } from "@/components/ui/button"
 
 // Monaco 仅浏览器可用，dynamic + ssr:false 规避 SSR 求值
 const CodeEditor = dynamic(
@@ -55,15 +52,10 @@ export function SqlWorkbench() {
         <span className="ml-1 rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
           dwd.user_event
         </span>
-        <Button
-          className="ml-auto"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/agent" />}
-        >
-          <HugeiconsIcon icon={AiChat01Icon} data-icon="inline-start" />
-          交给 Agent 执行
-        </Button>
+        <span className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <HugeiconsIcon icon={AiChat01Icon} className="size-4" />
+          在右侧 Agent 面板中执行
+        </span>
       </div>
       <div className="min-h-0 flex-1">
         <CodeEditor value={sql} onChange={setSql} language="sql" />

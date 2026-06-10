@@ -1,49 +1,100 @@
 package com.dataweave.master.application;
 
-import com.dataweave.master.domain.Task;
+import com.dataweave.master.domain.TaskDef;
+import com.dataweave.master.domain.TaskDefRepository;
+import com.dataweave.master.domain.TaskDefVersion;
+import com.dataweave.master.domain.TaskDefVersionRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
-import com.dataweave.master.domain.TaskRepository;
+import com.dataweave.master.domain.WorkerNode;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
 /**
- * 任务服务：从解析出的定义建任务、上线（DRAFT -> ONLINE），并 mock 推进一条实例至 SUCCESS。
+ * 任务服务：创建任务定义并直接上线，同时建版本快照与 mock 成功运行实例。
  */
 @Service
 public class TaskService {
 
-    private final TaskRepository taskRepository;
+    private final TaskDefRepository taskDefRepository;
+    private final TaskDefVersionRepository taskDefVersionRepository;
     private final TaskInstanceRepository taskInstanceRepository;
+    private final FleetService fleetService;
 
-    public TaskService(TaskRepository taskRepository, TaskInstanceRepository taskInstanceRepository) {
-        this.taskRepository = taskRepository;
+    public TaskService(TaskDefRepository taskDefRepository,
+                       TaskDefVersionRepository taskDefVersionRepository,
+                       TaskInstanceRepository taskInstanceRepository,
+                       FleetService fleetService) {
+        this.taskDefRepository = taskDefRepository;
+        this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
+        this.fleetService = fleetService;
     }
 
     /**
-     * 创建任务并直接上线（status=ONLINE），同时 mock 推进一条 task_instance 至 SUCCESS。
+     * 创建任务定义（status=ONLINE）、版本快照 v1，并 mock 推进一条 SUCCESS 实例。
+     * cron 属于工作流级，TaskDef 不存 cron，此处仅透传回给上层展示。
      */
-    public Task createAndOnline(String name, String type, String content, String cron) {
-        Task task = new Task();
+    public record TaskCreation(TaskDef task, String cron, Long instanceId) {
+    }
+
+    public TaskCreation createAndOnline(String name, String type, String content, String cron) {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. 建 TaskDef
+        TaskDef task = new TaskDef();
+        task.setTenantId(1L);   // MVP 默认租户/项目
+        task.setProjectId(1L);  // MVP 默认租户/项目
         task.setName(name);
         task.setType(type);
         task.setContent(content);
-        task.setCron(cron);
         task.setStatus("ONLINE");
-        task.setCreatedAt(LocalDateTime.now());
-        Task saved = taskRepository.save(task);
+        task.setCurrentVersionNo(1);
+        task.setHasDraftChange(0);
+        task.setRetryMax(0);
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        task.setDeleted(0);
+        task.setVersion(0L);
+        TaskDef saved = taskDefRepository.save(task);
 
-        // mock 调度推进：直接产生一条已成功的运行实例
+        // 2. 建 TaskDefVersion 快照 v1
+        TaskDefVersion ver = new TaskDefVersion();
+        ver.setTenantId(1L);    // MVP 默认租户/项目
+        ver.setProjectId(1L);   // MVP 默认租户/项目
+        ver.setTaskId(saved.getId());
+        ver.setVersionNo(1);
+        ver.setName(name);
+        ver.setType(type);
+        ver.setContent(content);
+        ver.setRemark("初始发布");
+        ver.setPublishedAt(now);
+        ver.setCreatedAt(now);
+        taskDefVersionRepository.save(ver);
+
+        // 3. mock 一条成功 TaskInstance
+        String nodeCode = fleetService.pickLeastLoadedOnline()
+                .map(WorkerNode::getNodeCode).orElse(null);
         TaskInstance instance = new TaskInstance();
+        instance.setTenantId(1L);   // MVP 默认租户/项目
+        instance.setProjectId(1L);  // MVP 默认租户/项目
         instance.setTaskId(saved.getId());
+        instance.setTaskVersionNo(1);
+        instance.setRunMode("NORMAL");
         instance.setState("SUCCESS");
-        instance.setStartedAt(LocalDateTime.now());
-        instance.setFinishedAt(LocalDateTime.now());
-        instance.setLog("[mock] 任务执行成功（MVP 阶段调度执行为 mock 推进）");
-        taskInstanceRepository.save(instance);
+        instance.setAttempt(1);
+        instance.setWorkerNodeCode(nodeCode);
+        instance.setStartedAt(now);
+        instance.setFinishedAt(now);
+        instance.setLog("[mock] 任务执行成功" + (nodeCode != null ? "，落在 " + nodeCode : ""));
+        instance.setCreatedAt(now);
+        instance.setUpdatedAt(now);
+        instance.setDeleted(0);
+        instance.setVersion(0L);
+        TaskInstance savedInstance = taskInstanceRepository.save(instance);
 
-        return saved;
+        // 4. 返回（cron 仅透传回上层展示，不存 TaskDef）
+        return new TaskCreation(saved, cron, savedInstance.getId());
     }
 }

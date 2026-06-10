@@ -1,16 +1,22 @@
 package com.dataweave.api.application;
 
+import com.dataweave.master.application.DiagnosisService;
+import com.dataweave.master.application.FleetService;
 import com.dataweave.master.application.LineageService;
 import com.dataweave.master.application.MetricService;
 import com.dataweave.master.application.QueryResult;
 import com.dataweave.master.application.SqlExecutionService;
 import com.dataweave.master.application.TaskService;
-import com.dataweave.master.domain.Metric;
+import com.dataweave.master.domain.AtomicMetric;
 import com.dataweave.master.domain.MetricLineage;
-import com.dataweave.master.domain.Task;
+import com.dataweave.master.domain.TaskDef;
+import com.dataweave.master.domain.TaskDiagnosis;
+import com.dataweave.master.domain.WorkerNode;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,23 +42,42 @@ public class IntentRouter {
     private final SqlExecutionService sqlExecutionService;
     @SuppressWarnings("unused")
     private final LlmClient llmClient; // 预留：后期做真实意图识别/SQL 生成
+    private final FleetService fleetService;
+    private final DiagnosisService diagnosisService;
+    private final ObjectMapper objectMapper;
 
     public IntentRouter(MetricService metricService,
                         LineageService lineageService,
                         TaskService taskService,
                         SqlExecutionService sqlExecutionService,
-                        LlmClient llmClient) {
+                        LlmClient llmClient,
+                        FleetService fleetService,
+                        DiagnosisService diagnosisService,
+                        ObjectMapper objectMapper) {
         this.metricService = metricService;
         this.lineageService = lineageService;
         this.taskService = taskService;
         this.sqlExecutionService = sqlExecutionService;
         this.llmClient = llmClient;
+        this.fleetService = fleetService;
+        this.diagnosisService = diagnosisService;
+        this.objectMapper = objectMapper;
     }
 
     public AgentReply route(String message) {
         String msg = message == null ? "" : message.trim();
         if (msg.isEmpty()) {
             return fallback();
+        }
+
+        // 0a) 诊断意图（优先于血缘，避免"失败"等关键词被吞）
+        if (containsAny(msg, "诊断", "为什么失败", "失败原因", "为啥失败", "排查", "跑挂", "报错原因")) {
+            return tryDiagnosis();
+        }
+
+        // 0b) 查机器/集群意图
+        if (containsAny(msg, "机器", "集群", "节点", "worker", "机器状态", "资源水位", "机器列表", "几台")) {
+            return tryFleet();
         }
 
         // 1) 血缘意图（优先于纯指标查询，因为也含指标名）
@@ -85,27 +110,114 @@ public class IntentRouter {
         return fallback();
     }
 
+    // ---- 诊断意图 ----
+    private AgentReply tryDiagnosis() {
+        Optional<TaskDiagnosis> opt = diagnosisService.diagnoseLatestFailure();
+        if (opt.isEmpty()) {
+            return AgentReply.text("当前没有失败的任务实例可诊断。");
+        }
+        TaskDiagnosis d = opt.get();
+
+        // 解析 suggestionsJson
+        List<Map<String, Object>> suggestions = Collections.emptyList();
+        if (d.getSuggestionsJson() != null && !d.getSuggestionsJson().isBlank()) {
+            try {
+                suggestions = objectMapper.readValue(d.getSuggestionsJson(),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class,
+                                objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)));
+            } catch (Exception ignored) {
+                suggestions = Collections.emptyList();
+            }
+        }
+
+        // 拼 Markdown
+        StringBuilder md = new StringBuilder();
+        md.append("## 根因\n\n").append(d.getRootCause() != null ? d.getRootCause() : "(未知)").append("\n\n");
+        md.append("### 修复建议\n\n");
+        if (suggestions.isEmpty()) {
+            md.append("（暂无建议）\n");
+        } else {
+            for (Map<String, Object> s : suggestions) {
+                Object label = s.get("label");
+                md.append("- ").append(label != null ? label.toString() : s.toString()).append("\n");
+            }
+        }
+
+        // 结构化结果
+        Map<String, Object> structured = new LinkedHashMap<>();
+        structured.put("kind", "diagnosis");
+        structured.put("id", d.getId());
+        structured.put("title", d.getTitle());
+        structured.put("rootCause", d.getRootCause());
+        structured.put("workerNodeCode", d.getWorkerNodeCode());
+        structured.put("context", d.getContextJson());
+        structured.put("suggestions", suggestions);
+        return new AgentReply(md.toString(), structured, "dataweave.diagnosis");
+    }
+
+    // ---- 查机器/集群意图 ----
+    private AgentReply tryFleet() {
+        List<WorkerNode> nodes = fleetService.nodes();
+        List<String> columns = List.of("nodeCode", "status", "cpu", "mem", "disk", "loadAvg", "runningTasks");
+
+        // Markdown 表格
+        StringBuilder md = new StringBuilder();
+        md.append("| 节点 | 状态 | CPU% | 内存% | 磁盘% | load | 运行任务 |\n");
+        md.append("| --- | --- | --- | --- | --- | --- | --- |\n");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (WorkerNode n : nodes) {
+            md.append("| ").append(fmt(n.getNodeCode()))
+                    .append(" | ").append(fmt(n.getStatus()))
+                    .append(" | ").append(fmtPct(n.getCpu()))
+                    .append(" | ").append(fmtPct(n.getMem()))
+                    .append(" | ").append(fmtPct(n.getDisk()))
+                    .append(" | ").append(fmt(n.getLoadAvg()))
+                    .append(" | ").append(fmt(n.getRunningTasks()))
+                    .append(" |\n");
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("nodeCode", n.getNodeCode());
+            row.put("status", n.getStatus());
+            row.put("cpu", n.getCpu());
+            row.put("mem", n.getMem());
+            row.put("disk", n.getDisk());
+            row.put("loadAvg", n.getLoadAvg());
+            row.put("runningTasks", n.getRunningTasks());
+            rows.add(row);
+        }
+
+        Map<String, Object> structured = new LinkedHashMap<>();
+        structured.put("kind", "fleet");
+        structured.put("columns", columns);
+        structured.put("rows", rows);
+        return new AgentReply(md.toString(), structured, "dataweave.fleet");
+    }
+
+    private String fmtPct(Double value) {
+        return value == null ? "-" : String.format("%.1f", value);
+    }
+
     // ---- 指标查询 ----
     private AgentReply tryMetricQuery(String msg) {
         // 已注册指标识别：MVP 直接尝试已知指标名 GMV
         for (String name : List.of("GMV")) {
             if (msg.toUpperCase().contains(name)) {
-                Optional<Metric> m = metricService.findLatestByName(name);
+                Optional<AtomicMetric> m = metricService.findLatestByCode(name);
                 if (m.isPresent()) {
-                    Metric metric = m.get();
+                    AtomicMetric metric = m.get();
                     Object value = metricService.evaluate(metric);
                     String md = "指标 **" + metric.getName() + "** 的当前值为 **" + fmt(value) + "**。\n\n"
                             + "口径溯源：\n"
-                            + "- 口径 SQL：`" + metric.getExprSql() + "`\n"
+                            + "- 口径 SQL：`" + metric.getMeasureExpr() + "`\n"
                             + "- 来源表：`" + metric.getSourceTable() + "`\n"
-                            + "- 版本：v" + metric.getVersion();
+                            + "- 版本：v" + metric.getVersionNo();
                     Map<String, Object> structured = new LinkedHashMap<>();
                     structured.put("kind", "metric");
                     structured.put("name", metric.getName());
                     structured.put("value", value);
-                    structured.put("exprSql", metric.getExprSql());
+                    structured.put("exprSql", metric.getMeasureExpr());
                     structured.put("sourceTable", metric.getSourceTable());
-                    structured.put("version", metric.getVersion());
+                    structured.put("version", metric.getVersionNo());
                     return new AgentReply(md, structured);
                 }
             }
@@ -181,12 +293,13 @@ public class IntentRouter {
             name = "GMV 统计任务";
         }
 
-        Task task = taskService.createAndOnline(name, "SQL", content, cron);
+        var creation = taskService.createAndOnline(name, "SQL", content, cron);
+        TaskDef task = creation.task();
 
         String md = "已创建并上线任务：\n"
                 + "- 任务名：**" + task.getName() + "**\n"
                 + "- 类型：`" + task.getType() + "`\n"
-                + "- 调度（cron）：`" + task.getCron() + "`（每天 " + hour + ":00）\n"
+                + "- 调度（cron）：`" + creation.cron() + "`（每天 " + hour + ":00）\n"
                 + "- 执行内容：`" + task.getContent() + "`\n"
                 + "- 状态：**" + task.getStatus() + "**\n\n"
                 + "已 mock 推进一条运行实例至 SUCCESS。";
@@ -196,7 +309,7 @@ public class IntentRouter {
         structured.put("id", task.getId());
         structured.put("name", task.getName());
         structured.put("type", task.getType());
-        structured.put("cron", task.getCron());
+        structured.put("cron", creation.cron());
         structured.put("content", task.getContent());
         structured.put("status", task.getStatus());
         return new AgentReply(md, structured);
@@ -208,13 +321,13 @@ public class IntentRouter {
             if (msg.toUpperCase().contains(name)) {
                 Optional<LineageService.LineagePath> path = lineageService.lineageOf(name);
                 if (path.isPresent()) {
-                    Metric metric = path.get().metric();
+                    AtomicMetric metric = path.get().metric();
                     List<MetricLineage> edges = path.get().edges();
 
                     StringBuilder md = new StringBuilder();
                     md.append("指标 **").append(metric.getName()).append("** 的影响链路（指标 → SQL → 物理表）：\n\n");
                     md.append("`").append(metric.getName()).append("`")
-                            .append(" → `").append(metric.getExprSql()).append("`");
+                            .append(" → `").append(metric.getMeasureExpr()).append("`");
                     List<Map<String, Object>> rows = new ArrayList<>();
                     for (MetricLineage e : edges) {
                         md.append(" → `").append(e.getDownstreamId())
@@ -236,7 +349,7 @@ public class IntentRouter {
                     Map<String, Object> structured = new LinkedHashMap<>();
                     structured.put("kind", "lineage");
                     structured.put("metric", metric.getName());
-                    structured.put("exprSql", metric.getExprSql());
+                    structured.put("exprSql", metric.getMeasureExpr());
                     structured.put("columns", List.of("downstreamType", "downstreamId"));
                     structured.put("rows", rows);
                     return new AgentReply(md.toString(), structured);
@@ -249,6 +362,8 @@ public class IntentRouter {
     // ---- 兜底 ----
     private AgentReply fallback() {
         String md = "我是 DataWeave Agent（当前为 MVP 规则 mock 引擎）。我现在支持以下问法：\n\n"
+                + "- **诊断**：如「帮我诊断为什么失败」——分析最近失败实例并给出修复建议。\n"
+                + "- **查机器**：如「看看集群机器状态」——列出 worker 节点与资源水位。\n"
                 + "- **指标查询**：如「GMV 是多少」——返回指标值与口径溯源。\n"
                 + "- **Text-to-SQL**：如「orders 表有多少条」「查一下 orders」——生成只读 SQL 并返回表格。\n"
                 + "- **建任务**：如「创建一个任务，每天 8 点执行 `select count(*) from orders`」——建任务并上线。\n"

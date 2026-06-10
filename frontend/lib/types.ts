@@ -1,0 +1,142 @@
+/**
+ * 后端 REST API 类型定义（与 Java domain 对象字段一一对应，camelCase）。
+ *
+ * 端点：
+ *  - GET  /api/ops/summary     → DashboardSummary
+ *  - GET  /api/ops/failed      → TaskInstance[]
+ *  - GET  /api/fleet           → WorkerNode[]
+ *  - GET  /api/fleet/{nodeCode}→ WorkerNode
+ *  - GET  /api/diagnosis       → TaskDiagnosis[]
+ *  - GET  /api/diagnosis/{id}  → TaskDiagnosis
+ *  - POST /api/diagnosis/{id}/fix?action=... → FixResult
+ */
+
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+
+// ─── WorkerNode ──────────────────────────────────────────
+
+export interface WorkerNode {
+  id: number;
+  nodeCode: string;
+  host: string;
+  ip: string;
+  capacity: string; // e.g. "8C/16G"
+  cpu: number; // 0–100 percentage
+  mem: number;
+  disk: number;
+  loadAvg: number;
+  runningTasks: number;
+  status: "ONLINE" | "OFFLINE";
+  lastHeartbeat: string; // ISO datetime
+}
+
+// ─── TaskInstance ────────────────────────────────────────
+
+export type TaskState =
+  | "SUCCESS"
+  | "FAILED"
+  | "RUNNING"
+  | "WAITING"
+  | "NOT_RUN"
+  | "STOPPED";
+
+export interface TaskInstance {
+  id: number;
+  taskId: number;
+  workflowInstanceId: number | null;
+  runMode: string;
+  state: TaskState;
+  attempt: number;
+  workerNodeCode: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  log: string | null;
+}
+
+// ─── TaskDiagnosis ───────────────────────────────────────
+
+export interface DiagnosisSuggestion {
+  action: string;
+  label: string;
+}
+
+export interface TaskDiagnosis {
+  id: number;
+  taskInstanceId: number;
+  taskId: number;
+  workerNodeCode: string | null;
+  title: string;
+  rootCause: string;
+  /** JSON string → parse to Record<string, unknown> */
+  contextJson: string | null;
+  /** JSON string → parse to DiagnosisSuggestion[] */
+  suggestionsJson: string | null;
+  status: "OPEN" | "RESOLVED";
+}
+
+// ─── DashboardSummary ────────────────────────────────────
+
+export interface DashboardSummary {
+  total: number;
+  success: number;
+  failed: number;
+  running: number;
+  failedInstances: TaskInstance[];
+  diagnosing: TaskDiagnosis[];
+}
+
+// ─── FixResult ───────────────────────────────────────────
+
+export interface FixResult {
+  success: boolean;
+  message: string;
+  newInstanceId: number | null;
+}
+
+// ─── TaskDef ──────────────────────────────────────────────
+
+export interface TaskDef {
+  id: number
+  name: string
+  type: string // "SQL" etc.
+  content: string // SQL text
+  status: "ONLINE" | "OFFLINE"
+  currentVersionNo: number
+  createdAt: string
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+
+/** Safely parse a JSON string, returning null on failure. */
+export function safeJsonParse<T>(json: string | null | undefined): T | null {
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Format an ISO datetime string to a human-readable local time. */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return iso;
+  }
+}
+
+/** Truncate a string to maxLen, appending "…" if truncated. */
+export function truncate(s: string | null | undefined, maxLen = 60): string {
+  if (!s) return "—";
+  return s.length > maxLen ? s.slice(0, maxLen) + "…" : s;
+}

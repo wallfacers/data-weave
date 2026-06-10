@@ -1,20 +1,17 @@
 spring:
   application:
     name: dataweave-api
-  # 默认 profile：H2 内存库，零外部依赖
+  # 默认：Docker PostgreSQL（docker compose up -d postgres）。dev 期每次启动重建 schema/data。
   datasource:
-    url: jdbc:h2:mem:dataweave;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
+    url: jdbc:postgresql://localhost:5432/dataweave
+    driver-class-name: org.postgresql.Driver
+    username: dataweave
+    password: dataweave
   sql:
     init:
-      mode: always          # H2 下始终加载 schema.sql / data.sql
+      mode: always          # 启动加载 schema.sql / data.sql（脚本含 DROP IF EXISTS，幂等重建）
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
-  h2:
-    console:
-      enabled: true
 
 server:
   port: 8080
@@ -24,22 +21,21 @@ logging:
     com.dataweave: INFO
 
 ---
-# pg profile：PostgreSQL + Redis（不激活时不影响启动）
+# h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）
 spring:
   config:
     activate:
-      on-profile: pg
+      on-profile: h2
   datasource:
-    url: jdbc:postgresql://localhost:5432/dataweave
-    driver-class-name: org.postgresql.Driver
-    username: dataweave
-    password: dataweave
+    url: jdbc:h2:mem:dataweave;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
-  data:
-    redis:
-      host: localhost
-      port: 6379
+  h2:
+    console:
+      enabled: true

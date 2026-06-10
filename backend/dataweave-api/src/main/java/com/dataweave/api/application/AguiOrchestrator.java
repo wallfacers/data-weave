@@ -65,7 +65,8 @@ public class AguiOrchestrator {
 
         // 5. CUSTOM 结构化结果（若有）
         if (reply.structured() != null) {
-            events.add(sse(map("type", "CUSTOM", "name", "dataweave.result", "value", reply.structured())));
+            String eventName = reply.customEventName() != null ? reply.customEventName() : "dataweave.result";
+            events.add(sse(map("type", "CUSTOM", "name", eventName, "value", reply.structured())));
         }
 
         // 6. RUN_FINISHED

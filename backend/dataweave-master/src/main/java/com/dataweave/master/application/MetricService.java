@@ -1,34 +1,37 @@
 package com.dataweave.master.application;
 
-import com.dataweave.master.domain.Metric;
-import com.dataweave.master.domain.MetricRepository;
+import com.dataweave.master.domain.AtomicMetric;
+import com.dataweave.master.domain.AtomicMetricRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 /**
- * 指标服务：按名查指标、执行口径 SQL、返回数值 + 口径溯源。
+ * 指标服务：按 code 查最新版本指标、执行口径 SQL。
  */
 @Service
 public class MetricService {
 
-    private final MetricRepository metricRepository;
+    private final AtomicMetricRepository atomicMetricRepository;
     private final SqlExecutionService sqlExecutionService;
 
-    public MetricService(MetricRepository metricRepository, SqlExecutionService sqlExecutionService) {
-        this.metricRepository = metricRepository;
+    public MetricService(AtomicMetricRepository atomicMetricRepository,
+                         SqlExecutionService sqlExecutionService) {
+        this.atomicMetricRepository = atomicMetricRepository;
         this.sqlExecutionService = sqlExecutionService;
     }
 
-    public Optional<Metric> findLatestByName(String name) {
-        return metricRepository.findLatestByName(name);
+    /** 按 code 取最高版本的原子指标。 */
+    public Optional<AtomicMetric> findLatestByCode(String code) {
+        return atomicMetricRepository.findFirstByCodeOrderByVersionNoDesc(code);
     }
 
     /**
-     * 执行指标口径：在来源表上执行 select {exprSql} from {sourceTable}。
+     * 执行指标口径：select {measureExpr} from {sourceTable}。
+     * 先过只读校验，通过后执行并返回聚合值。
      */
-    public Object evaluate(Metric metric) {
-        String sql = "select " + metric.getExprSql() + " from " + metric.getSourceTable();
+    public Object evaluate(AtomicMetric metric) {
+        String sql = "select " + metric.getMeasureExpr() + " from " + metric.getSourceTable();
         String reject = sqlExecutionService.rejectReason(sql);
         if (reject != null) {
             throw new IllegalArgumentException("指标口径 SQL 未通过只读校验: " + reject);

@@ -1,8 +1,5 @@
-import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { AiChat01Icon } from "@hugeicons/core-free-icons"
-
-import { Button } from "@/components/ui/button"
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
 
 export function ComingSoon({
   title,
@@ -16,12 +13,12 @@ export function ComingSoon({
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       <p className="max-w-md text-muted-foreground">{description}</p>
       <p className="text-sm text-muted-foreground">
-        MVP 阶段，本模块的操作统一通过 Agent 对话完成。
+        MVP 阶段，本模块的操作统一通过右侧 Agent 对话完成。
       </p>
-      <Button variant="outline" nativeButton={false} render={<Link href="/agent" />}>
-        <HugeiconsIcon icon={AiChat01Icon} data-icon="inline-start" />
-        去 Agent 对话
-      </Button>
+      <span className="inline-flex items-center gap-1 text-sm text-primary">
+        打开右侧 Agent 面板
+        <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+      </span>
     </div>
   )
 }

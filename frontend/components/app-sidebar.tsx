@@ -4,11 +4,17 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  AiChat01Icon,
   Analytics01Icon,
+  BugIcon,
+  Calendar01Icon,
   DashboardSquare01Icon,
+  DatabaseSyncIcon,
+  CatalogueIcon,
   GitBranchIcon,
+  ServerStackIcon,
+  Shield01Icon,
   SparklesIcon,
+  ServiceIcon,
   WorkflowSquare01Icon,
 } from "@hugeicons/core-free-icons"
 
@@ -25,12 +31,34 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-const nav = [
-  { title: "概览", href: "/", icon: DashboardSquare01Icon },
-  { title: "Agent 对话", href: "/agent", icon: AiChat01Icon },
-  { title: "任务开发", href: "/tasks", icon: WorkflowSquare01Icon },
-  { title: "指标体系", href: "/metrics", icon: Analytics01Icon },
-  { title: "数据血缘", href: "/lineage", icon: GitBranchIcon },
+const topItem = { title: "驾驶舱", href: "/", icon: DashboardSquare01Icon }
+
+const groups = [
+  {
+    label: "数据研发",
+    items: [
+      { title: "任务开发", href: "/tasks", icon: WorkflowSquare01Icon },
+      { title: "调度运维", href: "/ops", icon: Calendar01Icon },
+      { title: "数据集成", href: "/integration", icon: DatabaseSyncIcon },
+    ],
+  },
+  {
+    label: "数据资产",
+    items: [
+      { title: "指标体系", href: "/metrics", icon: Analytics01Icon },
+      { title: "数据血缘", href: "/lineage", icon: GitBranchIcon },
+      { title: "资产目录", href: "/catalog", icon: CatalogueIcon },
+    ],
+  },
+  {
+    label: "资源与诊断",
+    items: [
+      { title: "集群机器", href: "/fleet", icon: ServerStackIcon },
+      { title: "失败诊断", href: "/diagnosis", icon: BugIcon },
+      { title: "数据质量", href: "/quality", icon: Shield01Icon },
+      { title: "数据服务", href: "/service", icon: ServiceIcon },
+    ],
+  },
 ]
 
 export function AppSidebar() {
@@ -50,25 +78,46 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
+        {/* 顶部：驾驶舱 */}
         <SidebarGroup>
-          <SidebarGroupLabel>导航</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {nav.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton
-                    isActive={pathname === item.href}
-                    tooltip={item.title}
-                    render={<Link href={item.href} />}
-                  >
-                    <HugeiconsIcon icon={item.icon} />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === topItem.href}
+                  tooltip={topItem.title}
+                  render={<Link href={topItem.href} />}
+                >
+                  <HugeiconsIcon icon={topItem.icon} />
+                  <span>{topItem.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* 分组菜单 */}
+        {groups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      isActive={pathname === item.href}
+                      tooltip={item.title}
+                      render={<Link href={item.href} />}
+                    >
+                      <HugeiconsIcon icon={item.icon} />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter>
         <div className="px-2 py-1.5 text-xs text-muted-foreground">

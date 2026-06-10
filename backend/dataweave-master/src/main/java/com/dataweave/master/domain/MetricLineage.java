@@ -2,51 +2,63 @@ package com.dataweave.master.domain;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
+import java.time.LocalDateTime;
 
-/**
- * 指标血缘边：指标 -> 下游（物理表 / SQL / 报表）。MVP 至少支持「指标 -> 来源物理表」。
- */
 @Table("metric_lineage")
 public class MetricLineage {
-
     @Id
     private Long id;
+    private Long tenantId;
+    private Long projectId;
+    private String metricType;
     private Long metricId;
     private String downstreamType;
     private String downstreamId;
+    private Long createdBy;
+    private Long updatedBy;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private Integer deleted;
+    private Integer version;
 
-    public MetricLineage() {
-    }
+    public MetricLineage() {}
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
-    public Long getMetricId() {
-        return metricId;
-    }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
 
-    public void setMetricId(Long metricId) {
-        this.metricId = metricId;
-    }
+    public String getMetricType() { return metricType; }
+    public void setMetricType(String metricType) { this.metricType = metricType; }
 
-    public String getDownstreamType() {
-        return downstreamType;
-    }
+    public Long getMetricId() { return metricId; }
+    public void setMetricId(Long metricId) { this.metricId = metricId; }
 
-    public void setDownstreamType(String downstreamType) {
-        this.downstreamType = downstreamType;
-    }
+    public String getDownstreamType() { return downstreamType; }
+    public void setDownstreamType(String downstreamType) { this.downstreamType = downstreamType; }
 
-    public String getDownstreamId() {
-        return downstreamId;
-    }
+    public String getDownstreamId() { return downstreamId; }
+    public void setDownstreamId(String downstreamId) { this.downstreamId = downstreamId; }
 
-    public void setDownstreamId(String downstreamId) {
-        this.downstreamId = downstreamId;
-    }
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
+
+    public Long getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Integer getDeleted() { return deleted; }
+    public void setDeleted(Integer deleted) { this.deleted = deleted; }
+
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
 }

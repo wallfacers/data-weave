@@ -12,12 +12,16 @@
 
     <artifactId>dataweave-alert</artifactId>
     <name>dataweave-alert</name>
-    <description>Alerting (skeleton): AlertRule entity + NotificationChannel interface</description>
+    <description>Alerting (skeleton): AlertRule/NotificationChannel JDBC entities + NotificationSender seam</description>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jdbc</artifactId>
         </dependency>
     </dependencies>
 
