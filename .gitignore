@@ -15,3 +15,7 @@ cli/dw-*
 # Claude local settings
 .claude/settings.local.json
 .playwright-mcp/
+
+# Playwright CLI 浏览器验证产物（快照/截图/本地浏览器配置），不入仓库
+.playwright-cli/
+.playwright/

@@ -5,6 +5,7 @@ import { useTheme } from "next-themes"
 import { Dialog } from "@base-ui/react/dialog"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Settings01Icon } from "@hugeicons/core-free-icons"
+import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -13,11 +14,6 @@ const THEME_OPTIONS = [
   { value: "light", label: "浅色" },
   { value: "dark", label: "深色" },
   { value: "system", label: "跟随系统" },
-] as const
-
-const AGENT_MODE_OPTIONS = [
-  { value: "mock", label: "Mock", desc: "规则路由，零依赖" },
-  { value: "workhorse", label: "Workhorse", desc: "真 LLM 大脑" },
 ] as const
 
 function SegmentedButton({
@@ -41,22 +37,8 @@ function SegmentedButton({
   )
 }
 
-/** Agent 模式 localStorage 键 */
-const AGENT_MODE_KEY = "dw.agentMode"
-
-function getStoredAgentMode(): string {
-  if (typeof window === "undefined") return "mock"
-  return localStorage.getItem(AGENT_MODE_KEY) ?? "mock"
-}
-
 export function SettingsTrigger() {
   const { theme, setTheme } = useTheme()
-  const [agentMode, setAgentMode] = React.useState(getStoredAgentMode)
-
-  const handleAgentModeChange = (mode: string) => {
-    setAgentMode(mode)
-    localStorage.setItem(AGENT_MODE_KEY, mode)
-  }
 
   return (
     <Dialog.Root>
@@ -87,7 +69,7 @@ export function SettingsTrigger() {
             项目设置
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-            配置主题与 Agent 行为
+            配置主题外观
           </Dialog.Description>
 
           <div className="mt-6 flex flex-col gap-6">
@@ -106,27 +88,6 @@ export function SettingsTrigger() {
                 ))}
               </div>
             </section>
-
-            {/* Agent 模式 */}
-            <section className="flex flex-col gap-3">
-              <h3 className="text-sm font-medium">Agent 模式</h3>
-              <div className="flex gap-2">
-                {AGENT_MODE_OPTIONS.map((opt) => (
-                  <SegmentedButton
-                    key={opt.value}
-                    active={agentMode === opt.value}
-                    onClick={() => handleAgentModeChange(opt.value)}
-                  >
-                    <span className="flex flex-col items-center gap-0.5">
-                      <span>{opt.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {opt.desc}
-                      </span>
-                    </span>
-                  </SegmentedButton>
-                ))}
-              </div>
-            </section>
           </div>
 
           {/* 关闭按钮 */}
@@ -139,7 +100,9 @@ export function SettingsTrigger() {
                 aria-label="关闭"
               />
             }
-          />
+          >
+            <XIcon className="size-4" />
+          </Dialog.Close>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

@@ -143,6 +143,10 @@ html [data-copilotkit] {
   --background: var(--sidebar);
   --card: var(--sidebar);
   --popover: var(--sidebar);
+  /* cpk 在本作用域把 --muted 也改成零彩度冷灰；inherit 回项目暖 muted，
+     使输入框（bg:var(--muted)）与暖调面板同色系，不发冷。 */
+  --muted: inherit;
+  --muted-foreground: inherit;
 }
 html.dark [data-copilotkit] {
   --sidebar: inherit;
