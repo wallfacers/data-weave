@@ -235,3 +235,11 @@ html [data-copilotkit] .copilotKitInput {
   border: none !important;
   box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.06) !important;
 }
+
+/* 输入条左右内缩（两态一致，不贴卡片边框）。cpk 对话态输入条包裹层用 `cpk:px-4 cpk:sm:px-0`，
+   视口 ≥640px 时左右内边距被清零，输入框两侧顶死右舷卡片边框（空状态因外层 flex-1 px-4
+   才有内缩，对话态没有这层 → 两态不一致）。强制给输入框的直接包裹层回插水平内边距，
+   空/对话两态都不贴边。 */
+html [data-copilotkit] *:has(> .copilotKitInput) {
+  padding-inline: 12px !important;
+}

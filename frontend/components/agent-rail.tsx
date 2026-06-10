@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button"
 /** 悬浮球初始位置：视口右侧距边 24px、垂直居中偏下 */
 const INITIAL_POS = { x: -1, y: -1 } // -1 表示首次渲染时按视口计算
 const DRAG_THRESHOLD = 4 // px：超过此距离才算拖拽，否则视为点击
+
+/** 右舷面板宽度：默认 / 可拖拽范围 / 持久化键 */
+const RAIL_DEFAULT_WIDTH = 440
+const RAIL_MIN_WIDTH = 340
+const RAIL_MAX_WIDTH = 680
+const RAIL_WIDTH_KEY = "dw.agentRail.width"
 
 /** 路由 → 模块名映射，用于标题行上下文展示 */
 const MODULE_LABELS: Record<string, string> = {
@@ -44,6 +50,43 @@ export function AgentRail() {
   const [open, setOpen] = useState(true)
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  // ── 面板宽度（可拖拽分割线调整，localStorage 持久化）────────────
+  // SSR 与首帧统一渲染默认宽，挂载后再从 localStorage 恢复，避免水合不一致。
+  const [railWidth, setRailWidth] = useState(RAIL_DEFAULT_WIDTH)
+  useEffect(() => {
+    const saved = Number(localStorage.getItem(RAIL_WIDTH_KEY))
+    if (saved >= RAIL_MIN_WIDTH && saved <= RAIL_MAX_WIDTH) setRailWidth(saved)
+  }, [])
+
+  // 左缘分割线按下：监听 window pointermove 改宽（面板在右，指针左移 → 变宽），松手持久化。
+  const onResizeDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startW = railWidth
+      let current = startW
+      const onMove = (ev: PointerEvent) => {
+        current = Math.min(
+          RAIL_MAX_WIDTH,
+          Math.max(RAIL_MIN_WIDTH, startW + (startX - ev.clientX)),
+        )
+        setRailWidth(current)
+      }
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        document.body.style.cursor = ""
+        document.body.style.userSelect = ""
+        localStorage.setItem(RAIL_WIDTH_KEY, String(current))
+      }
+      document.body.style.cursor = "col-resize"
+      document.body.style.userSelect = "none"
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+    },
+    [railWidth],
+  )
 
   // ── 悬浮球拖拽 ──────────────────────────────────────────────
   // pos 用 fixed 定位坐标（右下角为初始位），首次渲染按 window 计算。
@@ -147,7 +190,20 @@ export function AgentRail() {
   // 四周留间距让内层卡片"浮"起来；内层用 bg-card + border + shadow-lg
   // 构成抬升层（背景区分 + 边框包裹），圆角走 DESIGN.md 的 --radius-lg。
   return (
-    <div className="flex w-[440px] shrink-0 flex-col p-3 pl-1.5">
+    <div
+      className="relative flex shrink-0 flex-col p-3 pl-1.5"
+      style={{ width: railWidth }}
+    >
+      {/* 拖拽分割线：左缘透明命中区，hover 显一条细线；按下拖动改面板宽度 */}
+      <div
+        onPointerDown={onResizeDown}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="拖拽调整 Agent 面板宽度"
+        className="group/resize absolute inset-y-3 left-0 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
+      >
+        <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
         {/* 标题行：14 高，无下边框（遵守无分割线规则） */}
         <div className="flex h-14 shrink-0 items-center gap-2 px-4">
