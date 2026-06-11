@@ -52,7 +52,7 @@ export function TaskDefList({ tasks }: { tasks: TaskDef[] }) {
                   <TableCell className="font-mono text-xs">{t.type}</TableCell>
                   <TableCell>
                     {t.status === "ONLINE" ? (
-                      <Badge variant="default">在线</Badge>
+                      <Badge variant="success">在线</Badge>
                     ) : (
                       <Badge variant="outline" className="text-muted-foreground">
                         下线

@@ -23,8 +23,8 @@ interface ApprovalCardProps {
 }
 
 const LEVEL_TONE: Record<string, string> = {
-  L2: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  L3: "bg-red-500/15 text-red-700 dark:text-red-400",
+  L2: "bg-warning/15 text-warning",
+  L3: "bg-destructive/10 text-destructive",
 }
 
 export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProps) {

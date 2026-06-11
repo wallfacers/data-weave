@@ -66,7 +66,7 @@ export function FleetCard({ node }: { node: WorkerNode }) {
             <div
               className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
                 isOnline
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-success/10 text-success"
                   : "bg-muted text-muted-foreground"
               }`}
             >
@@ -81,7 +81,7 @@ export function FleetCard({ node }: { node: WorkerNode }) {
               </div>
             </div>
           </div>
-          <Badge variant={isOnline ? "default" : "secondary"}>
+          <Badge variant={isOnline ? "success" : "secondary"}>
             {isOnline ? "在线" : "离线"}
           </Badge>
         </div>

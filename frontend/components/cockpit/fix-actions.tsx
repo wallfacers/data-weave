@@ -97,7 +97,7 @@ export function FixActions({
         <div
           className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
             result.success
-              ? "bg-primary/10 text-primary"
+              ? "bg-success/10 text-success"
               : "bg-destructive/10 text-destructive"
           }`}
         >

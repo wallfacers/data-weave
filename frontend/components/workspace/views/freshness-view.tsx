@@ -32,8 +32,8 @@ function freshnessBadge(iso: string | null) {
   if (!iso) return <Badge variant="destructive">从未成功</Badge>
   const hours = (Date.now() - new Date(iso).getTime()) / 3_600_000
   if (hours > 24) return <Badge variant="destructive">陈旧</Badge>
-  if (hours > 6) return <Badge variant="outline">偏旧</Badge>
-  return <Badge variant="default">新鲜</Badge>
+  if (hours > 6) return <Badge variant="warning">偏旧</Badge>
+  return <Badge variant="success">新鲜</Badge>
 }
 
 interface Row {

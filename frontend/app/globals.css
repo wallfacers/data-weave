@@ -24,6 +24,10 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-link: var(--link);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -48,71 +52,84 @@
     --font-serif: var(--font-serif);
 }
 
+/* 「茶墨编辑部」主题（openspec: chamo-theme）：暖纸白底 + 真黑墨字 + 褐调茶墨 primary，
+   链接/行内代码走独立 --link（钴蓝），状态色 success/warning/info 一等公民，
+   chart-1..5 为五色织线（茶·钴蓝·金·翠·紫）。红色仅 destructive（失败/删除）。 */
 :root {
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.153 0.006 107.1);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.153 0.006 107.1);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.966 0.005 106.5);
-    --muted-foreground: oklch(0.58 0.031 107.3);
-    --accent: oklch(0.508 0.118 165.612);
-    --accent-foreground: oklch(0.979 0.021 166.113);
-    --border: oklch(0.93 0.007 106.5);
-    --input: oklch(0.93 0.007 106.5);
-    --ring: oklch(0.737 0.021 106.9);
-    --sidebar: oklch(0.988 0.003 106.5);
-    --sidebar-foreground: oklch(0.153 0.006 107.1);
-    --sidebar-accent: oklch(0.966 0.005 106.5);
-    --sidebar-accent-foreground: oklch(0.228 0.013 107.4);
-    --sidebar-border: oklch(0.93 0.007 106.5);
-    --sidebar-ring: oklch(0.737 0.021 106.9);
-    --primary: oklch(0.508 0.118 165.612);
-    --primary-foreground: oklch(0.979 0.021 166.113);
-    --sidebar-primary: oklch(0.596 0.145 163.225);
-    --sidebar-primary-foreground: oklch(0.979 0.021 166.113);
-    --destructive: oklch(0.577 0.245 27.325);
-    --chart-1: oklch(0.871 0.15 154.449);
-    --chart-2: oklch(0.723 0.219 149.579);
-    --chart-3: oklch(0.627 0.194 149.214);
-    --chart-4: oklch(0.527 0.154 150.069);
-    --chart-5: oklch(0.448 0.119 151.328);
+    --background: oklch(0.978 0.006 80);
+    --foreground: oklch(0.17 0.012 80);
+    --card: oklch(0.99 0.004 80);
+    --card-foreground: oklch(0.17 0.012 80);
+    --popover: oklch(0.99 0.004 80);
+    --popover-foreground: oklch(0.17 0.012 80);
+    --secondary: oklch(0.945 0.009 80);
+    --secondary-foreground: oklch(0.25 0.015 80);
+    --muted: oklch(0.945 0.009 80);
+    --muted-foreground: oklch(0.45 0.02 80);
+    --accent: oklch(0.45 0.085 60);
+    --accent-foreground: oklch(0.985 0.006 80);
+    --border: oklch(0.875 0.014 80);
+    --input: oklch(0.875 0.014 80);
+    --ring: oklch(0.62 0.07 65);
+    --sidebar: oklch(0.948 0.01 80);
+    --sidebar-foreground: oklch(0.17 0.012 80);
+    --sidebar-accent: oklch(0.91 0.014 78);
+    --sidebar-accent-foreground: oklch(0.23 0.015 80);
+    --sidebar-border: oklch(0.875 0.014 80);
+    --sidebar-ring: oklch(0.62 0.07 65);
+    --primary: oklch(0.45 0.085 60);
+    --primary-foreground: oklch(0.985 0.006 80);
+    --sidebar-primary: oklch(0.52 0.1 60);
+    --sidebar-primary-foreground: oklch(0.985 0.006 80);
+    --destructive: oklch(0.55 0.22 25);
+    --link: oklch(0.49 0.22 264);
+    --success: oklch(0.58 0.155 150);
+    --warning: oklch(0.62 0.14 78);
+    --info: oklch(0.55 0.18 250);
+    --chart-1: oklch(0.55 0.12 60);
+    --chart-2: oklch(0.49 0.24 264);
+    --chart-3: oklch(0.76 0.15 85);
+    --chart-4: oklch(0.6 0.155 150);
+    --chart-5: oklch(0.55 0.18 300);
     --radius: 0.875rem;
 }
 
 .dark {
-    --background: oklch(0.153 0.006 107.1);
-    --foreground: oklch(0.988 0.003 106.5);
-    --card: oklch(0.228 0.013 107.4);
-    --card-foreground: oklch(0.988 0.003 106.5);
-    --popover: oklch(0.228 0.013 107.4);
-    --popover-foreground: oklch(0.988 0.003 106.5);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.286 0.016 107.4);
-    --muted-foreground: oklch(0.737 0.021 106.9);
-    --accent: oklch(0.432 0.095 166.913);
-    --accent-foreground: oklch(0.979 0.021 166.113);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.58 0.031 107.3);
-    --sidebar: oklch(0.228 0.013 107.4);
-    --sidebar-foreground: oklch(0.988 0.003 106.5);
-    --sidebar-accent: oklch(0.286 0.016 107.4);
-    --sidebar-accent-foreground: oklch(0.988 0.003 106.5);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.58 0.031 107.3);
-    --primary: oklch(0.432 0.095 166.913);
-    --primary-foreground: oklch(0.979 0.021 166.113);
-    --sidebar-primary: oklch(0.696 0.17 162.48);
-    --sidebar-primary-foreground: oklch(0.262 0.051 172.552);
-    --destructive: oklch(0.704 0.191 22.216);
-    --chart-1: oklch(0.871 0.15 154.449);
-    --chart-2: oklch(0.723 0.219 149.579);
-    --chart-3: oklch(0.627 0.194 149.214);
-    --chart-4: oklch(0.527 0.154 150.069);
-    --chart-5: oklch(0.448 0.119 151.328);
+    --background: oklch(0.16 0.008 65);
+    --foreground: oklch(0.97 0.006 80);
+    --card: oklch(0.215 0.012 65);
+    --card-foreground: oklch(0.97 0.006 80);
+    --popover: oklch(0.215 0.012 65);
+    --popover-foreground: oklch(0.97 0.006 80);
+    --secondary: oklch(0.27 0.012 65);
+    --secondary-foreground: oklch(0.97 0.006 80);
+    --muted: oklch(0.26 0.012 65);
+    --muted-foreground: oklch(0.74 0.02 75);
+    --accent: oklch(0.6 0.09 65);
+    --accent-foreground: oklch(0.985 0.006 80);
+    --border: oklch(0.95 0.02 80 / 14%);
+    --input: oklch(0.95 0.02 80 / 16%);
+    --ring: oklch(0.62 0.08 65);
+    --sidebar: oklch(0.215 0.012 65);
+    --sidebar-foreground: oklch(0.97 0.006 80);
+    --sidebar-accent: oklch(0.27 0.014 65);
+    --sidebar-accent-foreground: oklch(0.97 0.006 80);
+    --sidebar-border: oklch(0.95 0.02 80 / 14%);
+    --sidebar-ring: oklch(0.62 0.08 65);
+    --primary: oklch(0.72 0.1 70);
+    --primary-foreground: oklch(0.2 0.012 65);
+    --sidebar-primary: oklch(0.72 0.1 70);
+    --sidebar-primary-foreground: oklch(0.2 0.012 65);
+    --destructive: oklch(0.68 0.18 25);
+    --link: oklch(0.7 0.15 264);
+    --success: oklch(0.7 0.15 152);
+    --warning: oklch(0.78 0.14 80);
+    --info: oklch(0.7 0.14 250);
+    --chart-1: oklch(0.72 0.1 70);
+    --chart-2: oklch(0.68 0.16 264);
+    --chart-3: oklch(0.8 0.14 85);
+    --chart-4: oklch(0.7 0.14 152);
+    --chart-5: oklch(0.68 0.15 300);
 }
 
 @layer base {
@@ -129,7 +146,7 @@
 
 /* CopilotKit v2 在 [data-copilotkit] 作用域里用自己的「中性灰阶」重定义了整套
    shadcn 变量（--background/--muted/... 全为零彩度），导致对话面板是冷中性黑、
-   与本应用的暖调 taupe 主题不一致。把这些变量改回继承/对齐 app 主题，让 CopilotChat
+   与本应用的暖调茶墨主题不一致。把这些变量改回继承/对齐 app 主题，让 CopilotChat
    的文字、边框、primary 跟随项目；其中**对话面填充（--background/--card/--popover）
    对齐 var(--sidebar)**，与 Agent 悬浮面板外层卡片、侧栏品牌区同底色（避免"标题条
    sidebar 色、消息区却是页面底色"的割裂）。
@@ -138,15 +155,29 @@
    暗色：cpk `.dark [data-copilotkit]`(0,2,0) 需 `html.dark [data-copilotkit]`(0,2,1) 才能胜过。 */
 html [data-copilotkit] {
   /* cpk 在本作用域把 --sidebar 也改成了它的中性版，必须先 inherit 回 app 的真值，
-     var(--sidebar) 才指向项目 taupe sidebar，而非 cpk 的零彩度灰。 */
+     var(--sidebar) 才指向项目暖纸 sidebar，而非 cpk 的零彩度灰。 */
   --sidebar: inherit;
   --background: var(--sidebar);
   --card: var(--sidebar);
   --popover: var(--sidebar);
-  /* cpk 在本作用域把 --muted 也改成零彩度冷灰；inherit 回项目暖 muted，
-     使输入框（bg:var(--muted)）与暖调面板同色系，不发冷。 */
-  --muted: inherit;
+  /* cpk 在本作用域把 --muted 改成零彩度冷灰；这里给显式的更深暖纸值（不用 inherit：
+     app 的 --muted 0.945 与加深后的 sidebar 0.948 几乎同明度，输入药丸/行内代码底
+     会融进面板）。0.915 比面板深一档，层次可见。 */
+  --muted: oklch(0.915 0.012 80);
   --muted-foreground: inherit;
+  /* cpk 浅色作用域自带零彩度近黑 primary（发送按钮是黑圆），inherit 回茶墨；
+     其余语义 token 一并 inherit，杜绝 cpk 冷灰渗漏（与下方暗色块对称）。 */
+  --foreground: inherit;
+  --primary: inherit;
+  --primary-foreground: inherit;
+  --secondary: inherit;
+  --secondary-foreground: inherit;
+  --accent: inherit;
+  --accent-foreground: inherit;
+  --border: inherit;
+  --input: inherit;
+  --ring: inherit;
+  --destructive: inherit;
 }
 html.dark [data-copilotkit] {
   --sidebar: inherit;
@@ -173,7 +204,7 @@ html.dark [data-copilotkit] {
 /* CopilotChat 的 AI 回复用 Streamdown（react-markdown + Tailwind prose）渲染。
    默认是系统字体 + 冷灰阶配色，不跟随项目。这里把 prose 字体接到项目字体
    （正文衬线 Merriweather / 代码 Geist Mono），prose 配色映射到主题 token
-   并以 emerald 作链接·行内代码强调。token 随亮/暗自动切，单套规则覆盖两态。
+   并以钴蓝（--link）作链接·行内代码强调。token 随亮/暗自动切，单套规则覆盖两态。
    特异度（html + 两个属性/类选择器）以胜过 .prose / .dark .prose-invert。 */
 html [data-copilotkit] .copilotKitMessage {
   font-family: var(--font-serif);
@@ -182,8 +213,8 @@ html [data-copilotkit] [class*="prose"] {
   --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
   --tw-prose-bold: var(--foreground);
-  --tw-prose-links: var(--primary);
-  --tw-prose-code: var(--primary);
+  --tw-prose-links: var(--link);
+  --tw-prose-code: var(--link);
   --tw-prose-pre-bg: var(--muted);
   --tw-prose-pre-code: var(--foreground);
   --tw-prose-quotes: var(--muted-foreground);
@@ -199,15 +230,15 @@ html [data-copilotkit] [class*="prose"] code,
 html [data-copilotkit] [class*="prose"] pre {
   font-family: var(--font-mono);
 }
-/* 行内代码（非代码块内）：emerald 文字 + 极淡底，与代码块区分 */
+/* 行内代码（非代码块内）：钴蓝（--link）文字 + 极淡底，与代码块区分 */
 html [data-copilotkit] [class*="prose"] :not(pre) > code {
   background-color: var(--muted);
-  color: var(--primary);
+  color: var(--link);
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
   font-weight: 500;
 }
-/* 代码块语法高亮：项目语法主题（lib/syntax-palette，从 emerald/taupe 派生）经
+/* 代码块语法高亮：项目语法主题（lib/syntax-palette，从茶墨/钴蓝派生）经
    agent-chat 的 markdownRenderer slot 透传给 Streamdown 的 Shiki dual-theme。
    Shiki 把 token 颜色内联 baked：亮色走 `color:#hex`、暗色走 `--shiki-dark:#hex`
    （底色同理 `--shiki-dark-bg`）。亮色自动生效；暗色下把前景/底色切到 --shiki-dark*。
@@ -236,6 +267,21 @@ html [data-copilotkit] .copilotKitInput {
   box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.06) !important;
 }
 
+/* 发送按钮：cpk 烤死 `cpk:bg-black cpk:dark:bg-white`（不走 --primary token），
+   亮色下是纯黑圆钮、与茶墨主题割裂。强制对齐 primary（茶墨/暗色驼色），
+   图标走 currentColor 跟随 primary-foreground。禁用态对齐 muted。 */
+html [data-copilotkit] button[data-testid="copilot-send-button"] {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+html [data-copilotkit] button[data-testid="copilot-send-button"]:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+html [data-copilotkit] button[data-testid="copilot-send-button"]:disabled {
+  background: var(--muted) !important;
+  color: var(--muted-foreground) !important;
+}
+
 /* 输入条左右内缩（两态一致，不贴卡片边框）。cpk 对话态输入条包裹层用 `cpk:px-4 cpk:sm:px-0`，
    视口 ≥640px 时左右内边距被清零，输入框两侧顶死右舷卡片边框（空状态因外层 flex-1 px-4
    才有内缩，对话态没有这层 → 两态不一致）。强制给输入框的直接包裹层回插水平内边距，
@@ -252,14 +298,14 @@ html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
   padding-inline: 0 !important;
 }
 
-/* AI 输入框滚动条：内容溢出时显示暖 taupe 细滚动条、无上下箭头。
+/* AI 输入框滚动条：内容溢出时显示茶墨暖灰细滚动条、无上下箭头。
    难点：CopilotKit 的 `[data-copilotkit] ::-webkit-scrollbar*` 通配规则命中本 <textarea>，
    逼它走 WebKit 自定义滚动条引擎——该引擎在 Windows Chrome 上恒渲染上下箭头按钮，
    `::-webkit-scrollbar-button{display:none}` 去不掉；而退回系统原生滚动条，在 Windows
    「始终显示滚动条」模式下同样带箭头（系统绘制，CSS 碰不到）。两条路都摘不掉箭头。
    解法：① 这里把 textarea 的原生 + webkit 滚动条**彻底隐藏**（`scrollbar-width:none` 灭标准条，
    `::-webkit-scrollbar{display:none}` 灭 webkit 条——两者都不画箭头，已实测确认）；
-   ② agent-chat.tsx 自绘一根细 taupe 指示条（`.dw-textarea-thumb`）反映滚动位置。
+   ② agent-chat.tsx 自绘一根细茶墨暖灰指示条（`.dw-textarea-thumb`）反映滚动位置。
    滚轮/触摸板/键盘仍走 textarea 原生滚动，仅滚动条外观被接管。
    `::-webkit-scrollbar{display:none}` 特异度（含 textarea[data-testid]）压过 cpk 的通配 width:6px。 */
 html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
@@ -268,17 +314,17 @@ html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
 html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-scrollbar {
   display: none;
 }
-/* 自绘指示条：随亮/暗切换 taupe 色；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
+/* 自绘指示条：随亮/暗切换茶墨暖灰；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
 .dw-textarea-thumb {
   position: absolute;
   width: 4px;
   border-radius: 9999px;
-  background: oklch(0.58 0.031 107.3);
+  background: oklch(0.45 0.02 80);
   opacity: 0.85;
   pointer-events: none;
   z-index: 20;
 }
 html.dark .dw-textarea-thumb {
-  background: oklch(0.737 0.021 106.9);
+  background: oklch(0.74 0.02 75);
 }
 

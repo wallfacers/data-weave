@@ -40,9 +40,9 @@ function StatCard({
 }) {
   const toneClasses = {
     default: "bg-muted text-muted-foreground",
-    success: "bg-primary/10 text-primary",
+    success: "bg-success/10 text-success",
     destructive: "bg-destructive/10 text-destructive",
-    running: "bg-primary/10 text-primary",
+    running: "bg-info/10 text-info",
   }
 
   return (
@@ -142,7 +142,7 @@ export function CockpitView() {
                       <button
                         type="button"
                         onClick={() => open("diagnosis", { instanceId: inst.id })}
-                        className="font-sans text-primary hover:underline"
+                        className="font-sans text-link hover:underline"
                       >
                         #{inst.id}
                       </button>
@@ -215,7 +215,7 @@ export function CockpitView() {
                         onClick={() =>
                           open("diagnosis", { instanceId: d.taskInstanceId })
                         }
-                        className="font-sans text-primary hover:underline"
+                        className="font-sans text-link hover:underline"
                       >
                         #{d.id}
                       </button>
@@ -225,7 +225,7 @@ export function CockpitView() {
                       {d.workerNodeCode ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={d.status === "RESOLVED" ? "secondary" : "default"}>
+                      <Badge variant={d.status === "RESOLVED" ? "secondary" : "info"}>
                         {d.status === "RESOLVED" ? "已解决" : "诊断中"}
                       </Badge>
                     </TableCell>

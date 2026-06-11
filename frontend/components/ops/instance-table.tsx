@@ -16,11 +16,11 @@ import { type TaskInstance, formatDateTime } from "@/lib/types"
 function stateBadge(state: string) {
   switch (state) {
     case "SUCCESS":
-      return <Badge variant="default">成功</Badge>
+      return <Badge variant="success">成功</Badge>
     case "FAILED":
       return <Badge variant="destructive">失败</Badge>
     case "RUNNING":
-      return <Badge variant="secondary">运行中</Badge>
+      return <Badge variant="info">运行中</Badge>
     default:
       return (
         <Badge variant="outline" className="text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, PinIcon, PinOffIcon, PlusSignIcon } from "@hugeicons/core-free-icons"
 
@@ -79,20 +79,23 @@ function Launcher() {
   const btnRef = useRef<HTMLButtonElement>(null)
   const [anchor, setAnchor] = useState({ top: 0, left: 0 })
 
-  // 每次展开时抓取按钮视口坐标，下拉菜单用 fixed 定位——
-    // 逃离 TabBar 的 overflow-x-auto 裁切（否则下拉被裁成一条缝看不见）。
-  useEffect(() => {
-    if (!menuOpen || !btnRef.current) return
-    const rect = btnRef.current.getBoundingClientRect()
-    setAnchor({ top: rect.bottom + 4, left: rect.left })
-  }, [menuOpen])
+  // 展开前在点击事件里同步抓取按钮视口坐标（不能放 useEffect：绘制后才执行，
+  // 首帧菜单会闪现在视口左上角再跳回按钮下方）。下拉菜单用 fixed 定位——
+  // 逃离 TabBar 的 overflow-x-auto 裁切（否则下拉被裁成一条缝看不见）。
+  const toggleMenu = () => {
+    if (!menuOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setAnchor({ top: rect.bottom + 4, left: rect.left })
+    }
+    setMenuOpen((v) => !v)
+  }
 
   return (
     <div className="relative shrink-0">
       <button
         ref={btnRef}
         type="button"
-        onClick={() => setMenuOpen((v) => !v)}
+        onClick={toggleMenu}
         className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
         aria-label="打开视图"
         aria-expanded={menuOpen}
