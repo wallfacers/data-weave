@@ -153,6 +153,7 @@
 
    亮色：cpk base `[data-copilotkit]`(0,1,0) 被下面 `html [data-copilotkit]`(0,1,1) 胜过。
    暗色：cpk `.dark [data-copilotkit]`(0,2,0) 需 `html.dark [data-copilotkit]`(0,2,1) 才能胜过。 */
+
 html [data-copilotkit] {
   /* cpk 在本作用域把 --sidebar 也改成了它的中性版，必须先 inherit 回 app 的真值，
      var(--sidebar) 才指向项目暖纸 sidebar，而非 cpk 的零彩度灰。 */
@@ -326,5 +327,23 @@ html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-sc
 }
 html.dark .dw-textarea-thumb {
   background: oklch(0.74 0.02 75);
+}
+
+/* OverlayScrollbars：尺寸和颜色对齐 .dw-textarea-thumb（4px、暖灰、无 padding）。
+   用 `html .os-theme-dark`（特异度 0,1,1）压过 OS 自带的 `.os-theme-dark`（0,1,0），
+   确保组件内 import 的 OS CSS 后加载时我们的变量仍然胜出。 */
+html .os-theme-dark {
+  --os-size: 4px;
+  --os-padding-perpendicular: 0px;
+  --os-padding-axis: 0px;
+  --os-handle-border-radius: 9999px;
+  --os-handle-bg: oklch(0.45 0.02 80 / 85%);
+  --os-handle-bg-hover: oklch(0.45 0.02 80);
+  --os-handle-bg-active: oklch(0.38 0.02 80);
+}
+html.dark .os-theme-dark {
+  --os-handle-bg: oklch(0.74 0.02 75 / 85%);
+  --os-handle-bg-hover: oklch(0.74 0.02 75);
+  --os-handle-bg-active: oklch(0.62 0.02 75);
 }
 

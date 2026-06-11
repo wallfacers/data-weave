@@ -7,6 +7,7 @@ import { FleetCard } from "@/components/cockpit/fleet-card"
 import { type WorkerNode } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 export function FleetView() {
   const { data: nodes, loading } = useApi<WorkerNode[]>("/api/fleet")
@@ -14,7 +15,7 @@ export function FleetView() {
   if (!nodes) return <ViewStatus loading={loading} />
 
   return (
-    <div className="flex flex-1 flex-col gap-8 overflow-auto p-6 md:p-10">
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={ServerStack01Icon} className="size-5 text-primary" />
@@ -34,6 +35,6 @@ export function FleetView() {
           ))}
         </div>
       )}
-    </div>
+    </DwScroll>
   )
 }

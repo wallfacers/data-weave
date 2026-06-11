@@ -7,10 +7,11 @@ import { ComputerSettingsIcon } from "@hugeicons/core-free-icons"
 import { InstanceTable } from "@/components/ops/instance-table"
 import { TaskDefList } from "@/components/ops/task-def-list"
 import { TaskSearchBar, type TaskSearchParams } from "@/components/ops/task-search-bar"
-import { type TaskDef, type TaskInstance, type ApiResponse, API_BASE } from "@/lib/types"
+import { type TaskDef, type TaskInstance, type ApiResponse, API_BASE, authFetch } from "@/lib/types"
 import { useSidePanelStore } from "@/lib/side-panel/store"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 interface PageResult {
   content: TaskDef[]
@@ -39,7 +40,7 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
     if (searchParams.status) sp.set("status", searchParams.status)
     sp.set("page", String(page))
     sp.set("size", "20")
-    fetch(`${API_BASE}/api/tasks?${sp}`, { cache: "no-store" })
+    authFetch(`${API_BASE}/api/tasks?${sp}`, { cache: "no-store" })
       .then((res) => res.json() as Promise<ApiResponse<PageResult>>)
       .then((json) => setTaskData(json.code === 0 ? json.data : null))
       .catch(() => setTaskData(null))
@@ -64,7 +65,7 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 overflow-auto p-4">
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-6 p-4">
       <div className="flex items-center gap-2">
         <HugeiconsIcon icon={ComputerSettingsIcon} className="text-primary" />
         <h1 className="text-sm font-medium">任务流</h1>
@@ -99,6 +100,6 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
       {taskLoading && (
         <div className="py-4 text-center text-xs text-muted-foreground">加载中…</div>
       )}
-    </div>
+    </DwScroll>
   )
 }

@@ -7,6 +7,7 @@ import { DiagnosisCard } from "@/components/cockpit/diagnosis-card"
 import { type TaskDiagnosis } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 export function DiagnosisView({ params }: { params?: Record<string, unknown> }) {
   const { data: diagnoses, loading } = useApi<TaskDiagnosis[]>("/api/diagnosis")
@@ -26,7 +27,7 @@ export function DiagnosisView({ params }: { params?: Record<string, unknown> }) 
     : sorted
 
   return (
-    <div className="flex flex-1 flex-col gap-8 overflow-auto p-6 md:p-10">
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={Bug01Icon} className="size-5 text-primary" />
@@ -52,6 +53,6 @@ export function DiagnosisView({ params }: { params?: Record<string, unknown> }) 
           ))}
         </div>
       )}
-    </div>
+    </DwScroll>
   )
 }

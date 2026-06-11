@@ -140,3 +140,32 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 - **刻意偏离（对早期设想）**，理由如下：
   1. **编辑器选 Monaco（非 CodeMirror）** —— 要完整 IDE 体感。
   2. **调色板放 TS 具体色（非 `css-variables` CSS 变量）** —— Monaco 主题只吃具体十六进制色（吃不了 `var(--x)`），且两个消费者都在 JS 侧；放 TS 让两端共用同一个 `buildSyntaxTheme()`，是单一真相源 + 像素级一致的最稳形态。`globals.css` 仅保留 chat 暗色的 `--shiki-dark*` swap（Shiki dual-theme 的 baked 机制需要）。
+
+## 滚动条
+
+**设计立场：无箭头、细条浮叠、暖灰色、亮/暗双态。** Windows Chrome 的原生 WebKit 滚动条箭头（倒三角）由系统绘制，CSS 无法可靠去除；统一用两套方案接管全部滚动区：
+
+### 通用可滚动容器（OverlayScrollbars）
+
+所有视图的滚动容器（任务流、驾驶舱、数据新鲜度、失败诊断、业务报表等）以及表格水平滚动区、侧面板 tab 栏，改用 **`overlayscrollbars` + `overlayscrollbars-react`**（`OverlayScrollbarsComponent` / `DwScroll` 组件封装）：
+
+- **尺寸**：`--os-size: 4px`（与 AI 输入框指示条等宽），padding 归零，thumb 全圆角（`9999px`）。
+- **颜色**：亮色 `oklch(0.45 0.02 80 / 85%)`，悬浮 `oklch(0.45 0.02 80)`；暗色 `oklch(0.74 0.02 75 / 85%)`，悬浮 `oklch(0.74 0.02 75)`。均取自 `--muted-foreground` 暖灰家族，不独立引入新色相。
+- **主题**：基于 `os-theme-dark`（OS 内置，有完整尺寸/定位 CSS），在 `globals.css` 用 `html .os-theme-dark`（特异度 0,1,1）覆盖变量，确保 OS 组件内懒加载的样式表（0,1,0）不会把颜色倒回默认黑色。
+- **封装**：`components/ui/dw-scroll.tsx`（`DwScroll`）。用法：外层传 `className` 控制尺寸（`flex-1` / `min-h-0`），内层布局 class 传 `innerClassName`；方向默认垂直，水平传 `direction="horizontal"`。
+- **不要用原生 `overflow-auto / overflow-x-auto`** 替代 `DwScroll`——会退回带箭头的原生滚动条。
+
+### AI 输入框（自绘指示条）
+
+`textarea` 被 CopilotKit 强制进入 WebKit 自定义滚动条模式，同样无法用 CSS 去除箭头，且该模式下 `OverlayScrollbarsComponent` 不适用（输入框行为特殊）。解法：
+
+1. `scrollbar-width: none` + `::-webkit-scrollbar { display: none }` **完全隐藏**原生滚动条（`globals.css`）。
+2. `agent-chat.tsx` 用 JS 自绘 `.dw-textarea-thumb`（绝对定位 div）反映滚动位置——同款 4px 圆角暖灰条，`pointer-events: none`，仅做视觉提示，不可拖拽。
+
+### 颜色对照表
+
+| 状态 | 亮色 | 暗色 |
+|------|------|------|
+| 默认 | `oklch(0.45 0.02 80 / 85%)` | `oklch(0.74 0.02 75 / 85%)` |
+| hover | `oklch(0.45 0.02 80)` | `oklch(0.74 0.02 75)` |
+| active | `oklch(0.38 0.02 80)` | `oklch(0.62 0.02 75)` |

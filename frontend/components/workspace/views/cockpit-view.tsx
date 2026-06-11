@@ -26,6 +26,7 @@ import { type DashboardSummary, formatDateTime, truncate } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { ViewStatus } from "./view-status"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 function StatCard({
   label,
@@ -71,7 +72,7 @@ export function CockpitView() {
   if (!summary) return <ViewStatus loading={loading} />
 
   return (
-    <div className="flex flex-1 flex-col gap-8 overflow-auto p-6 md:p-10">
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
@@ -236,6 +237,6 @@ export function CockpitView() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </DwScroll>
   )
 }

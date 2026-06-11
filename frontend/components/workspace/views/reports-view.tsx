@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type MetricCard } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 /** 业务报表（最小版）：指标卡片网格（名称 / 口径版本 / 最新值或空态） */
 export function ReportsView() {
@@ -16,7 +17,7 @@ export function ReportsView() {
   if (!metrics) return <ViewStatus loading={loading} />
 
   return (
-    <div className="flex flex-1 flex-col gap-6 overflow-auto p-6 md:p-10">
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-6 p-6 md:p-10">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
@@ -64,6 +65,6 @@ export function ReportsView() {
           ))}
         </div>
       )}
-    </div>
+    </DwScroll>
   )
 }
