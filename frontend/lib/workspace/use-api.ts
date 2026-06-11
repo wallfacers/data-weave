@@ -2,15 +2,9 @@
 
 import { useEffect, useState } from "react"
 
-import { API_BASE } from "@/lib/types"
+const TOKEN_KEY = "dw.auth.token"
 
-export interface ApiState<T> {
-  data: T | null
-  loading: boolean
-  error: boolean
-}
-
-/** Workspace 视图的客户端取数：no-store，卸载安全 */
+/** Workspace 视图的客户端取数：no-store，自动带 Bearer token，卸载安全 */
 export function useApi<T>(path: string): ApiState<T> {
   const [state, setState] = useState<ApiState<T>>({
     data: null,
@@ -21,7 +15,12 @@ export function useApi<T>(path: string): ApiState<T> {
   useEffect(() => {
     let alive = true
     setState({ data: null, loading: true, error: false })
-    fetch(`${API_BASE}${path}`, { cache: "no-store" })
+
+    const token = localStorage.getItem(TOKEN_KEY)
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
+
+    fetch(path, { cache: "no-store", headers })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
       .then((data) => alive && setState({ data, loading: false, error: false }))
       .catch(() => alive && setState({ data: null, loading: false, error: true }))
@@ -31,4 +30,10 @@ export function useApi<T>(path: string): ApiState<T> {
   }, [path])
 
   return state
+}
+
+export interface ApiState<T> {
+  data: T | null
+  loading: boolean
+  error: boolean
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Raleway, Figtree, Space_Grotesk, Inter, Merriweather
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppShell } from "@/components/app-shell"
+import { AuthProvider } from "@/lib/auth"
 import { cn } from "@/lib/utils";
 
 const merriweather = Merriweather({subsets:['latin'],variable:'--font-serif'});
@@ -44,7 +45,9 @@ export default function RootLayout({
           }}
         />
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <AuthProvider>
+            <AppShell>{children}</AppShell>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

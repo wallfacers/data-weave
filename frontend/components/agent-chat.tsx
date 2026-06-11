@@ -15,8 +15,8 @@ import { getConversationId } from "@/lib/workspace/persistence"
 // 必须用 v2 API：selfManagedAgents 使 hasLocalAgents=true，绕过 runtime 强制要求。
 const AGENT_URL =
   process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8080/agui"
-// 审批/REST 基址：去掉 /agui 尾段。
-const API_BASE = AGENT_URL.replace(/\/agui\/?$/, "")
+// REST API 走 Next.js rewrite 代理（自动同源，Bearer token 由各组件自行注入）。
+const API_BASE = ""
 
 /** 逐消息页面上下文（cockpit 缺口①）。 */
 export interface AgentPageContext {

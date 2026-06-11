@@ -7,4 +7,6 @@ import java.util.List;
 public interface RolePermissionRepository extends CrudRepository<RolePermission, Long> {
 
     List<RolePermission> findByRoleId(Long roleId);
+    List<RolePermission> findByTenantId(Long tenantId);
+    void deleteByRoleId(Long roleId);
 }

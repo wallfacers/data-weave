@@ -3,10 +3,11 @@
 import { useCallback, useLayoutEffect, useState } from "react"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { SparklesIcon } from "@hugeicons/core-free-icons"
+import { SparklesIcon, Logout01Icon } from "@hugeicons/core-free-icons"
 
 import { AgentChat, type AgentPageContext } from "@/components/agent-chat"
 import { SettingsTrigger } from "@/components/settings-sheet"
+import { useAuth } from "@/lib/auth"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { VIEW_META } from "@/lib/workspace/views"
 
@@ -78,6 +79,8 @@ export function AgentRail() {
   )
 
   // 双向上下文：workspace 激活 tab → 逐消息页面上下文（经 forwardedProps 送达后端）。
+  const { user, logout } = useAuth()
+
   const activeTab = useWorkspaceStore((s) =>
     s.tabs.find((t) => t.id === s.activeTabId),
   )
@@ -113,6 +116,16 @@ export function AgentRail() {
             </span>
           )}
           <div className="flex-1" />
+          {user && (
+            <span className="text-xs text-muted-foreground">{user.displayName}</span>
+          )}
+          <button
+            onClick={logout}
+            title="退出登录"
+            className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <HugeiconsIcon icon={Logout01Icon} className="size-4" />
+          </button>
           <SettingsTrigger />
         </div>
 

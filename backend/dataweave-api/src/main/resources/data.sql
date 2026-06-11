@@ -14,9 +14,10 @@ INSERT INTO permissions (id, code, name, resource, action, description, created_
 INSERT INTO projects (id, tenant_id, code, name, owner_id, status, created_by, updated_by, created_at, updated_at, deleted, version)
 VALUES (1, 1, 'demo', '示例项目', 1, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
+-- password_hash 用明文标记 {plain}xxx，启动时 PasswordInitializer 自动替换为 BCrypt。
 INSERT INTO users (id, tenant_id, username, password_hash, display_name, email, phone, status, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 1, 'admin',   '{noop}admin',   '管理员', 'admin@dataweave.local',   NULL, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(2, 1, 'analyst', '{noop}analyst', '数据分析师', 'analyst@dataweave.local', NULL, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+(1, 1, 'admin',   '{plain}admin',   '管理员',     'admin@dataweave.local',   NULL, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(2, 1, 'analyst', '{plain}analyst', '数据分析师', 'analyst@dataweave.local', NULL, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO roles (id, tenant_id, code, name, description, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (1, 1, 'ADMIN',     '管理员', '全部权限', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),

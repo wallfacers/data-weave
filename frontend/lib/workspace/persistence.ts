@@ -5,6 +5,7 @@ import { useEffect } from "react"
 import { API_BASE } from "@/lib/types"
 import { useWorkspaceStore } from "./store"
 
+const TOKEN_KEY = "dw.auth.token"
 const CONVERSATION_KEY = "dw.conversationId"
 
 /**
@@ -37,7 +38,11 @@ export function useWorkspacePersistence() {
   useEffect(() => {
     let cancelled = false
 
-    fetch(workspaceUrl(), { cache: "no-store" })
+    const token = localStorage.getItem(TOKEN_KEY)
+    const authHeaders: Record<string, string> = {}
+    if (token) authHeaders["Authorization"] = `Bearer ${token}`
+
+    fetch(workspaceUrl(), { cache: "no-store", headers: authHeaders })
       .then((res) => (res.status === 200 ? res.text() : null))
       .then((text) => {
         if (cancelled || !text) return
@@ -53,7 +58,7 @@ export function useWorkspacePersistence() {
         const snapshot = useWorkspaceStore.getState().snapshot()
         fetch(workspaceUrl(), {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(snapshot),
         }).catch(() => {})
       }, DEBOUNCE_MS)

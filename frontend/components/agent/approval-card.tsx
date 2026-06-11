@@ -37,9 +37,13 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
     setBusy(true)
     setError(null)
     try {
+      const token = localStorage.getItem("dw.auth.token")
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+
       const res = await fetch(`${apiBase}/api/approvals/${approval.approvalId}/${action}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ approver: "ui-user", confirmation }),
       })
       const data = await res.json()

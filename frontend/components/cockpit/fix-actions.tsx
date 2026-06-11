@@ -42,9 +42,13 @@ export function FixActions({
     setResult(null);
     setError(null);
     try {
+      const token = localStorage.getItem("dw.auth.token")
+      const headers: Record<string, string> = {}
+      if (token) headers["Authorization"] = `Bearer ${token}`
+
       const res = await fetch(
         `${API_BASE}/api/diagnosis/${diagnosisId}/fix?action=${encodeURIComponent(action)}`,
-        { method: "POST", cache: "no-store" },
+        { method: "POST", cache: "no-store", headers },
       );
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);

@@ -17,6 +17,7 @@ import {
   GitBranchIcon,
   RefreshIcon,
   ServerStackIcon,
+  Settings02Icon,
   ServiceIcon,
   Shield01Icon,
   WorkflowSquare01Icon,
@@ -29,6 +30,7 @@ import { TaskFlowView } from "@/components/workspace/views/task-flow-view"
 import { DiagnosisView } from "@/components/workspace/views/diagnosis-view"
 import { FleetView } from "@/components/workspace/views/fleet-view"
 import { SqlWorkbenchView } from "@/components/workspace/views/sql-workbench-view"
+import { SettingsView } from "@/components/workspace/views/settings-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { type ViewType } from "./views"
 
@@ -74,5 +76,9 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   service: {
     icon: ServiceIcon,
     component: placeholder("数据服务", "数据 API 与服务编排。"),
+  },
+  settings: {
+    icon: Settings02Icon,
+    component: SettingsView,
   },
 }

@@ -46,6 +46,10 @@ logging:
   level:
     com.dataweave: INFO
 
+jwt:
+  secret: dataweave-local-jwt-secret-key-must-be-at-least-32-chars-long-for-hs256
+  expiration-seconds: 86400       # 24h
+
 ---
 # h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）
 spring:

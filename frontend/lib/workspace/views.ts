@@ -16,6 +16,7 @@ export type ViewType =
   | "quality"
   | "integration"
   | "service"
+  | "settings"
 
 export interface ViewMeta {
   title: string
@@ -36,6 +37,7 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   quality: { title: "数据质量" },
   integration: { title: "数据集成" },
   service: { title: "数据服务" },
+  settings: { title: "系统设置" },
 }
 
 export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(
