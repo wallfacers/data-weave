@@ -28,6 +28,8 @@ public class WorkerReportService {
     private final TaskInstanceRepository taskInstanceRepository;
     private final WorkflowStateService workflowStateService;
     private final RetryService retryService;
+    private final SchedulerMetrics metrics;
+    private final SlaService slaService;
     private final EventBus eventBus;
     private final JdbcTemplate jdbc;
 
@@ -35,12 +37,16 @@ public class WorkerReportService {
                                TaskInstanceRepository taskInstanceRepository,
                                WorkflowStateService workflowStateService,
                                RetryService retryService,
+                               SchedulerMetrics metrics,
+                               SlaService slaService,
                                EventBus eventBus,
                                JdbcTemplate jdbc) {
         this.stateMachine = stateMachine;
         this.taskInstanceRepository = taskInstanceRepository;
         this.workflowStateService = workflowStateService;
         this.retryService = retryService;
+        this.metrics = metrics;
+        this.slaService = slaService;
         this.eventBus = eventBus;
         this.jdbc = jdbc;
     }
@@ -50,6 +56,8 @@ public class WorkerReportService {
         if (stateMachine.casTaskState(taskInstanceId, InstanceStates.DISPATCHED, InstanceStates.RUNNING)) {
             jdbc.update("UPDATE task_instance SET started_at=? WHERE id=? AND started_at IS NULL",
                     LocalDateTime.now(), taskInstanceId);
+            // 记录下发延迟（DISPATCHED → RUNNING）
+            recordDeliveryLatency(taskInstanceId);
         }
         wake();
     }
@@ -67,6 +75,7 @@ public class WorkerReportService {
             return;
         }
         writeLog(taskInstanceId, exitCode, tailLog);
+        recordTaskCompletion(taskInstanceId, "SUCCESS");
         recomputeWorkflow(ti.getWorkflowInstanceId());
         wake();
     }
@@ -84,11 +93,12 @@ public class WorkerReportService {
             return;
         }
         stateMachine.casTaskTerminal(taskInstanceId, ti.getState(), InstanceStates.FAILED, failureReason);
+        recordTaskCompletion(taskInstanceId, "FAILED");
         recomputeWorkflow(ti.getWorkflowInstanceId());
         wake();
     }
 
-    /** 重算工作流聚合态；若判定 FAILED，级联取消其下游仍可调度的节点（避免悬挂 WAITING）。 */
+    /** 重算工作流聚合态；若判定 FAILED 则级联取消下游；若 SUCCESS 则记录 SLA 基线。 */
     private void recomputeWorkflow(UUID workflowInstanceId) {
         if (workflowInstanceId == null) {
             return;
@@ -99,6 +109,8 @@ public class WorkerReportService {
                         "UPDATE task_instance SET state='STOPPED', finished_at=?, updated_at=? "
                                 + "WHERE workflow_instance_id=? AND state IN ('WAITING','NOT_RUN','PAUSED') AND deleted=0",
                         LocalDateTime.now(), LocalDateTime.now(), workflowInstanceId);
+            } else if (InstanceStates.SUCCESS.equals(state)) {
+                slaService.recordCompletion(workflowInstanceId);
             }
         });
     }
@@ -110,5 +122,48 @@ public class WorkerReportService {
 
     private void wake() {
         eventBus.publish(InstanceStates.WAKE_CHANNEL, "report");
+    }
+
+    /** 记录下发延迟（DISPATCHED→RUNNING 时间差）与任务执行计时启动。 */
+    private void recordDeliveryLatency(UUID taskInstanceId) {
+        try {
+            java.util.List<java.time.LocalDateTime> rows = jdbc.query(
+                    "SELECT updated_at FROM task_instance WHERE id=?",
+                    (rs, n) -> rs.getTimestamp("updated_at") != null
+                            ? rs.getTimestamp("updated_at").toLocalDateTime() : null,
+                    taskInstanceId);
+            if (!rows.isEmpty() && rows.get(0) != null) {
+                java.time.Duration d = java.time.Duration.between(rows.get(0), java.time.LocalDateTime.now());
+                metrics.recordDeliveryLatency(d);
+            }
+        } catch (Exception e) {
+            // 指标静默吞错
+        }
+    }
+
+    /** 记录任务完成（按终态 + task_def_id 维度）。 */
+    private void recordTaskCompletion(UUID taskInstanceId, String outcome) {
+        try {
+            var rows = jdbc.query(
+                    "SELECT ti.task_id, ti.started_at, ti.finished_at FROM task_instance ti WHERE ti.id=?",
+                    (rs, n) -> new Object[]{
+                            rs.getObject("task_id"),
+                            rs.getTimestamp("started_at") != null ? rs.getTimestamp("started_at").toLocalDateTime() : null,
+                            rs.getTimestamp("finished_at") != null ? rs.getTimestamp("finished_at").toLocalDateTime() : null
+                    },
+                    taskInstanceId);
+            if (!rows.isEmpty()) {
+                Object[] row = rows.get(0);
+                Long taskId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                // 基于 started_at → finished_at 的耗时
+                java.time.Duration d = java.time.Duration.ZERO;
+                if (row[1] != null && row[2] != null) {
+                    d = java.time.Duration.between((java.time.LocalDateTime) row[1], (java.time.LocalDateTime) row[2]);
+                }
+                metrics.recordTaskCompletion(d, outcome, taskId);
+            }
+        } catch (Exception e) {
+            // 指标静默吞错
+        }
     }
 }

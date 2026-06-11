@@ -8,12 +8,15 @@
 import type { ComponentType } from "react"
 import type { IconSvgElement } from "@hugeicons/react"
 import {
+  Activity02Icon,
   Analytics01Icon,
   BugIcon,
   Calendar01Icon,
   CatalogueIcon,
   DashboardSquare01Icon,
   DatabaseSyncIcon,
+  DocumentCodeIcon,
+  Flowchart01Icon,
   GitBranchIcon,
   RefreshIcon,
   ServerStackIcon,
@@ -31,6 +34,9 @@ import { DiagnosisView } from "@/components/workspace/views/diagnosis-view"
 import { FleetView } from "@/components/workspace/views/fleet-view"
 import { SqlWorkbenchView } from "@/components/workspace/views/sql-workbench-view"
 import { SettingsView } from "@/components/workspace/views/settings-view"
+import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
+import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
+import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { type ViewType } from "./views"
 
@@ -54,9 +60,12 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   "task-flow": { icon: Calendar01Icon, component: TaskFlowView },
   freshness: { icon: RefreshIcon, component: FreshnessView },
   reports: { icon: Analytics01Icon, component: ReportsView },
+  metrics: { icon: Activity02Icon, component: MetricsView },
   "sql-workbench": { icon: WorkflowSquare01Icon, component: SqlWorkbenchView },
   diagnosis: { icon: BugIcon, component: DiagnosisView },
   fleet: { icon: ServerStackIcon, component: FleetView },
+  "instance-log": { icon: DocumentCodeIcon, component: InstanceLogView },
+  "workflow-instance-detail": { icon: Flowchart01Icon, component: WorkflowInstanceDetail },
   lineage: {
     icon: GitBranchIcon,
     component: placeholder("数据血缘", "表与任务的上下游依赖图谱。"),

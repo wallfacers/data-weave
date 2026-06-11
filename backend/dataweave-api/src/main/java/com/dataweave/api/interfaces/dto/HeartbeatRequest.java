@@ -16,6 +16,10 @@ public class HeartbeatRequest {
     private Double disk;
     private Double loadAvg;
     private Integer runningTasks;
+    /** 进程启动纪元号（每次启动自增），master 据此检测 worker 重启。 */
+    private Long incarnation;
+    /** 当前运行中的任务实例 ID 列表（用于 master 侧租约续约）。 */
+    private java.util.List<String> runningInstanceIds;
 
     public HeartbeatRequest() {
     }
@@ -82,5 +86,21 @@ public class HeartbeatRequest {
 
     public void setRunningTasks(Integer runningTasks) {
         this.runningTasks = runningTasks;
+    }
+
+    public Long getIncarnation() {
+        return incarnation;
+    }
+
+    public void setIncarnation(Long incarnation) {
+        this.incarnation = incarnation;
+    }
+
+    public java.util.List<String> getRunningInstanceIds() {
+        return runningInstanceIds;
+    }
+
+    public void setRunningInstanceIds(java.util.List<String> runningInstanceIds) {
+        this.runningInstanceIds = runningInstanceIds;
     }
 }

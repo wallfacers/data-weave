@@ -1,0 +1,362 @@
+package com.dataweave.master.application;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * 调度四层可观测指标（design D14，task 5.1/5.2）。
+ *
+ * <p>所有指标经 Micrometer 注册，通过 actuator 和 {@code /api/ops/metrics} 双通道暴露。
+ * 调度内核各组件在关键路径调用本服务方法埋点。
+ *
+ * <h3>第 1 层：调度性能</h3>
+ * <ul>
+ *   <li>{@code scheduler.dispatch.latency} — 实例可运行→DISPATCHED 延迟分布</li>
+ *   <li>{@code scheduler.dispatch.latency.delivery} — DISPATCHED→RUNNING 下发延迟分布</li>
+ *   <li>{@code scheduler.queue.depth} — 当前 WAITING 队列深度</li>
+ *   <li>{@code scheduler.queue.oldest.age.seconds} — 最长等待者年龄</li>
+ *   <li>{@code scheduler.claim.rounds} — 认领轮次总数</li>
+ *   <li>{@code scheduler.claim.empty} — 空认领轮次</li>
+ *   <li>{@code scheduler.wake.source} — 唤醒来源（event/poll）</li>
+ *   <li>{@code scheduler.round.duration} — 单轮调度耗时分布</li>
+ *   <li>{@code scheduler.dispatch.count} — 下发计数</li>
+ * </ul>
+ *
+ * <h3>第 2 层：资源与执行</h3>
+ * <ul>
+ *   <li>{@code scheduler.slot.utilization} — 全局槽位利用率 0.0–1.0</li>
+ *   <li>{@code scheduler.slot.fragmentation} — 有空槽但无可派任务的比例</li>
+ *   <li>{@code scheduler.task.duration} — 任务执行耗时分布</li>
+ *   <li>{@code scheduler.task.completed} — 任务完成计数（含 outcome tag）</li>
+ *   <li>{@code scheduler.lease.reclaim} — 租约过期回收次数</li>
+ * </ul>
+ *
+ * <h3>第 3 层：管道健康（预留，Phase 4 落管道后激活）</h3>
+ * <ul>
+ *   <li>{@code scheduler.log.e2e.latency} — 日志端到端延迟</li>
+ *   <li>{@code scheduler.log.stream.backlog} — Stream 积压行数</li>
+ *   <li>{@code scheduler.sse.connections} — SSE 活跃连接数</li>
+ * </ul>
+ */
+@Service
+public class SchedulerMetrics {
+
+    private static final Logger log = LoggerFactory.getLogger(SchedulerMetrics.class);
+
+    private final MeterRegistry registry;
+    private final JdbcTemplate jdbc;
+
+    private final Timer dispatchLatency;
+    private final Timer deliveryLatency;
+    private final Timer roundDuration;
+    private final Timer taskDuration;
+    private final Counter claimRounds;
+    private final Counter emptyClaims;
+    private final Counter wakeEvent;
+    private final Counter wakePoll;
+    private final Counter dispatchCount;
+    private final Counter leaseReclaims;
+    private final AtomicLong queueDepth = new AtomicLong(0);
+    private final AtomicLong oldestAgeSeconds = new AtomicLong(0);
+    private final AtomicLong slotUtilization = new AtomicLong(0);
+    private final AtomicLong slotFragmentation = new AtomicLong(0);
+    private final AtomicLong logStreamBacklog = new AtomicLong(0);
+    private final AtomicLong sseConnections = new AtomicLong(0);
+
+    public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
+        this.registry = registry;
+        this.jdbc = jdbc;
+
+        this.dispatchLatency = Timer.builder("scheduler.dispatch.latency")
+                .description("Instance runnable -> DISPATCHED latency")
+                .publishPercentiles(0.5, 0.95, 0.99, 0.999)
+                .publishPercentileHistogram(true)
+                .sla(Duration.ofMillis(100), Duration.ofSeconds(1), Duration.ofSeconds(5))
+                .register(registry);
+
+        this.deliveryLatency = Timer.builder("scheduler.dispatch.latency.delivery")
+                .description("DISPATCHED -> RUNNING delivery latency")
+                .publishPercentiles(0.5, 0.95, 0.99, 0.999)
+                .publishPercentileHistogram(true)
+                .sla(Duration.ofMillis(500), Duration.ofSeconds(2), Duration.ofSeconds(10))
+                .register(registry);
+
+        this.roundDuration = Timer.builder("scheduler.round.duration")
+                .description("Single schedule round wall-clock duration")
+                .publishPercentileHistogram(true)
+                .register(registry);
+
+        this.taskDuration = Timer.builder("scheduler.task.duration")
+                .description("Task execution wall-clock duration")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .publishPercentileHistogram(true)
+                .register(registry);
+
+        this.claimRounds = Counter.builder("scheduler.claim.rounds")
+                .description("Total claim rounds (event + poll driven)")
+                .register(registry);
+
+        this.emptyClaims = Counter.builder("scheduler.claim.empty")
+                .description("Empty claim rounds (no runnable instance found)")
+                .register(registry);
+
+        this.wakeEvent = Counter.builder("scheduler.wake.source")
+                .tag("source", "event")
+                .register(registry);
+
+        this.wakePoll = Counter.builder("scheduler.wake.source")
+                .tag("source", "poll")
+                .register(registry);
+
+        this.dispatchCount = Counter.builder("scheduler.dispatch.count")
+                .description("Total task instance dispatches")
+                .register(registry);
+
+        this.leaseReclaims = Counter.builder("scheduler.lease.reclaim")
+                .description("Lease expiry reclaims (WORKER_LOST / WORKER_RESTART)")
+                .register(registry);
+
+        Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
+                .description("Current WAITING queue depth")
+                .register(registry);
+
+        Gauge.builder("scheduler.queue.oldest.age.seconds", oldestAgeSeconds, AtomicLong::doubleValue)
+                .description("Age of oldest WAITING instance in seconds")
+                .register(registry);
+
+        Gauge.builder("scheduler.slot.utilization", slotUtilization, v -> v.doubleValue() / 1000.0)
+                .description("Global slot utilization ratio (0.0-1.0)")
+                .register(registry);
+
+        Gauge.builder("scheduler.slot.fragmentation", slotFragmentation, v -> v.doubleValue() / 1000.0)
+                .description("Fragmentation: free slots but nothing dispatchable (0.0-1.0)")
+                .register(registry);
+
+        Gauge.builder("scheduler.log.stream.backlog", logStreamBacklog, AtomicLong::doubleValue)
+                .description("Log stream backlog line count")
+                .register(registry);
+
+        Gauge.builder("scheduler.sse.connections", sseConnections, AtomicLong::doubleValue)
+                .description("Active SSE connections")
+                .register(registry);
+
+        log.info("[SchedulerMetrics] 调度指标已注册（Micrometer + actuator /prometheus）");
+    }
+
+    // ─── 第 1 层 API ─────────────────────────────────────
+
+    public void recordDispatchLatency(Duration d) {
+        dispatchLatency.record(d);
+    }
+
+    public void recordDeliveryLatency(Duration d) {
+        deliveryLatency.record(d);
+    }
+
+    public Timer.Sample startRound() {
+        return Timer.start(registry);
+    }
+
+    public void endRound(Timer.Sample sample) {
+        sample.stop(roundDuration);
+        claimRounds.increment();
+    }
+
+    public void markEmptyClaim() {
+        emptyClaims.increment();
+    }
+
+    public void markWakeEvent() {
+        wakeEvent.increment();
+    }
+
+    public void markWakePoll() {
+        wakePoll.increment();
+    }
+
+    public void markDispatch() {
+        dispatchCount.increment();
+    }
+
+    public void markDispatches(int count) {
+        dispatchCount.increment(count);
+    }
+
+    public void refreshQueueDepth() {
+        try {
+            Integer count = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM task_instance WHERE state='WAITING' AND deleted=0", Integer.class);
+            queueDepth.set(count != null ? count : 0);
+        } catch (Exception e) {
+            // 指标静默吞错
+        }
+    }
+
+    public void refreshOldestAge() {
+        try {
+            Long age = jdbc.queryForObject(
+                    "SELECT (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) "
+                            + "- EXTRACT(EPOCH FROM MIN(updated_at)))::BIGINT "
+                            + "FROM task_instance WHERE state='WAITING' AND deleted=0",
+                    Long.class);
+            oldestAgeSeconds.set(age != null ? age : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
+    }
+
+    // ─── 第 2 层 API ─────────────────────────────────────
+
+    public Timer.Sample startTask() {
+        return Timer.start(registry);
+    }
+
+    public void endTask(Timer.Sample sample, String outcome, Long taskDefId) {
+        sample.stop(taskDuration);
+        registry.counter("scheduler.task.completed", "outcome",
+                outcome != null ? outcome : "UNKNOWN").increment();
+        if (taskDefId != null) {
+            registry.counter("scheduler.task.per.def",
+                    "task_id", String.valueOf(taskDefId),
+                    "outcome", outcome != null ? outcome : "UNKNOWN").increment();
+        }
+    }
+
+    public void recordTaskCompletion(Duration d, String outcome, Long taskDefId) {
+        taskDuration.record(d);
+        registry.counter("scheduler.task.completed", "outcome",
+                outcome != null ? outcome : "UNKNOWN").increment();
+        if (taskDefId != null) {
+            registry.counter("scheduler.task.per.def",
+                    "task_id", String.valueOf(taskDefId),
+                    "outcome", outcome != null ? outcome : "UNKNOWN").increment();
+        }
+    }
+
+    public void markLeaseReclaim() {
+        leaseReclaims.increment();
+    }
+
+    public void refreshSlotUtilization() {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT "
+                            + "COALESCE((SELECT COUNT(*) FROM task_instance "
+                            + "  WHERE state IN ('DISPATCHED','RUNNING') AND deleted=0), 0) AS used, "
+                            + "COALESCE((SELECT SUM(max_concurrent_tasks) FROM worker_nodes "
+                            + "  WHERE status='ONLINE' AND deleted=0), 0) AS total");
+            long used = ((Number) row.get("USED")).longValue();
+            long total = ((Number) row.get("TOTAL")).longValue();
+            slotUtilization.set(total > 0 ? used * 1000 / total : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
+    }
+
+    public void refreshFragmentation() {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT "
+                            + "COALESCE((SELECT SUM(max_concurrent_tasks) FROM worker_nodes "
+                            + "  WHERE status='ONLINE' AND deleted=0), 0) "
+                            + "- COALESCE((SELECT COUNT(*) FROM task_instance "
+                            + "  WHERE state IN ('DISPATCHED','RUNNING') AND deleted=0), 0) AS free, "
+                            + "CASE WHEN EXISTS (SELECT 1 FROM task_instance "
+                            + "  WHERE state='WAITING' AND run_mode='NORMAL' AND deleted=0) THEN 1 ELSE 0 END AS hasWait");
+            long free = ((Number) row.get("FREE")).longValue();
+            int hasWait = ((Number) row.get("HASWAIT")).intValue();
+            slotFragmentation.set(free > 0 && hasWait == 0 ? 1000 : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
+    }
+
+    // ─── 第 3 层 API（Phase 4 管道落成后激活） ──────────
+
+    public void setLogStreamBacklog(long lines) {
+        logStreamBacklog.set(lines);
+    }
+
+    public void setSseConnections(long count) {
+        sseConnections.set(count);
+    }
+
+    // ─── 聚合查询（供 /api/ops/metrics） ──────────────
+
+    /**
+     * 返回四层指标当前快照，供前端看板与告警模块消费。
+     * 百分位延迟通过 actuator /actuator/metrics 端点获取（Micrometer 2.x 不提供 Timer 直读）。
+     * 此处返回计数/瞬时值/均值（基于 totalTime/count 自算）。
+     */
+    public MetricsSnapshot snapshot() {
+        MetricsSnapshot s = new MetricsSnapshot();
+
+        // 第 1 层: counters + gauges (Timer 均值自算)
+        s.dispatchLatencyMean = dispatchLatency.count() > 0
+                ? dispatchLatency.totalTime(TimeUnit.MILLISECONDS) / (double) dispatchLatency.count() : 0;
+        s.dispatchLatencyCount = dispatchLatency.count();
+        s.deliveryLatencyMean = deliveryLatency.count() > 0
+                ? deliveryLatency.totalTime(TimeUnit.MILLISECONDS) / (double) deliveryLatency.count() : 0;
+        s.deliveryLatencyCount = deliveryLatency.count();
+        s.queueDepth = (int) queueDepth.get();
+        s.oldestAgeSeconds = oldestAgeSeconds.get();
+        s.totalClaimRounds = (long) claimRounds.count();
+        s.emptyClaimRounds = (long) emptyClaims.count();
+        s.wakeEvents = (long) wakeEvent.count();
+        s.wakePolls = (long) wakePoll.count();
+        s.totalDispatches = (long) dispatchCount.count();
+        s.roundDurationMean = roundDuration.count() > 0
+                ? roundDuration.totalTime(TimeUnit.MILLISECONDS) / (double) roundDuration.count() : 0;
+
+        // 第 2 层
+        s.slotUtilization = slotUtilization.doubleValue() / 1000.0;
+        s.slotFragmentation = slotFragmentation.doubleValue() / 1000.0;
+        s.taskDurationMean = taskDuration.count() > 0
+                ? taskDuration.totalTime(TimeUnit.MILLISECONDS) / (double) taskDuration.count() : 0;
+        s.taskCompletedCount = taskDuration.count();
+        s.leaseReclaims = (long) leaseReclaims.count();
+
+        // 第 3 层
+        s.logStreamBacklog = logStreamBacklog.get();
+        s.sseConnections = sseConnections.get();
+
+        return s;
+    }
+
+    public static final class MetricsSnapshot {
+        // 第 1 层：调度性能
+        public double dispatchLatencyMean;
+        public long dispatchLatencyCount;
+        public double deliveryLatencyMean;
+        public long deliveryLatencyCount;
+        public int queueDepth;
+        public long oldestAgeSeconds;
+        public long totalClaimRounds;
+        public long emptyClaimRounds;
+        public long wakeEvents;
+        public long wakePolls;
+        public long totalDispatches;
+        public double roundDurationMean;
+
+        // 第 2 层：资源与执行
+        public double slotUtilization;
+        public double slotFragmentation;
+        public double taskDurationMean;
+        public long taskCompletedCount;
+        public long leaseReclaims;
+
+        // 第 3 层：管道健康
+        public long logStreamBacklog;
+        public long sseConnections;
+    }
+}

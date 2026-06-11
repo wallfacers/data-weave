@@ -25,8 +25,11 @@ public interface TaskExecutionGateway {
      * @param runMode        NORMAL / TEST
      * @param bizDate        业务日期（注入任务环境，幂等钥匙之一）
      * @param content        执行内容（已发布版本快照或草稿）
+     * @param timeoutSeconds 超时秒数（≤ 0 表示不限时）
+     * @param taskType       任务类型（SQL / SHELL / …），执行端按此选执行器
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
-                           Integer taskVersionNo, String runMode, String bizDate, String content) {
+                           Integer taskVersionNo, String runMode, String bizDate, String content,
+                           int timeoutSeconds, String taskType) {
     }
 }

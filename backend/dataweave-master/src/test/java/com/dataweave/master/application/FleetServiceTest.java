@@ -25,11 +25,14 @@ class FleetServiceTest {
     @Mock
     private WorkerNodeRepository repository;
 
+    @Mock
+    private InstanceStateMachine stateMachine;
+
     private FleetService fleetService;
 
     @BeforeEach
     void setUp() {
-        fleetService = new FleetService(repository);
+        fleetService = new FleetService(repository, stateMachine);
     }
 
     @Test
@@ -38,7 +41,7 @@ class FleetServiceTest {
         when(repository.save(any(WorkerNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkerNode result = fleetService.report("node-1", "host-1", "4C/8G",
-                0.3, 0.45, 0.5, 1.2, 0);
+                0.3, 0.45, 0.5, 1.2, 0, null, null, 120);
 
         assertThat(result.getStatus()).isEqualTo("ONLINE");
         assertThat(result.getNodeCode()).isEqualTo("node-1");
@@ -66,7 +69,7 @@ class FleetServiceTest {
         when(repository.save(any(WorkerNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkerNode result = fleetService.report("node-1", "host-1-updated", "8C/16G",
-                0.6, 0.7, 0.8, 2.5, 3);
+                0.6, 0.7, 0.8, 2.5, 3, null, null, 120);
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getStatus()).isEqualTo("ONLINE");
@@ -75,6 +78,49 @@ class FleetServiceTest {
         assertThat(result.getCpu()).isEqualTo(0.6);
         assertThat(result.getRunningTasks()).isEqualTo(3);
         verify(repository).save(any(WorkerNode.class));
+    }
+
+    @Test
+    void report_incarnationChange_shouldDetectRestart() {
+        WorkerNode existing = new WorkerNode();
+        existing.setId(1L);
+        existing.setNodeCode("node-1");
+        existing.setIncarnation(100L);
+        existing.setCreatedAt(LocalDateTime.now().minusDays(1));
+        existing.setDeleted(0);
+        existing.setVersion(0);
+
+        when(repository.findByNodeCode("node-1")).thenReturn(Optional.of(existing));
+        when(repository.save(any(WorkerNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        fleetService.report("node-1", "host-1", "4C/8G", 0.3, 0.45, 0.5, 1.2, 0,
+                200L, null, 120);
+
+        // incarnation should be updated to 200
+        assertThat(existing.getIncarnation()).isEqualTo(200L);
+    }
+
+    @Test
+    void report_withRunningInstances_shouldRenewLeases() {
+        WorkerNode existing = new WorkerNode();
+        existing.setId(1L);
+        existing.setNodeCode("node-1");
+        existing.setIncarnation(100L);
+        existing.setCreatedAt(LocalDateTime.now().minusDays(1));
+        existing.setDeleted(0);
+        existing.setVersion(0);
+
+        when(repository.findByNodeCode("node-1")).thenReturn(Optional.of(existing));
+        when(repository.save(any(WorkerNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(stateMachine.renewLease(any(), any())).thenReturn(true);
+
+        java.util.UUID id1 = java.util.UUID.randomUUID();
+        java.util.UUID id2 = java.util.UUID.randomUUID();
+
+        fleetService.report("node-1", "host-1", "4C/8G", 0.3, 0.45, 0.5, 1.2, 2,
+                100L, java.util.List.of(id1, id2), 120);
+
+        verify(stateMachine, org.mockito.Mockito.times(2)).renewLease(any(), any());
     }
 
     @Test

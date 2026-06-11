@@ -33,8 +33,11 @@ data-weave/
 | 后端框架 | Spring Boot 4.0 / Spring Framework 7 | 自带 **Jackson 3**（`tools.jackson.*`） |
 | Web 层 | Spring WebFlux | AG-UI 走 SSE 流式 |
 | 持久化 | PostgreSQL（生产）/ H2（开发零依赖） | DDL 兼容 PG 语法 |
-| 缓存/队列 | Redis | 对话临时状态 + Master/Worker 队列占位 |
-| Agent 引擎 | MVP 为规则 mock，预留 `LlmClient` 接口 | 后期接 LangChain4j / 真模型 |
+| 缓存/队列 | Redis | 对话临时状态 + EventBus(跨 master 唤醒) + LogBus(实时日志流) |
+| 对象存储 | MinIO | distributed 模式日志归档（`logarchive.type=s3`） |
+| 调度内核 | 多 master 对等 + SKIP LOCKED 认领 + 事件驱动 + 软抢占 | `scheduler.mode=all-in-one|distributed`，开发零依赖 |
+| 可观测性 | Micrometer + Actuator | 四层指标：调度性能/资源执行/管道健康/业务 SLA |
+| Agent 引擎 | 双模式 mock（IntentRouter 规则）/ workhorse（真 LLM 经桥接层） | `agent.mode=mock|workhorse` |
 | 设计系统工具 | `@google/design.md`（alpha） | token 真相源 + lint + export |
 | 规范工作流 | `@fission-ai/openspec` | spec-driven，change → propose/apply/archive |
 
@@ -75,8 +78,8 @@ data-weave/
 | 模块 | 职责 | MVP 实质内容 |
 |------|------|------|
 | `dataweave-api` | AG-UI 对话端点 + REST 网关 | WebFlux SSE 发 AG-UI 事件；Agent 编排（意图→动作）入口；指标查询/Text-to-SQL |
-| `dataweave-master` | 调度中心、工作流引擎、指标领域 | 任务/调度/指标/血缘领域模型 + DDL + 种子；mock 调度状态机 |
-| `dataweave-worker` | 任务执行器 | 执行器基类 + Shell 执行器（骨架） |
+| `dataweave-master` | 调度中心、工作流引擎、指标领域 | 分布式调度内核（SchedulerKernel/InstanceStateMachine/SlotManager/PreemptionService/RetryService）、工作流/任务领域模型与 DAG、指标/血缘领域、SLA 基线、审计四表 |
+| `dataweave-worker` | 任务执行器 | TaskExecutor 接口（Shell/…），stdout/stderr 逐行采集、超时 kill、环境变量注入；all-in-one 进程内执行；distributed 经 exec HTTP 端点 |
 | `dataweave-alert` | 告警通知 | 规则实体 + 通知通道接口（骨架） |
 
 - **Master ↔ Worker**：MVP 先定义领域接口 + Redis 队列占位，代码内注释标注后期切换 gRPC/MQ 的接缝。
@@ -86,7 +89,38 @@ data-weave/
   - 识别血缘问题 → 查 `metric_lineage` 返回「指标 → SQL → 物理表」链路。
   - 预留 `LlmClient` 接口（默认 mock 实现）+ `WebClientConfig`（自建 `WebClient.Builder` bean）。
 
-### AG-UI 事件流（mock）
+### 调度内核（distributed-scheduler-m1）
+
+多 master 完全对等，PG 为唯一真相源（不引入 ZK/etcd）。认领用 `SELECT … FOR UPDATE SKIP LOCKED`，状态推进全用乐观 CAS（`WHERE state=?` 守卫），死锁防御为体系不变式。
+
+- **双部署模式**：`scheduler.mode=all-in-one`（单 JVM、H2、内存总线、本地文件归档）vs `distributed`（PG、Redis pub/sub+Stream、MinIO 归档、独立 worker 进程）。
+- **事件驱动快路径 + 轮询兜底**（默认 5s）：提交/任务完成/槽位释放通过 EventBus 广播唤醒即刻调度；兜底捞事件丢失与 master 宕机漏网之鱼。
+- **软抢占**：高优无槽时 kill `preemptible` 运行中任务 → PREEMPTED 回 WAITING，不耗 attempt。
+- **cron 防重**：`cron_fire` 护栏表复合唯一键（`workflow_id, scheduled_fire_time`），多 master 同时 INSERT，撞键放弃——零协调。
+- **断点恢复 + 整流重跑**：SUCCESS 节点跳过，FAILED→RUNNING 再入，同一套实现。
+- **闸门**：cron 例行不进 PolicyEngine；人/Agent 发起的运行（TEST/手动触发/rerun/恢复/抢占 kill）经 `GatedActionService`。
+- **TEST 模式**：下发草稿内容、跳过依赖检查、不入正式统计与 SLA，预留专属槽位。
+
+### 实时管道（Phase 4）
+
+- **日志流**：worker stdout/stderr 按行 → LogBus（Redis Stream `dw:log:{instanceId}`）→ SSE 端点 `GET /api/ops/instances/{id}/logs/stream`（Last-Event-ID 断线续传）→ 前端 EventSource 滚屏。
+- **状态流**：实例/节点状态变化 → EventBus（`dw:evt:{workflowInstanceId}`）→ SSE 端点 `GET /api/ops/workflow-instances/{id}/events/stream`→ 前端 DAG 节点实时变色。
+- **归档**：任务结束 → LogArchiveStorage（S3/MinIO，键 `logs/{biz_date}/{instance_id}/{attempt}.log`）+ 尾部摘要回写 `task_instance.log`。
+
+### 可观测性（Phase 5）
+
+四层指标体系，所有指标经 Micrometer 注册，通过 actuator（`/actuator/metrics`、`/actuator/prometheus`）和 `/api/ops/metrics` 双通道暴露：
+
+| 层 | 关键指标 | 用途 |
+|----|----------|------|
+| 调度性能 | 调度/下发延迟均值、队列深度、最长等待者年龄、空抢率、事件 vs 轮询比 | "0 延迟"是否兑现 |
+| 资源执行 | 槽位利用率、碎片率、任务执行耗时、租约回收次数 | 容量与健康 |
+| 管道健康 | 日志流积压、SSE 连接数 | 实时体验是否真实时 |
+| 业务 SLA | 按 workflow+biz_date 就绪时刻 vs 历史基线、破线事件（排除 TEST） | 出数时效预警 |
+
+前端 Workspace → "系统指标" 视图（Pinned 底座）消费 `/api/ops/metrics` 展示四层关键指标卡。
+
+### AG-UI 事件流
 api 模块接收用户消息 → Agent 编排器解析意图 → 产生一系列 AG-UI 事件（文本增量 + 结构化结果）→ SSE 推回前端。
 
 ---

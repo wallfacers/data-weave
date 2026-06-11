@@ -4,6 +4,7 @@ import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
+import com.dataweave.master.domain.LogArchiveStorage;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskInstance;
@@ -35,15 +36,18 @@ public class CliController {
     private final TaskDefRepository taskDefRepository;
     private final TaskInstanceRepository instanceRepository;
     private final GatedActionService gatedActionService;
+    private final LogArchiveStorage logArchive;
     private final String cliToken;
 
     public CliController(TaskDefRepository taskDefRepository,
                          TaskInstanceRepository instanceRepository,
                          GatedActionService gatedActionService,
+                         LogArchiveStorage logArchive,
                          @Value("${cli.auth.token:dataweave-local-cli-token}") String cliToken) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.gatedActionService = gatedActionService;
+        this.logArchive = logArchive;
         this.cliToken = cliToken;
     }
 
@@ -78,7 +82,21 @@ public class CliController {
         r.put("instanceId", id);
         r.put("state", inst.getState());
         r.put("workerNodeCode", inst.getWorkerNodeCode());
-        r.put("log", inst.getLog());
+
+        // 尝试从归档读取完整日志；若归档不存在，回退到 task_instance.log 字段
+        String logContent = null;
+        if (inst.getBizDate() != null) {
+            String bizDate = inst.getBizDate().toString();
+            String key = String.format("logs/%s/%s/%d.log", bizDate, id, inst.getAttempt());
+            var archived = logArchive.get(key);
+            if (archived.isPresent()) {
+                logContent = archived.get();
+            }
+        }
+        if (logContent == null) {
+            logContent = inst.getLog();
+        }
+        r.put("log", logContent);
         return ApiResponse.ok(r);
     }
 

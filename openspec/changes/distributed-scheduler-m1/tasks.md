@@ -27,30 +27,30 @@
 
 ## 3. 任务下发网络化（distributed 模式）
 
-- [ ] 3.1 TaskExecutor 真实执行：进程启动、stdout/stderr 按行采集、本地落盘、退出码判定、超时 kill；注入 biz_date/attempt 环境变量；与 node_exec 白名单路径隔离
-- [ ] 3.2 worker 幂等执行：按 (instance_id, attempt) 去重；exec HTTP 端点（distributed）+ 进程内 Gateway（all-in-one）双实现，共享 token 鉴权
-- [ ] 3.3 写前置下发：CAS 置 DISPATCHED 落库（worker_node_code/lease_expire_at/attempt）→ 事务外下发 → 失败 CAS 回 WAITING
-- [ ] 3.4 worker 状态回报：started/finished/failed 回调任一 master，CAS 推进 + 触发调度事件
-- [ ] 3.5 心跳扩展：携带 incarnation 与运行中实例列表；master 侧租约续约；FleetService/HeartbeatReporter 改造（worker-fleet delta）
-- [ ] 3.6 失效回收：incarnation 变化 → 该节点实例 FAILED(WORKER_RESTART)；租约过期/离线 → FAILED(WORKER_LOST)；联动重试（含集成测试）
-- [ ] 3.7 worker 独立进程入口（dataweave-worker 自己的 Spring Boot 启动）+ SIGTERM 优雅 drain（拒新任务、等待运行中至超时、上报）
-- [ ] 3.8 Redis 实现：EventBus(pub/sub dw:wake) + LogBus(Stream dw:log:{id}, TTL/maxlen)；docker-compose 验证
+- [x] 3.1 TaskExecutor 真实执行：进程启动、stdout/stderr 按行采集、本地落盘、退出码判定、超时 kill；注入 biz_date/attempt 环境变量；与 node_exec 白名单路径隔离
+- [x] 3.2 worker 幂等执行：按 (instance_id, attempt) 去重；exec HTTP 端点（distributed）+ 进程内 Gateway（all-in-one）双实现，共享 token 鉴权
+- [x] 3.3 写前置下发：CAS 置 DISPATCHED 落库（worker_node_code/lease_expire_at/attempt）→ 事务外下发 → 失败 CAS 回 WAITING
+- [x] 3.4 worker 状态回报：started/finished/failed 回调任一 master，CAS 推进 + 触发调度事件
+- [x] 3.5 心跳扩展：携带 incarnation 与运行中实例列表；master 侧租约续约；FleetService/HeartbeatReporter 改造（worker-fleet delta）
+- [x] 3.6 失效回收：incarnation 变化 → 该节点实例 FAILED(WORKER_RESTART)；租约过期/离线 → FAILED(WORKER_LOST)；联动重试（含集成测试）
+- [x] 3.7 worker 独立进程入口（dataweave-worker 自己的 Spring Boot 启动）+ SIGTERM 优雅 drain（拒新任务、等待运行中至超时、上报）
+- [x] 3.8 Redis 实现：EventBus(pub/sub dw:wake) + LogBus(Stream dw:log:{id}, TTL/maxlen)；docker-compose 验证
 - [ ] 3.9 distributed 集成验证：docker compose 起 PG+Redis+MinIO+2 master+2 worker，验证竞争认领唯一、worker 重启失败可知、Redis 宕机退化轮询零丢失
 
 ## 4. 实时管道与归档
 
-- [ ] 4.1 LogArchiveStorage S3 实现（MinIO SDK），归档键 logs/{biz_date}/{instance_id}/{attempt}.log；任务结束归档 + 尾部摘要回写 task_instance.log；MinIO 进 docker-compose
-- [ ] 4.2 日志 SSE 端点：GET /api/ops/instances/{id}/logs/stream（XREAD 转发，Last-Event-ID 续传）；历史日志接口走归档；dw logs cat 后端接归档
-- [ ] 4.3 状态事件流：实例/节点状态变化发布 dw:evt:{workflowInstanceId}，SSE 端点 GET /api/ops/workflow-instances/{id}/events/stream
-- [ ] 4.4 前端 EventSource 订阅 hook（断线带 offset 重连）+ 实例日志滚屏视图（逐行追加自动滚动，复用对话流视觉范式）
-- [ ] 4.5 前端任务流实时刷新：实例视图订阅状态流，节点状态实时变化替代一次性 fetch
+- [x] 4.1 LogArchiveStorage S3 实现（MinIO SDK），归档键 logs/{biz_date}/{instance_id}/{attempt}.log；任务结束归档 + 尾部摘要回写 task_instance.log；MinIO 进 docker-compose
+- [x] 4.2 日志 SSE 端点：GET /api/ops/instances/{id}/logs/stream（XREAD 转发，Last-Event-ID 续传）；历史日志接口走归档；dw logs cat 后端接归档
+- [x] 4.3 状态事件流：实例/节点状态变化发布 dw:evt:{workflowInstanceId}，SSE 端点 GET /api/ops/workflow-instances/{id}/events/stream
+- [x] 4.4 前端 EventSource 订阅 hook（断线带 offset 重连）+ 实例日志滚屏视图（逐行追加自动滚动，复用对话流视觉范式）
+- [x] 4.5 前端任务流实时刷新：实例视图订阅状态流，节点状态实时变化替代一次性 fetch
 - [ ] 4.6 浏览器验证（硬性 Gate）：真实任务运行中日志滚屏、刷新续传不丢行、DAG 节点状态实时变绿，console 无 error，产物入 tmp/
 
 ## 5. 指标体系与收尾
 
-- [ ] 5.1 Micrometer 调度性能指标：调度/下发延迟分布、队列深度、最长等待者年龄、吞吐、单轮耗时、空抢率
-- [ ] 5.2 资源/执行/管道指标：槽位利用率、碎片率、按 task_def 成败率、租约回收次数、日志端到端延迟、Stream 积压、SSE 连接数、事件 vs 兜底命中比
-- [ ] 5.3 SLA 基线：workflow+biz_date 就绪时刻记录与基线表、破线事件（排除 TEST），喂告警模块与 Agent 自诊断查询
-- [ ] 5.4 /api/ops/metrics 汇总接口 + 前端指标看板视图（Workspace 注册）
-- [ ] 5.5 文档同步：CLAUDE.md/README/docs/architecture.md 更新双部署模式、运行方式、AG-UI 之外的 SSE 端点说明
-- [ ] 5.6 全量回归：后端 mvnw install 测试全绿、前端 typecheck、all-in-one 克隆即跑冒烟、distributed compose 冒烟
+- [x] 5.1 Micrometer 调度性能指标：调度/下发延迟分布、队列深度、最长等待者年龄、吞吐、单轮耗时、空抢率
+- [x] 5.2 资源/执行/管道指标：槽位利用率、碎片率、按 task_def 成败率、租约回收次数、日志端到端延迟、Stream 积压、SSE 连接数、事件 vs 兜底命中比
+- [x] 5.3 SLA 基线：workflow+biz_date 就绪时刻记录与基线表、破线事件（排除 TEST），喂告警模块与 Agent 自诊断查询
+- [x] 5.4 /api/ops/metrics 汇总接口 + 前端指标看板视图（Workspace 注册）
+- [x] 5.5 文档同步：CLAUDE.md/README/docs/architecture.md 更新双部署模式、运行方式、AG-UI 之外的 SSE 端点说明
+- [x] 5.6 全量回归：后端 mvnw install 测试全绿、前端 typecheck、all-in-one 克隆即跑冒烟、distributed compose 冒烟

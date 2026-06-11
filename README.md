@@ -26,8 +26,10 @@ data-weave/
 |---|---|
 | 前端 | Next.js (App Router) · shadcn/ui · CopilotKit **v2**（直连 AG-UI，不跑 Node Runtime）· next-themes |
 | 后端 | Java 25 · Spring Boot 4.0（Jackson 3）· WebFlux（AG-UI SSE）· Maven 多模块 · DDD 四层 |
-| 存储 | PostgreSQL（生产）/ H2（开发零依赖）· Redis |
-| Agent | MVP 规则 mock，预留 `LlmClient` 接口（后期接真模型） |
+| 存储 | PostgreSQL（生产）/ H2（开发零依赖）· Redis · MinIO（distributed 日志归档） |
+| 调度 | 多 master 对等 + SKIP LOCKED 认领 + 事件驱动快路径 + 软抢占 + cron 护栏表防重 |
+| 指标 | Micrometer + Actuator（调度四层指标：性能/资源/管道/SLA），`/api/ops/metrics` + Prometheus |
+| Agent | 双模式 mock（IntentRouter）/ workhorse（真 LLM 经桥接层） |
 
 ## 快速开始
 
@@ -47,6 +49,28 @@ pnpm install
 pnpm dev                                         # http://localhost:3000 → /agent
 ```
 前端通过 `NEXT_PUBLIC_AGENT_URL`（默认 `http://localhost:8080/agui`）连后端。
+
+### 调度器模式
+
+默认 `all-in-one`（单 JVM 内 master+worker，H2 + 内存总线 + 本地文件归档），克隆即跑。生产态切 `distributed`：
+
+```bash
+# distributed 模式（PG + Redis + MinIO + 独立 master/worker 进程）
+docker compose --profile workhorse up -d
+cd backend && ./mvnw -pl dataweave-api spring-boot:run \
+    -Dspring-boot.run.profiles=pg \
+    -Dspring-boot.run.arguments=--scheduler.mode=distributed
+```
+
+配置项：`scheduler.mode`、`scheduler.poll-interval-ms`、`scheduler.claim-batch-size`、`scheduler.cron-misfire`、`cluster.auth.token`（见 `application.yml`）。
+
+### 系统指标
+
+调度内核四层可观测指标（性能/资源/管道/SLA）经 Micrometer 暴露：
+
+- **后端 REST**：`GET /api/ops/metrics`（JSON 快照，前端指标看板用）
+- **Actuator**：`GET /actuator/metrics` / `GET /actuator/prometheus`（Prometheus 刮取）
+- **前端**：Workspace → "系统指标" 视图（Pinned 底座，开箱可见）
 
 ### 接真实库（可选）
 ```bash

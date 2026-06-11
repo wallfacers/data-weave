@@ -8,9 +8,12 @@ export type ViewType =
   | "task-flow"
   | "freshness"
   | "reports"
+  | "metrics"
   | "sql-workbench"
   | "diagnosis"
   | "fleet"
+  | "instance-log"
+  | "workflow-instance-detail"
   | "lineage"
   | "catalog"
   | "quality"
@@ -29,9 +32,12 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   "task-flow": { title: "任务流", defaultPinned: true },
   freshness: { title: "数据新鲜度", defaultPinned: true },
   reports: { title: "业务报表", defaultPinned: true },
+  metrics: { title: "系统指标", defaultPinned: true },
   "sql-workbench": { title: "任务开发" },
   diagnosis: { title: "失败诊断" },
   fleet: { title: "集群机器" },
+  "instance-log": { title: "实例日志" },
+  "workflow-instance-detail": { title: "工作流实例" },
   lineage: { title: "数据血缘" },
   catalog: { title: "资产目录" },
   quality: { title: "数据质量" },

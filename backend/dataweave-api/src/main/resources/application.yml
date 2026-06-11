@@ -61,6 +61,17 @@ logbus:
 logarchive:
   type: file                       # file | s3
 
+# Micrometer + Actuator exposure (distributed-scheduler-m1 Phase 5)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
 logging:
   level:
     com.dataweave: INFO

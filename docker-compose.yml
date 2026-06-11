@@ -1,4 +1,4 @@
-# DataWeave 生产态依赖：PostgreSQL + Redis
+# DataWeave 生产态依赖：PostgreSQL + Redis + MinIO
 # 开发态默认用后端内置 H2，无需启动本文件；接真实库时 `docker compose up -d` 后用后端 pg profile。
 services:
   postgres:
@@ -31,6 +31,25 @@ services:
       timeout: 3s
       retries: 10
 
+  # MinIO 对象存储（S3 API 兼容，distributed 模式日志归档）
+  minio:
+    image: minio/minio:latest
+    container_name: dataweave-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Console
+    volumes:
+      - dataweave-minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # workhorse-agent 大脑（agent.mode=workhorse 时启用）。仅本机暴露，dataweave-api 为唯一客户端。
   # 默认不随 `docker compose up` 启动；用 `docker compose --profile workhorse up -d` 拉起。
   # PROVISIONAL：image / 配置挂载以 workhorse 仓库 support-dataweave-headless-integration 落地为准。
@@ -47,6 +66,49 @@ services:
       - ./deploy/workhorse/mcp.json:/etc/workhorse/mcp.json:ro
     command: ["--config", "/etc/workhorse/config.yaml"]
 
+  # ── distributed 模式（scheduler.mode=distributed）─────────────────────────
+  # 用法：docker compose --profile distributed up -d
+  # 先起基础服务：docker compose up -d postgres redis minio
+
+  dataweave-master:
+    image: ${DATAWEAVE_API_IMAGE:-dataweave/dataweave-api:latest}
+    container_name: dataweave-master
+    profiles: ["distributed"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: pg
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
+      SPRING_DATASOURCE_USERNAME: dataweave
+      SPRING_DATASOURCE_PASSWORD: dataweave
+      SPRING_DATA_REDIS_HOST: redis
+      SCHEDULER_MODE: distributed
+      EVENTBUS_TYPE: redis
+      LOGBUS_TYPE: redis
+      CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+    restart: unless-stopped
+
+  dataweave-worker:
+    image: ${DATAWEAVE_WORKER_IMAGE:-dataweave/dataweave-worker:latest}
+    profiles: ["distributed"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      DATAWEAVE_MASTER_URL: http://dataweave-master:8080
+      DATAWEAVE_WORKER_NODE_CODE: worker-1
+      DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
+      CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+    restart: unless-stopped
+
 volumes:
   dataweave-pg:
   dataweave-redis:
+  dataweave-minio:

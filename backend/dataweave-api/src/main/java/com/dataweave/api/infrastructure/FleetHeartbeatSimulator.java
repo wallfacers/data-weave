@@ -45,7 +45,10 @@ public class FleetHeartbeatSimulator {
                     node.getMem() != null ? node.getMem() : 0,
                     node.getDisk() != null ? node.getDisk() : 0,
                     node.getLoadAvg() != null ? node.getLoadAvg() : 0,
-                    node.getRunningTasks() != null ? node.getRunningTasks() : 0
+                    node.getRunningTasks() != null ? node.getRunningTasks() : 0,
+                    node.getIncarnation(),
+                    null,
+                    120
             );
             log.log(System.Logger.Level.DEBUG, "模拟心跳刷新: {0}", node.getNodeCode());
         }

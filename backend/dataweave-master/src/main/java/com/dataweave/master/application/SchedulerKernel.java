@@ -5,6 +5,7 @@ import com.dataweave.master.application.SchedulingPolicy.NodeLoad;
 import com.dataweave.master.application.TaskExecutionGateway.DispatchCommand;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
+import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,7 @@ public class SchedulerKernel {
     private final TaskExecutionGateway gateway;
     private final EventBus eventBus;
     private final PreemptionService preemptionService;
+    private final SchedulerMetrics metrics;
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
@@ -61,6 +63,7 @@ public class SchedulerKernel {
                            TaskExecutionGateway gateway,
                            EventBus eventBus,
                            PreemptionService preemptionService,
+                           SchedulerMetrics metrics,
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds) {
@@ -71,6 +74,7 @@ public class SchedulerKernel {
         this.gateway = gateway;
         this.eventBus = eventBus;
         this.preemptionService = preemptionService;
+        this.metrics = metrics;
         this.txTemplate = new TransactionTemplate(txManager);
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
@@ -78,12 +82,16 @@ public class SchedulerKernel {
 
     @PostConstruct
     void subscribeWake() {
-        eventBus.subscribe(InstanceStates.WAKE_CHANNEL, msg -> scheduleOnce());
+        eventBus.subscribe(InstanceStates.WAKE_CHANNEL, msg -> {
+            metrics.markWakeEvent();
+            scheduleOnce();
+        });
     }
 
     /** 兜底轮询：捞事件丢失与 master 宕机留下的漏网之鱼。 */
     @Scheduled(fixedRateString = "${scheduler.poll-interval-ms:5000}")
     public void poll() {
+        metrics.markWakePoll();
         scheduleOnce();
     }
 
@@ -104,20 +112,25 @@ public class SchedulerKernel {
     }
 
     private void runRound() {
+        Timer.Sample roundSample = metrics.startRound();
         List<DispatchCommand> dispatched;
         try {
             dispatched = txTemplate.execute(status -> claimAndMark());
         } catch (Exception e) {
             log.warn("[Scheduler] 认领事务失败：{}", e.getMessage());
+            metrics.endRound(roundSample);
             return;
         }
         if (dispatched == null || dispatched.isEmpty()) {
+            metrics.markEmptyClaim();
+            metrics.endRound(roundSample);
             // 无可下发：若有积压的高优待调度且无空槽，尝试软抢占腾位，成功则补跑一轮。
             if (preemptionService.preemptOneForWaitingHighPriority()) {
                 rerun.set(true);
             }
             return;
         }
+        metrics.markDispatches(dispatched.size());
         // 事务外下发（副作用）；失败回退 WAITING 重派。
         for (DispatchCommand cmd : dispatched) {
             try {
@@ -127,6 +140,7 @@ public class SchedulerKernel {
                 stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
             }
         }
+        metrics.endRound(roundSample);
     }
 
     /** 在事务内认领可运行实例、分配节点、CAS 置 DISPATCHED，返回待下发指令。 */
@@ -172,8 +186,9 @@ public class SchedulerKernel {
                 LocalDateTime lease = now.plusSeconds(leaseSeconds);
                 if (stateMachine.casDispatch(r.id, InstanceStates.WAITING, code, lease, attempt)) {
                     ns.used++;
+                    int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
                     out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, contentOf(r)));
+                            r.runMode, r.bizDate, contentOf(r), timeout, r.taskType));
                 }
             });
         }
@@ -207,7 +222,9 @@ public class SchedulerKernel {
         if (test) {
             sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
                     + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
-                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority "
+                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
+                    + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
+                    + "(SELECT td.type FROM task_def td WHERE td.id=ti.task_id) AS task_type "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
                     + "ORDER BY ti.updated_at ASC "
@@ -215,7 +232,9 @@ public class SchedulerKernel {
         } else {
             sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
                     + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
-                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority "
+                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
+                    + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
+                    + "(SELECT td.type FROM task_def td WHERE td.id=ti.task_id) AS task_type "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='NORMAL' AND ti.deleted=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
@@ -239,6 +258,8 @@ public class SchedulerKernel {
             r.bizDate = rs.getString("biz_date");
             r.waitingSince = rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null;
             r.priority = (Integer) rs.getObject("wpriority");
+            r.timeoutSec = (Integer) rs.getObject("timeout_sec");
+            r.taskType = rs.getString("task_type");
             return r;
         });
     }
@@ -274,6 +295,8 @@ public class SchedulerKernel {
         String bizDate;
         LocalDateTime waitingSince;
         Integer priority;
+        Integer timeoutSec;
+        String taskType;
 
         boolean test() {
             return "TEST".equals(runMode);

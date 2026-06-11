@@ -12,18 +12,34 @@
 
     <artifactId>dataweave-worker</artifactId>
     <name>dataweave-worker</name>
-    <description>Task executors (skeleton): abstract TaskExecutor + ShellTaskExecutor</description>
+    <description>Task executors + independent Spring Boot worker entry</description>
 
     <dependencies>
+        <!-- Spring Boot Web for independent worker HTTP endpoints -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.dataweave.worker.WorkerApplication</mainClass>
+                    <!-- 产 fat jar 用 classifier 区分，保留原始 jar 供 sibling 依赖 -->
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
