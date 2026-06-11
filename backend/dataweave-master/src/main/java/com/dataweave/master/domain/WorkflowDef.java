@@ -19,6 +19,9 @@ public class WorkflowDef {
     private String status;
     private Integer currentVersionNo;
     private Integer hasDraftChange;
+    private LocalDateTime lastFireTime;
+    private Integer priority;
+    private Integer timeoutSec;
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -63,6 +66,15 @@ public class WorkflowDef {
 
     public Integer getHasDraftChange() { return hasDraftChange; }
     public void setHasDraftChange(Integer hasDraftChange) { this.hasDraftChange = hasDraftChange; }
+
+    public LocalDateTime getLastFireTime() { return lastFireTime; }
+    public void setLastFireTime(LocalDateTime lastFireTime) { this.lastFireTime = lastFireTime; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
+
+    public Integer getTimeoutSec() { return timeoutSec; }
+    public void setTimeoutSec(Integer timeoutSec) { this.timeoutSec = timeoutSec; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

@@ -21,6 +21,9 @@ public class TaskDef {
     private String status;
     private Integer currentVersionNo;
     private Integer hasDraftChange;
+    private Integer priority;
+    private String description;
+    private Long ownerId;
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -71,6 +74,15 @@ public class TaskDef {
 
     public Integer getHasDraftChange() { return hasDraftChange; }
     public void setHasDraftChange(Integer hasDraftChange) { this.hasDraftChange = hasDraftChange; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public Long getOwnerId() { return ownerId; }
+    public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

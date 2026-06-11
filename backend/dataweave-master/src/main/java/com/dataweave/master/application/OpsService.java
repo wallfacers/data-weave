@@ -5,8 +5,11 @@ import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskDiagnosis;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
+import com.dataweave.master.domain.WorkflowInstance;
+import com.dataweave.master.domain.WorkflowInstanceRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -21,13 +24,16 @@ public class OpsService {
 
     private final TaskDefRepository taskDefRepository;
     private final TaskInstanceRepository instanceRepository;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
     private final DiagnosisService diagnosisService;
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
+                      WorkflowInstanceRepository workflowInstanceRepository,
                       DiagnosisService diagnosisService) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
+        this.workflowInstanceRepository = workflowInstanceRepository;
         this.diagnosisService = diagnosisService;
     }
 
@@ -74,6 +80,127 @@ public class OpsService {
         }
         return new DashboardSummary(all.size(), success, failed, running,
                 failedInstances(), diagnosisService.open());
+    }
+
+    // ─── 实例生命周期管理 ─────────────────────────────────
+
+    /** 暂停工作流实例：RUNNING → PAUSED，所有 NOT_RUN 的 TaskInstance → PAUSED。 */
+    public WorkflowInstance pauseWorkflow(Long instanceId) {
+        WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+        if (!"RUNNING".equals(wi.getState())) {
+            throw new IllegalStateException("Only RUNNING instances can be paused");
+        }
+        wi.setState("PAUSED");
+        wi.setUpdatedAt(LocalDateTime.now());
+        // 暂停所有 NOT_RUN 的 task instances
+        instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
+            if ("NOT_RUN".equals(ti.getState())) {
+                ti.setState("PAUSED");
+                ti.setUpdatedAt(LocalDateTime.now());
+                instanceRepository.save(ti);
+            }
+        });
+        return workflowInstanceRepository.save(wi);
+    }
+
+    /** 恢复工作流实例：PAUSED → RUNNING，所有 PAUSED 的 TaskInstance → NOT_RUN。 */
+    public WorkflowInstance resumeWorkflow(Long instanceId) {
+        WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+        if (!"PAUSED".equals(wi.getState())) {
+            throw new IllegalStateException("Only PAUSED instances can be resumed");
+        }
+        wi.setState("RUNNING");
+        wi.setUpdatedAt(LocalDateTime.now());
+        instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
+            if ("PAUSED".equals(ti.getState())) {
+                ti.setState("NOT_RUN");
+                ti.setUpdatedAt(LocalDateTime.now());
+                instanceRepository.save(ti);
+            }
+        });
+        return workflowInstanceRepository.save(wi);
+    }
+
+    /** 终止工作流实例：→ STOPPED，所有非终态 TaskInstance → STOPPED。 */
+    public WorkflowInstance killWorkflow(Long instanceId) {
+        WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+        if (isTerminal(wi.getState())) {
+            throw new IllegalStateException("Cannot kill a terminal instance");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        wi.setState("STOPPED");
+        wi.setFinishedAt(now);
+        wi.setUpdatedAt(now);
+        instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
+            if (!isTerminal(ti.getState())) {
+                ti.setState("STOPPED");
+                ti.setFinishedAt(now);
+                ti.setUpdatedAt(now);
+                instanceRepository.save(ti);
+            }
+        });
+        return workflowInstanceRepository.save(wi);
+    }
+
+    /** 暂停单个任务实例。 */
+    public TaskInstance pauseTask(Long instanceId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+        if (!"NOT_RUN".equals(ti.getState())) {
+            throw new IllegalStateException("Only NOT_RUN task instances can be paused");
+        }
+        ti.setState("PAUSED");
+        ti.setUpdatedAt(LocalDateTime.now());
+        return instanceRepository.save(ti);
+    }
+
+    /** 恢复单个任务实例。 */
+    public TaskInstance resumeTask(Long instanceId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+        if (!"PAUSED".equals(ti.getState())) {
+            throw new IllegalStateException("Only PAUSED task instances can be resumed");
+        }
+        ti.setState("NOT_RUN");
+        ti.setUpdatedAt(LocalDateTime.now());
+        return instanceRepository.save(ti);
+    }
+
+    /** 终止单个任务实例。 */
+    public TaskInstance killTask(Long instanceId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+        if (isTerminal(ti.getState())) {
+            throw new IllegalStateException("Cannot kill a terminal task instance");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        ti.setState("STOPPED");
+        ti.setFinishedAt(now);
+        ti.setUpdatedAt(now);
+        return instanceRepository.save(ti);
+    }
+
+    /** 获取日志分块。 */
+    public LogChunk getLog(Long instanceId, int offset, int limit) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+        String log = ti.getLog();
+        if (log == null || log.isEmpty()) {
+            return new LogChunk("", 0, offset, false);
+        }
+        int totalSize = log.length();
+        int end = Math.min(offset + limit, totalSize);
+        String content = (offset < totalSize) ? log.substring(offset, end) : "";
+        return new LogChunk(content, totalSize, offset, end < totalSize);
+    }
+
+    public record LogChunk(String content, int totalSize, int offset, boolean hasMore) {}
+
+    private boolean isTerminal(String state) {
+        return "SUCCESS".equals(state) || "FAILED".equals(state) || "STOPPED".equals(state);
     }
 
     /**
