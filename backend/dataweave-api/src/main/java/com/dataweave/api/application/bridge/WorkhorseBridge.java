@@ -27,6 +27,31 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class WorkhorseBridge {
 
+    /**
+     * MCP 工具名 → Workspace 视图的确定性映射（agent-ui-events spec：workhorse 模式发射规则）。
+     * 工具完成即补发 CUSTOM {@code dataweave.ui.open}；未映射的工具不发。
+     * 工具名可能带 "&lt;server&gt;__" 前缀（如 dataweave__query_fleet），匹配前先剥掉。
+     */
+    private static final Map<String, String> TOOL_VIEW = Map.of(
+            "query_fleet", "fleet",
+            "query_diagnosis", "diagnosis",
+            "query_task_definitions", "task-flow",
+            "query_task_instances", "task-flow",
+            "query_metric", "reports",
+            "query_lineage", "lineage",
+            "create_task", "task-flow",
+            "task_rerun", "task-flow");
+
+    /** 剥掉 MCP server 前缀后查映射；未映射返回 null。 */
+    static String viewForTool(String toolName) {
+        if (toolName == null) {
+            return null;
+        }
+        int idx = toolName.lastIndexOf("__");
+        String bare = idx >= 0 ? toolName.substring(idx + 2) : toolName;
+        return TOOL_VIEW.get(bare);
+    }
+
     private static final String INSTRUCTIONS =
             "你是 DataWeave 数据中台的 Agent。平台能力通过 dataweave__* 工具暴露（任务/实例/血缘/指标/诊断查询，"
                     + "建任务、重跑、节点受控执行等写操作）。写操作经平台策略闸门裁决，高风险会返回 PENDING_APPROVAL，"
@@ -50,6 +75,7 @@ public class WorkhorseBridge {
         String messageId = UUID.randomUUID().toString();
         AtomicInteger seq = new AtomicInteger(0);
         Map<String, Long> stepIdByToolUse = new ConcurrentHashMap<>();
+        Map<String, String> toolNameByUse = new ConcurrentHashMap<>();
 
         return Flux.defer(() -> {
             AgentSession session = audit.getOrCreateSession(threadId, "WORKHORSE", null);
@@ -67,7 +93,7 @@ public class WorkhorseBridge {
                     events.textMessageStart(messageId));
 
             Flux<ServerSentEvent<String>> body = client.sendMessage(whSessionId, message)
-                    .concatMap(ev -> mapEvent(ev, run.getId(), messageId, seq, stepIdByToolUse));
+                    .concatMap(ev -> mapEvent(ev, run.getId(), messageId, seq, stepIdByToolUse, toolNameByUse));
 
             Flux<ServerSentEvent<String>> trailer = Flux.defer(() -> {
                 audit.finishRun(run.getId(), "FINISHED");
@@ -79,7 +105,8 @@ public class WorkhorseBridge {
     }
 
     private Flux<ServerSentEvent<String>> mapEvent(WorkhorseEvent ev, Long runId, String messageId,
-                                                   AtomicInteger seq, Map<String, Long> stepIdByToolUse) {
+                                                   AtomicInteger seq, Map<String, Long> stepIdByToolUse,
+                                                   Map<String, String> toolNameByUse) {
         return switch (ev.type()) {
             case "text" -> Flux.just(events.textMessageContent(messageId, ev.text()));
             case "tool_call_start" -> {
@@ -92,6 +119,9 @@ public class WorkhorseBridge {
                 AgentStep saved = audit.recordStep(step);
                 if (ev.toolUseId() != null) {
                     stepIdByToolUse.put(ev.toolUseId(), saved.getId());
+                    if (ev.toolName() != null) {
+                        toolNameByUse.put(ev.toolUseId(), ev.toolName());
+                    }
                 }
                 yield Flux.empty();
             }
@@ -103,9 +133,17 @@ public class WorkhorseBridge {
                         step.setOutputBytes(ev.output().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
                     }
                 });
+                java.util.List<ServerSentEvent<String>> out = new java.util.ArrayList<>();
                 Map<String, Object> approval = approvalCard(ev.output());
-                yield approval == null ? Flux.empty()
-                        : Flux.just(events.custom("dataweave.approval", approval));
+                if (approval != null) {
+                    out.add(events.custom("dataweave.approval", approval));
+                }
+                String view = ev.toolUseId() == null ? null
+                        : viewForTool(toolNameByUse.get(ev.toolUseId()));
+                if (view != null) {
+                    out.add(events.custom("dataweave.ui.open", Map.of("view", view)));
+                }
+                yield Flux.fromIterable(out);
             }
             case "permission_resolved" -> {
                 updateStep(ev.toolUseId(), stepIdByToolUse, step -> {

@@ -8,6 +8,8 @@ import "@copilotkit/react-core/v2/styles.css"
 
 import { CHAT_SHIKI_THEME } from "@/lib/syntax-palette"
 import { ApprovalCard, type Approval } from "@/components/agent/approval-card"
+import { useWorkspaceStore } from "@/lib/workspace/store"
+import { getConversationId } from "@/lib/workspace/persistence"
 
 // 直连后端 Java AG-UI 端点，不跑 Node CopilotKit Runtime。
 // 必须用 v2 API：selfManagedAgents 使 hasLocalAgents=true，绕过 runtime 强制要求。
@@ -26,7 +28,11 @@ export interface AgentPageContext {
 }
 
 export function AgentChat({ context }: { context?: AgentPageContext }) {
-  const agent = useMemo(() => new HttpAgent({ url: AGENT_URL }), [])
+  // threadId = 持久化的会话 id，与 Workspace 快照同 key（刷新后对话与工作区指向同一会话）
+  const agent = useMemo(
+    () => new HttpAgent({ url: AGENT_URL, threadId: getConversationId() }),
+    [],
+  )
   const [approvals, setApprovals] = useState<Approval[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -121,12 +127,23 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
     }
   }, [])
 
-  // 订阅 agent 自定义事件：dataweave.approval → 审批卡片。
+  // 订阅 agent 自定义事件：dataweave.approval → 审批卡片；
+  // dataweave.ui.open → Workspace 打开/激活视图（去重由 store 保证，未知 view 由 store 忽略并 warn）。
   useEffect(() => {
     const sub = agent.subscribe({
       onCustomEvent: ({ event }: { event: { name?: string; value?: unknown } }) => {
         if (event?.name === "dataweave.approval" && event.value) {
           setApprovals((prev) => [...prev, event.value as Approval])
+        }
+        if (event?.name === "dataweave.ui.open" && event.value) {
+          const v = event.value as {
+            view?: string
+            params?: Record<string, unknown>
+            activate?: boolean
+          }
+          if (typeof v.view === "string") {
+            useWorkspaceStore.getState().open(v.view, v.params, { activate: v.activate })
+          }
         }
       },
     })

@@ -1,10 +1,6 @@
-import { ComingSoon } from "@/components/coming-soon"
+import { redirect } from "next/navigation"
 
-export default function CatalogPage() {
-  return (
-    <ComingSoon
-      title="资产目录"
-      description="数据资产盘点、标签分类、元数据检索。"
-    />
-  )
+/** 旧路由深链兜底：跳转 Workspace 并打开对应视图 */
+export default function Page() {
+  redirect("/?open=catalog")
 }

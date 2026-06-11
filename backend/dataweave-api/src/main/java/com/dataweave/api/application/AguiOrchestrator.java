@@ -92,8 +92,21 @@ public class AguiOrchestrator {
             String eventName = reply.customEventName() != null ? reply.customEventName() : "dataweave.result";
             out.add(events.custom(eventName, reply.structured()));
         }
+        if (reply.uiOpen() != null) {
+            out.add(events.custom("dataweave.ui.open", uiOpenPayload(reply.uiOpen())));
+        }
         out.add(events.runFinished(threadId, runId));
         return out;
+    }
+
+    /** dataweave.ui.open 事件载荷：{ view, params? }。 */
+    static java.util.Map<String, Object> uiOpenPayload(AgentReply.UiOpen uiOpen) {
+        java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("view", uiOpen.view());
+        if (uiOpen.params() != null && !uiOpen.params().isEmpty()) {
+            payload.put("params", uiOpen.params());
+        }
+        return payload;
     }
 
     /** 把完整 Markdown 切成若干 delta 片段（按行/段），模拟流式增量。 */

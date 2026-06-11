@@ -41,7 +41,7 @@ class AguiEndpointTest {
     /**
      * 发一条「GMV 是多少」的消息，验证完整 AG-UI 事件序列：
      * RUN_STARTED → TEXT_MESSAGE_START → N×TEXT_MESSAGE_CONTENT → TEXT_MESSAGE_END
-     * → CUSTOM(name=dataweave.result, kind=metric) → RUN_FINISHED。
+     * → CUSTOM(name=dataweave.result, kind=metric) → CUSTOM(name=dataweave.ui.open, view=reports) → RUN_FINISHED。
      */
     @Test
     void shouldReturnCompleteAguiEventSequenceForMetricQuery() {
@@ -101,20 +101,28 @@ class AguiEndpointTest {
         // 至少一个 TEXT_MESSAGE_CONTENT
         assertThat(contentIndices).hasSizeGreaterThanOrEqualTo(1);
 
-        // 含一个 CUSTOM 事件，name=="dataweave.result"
+        // 两个 CUSTOM 事件：结构化结果 dataweave.result + 视图召唤 dataweave.ui.open
         List<Map<String, Object>> customEvents = events.stream()
                 .filter(e -> "CUSTOM".equals(e.get("type")))
                 .toList();
-        assertThat(customEvents).hasSize(1);
+        assertThat(customEvents).hasSize(2);
 
-        Map<String, Object> custom = customEvents.get(0);
-        assertThat(custom).containsEntry("name", "dataweave.result");
+        Map<String, Object> result = customEvents.get(0);
+        assertThat(result).containsEntry("name", "dataweave.result");
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> value = (Map<String, Object>) custom.get("value");
+        Map<String, Object> value = (Map<String, Object>) result.get("value");
         assertThat(value).isNotNull();
         assertThat(value).containsEntry("kind", "metric");
         assertThat(value).containsEntry("name", "GMV");
+
+        Map<String, Object> uiOpen = customEvents.get(1);
+        assertThat(uiOpen).containsEntry("name", "dataweave.ui.open");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> uiValue = (Map<String, Object>) uiOpen.get("value");
+        assertThat(uiValue).isNotNull();
+        assertThat(uiValue).containsEntry("view", "reports");
     }
 
     // ---- helpers ----

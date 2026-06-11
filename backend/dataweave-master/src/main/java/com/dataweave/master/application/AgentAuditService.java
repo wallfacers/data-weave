@@ -64,6 +64,21 @@ public class AgentAuditService {
         return sessionRepository.save(s);
     }
 
+    /** 读 Workspace 快照（workspace-persistence spec）：无会话或未写入返回 empty。 */
+    public Optional<String> getWorkspaceState(String conversationId) {
+        return sessionRepository.findFirstByConversationIdOrderByIdDesc(conversationId)
+                .map(AgentSession::getWorkspaceState)
+                .filter(s -> s != null && !s.isBlank());
+    }
+
+    /** 写 Workspace 快照：会话不存在则先建（mode 记 MOCK 占位，后续真对话会复用该行）。 */
+    public void putWorkspaceState(String conversationId, String stateJson) {
+        AgentSession session = getOrCreateSession(conversationId, "MOCK", null);
+        session.setWorkspaceState(stateJson);
+        session.setUpdatedAt(LocalDateTime.now());
+        sessionRepository.save(session);
+    }
+
     public AgentRun startRun(Long sessionId, String runKey, String triggerType, String userMessage) {
         LocalDateTime now = LocalDateTime.now();
         AgentRun run = new AgentRun();

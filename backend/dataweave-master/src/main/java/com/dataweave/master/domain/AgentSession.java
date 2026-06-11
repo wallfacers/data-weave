@@ -16,6 +16,7 @@ public class AgentSession {
     private String conversationId;
     private String workhorseSessionId;
     private String mode;            // MOCK / WORKHORSE
+    private String workspaceState;  // Workspace 快照（前端序列化 JSON，透明 blob）
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -72,6 +73,14 @@ public class AgentSession {
 
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    public String getWorkspaceState() {
+        return workspaceState;
+    }
+
+    public void setWorkspaceState(String workspaceState) {
+        this.workspaceState = workspaceState;
     }
 
     public Long getCreatedBy() {

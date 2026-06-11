@@ -106,6 +106,20 @@ export interface TaskDef {
   createdAt: string
 }
 
+// ─── MetricCard ──────────────────────────────────────────
+
+/** GET /api/metrics → 指标卡片（每 code 最新版本 + 口径求值） */
+export interface MetricCard {
+  id: number
+  code: string
+  name: string
+  unit: string | null
+  versionNo: number
+  status: string | null
+  /** 口径求值结果；求值失败为 null（前端呈现空态） */
+  value: unknown
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 
 /** Safely parse a JSON string, returning null on failure. */

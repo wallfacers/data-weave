@@ -1,10 +1,6 @@
-import { ComingSoon } from "@/components/coming-soon"
+import { redirect } from "next/navigation"
 
-export default function IntegrationPage() {
-  return (
-    <ComingSoon
-      title="数据集成"
-      description="多源数据接入、离线/实时同步管道、数据源管理。"
-    />
-  )
+/** 旧路由深链兜底：跳转 Workspace 并打开对应视图 */
+export default function Page() {
+  redirect("/?open=integration")
 }

@@ -601,6 +601,7 @@ CREATE TABLE agent_session (
     conversation_id      VARCHAR(128) NOT NULL,    -- AG-UI threadId
     workhorse_session_id VARCHAR(128),             -- workhorse 会话 id（mock 模式为空）
     mode                 VARCHAR(32) NOT NULL,     -- MOCK / WORKHORSE
+    workspace_state      VARCHAR(8000),            -- Workspace 快照（前端序列化 JSON，后端透明 blob）
     created_by           BIGINT,
     updated_by           BIGINT,
     created_at           TIMESTAMP,

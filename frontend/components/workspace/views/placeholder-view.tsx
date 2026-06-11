@@ -1,7 +1,10 @@
-import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons"
+"use client"
 
-export function ComingSoon({
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons"
+
+/** 未落地模块的占位视图：操作统一走左侧 Agent 对话 */
+export function PlaceholderView({
   title,
   description,
 }: {
@@ -12,12 +15,9 @@ export function ComingSoon({
     <div className="flex flex-1 flex-col items-center justify-center gap-4 p-10 text-center">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       <p className="max-w-md text-muted-foreground">{description}</p>
-      <p className="text-sm text-muted-foreground">
-        MVP 阶段，本模块的操作统一通过右侧 Agent 对话完成。
-      </p>
       <span className="inline-flex items-center gap-1 text-sm text-primary">
-        打开右侧 Agent 面板
-        <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+        <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+        本模块的操作统一通过左侧 Agent 对话完成
       </span>
     </div>
   )

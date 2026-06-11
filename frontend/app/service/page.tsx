@@ -1,10 +1,6 @@
-import { ComingSoon } from "@/components/coming-soon"
+import { redirect } from "next/navigation"
 
-export default function ServicePage() {
-  return (
-    <ComingSoon
-      title="数据服务"
-      description="API 发布与管理、数据服务编排、调用监控。"
-    />
-  )
+/** 旧路由深链兜底：跳转 Workspace 并打开对应视图 */
+export default function Page() {
+  redirect("/?open=service")
 }

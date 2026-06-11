@@ -162,7 +162,12 @@ public class IntentRouter {
         structured.put("workerNodeCode", d.getWorkerNodeCode());
         structured.put("context", d.getContextJson());
         structured.put("suggestions", suggestions);
-        return new AgentReply(md.toString(), structured, "dataweave.diagnosis");
+        Map<String, Object> uiParams = new LinkedHashMap<>();
+        if (d.getTaskInstanceId() != null) {
+            uiParams.put("instanceId", d.getTaskInstanceId());
+        }
+        return new AgentReply(md.toString(), structured, "dataweave.diagnosis")
+                .opening("diagnosis", uiParams.isEmpty() ? null : uiParams);
     }
 
     // ---- 查机器/集群意图 ----
@@ -200,7 +205,7 @@ public class IntentRouter {
         structured.put("kind", "fleet");
         structured.put("columns", columns);
         structured.put("rows", rows);
-        return new AgentReply(md.toString(), structured, "dataweave.fleet");
+        return new AgentReply(md.toString(), structured, "dataweave.fleet").opening("fleet");
     }
 
     private String fmtPct(Double value) {
@@ -228,7 +233,7 @@ public class IntentRouter {
                     structured.put("exprSql", metric.getMeasureExpr());
                     structured.put("sourceTable", metric.getSourceTable());
                     structured.put("version", metric.getVersionNo());
-                    return new AgentReply(md, structured);
+                    return new AgentReply(md, structured).opening("reports");
                 }
             }
         }
@@ -268,7 +273,7 @@ public class IntentRouter {
         structured.put("sql", generatedSql);
         structured.put("columns", result.columns());
         structured.put("rows", result.rows());
-        return new AgentReply(md, structured);
+        return new AgentReply(md, structured).opening("sql-workbench");
     }
 
     // ---- 建任务 ----
@@ -322,7 +327,8 @@ public class IntentRouter {
         structured.put("cron", creation.cron());
         structured.put("content", task.getContent());
         structured.put("status", task.getStatus());
-        return new AgentReply(md, structured);
+        return new AgentReply(md, structured)
+                .opening("task-flow", Map.of("highlightTaskId", task.getId()));
     }
 
     // ---- 血缘 ----
@@ -362,7 +368,7 @@ public class IntentRouter {
                     structured.put("exprSql", metric.getMeasureExpr());
                     structured.put("columns", List.of("downstreamType", "downstreamId"));
                     structured.put("rows", rows);
-                    return new AgentReply(md.toString(), structured);
+                    return new AgentReply(md.toString(), structured).opening("lineage");
                 }
             }
         }

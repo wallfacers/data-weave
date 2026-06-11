@@ -1,10 +1,6 @@
-import { ComingSoon } from "@/components/coming-soon"
+import { redirect } from "next/navigation"
 
-export default function LineagePage() {
-  return (
-    <ComingSoon
-      title="数据血缘与资产目录"
-      description="字段级血缘自动解析，从指标视角下钻至物理表。"
-    />
-  )
+/** 旧路由深链兜底：跳转 Workspace 并打开对应视图 */
+export default function Page() {
+  redirect("/?open=lineage")
 }
