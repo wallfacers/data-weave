@@ -251,3 +251,34 @@ html [data-copilotkit] *:has(> .copilotKitInput) {
 html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
   padding-inline: 0 !important;
 }
+
+/* AI 输入框滚动条：内容溢出时显示暖 taupe 细滚动条、无上下箭头。
+   难点：CopilotKit 的 `[data-copilotkit] ::-webkit-scrollbar*` 通配规则命中本 <textarea>，
+   逼它走 WebKit 自定义滚动条引擎——该引擎在 Windows Chrome 上恒渲染上下箭头按钮，
+   `::-webkit-scrollbar-button{display:none}` 去不掉；而退回系统原生滚动条，在 Windows
+   「始终显示滚动条」模式下同样带箭头（系统绘制，CSS 碰不到）。两条路都摘不掉箭头。
+   解法：① 这里把 textarea 的原生 + webkit 滚动条**彻底隐藏**（`scrollbar-width:none` 灭标准条，
+   `::-webkit-scrollbar{display:none}` 灭 webkit 条——两者都不画箭头，已实测确认）；
+   ② agent-chat.tsx 自绘一根细 taupe 指示条（`.dw-textarea-thumb`）反映滚动位置。
+   滚轮/触摸板/键盘仍走 textarea 原生滚动，仅滚动条外观被接管。
+   `::-webkit-scrollbar{display:none}` 特异度（含 textarea[data-testid]）压过 cpk 的通配 width:6px。 */
+html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
+  scrollbar-width: none;
+}
+html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-scrollbar {
+  display: none;
+}
+/* 自绘指示条：随亮/暗切换 taupe 色；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
+.dw-textarea-thumb {
+  position: absolute;
+  width: 4px;
+  border-radius: 9999px;
+  background: oklch(0.58 0.031 107.3);
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 20;
+}
+html.dark .dw-textarea-thumb {
+  background: oklch(0.737 0.021 106.9);
+}
+
