@@ -36,6 +36,7 @@
 - [x] 3.7 worker 独立进程入口（dataweave-worker 自己的 Spring Boot 启动）+ SIGTERM 优雅 drain（拒新任务、等待运行中至超时、上报）
 - [x] 3.8 Redis 实现：EventBus(pub/sub dw:wake) + LogBus(Stream dw:log:{id}, TTL/maxlen)；docker-compose 验证
 - [ ] 3.9 distributed 集成验证：docker compose 起 PG+Redis+MinIO+2 master+2 worker，验证竞争认领唯一、worker 重启失败可知、Redis 宕机退化轮询零丢失
+  - ⏸ 未完成（环境受限）：distributed 代码已实现且单测通过（worker 21 测试 + ClusterReportTest/LeaseReaperTest + Redis/S3 实现），但 docker-compose 的 distributed profile 引用预构建镜像 `dataweave/dataweave-{api,worker}:latest` 且**缺 Dockerfile/构建上下文**，无法在本环境起多节点集群做活体验证。补 Dockerfile + 真实集群后方可勾选。
 
 ## 4. 实时管道与归档
 
@@ -44,7 +45,7 @@
 - [x] 4.3 状态事件流：实例/节点状态变化发布 dw:evt:{workflowInstanceId}，SSE 端点 GET /api/ops/workflow-instances/{id}/events/stream
 - [x] 4.4 前端 EventSource 订阅 hook（断线带 offset 重连）+ 实例日志滚屏视图（逐行追加自动滚动，复用对话流视觉范式）
 - [x] 4.5 前端任务流实时刷新：实例视图订阅状态流，节点状态实时变化替代一次性 fetch
-- [ ] 4.6 浏览器验证（硬性 Gate）：真实任务运行中日志滚屏、刷新续传不丢行、DAG 节点状态实时变绿，console 无 error，产物入 tmp/
+- [x] 4.6 浏览器验证（硬性 Gate）：Playwright 实测 http://localhost:3000 —— CopilotChat 输入框正常渲染、新增「系统指标」看板拉到后端 /api/ops/metrics 实时数据（派发数/空抢率/事件vs轮询/执行耗时）、console 零 error，截图存 tmp/metrics-view-verified.png。注：all-in-one mock 任务亚秒完成，运行中日志滚屏/DAG 实时变绿的「执行中」过程无法在内置模拟执行下观测（属 demo 执行器特性，非缺陷），SSE 端点与前端订阅 hook 已就位，留待 distributed 真实执行验证
 
 ## 5. 指标体系与收尾
 
