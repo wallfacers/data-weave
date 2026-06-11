@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useLayoutEffect, useState } from "react"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SparklesIcon } from "@hugeicons/core-free-icons"
@@ -26,14 +26,25 @@ export function AgentRail() {
   // setRailWidth 仅作下次拖拽的 startW 基准。
   const [, setRailWidth] = useState(RAIL_DEFAULT_WIDTH)
   const railWidthMotion = useMotionValue(RAIL_DEFAULT_WIDTH)
-  useEffect(() => {
+  // hydrated 后切换到 motion value 驱动（之前由 CSS 变量撑住宽度）。
+  const [hydrated, setHydrated] = useState(false)
+  useLayoutEffect(() => {
     const saved = Number(localStorage.getItem(RAIL_WIDTH_KEY))
     if (saved >= RAIL_MIN_WIDTH && saved <= RAIL_MAX_WIDTH) {
       setRailWidth(saved)
       railWidthMotion.set(saved)
     }
+    setHydrated(true)
   }, [railWidthMotion])
   const railWidthStyle = useTransform(railWidthMotion, (v) => `${Math.round(v)}px`)
+
+  // 两阶段宽度策略：
+  //   SSR / hydration 阶段 → CSS 变量（由 layout 阻塞脚本从 localStorage 设置），
+  //                          首帧即为正确宽度，无闪动；
+  //   hydrated 后          → Framer Motion motion value 接管，支持拖拽。
+  const widthStyle = hydrated
+    ? railWidthStyle
+    : "var(--dw-rail-width, 440px)"
 
   // 右缘分割线拖拽：全程走 motion value（面板在左，指针右移 → 变宽），
   // 松手时才写 React state + localStorage。
@@ -86,7 +97,7 @@ export function AgentRail() {
   return (
     <motion.div
       className="relative flex shrink-0 flex-col p-3 pr-1.5"
-      style={{ width: railWidthStyle }}
+      style={{ width: widthStyle }}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
         {/* 标题行：品牌 + 当前上下文 + 设置（无下边框，遵守无分割线规则） */}
