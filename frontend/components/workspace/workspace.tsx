@@ -49,7 +49,9 @@ export function Workspace() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceTabBar />
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {/* 内容区做成与左侧 Agent 面板同款的浮起卡（bg-sidebar + border + shadow-lg + rounded-lg），
+          让激活 tab 下方的视图读成「这张卡」，并与左栏对话面板成同材质的一对。 */}
+      <div className="relative mx-3 mb-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
         {tabs
           .filter((t) => mountedRef.current.has(t.id))
           .map((tab) => {
