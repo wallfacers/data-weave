@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.DiagnosisService.FixResult;
 import com.dataweave.master.domain.TaskDiagnosis;
@@ -28,20 +29,21 @@ public class DiagnosisController {
     }
 
     @GetMapping
-    public List<TaskDiagnosis> all() {
-        return diagnosisService.all();
+    public ApiResponse<List<TaskDiagnosis>> all() {
+        return ApiResponse.ok(diagnosisService.all());
     }
 
     @GetMapping("/{id}")
-    public TaskDiagnosis get(@PathVariable Long id) {
-        return diagnosisService.get(id)
+    public ApiResponse<TaskDiagnosis> get(@PathVariable Long id) {
+        TaskDiagnosis d = diagnosisService.get(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Diagnosis not found: " + id));
+        return ApiResponse.ok(d);
     }
 
     @PostMapping("/{id}/fix")
-    public FixResult fix(@PathVariable Long id,
+    public ApiResponse<FixResult> fix(@PathVariable Long id,
                          @RequestParam(name = "action", defaultValue = "RERUN") String action) {
-        return diagnosisService.applyFix(id, action);
+        return ApiResponse.ok(diagnosisService.applyFix(id, action));
     }
 }

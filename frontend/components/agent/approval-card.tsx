@@ -5,6 +5,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { ApiResponse } from "@/lib/types"
 
 /** 审批单（dataweave.approval CUSTOM 事件负载）。 */
 export interface Approval {
@@ -46,9 +47,15 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
         headers,
         body: JSON.stringify({ approver: "ui-user", confirmation }),
       })
-      const data = await res.json()
-      if (!data.success) {
-        setError(data.message ?? "操作失败")
+      const json = await res.json() as ApiResponse<{ success: boolean; message?: string }>
+      if (json.code !== 0) {
+        setError(json.message ?? "操作失败")
+        setBusy(false)
+        return
+      }
+      const data = json.data
+      if (!data?.success) {
+        setError(data?.message ?? "操作失败")
         setBusy(false)
         return
       }

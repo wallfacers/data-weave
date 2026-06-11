@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.application.AguiOrchestrator;
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.interfaces.dto.RunAgentInput;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -33,7 +34,7 @@ public class AguiController {
     }
 
     @GetMapping(value = "/api/health", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, String> health() {
-        return Map.of("status", "ok");
+    public ApiResponse<Map<String, String>> health() {
+        return ApiResponse.ok(Map.of("status", "ok"));
     }
 }

@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.MetricService;
 import com.dataweave.master.domain.AtomicMetric;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,10 +37,10 @@ public class MetricsController {
     }
 
     @GetMapping
-    public List<MetricCard> list() {
-        return metricService.listLatest().stream()
+    public ApiResponse<List<MetricCard>> list() {
+        return ApiResponse.ok(metricService.listLatest().stream()
                 .map(this::toCard)
-                .toList();
+                .toList());
     }
 
     private MetricCard toCard(AtomicMetric m) {

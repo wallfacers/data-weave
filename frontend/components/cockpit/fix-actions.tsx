@@ -14,7 +14,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
-import { API_BASE, type DiagnosisSuggestion, type FixResult } from "@/lib/types";
+import { API_BASE, type ApiResponse, type DiagnosisSuggestion, type FixResult } from "@/lib/types";
 
 const ACTION_ICONS: Record<string, IconSvgElement> = {
   RERUN: RefreshIcon,
@@ -50,10 +50,11 @@ export function FixActions({
         `${API_BASE}/api/diagnosis/${diagnosisId}/fix?action=${encodeURIComponent(action)}`,
         { method: "POST", cache: "no-store", headers },
       );
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as ApiResponse<FixResult>;
+      if (json.code !== 0 || !json.data) {
+        throw new Error(json.message || "执行失败");
       }
-      const data: FixResult = await res.json();
+      const data = json.data;
       setResult(data);
       if (data.success) {
         // Refresh server component data after a short delay

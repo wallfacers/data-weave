@@ -164,6 +164,20 @@ func do(req *http.Request) []byte {
 	if resp.StatusCode >= 400 {
 		fail("HTTP %d：%s", resp.StatusCode, string(body))
 	}
+
+	// 解包 ApiResponse：{code, data, message} → 直接返回 data 字段的原始 JSON
+	var apiResp struct {
+		Code    int             `json:"code"`
+		Data    json.RawMessage `json:"data"`
+		Message string          `json:"message"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err == nil && apiResp.Data != nil {
+		if apiResp.Code == 0 {
+			return []byte(apiResp.Data)
+		}
+		fail("业务错误(%d)：%s", apiResp.Code, apiResp.Message)
+	}
+	// 非 ApiResponse 格式（特殊协议端点），返回原始 body
 	return body
 }
 

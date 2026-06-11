@@ -1,11 +1,11 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.User;
 import com.dataweave.master.domain.UserRepository;
 import com.dataweave.master.domain.UserRole;
 import com.dataweave.master.domain.UserRoleRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,21 +33,21 @@ public class UserController {
     }
 
     @GetMapping
-    public List<User> list() {
+    public ApiResponse<List<User>> list() {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
-        return userRepository.findByTenantId(tenantId);
+        return ApiResponse.ok(userRepository.findByTenantId(tenantId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<User> get(@PathVariable Long id) {
+    public ApiResponse<User> get(@PathVariable Long id) {
         return userRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .map(ApiResponse::ok)
+                .orElse(ApiResponse.err(404, "用户不存在: " + id));
     }
 
     @PostMapping
-    public User create(@RequestBody Map<String, String> body) {
+    public ApiResponse<User> create(@RequestBody Map<String, String> body) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
@@ -65,11 +65,11 @@ public class UserController {
         user.setUpdatedAt(LocalDateTime.now());
         user.setDeleted(0);
         user.setVersion(0);
-        return userRepository.save(user);
+        return ApiResponse.ok(userRepository.save(user));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<User> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ApiResponse<User> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return userRepository.findById(id)
                 .map(existing -> {
                     if (body.containsKey("displayName")) existing.setDisplayName(body.get("displayName"));
@@ -81,31 +81,31 @@ public class UserController {
                     }
                     existing.setUpdatedBy(TenantContext.userId());
                     existing.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(userRepository.save(existing));
+                    return ApiResponse.ok(userRepository.save(existing));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "用户不存在: " + id));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id) {
         return userRepository.findById(id)
                 .map(existing -> {
                     existing.setDeleted(1);
                     existing.setStatus("DISABLED");
                     existing.setUpdatedAt(LocalDateTime.now());
                     userRepository.save(existing);
-                    return ResponseEntity.ok().<Void>build();
+                    return ApiResponse.<Void>ok();
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "用户不存在: " + id));
     }
 
     // ===== 用户-角色绑定 =====
 
     @PostMapping("/{id}/roles")
-    public ResponseEntity<Void> assignRoles(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ApiResponse<Void> assignRoles(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         List<Number> roleIds = (List<Number>) body.get("roleIds");
-        if (roleIds == null) return ResponseEntity.badRequest().build();
+        if (roleIds == null) return ApiResponse.err(400, "roleIds 不能为空");
 
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
@@ -130,6 +130,6 @@ public class UserController {
             ur.setVersion(0);
             userRoleRepository.save(ur);
         }
-        return ResponseEntity.ok().build();
+        return ApiResponse.ok();
     }
 }

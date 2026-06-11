@@ -1,11 +1,11 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.Role;
 import com.dataweave.master.domain.RolePermission;
 import com.dataweave.master.domain.RolePermissionRepository;
 import com.dataweave.master.domain.RoleRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -29,21 +29,21 @@ public class RoleController {
     }
 
     @GetMapping
-    public List<Role> list() {
+    public ApiResponse<List<Role>> list() {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
-        return roleRepository.findByTenantId(tenantId);
+        return ApiResponse.ok(roleRepository.findByTenantId(tenantId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Role> get(@PathVariable Long id) {
+    public ApiResponse<Role> get(@PathVariable Long id) {
         return roleRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .map(ApiResponse::ok)
+                .orElse(ApiResponse.err(404, "角色不存在: " + id));
     }
 
     @PostMapping
-    public Role create(@RequestBody Map<String, String> body) {
+    public ApiResponse<Role> create(@RequestBody Map<String, String> body) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
@@ -58,41 +58,41 @@ public class RoleController {
         role.setUpdatedAt(LocalDateTime.now());
         role.setDeleted(0);
         role.setVersion(0);
-        return roleRepository.save(role);
+        return ApiResponse.ok(roleRepository.save(role));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Role> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ApiResponse<Role> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return roleRepository.findById(id)
                 .map(existing -> {
                     if (body.containsKey("name")) existing.setName(body.get("name"));
                     if (body.containsKey("description")) existing.setDescription(body.get("description"));
                     existing.setUpdatedBy(TenantContext.userId());
                     existing.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(roleRepository.save(existing));
+                    return ApiResponse.ok(roleRepository.save(existing));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "角色不存在: " + id));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id) {
         return roleRepository.findById(id)
                 .map(existing -> {
                     existing.setDeleted(1);
                     existing.setUpdatedAt(LocalDateTime.now());
                     roleRepository.save(existing);
-                    return ResponseEntity.ok().<Void>build();
+                    return ApiResponse.<Void>ok();
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "角色不存在: " + id));
     }
 
     // ===== 角色-权限绑定 =====
 
     @PostMapping("/{id}/permissions")
-    public ResponseEntity<Void> assignPermissions(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ApiResponse<Void> assignPermissions(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         List<Number> permissionIds = (List<Number>) body.get("permissionIds");
-        if (permissionIds == null) return ResponseEntity.badRequest().build();
+        if (permissionIds == null) return ApiResponse.err(400, "permissionIds 不能为空");
 
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
@@ -117,6 +117,6 @@ public class RoleController {
             rp.setVersion(0);
             rolePermissionRepository.save(rp);
         }
-        return ResponseEntity.ok().build();
+        return ApiResponse.ok();
     }
 }

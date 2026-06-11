@@ -1,10 +1,10 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.interfaces.dto.HeartbeatRequest;
 import com.dataweave.master.application.FleetService;
 import com.dataweave.master.domain.WorkerNode;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,20 +29,21 @@ public class FleetController {
     }
 
     @GetMapping
-    public List<WorkerNode> listNodes() {
-        return fleetService.nodes();
+    public ApiResponse<List<WorkerNode>> listNodes() {
+        return ApiResponse.ok(fleetService.nodes());
     }
 
     @GetMapping("/{nodeCode}")
-    public WorkerNode getNode(@PathVariable String nodeCode) {
-        return fleetService.node(nodeCode)
+    public ApiResponse<WorkerNode> getNode(@PathVariable String nodeCode) {
+        WorkerNode node = fleetService.node(nodeCode)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Worker node not found: " + nodeCode));
+        return ApiResponse.ok(node);
     }
 
     @PostMapping("/heartbeat")
-    public WorkerNode heartbeat(@RequestBody HeartbeatRequest req) {
-        return fleetService.report(
+    public ApiResponse<WorkerNode> heartbeat(@RequestBody HeartbeatRequest req) {
+        return ApiResponse.ok(fleetService.report(
                 req.getNodeCode(),
                 req.getHost(),
                 req.getCapacity(),
@@ -51,6 +52,6 @@ public class FleetController {
                 req.getDisk() != null ? req.getDisk() : 0,
                 req.getLoadAvg() != null ? req.getLoadAvg() : 0,
                 req.getRunningTasks() != null ? req.getRunningTasks() : 0
-        );
+        ));
     }
 }

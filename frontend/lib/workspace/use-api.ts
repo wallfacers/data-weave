@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import type { ApiResponse } from "@/lib/types"
 
 const TOKEN_KEY = "dw.auth.token"
 
-/** Workspace 视图的客户端取数：no-store，自动带 Bearer token，卸载安全 */
+/** Workspace 视图的客户端取数：no-store，自动带 Bearer token，自动解包 ApiResponse。 */
 export function useApi<T>(path: string): ApiState<T> {
   const [state, setState] = useState<ApiState<T>>({
     data: null,
@@ -21,8 +22,15 @@ export function useApi<T>(path: string): ApiState<T> {
     if (token) headers["Authorization"] = `Bearer ${token}`
 
     fetch(path, { cache: "no-store", headers })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((data) => alive && setState({ data, loading: false, error: false }))
+      .then((res) => res.json() as Promise<ApiResponse<T>>)
+      .then((json) => {
+        if (!alive) return
+        if (json.code === 0) {
+          setState({ data: json.data, loading: false, error: false })
+        } else {
+          setState({ data: null, loading: false, error: true })
+        }
+      })
       .catch(() => alive && setState({ data: null, loading: false, error: true }))
     return () => {
       alive = false

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useApi } from "@/lib/auth"
+import type { ApiResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,7 +53,8 @@ function useCrud<T extends { id: number }>(basePath: string) {
     setLoading(true)
     try {
       const res = await api(basePath)
-      if (res.ok) setItems(await res.json())
+      const json = (await res.json()) as ApiResponse<T[]>
+      if (json.code === 0 && json.data) setItems(json.data)
     } catch {
       /* ignore */
     } finally {
@@ -67,7 +69,8 @@ function useCrud<T extends { id: number }>(basePath: string) {
       method: "POST",
       body: JSON.stringify(body),
     })
-    if (res.ok) await load()
+    const json = (await res.json()) as ApiResponse<unknown>
+    if (json.code === 0) await load()
     return res
   }
 
@@ -76,13 +79,15 @@ function useCrud<T extends { id: number }>(basePath: string) {
       method: "PUT",
       body: JSON.stringify(body),
     })
-    if (res.ok) await load()
+    const json = (await res.json()) as ApiResponse<unknown>
+    if (json.code === 0) await load()
     return res
   }
 
   async function remove(id: number) {
     const res = await api(`${basePath}/${id}`, { method: "DELETE" })
-    if (res.ok) await load()
+    const json = (await res.json()) as ApiResponse<unknown>
+    if (json.code === 0) await load()
     return res
   }
 

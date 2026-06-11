@@ -1,8 +1,8 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.*;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -26,21 +26,21 @@ public class ProjectController {
     }
 
     @GetMapping
-    public List<Project> list() {
+    public ApiResponse<List<Project>> list() {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
-        return projectRepository.findByTenantId(tenantId);
+        return ApiResponse.ok(projectRepository.findByTenantId(tenantId));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Project> get(@PathVariable Long id) {
+    public ApiResponse<Project> get(@PathVariable Long id) {
         return projectRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .map(ApiResponse::ok)
+                .orElse(ApiResponse.err(404, "项目不存在: " + id));
     }
 
     @PostMapping
-    public Project create(@RequestBody Map<String, String> body) {
+    public ApiResponse<Project> create(@RequestBody Map<String, String> body) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
@@ -56,50 +56,50 @@ public class ProjectController {
         p.setUpdatedAt(LocalDateTime.now());
         p.setDeleted(0);
         p.setVersion(0);
-        return projectRepository.save(p);
+        return ApiResponse.ok(projectRepository.save(p));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Project> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ApiResponse<Project> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return projectRepository.findById(id)
                 .map(existing -> {
                     if (body.containsKey("name")) existing.setName(body.get("name"));
                     if (body.containsKey("status")) existing.setStatus(body.get("status"));
                     existing.setUpdatedBy(TenantContext.userId());
                     existing.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(projectRepository.save(existing));
+                    return ApiResponse.ok(projectRepository.save(existing));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "项目不存在: " + id));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id) {
         return projectRepository.findById(id)
                 .map(existing -> {
                     existing.setDeleted(1);
                     existing.setStatus("ARCHIVED");
                     existing.setUpdatedAt(LocalDateTime.now());
                     projectRepository.save(existing);
-                    return ResponseEntity.ok().<Void>build();
+                    return ApiResponse.<Void>ok();
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "项目不存在: " + id));
     }
 
     // ===== 项目成员管理 =====
 
     @GetMapping("/{id}/members")
-    public List<ProjectMember> listMembers(@PathVariable Long id) {
-        return projectMemberRepository.findByProjectId(id);
+    public ApiResponse<List<ProjectMember>> listMembers(@PathVariable Long id) {
+        return ApiResponse.ok(projectMemberRepository.findByProjectId(id));
     }
 
     @PostMapping("/{id}/members")
-    public ResponseEntity<Void> addMember(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ApiResponse<Void> addMember(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
         Number userId = (Number) body.get("userId");
         Number roleId = (Number) body.get("roleId");
-        if (userId == null || roleId == null) return ResponseEntity.badRequest().build();
+        if (userId == null || roleId == null) return ApiResponse.err(400, "userId 和 roleId 不能为空");
 
         ProjectMember pm = new ProjectMember();
         pm.setTenantId(tenantId);
@@ -113,18 +113,18 @@ public class ProjectController {
         pm.setDeleted(0);
         pm.setVersion(0);
         projectMemberRepository.save(pm);
-        return ResponseEntity.ok().build();
+        return ApiResponse.ok();
     }
 
     @DeleteMapping("/{id}/members/{memberId}")
-    public ResponseEntity<Void> removeMember(@PathVariable Long id, @PathVariable Long memberId) {
+    public ApiResponse<Void> removeMember(@PathVariable Long id, @PathVariable Long memberId) {
         return projectMemberRepository.findById(memberId)
                 .map(pm -> {
                     pm.setDeleted(1);
                     pm.setUpdatedAt(LocalDateTime.now());
                     projectMemberRepository.save(pm);
-                    return ResponseEntity.ok().<Void>build();
+                    return ApiResponse.<Void>ok();
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "成员不存在: " + memberId));
     }
 }

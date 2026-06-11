@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
@@ -46,29 +47,30 @@ public class CliController {
     }
 
     @GetMapping("/tasks")
-    public List<TaskDef> tasks() {
+    public ApiResponse<List<TaskDef>> tasks() {
         List<TaskDef> out = new ArrayList<>();
         taskDefRepository.findAll().forEach(t -> {
             if (t.getDeleted() == null || t.getDeleted() == 0) {
                 out.add(t);
             }
         });
-        return out;
+        return ApiResponse.ok(out);
     }
 
     @GetMapping("/tasks/{id}")
-    public TaskDef task(@PathVariable Long id) {
-        return taskDefRepository.findById(id)
+    public ApiResponse<TaskDef> task(@PathVariable Long id) {
+        TaskDef task = taskDefRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在：" + id));
+        return ApiResponse.ok(task);
     }
 
     @GetMapping("/tasks/{taskId}/instances")
-    public List<TaskInstance> instances(@PathVariable Long taskId) {
-        return instanceRepository.findByTaskId(taskId);
+    public ApiResponse<List<TaskInstance>> instances(@PathVariable Long taskId) {
+        return ApiResponse.ok(instanceRepository.findByTaskId(taskId));
     }
 
     @GetMapping("/instances/{id}/logs")
-    public Map<String, Object> logs(@PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> logs(@PathVariable Long id) {
         TaskInstance inst = instanceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "实例不存在：" + id));
         Map<String, Object> r = new LinkedHashMap<>();
@@ -76,11 +78,11 @@ public class CliController {
         r.put("state", inst.getState());
         r.put("workerNodeCode", inst.getWorkerNodeCode());
         r.put("log", inst.getLog());
-        return r;
+        return ApiResponse.ok(r);
     }
 
     @PostMapping("/instances/{id}/rerun")
-    public GateResult rerun(@PathVariable Long id,
+    public ApiResponse<GateResult> rerun(@PathVariable Long id,
                             @RequestHeader(value = "X-DW-Token", required = false) String token) {
         requireToken(token);
         ActionRequest req = ActionRequest.builder()
@@ -89,7 +91,7 @@ public class CliController {
                 .actor("cli:" + mask(token)).actorSource("CLI")
                 .summary("CLI 重跑实例 #" + id)
                 .build();
-        return gatedActionService.submit(req);
+        return ApiResponse.ok(gatedActionService.submit(req));
     }
 
     private void requireToken(String token) {

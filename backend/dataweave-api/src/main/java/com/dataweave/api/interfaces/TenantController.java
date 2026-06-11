@@ -1,8 +1,8 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.domain.Tenant;
 import com.dataweave.master.domain.TenantRepository;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -23,19 +23,19 @@ public class TenantController {
     }
 
     @GetMapping
-    public List<Tenant> list() {
-        return (List<Tenant>) tenantRepository.findAll();
+    public ApiResponse<List<Tenant>> list() {
+        return ApiResponse.ok((List<Tenant>) tenantRepository.findAll());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Tenant> get(@PathVariable Long id) {
+    public ApiResponse<Tenant> get(@PathVariable Long id) {
         return tenantRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .map(ApiResponse::ok)
+                .orElse(ApiResponse.err(404, "租户不存在: " + id));
     }
 
     @PostMapping
-    public Tenant create(@RequestBody Map<String, String> body) {
+    public ApiResponse<Tenant> create(@RequestBody Map<String, String> body) {
         Tenant t = new Tenant();
         t.setCode(body.get("code"));
         t.setName(body.get("name"));
@@ -46,18 +46,18 @@ public class TenantController {
         t.setUpdatedAt(LocalDateTime.now());
         t.setDeleted(0);
         t.setVersion(0);
-        return tenantRepository.save(t);
+        return ApiResponse.ok(tenantRepository.save(t));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Tenant> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ApiResponse<Tenant> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return tenantRepository.findById(id)
                 .map(existing -> {
                     if (body.containsKey("name")) existing.setName(body.get("name"));
                     if (body.containsKey("status")) existing.setStatus(body.get("status"));
                     existing.setUpdatedAt(LocalDateTime.now());
-                    return ResponseEntity.ok(tenantRepository.save(existing));
+                    return ApiResponse.ok(tenantRepository.save(existing));
                 })
-                .orElse(ResponseEntity.notFound().build());
+                .orElse(ApiResponse.err(404, "租户不存在: " + id));
     }
 }

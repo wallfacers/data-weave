@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.ApprovalService;
 import com.dataweave.master.application.ApprovalService.ApprovalResult;
 import com.dataweave.master.domain.AgentAction;
@@ -28,21 +29,21 @@ public class ApprovalController {
     }
 
     @GetMapping("/pending")
-    public List<AgentAction> pending() {
-        return approvalService.pending();
+    public ApiResponse<List<AgentAction>> pending() {
+        return ApiResponse.ok(approvalService.pending());
     }
 
     @PostMapping("/{id}/approve")
-    public ApprovalResult approve(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
+    public ApiResponse<ApprovalResult> approve(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
         String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
         String confirmation = body != null ? body.confirmation() : null;
-        return approvalService.approve(id, approver, confirmation);
+        return ApiResponse.ok(approvalService.approve(id, approver, confirmation));
     }
 
     @PostMapping("/{id}/reject")
-    public ApprovalResult reject(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
+    public ApiResponse<ApprovalResult> reject(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
         String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
-        return approvalService.reject(id, approver);
+        return ApiResponse.ok(approvalService.reject(id, approver));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

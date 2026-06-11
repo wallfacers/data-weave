@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import type { ApiResponse } from "@/lib/types"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -77,18 +78,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || "登录失败")
+    const json = (await res.json()) as ApiResponse<{
+      token: string
+      userId: number
+      tenantId: number
+      username: string
+      displayName: string
+      roles: string[]
+    }>
+    if (json.code !== 0 || !json.data) {
+      throw new Error(json.message || "登录失败")
     }
-    const data = await res.json()
-    const token: string = data.token
+    const token: string = json.data.token
     const user: AuthUser = {
-      userId: data.userId,
-      tenantId: data.tenantId,
-      username: data.username,
-      displayName: data.displayName,
-      roles: data.roles,
+      userId: json.data.userId,
+      tenantId: json.data.tenantId,
+      username: json.data.username,
+      displayName: json.data.displayName,
+      roles: json.data.roles,
       permissions: [],
     }
     localStorage.setItem(TOKEN_KEY, token)

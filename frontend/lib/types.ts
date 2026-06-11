@@ -13,6 +13,15 @@
 
 export const API_BASE = "";
 
+// ─── 统一响应格式 ─────────────────────────────────────────
+
+/** 后端统一返回格式：{code: number, data: T | null, message: string}。code=0 成功，非零为业务错误码。 */
+export interface ApiResponse<T = unknown> {
+  code: number;
+  data: T | null;
+  message: string;
+}
+
 // ─── WorkerNode ──────────────────────────────────────────
 
 export interface WorkerNode {

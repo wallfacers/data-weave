@@ -6,9 +6,9 @@ import { ComputerSettingsIcon } from "@hugeicons/core-free-icons"
 
 import { InstanceTable } from "@/components/ops/instance-table"
 import { TaskDefList } from "@/components/ops/task-def-list"
-import { TaskEditDrawer } from "@/components/ops/task-edit-drawer"
 import { TaskSearchBar, type TaskSearchParams } from "@/components/ops/task-search-bar"
-import { type TaskDef, type TaskInstance, API_BASE } from "@/lib/types"
+import { type TaskDef, type TaskInstance, type ApiResponse, API_BASE } from "@/lib/types"
+import { useSidePanelStore } from "@/lib/side-panel/store"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
 
@@ -23,16 +23,13 @@ interface PageResult {
 export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
   const instances = useApi<TaskInstance[]>("/api/ops/instances")
   const highlightTaskId = params?.highlightTaskId
+  const sidePanel = useSidePanelStore()
 
   // Task search state
   const [searchParams, setSearchParams] = useState<TaskSearchParams>({ keyword: "", type: "", status: "" })
   const [page, setPage] = useState(0)
   const [taskData, setTaskData] = useState<PageResult | null>(null)
   const [taskLoading, setTaskLoading] = useState(true)
-
-  // Drawer state
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [editTask, setEditTask] = useState<TaskDef | null>(null)
 
   const fetchTasks = useCallback(() => {
     setTaskLoading(true)
@@ -43,8 +40,8 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
     sp.set("page", String(page))
     sp.set("size", "20")
     fetch(`${API_BASE}/api/tasks?${sp}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => setTaskData(data))
+      .then((res) => res.json() as Promise<ApiResponse<PageResult>>)
+      .then((json) => setTaskData(json.code === 0 ? json.data : null))
       .catch(() => setTaskData(null))
       .finally(() => setTaskLoading(false))
   }, [searchParams, page])
@@ -59,13 +56,11 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
   }
 
   function handleNewTask() {
-    setEditTask(null)
-    setDrawerOpen(true)
+    sidePanel.open("task-edit", "新建任务")
   }
 
   function handleEdit(task: TaskDef) {
-    setEditTask(task)
-    setDrawerOpen(true)
+    sidePanel.open("task-edit", `编辑任务 #${task.id}`, { taskId: task.id })
   }
 
   return (
@@ -104,13 +99,6 @@ export function TaskFlowView({ params }: { params?: Record<string, unknown> }) {
       {taskLoading && (
         <div className="py-4 text-center text-xs text-muted-foreground">加载中…</div>
       )}
-
-      <TaskEditDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        task={editTask}
-        onSaved={fetchTasks}
-      />
     </div>
   )
 }

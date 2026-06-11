@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 
-import { API_BASE } from "@/lib/types"
+import { API_BASE, type ApiResponse } from "@/lib/types"
 import { useWorkspaceStore } from "./store"
 
 const TOKEN_KEY = "dw.auth.token"
@@ -43,9 +43,11 @@ export function useWorkspacePersistence() {
     if (token) authHeaders["Authorization"] = `Bearer ${token}`
 
     fetch(workspaceUrl(), { cache: "no-store", headers: authHeaders })
-      .then((res) => (res.status === 200 ? res.text() : null))
-      .then((text) => {
-        if (cancelled || !text) return
+      .then((res) => res.json() as Promise<ApiResponse<string>>)
+      .then((json) => {
+        if (cancelled) return
+        const text = json.code === 0 ? json.data : null
+        if (!text) return
         const state = useWorkspaceStore.getState()
         if (state.tabs.every((t) => t.base)) state.restore(text)
       })

@@ -1,17 +1,15 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.OpsService;
 import com.dataweave.master.application.OpsService.DashboardSummary;
 import com.dataweave.master.application.OpsService.LogChunk;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.WorkflowInstance;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 调度运维 / 驾驶舱查询 REST 端点：全局概况、任务定义、运行实例、失败清单。
@@ -31,75 +29,64 @@ public class OpsController {
 
     /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
     @GetMapping("/summary")
-    public DashboardSummary summary() {
-        return opsService.summary();
+    public ApiResponse<DashboardSummary> summary() {
+        return ApiResponse.ok(opsService.summary());
     }
 
     /** 所有任务定义。 */
     @GetMapping("/tasks")
-    public List<TaskDef> tasks() {
-        return opsService.tasks();
+    public ApiResponse<List<TaskDef>> tasks() {
+        return ApiResponse.ok(opsService.tasks());
     }
 
     /** 正式运行实例（排除 TEST 试跑），按 id 降序。 */
     @GetMapping("/instances")
-    public List<TaskInstance> instances() {
-        return opsService.instances();
+    public ApiResponse<List<TaskInstance>> instances() {
+        return ApiResponse.ok(opsService.instances());
     }
 
     /** 失败的正式运行实例。 */
     @GetMapping("/failed")
-    public List<TaskInstance> failed() {
-        return opsService.failedInstances();
+    public ApiResponse<List<TaskInstance>> failed() {
+        return ApiResponse.ok(opsService.failedInstances());
     }
 
     // ─── 实例生命周期操作 ─────────────────────────────────
 
     @PostMapping("/instances/{id}/pause")
-    public ResponseEntity<?> pause(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.pauseWorkflow(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> pause(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.pauseWorkflow(id));
     }
 
     @PostMapping("/instances/{id}/resume")
-    public ResponseEntity<?> resume(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.resumeWorkflow(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> resume(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.resumeWorkflow(id));
     }
 
     @PostMapping("/instances/{id}/kill")
-    public ResponseEntity<?> kill(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.killWorkflow(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> kill(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.killWorkflow(id));
     }
 
     @PostMapping("/task-instances/{id}/pause")
-    public ResponseEntity<?> pauseTask(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.pauseTask(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> pauseTask(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.pauseTask(id));
     }
 
     @PostMapping("/task-instances/{id}/resume")
-    public ResponseEntity<?> resumeTask(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.resumeTask(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> resumeTask(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.resumeTask(id));
     }
 
     @PostMapping("/task-instances/{id}/kill")
-    public ResponseEntity<?> killTask(@PathVariable Long id) {
-        try { return ResponseEntity.ok(opsService.killTask(id)); }
-        catch (IllegalStateException e) { return conflict(e); }
+    public ApiResponse<?> killTask(@PathVariable Long id) {
+        return ApiResponse.ok(opsService.killTask(id));
     }
 
     @GetMapping("/instances/{id}/log")
-    public ResponseEntity<?> log(@PathVariable Long id,
+    public ApiResponse<?> log(@PathVariable Long id,
                                  @RequestParam(defaultValue = "0") int offset,
                                  @RequestParam(defaultValue = "65536") int limit) {
-        try { return ResponseEntity.ok(opsService.getLog(id, offset, limit)); }
-        catch (IllegalStateException e) { return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage())); }
-    }
-
-    private ResponseEntity<Map<String, String>> conflict(IllegalStateException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        return ApiResponse.ok(opsService.getLog(id, offset, limit));
     }
 }
