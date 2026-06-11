@@ -42,7 +42,7 @@ public class TaskService {
     // ─── Records ─────────────────────────────────────────
 
     /** 创建即上线的返回值（兼容 MCP 工具 create_task）。 */
-    public record TaskCreation(TaskDef task, String cron, Long instanceId) {}
+    public record TaskCreation(TaskDef task, String cron, java.util.UUID instanceId) {}
 
     /** 分页结果。 */
     public record PageResult(List<TaskDef> content, long totalElements, int totalPages, int page, int size) {}

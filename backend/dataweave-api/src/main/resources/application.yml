@@ -42,6 +42,25 @@ worker:
     timeout-seconds: 60
     max-output-bytes: 65536
 
+# 分布式调度（distributed-scheduler-m1）
+scheduler:
+  mode: all-in-one                 # all-in-one（默认，单 JVM + 内存总线 + 文件归档）| distributed
+  poll-interval-ms: 5000           # 兜底轮询间隔（事件全丢时最坏延迟）
+  claim-batch-size: 50             # 单轮 SKIP LOCKED 认领批量
+  cron-misfire: fire_once          # fire_once（默认，恢复后补一次）| skip
+
+cluster:
+  auth:
+    token: dataweave-local-cluster-token   # master↔worker 进程间内部调用鉴权；部署须覆盖，两侧一致
+
+# 三接缝实现选择（all-in-one 默认 memory/file；distributed 切 redis/s3）
+eventbus:
+  type: memory                     # memory | redis
+logbus:
+  type: memory                     # memory | redis
+logarchive:
+  type: file                       # file | s3
+
 logging:
   level:
     com.dataweave: INFO

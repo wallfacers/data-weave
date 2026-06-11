@@ -3,21 +3,25 @@ package com.dataweave.master.domain;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Table("task_instance")
 public class TaskInstance {
     @Id
-    private Long id;
+    private UUID id;
     private Long tenantId;
     private Long projectId;
-    private Long workflowInstanceId;
+    private UUID workflowInstanceId;
     private Long workflowNodeId;
     private Long taskId;
     private Integer taskVersionNo;
     private String runMode;
+    private String bizDate;
     private String state;
     private Integer attempt;
     private String workerNodeCode;
+    private LocalDateTime leaseExpireAt;
+    private String failureReason;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
     private String log;
@@ -32,8 +36,8 @@ public class TaskInstance {
 
     public TaskInstance() {}
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
@@ -41,8 +45,8 @@ public class TaskInstance {
     public Long getProjectId() { return projectId; }
     public void setProjectId(Long projectId) { this.projectId = projectId; }
 
-    public Long getWorkflowInstanceId() { return workflowInstanceId; }
-    public void setWorkflowInstanceId(Long workflowInstanceId) { this.workflowInstanceId = workflowInstanceId; }
+    public UUID getWorkflowInstanceId() { return workflowInstanceId; }
+    public void setWorkflowInstanceId(UUID workflowInstanceId) { this.workflowInstanceId = workflowInstanceId; }
 
     public Long getWorkflowNodeId() { return workflowNodeId; }
     public void setWorkflowNodeId(Long workflowNodeId) { this.workflowNodeId = workflowNodeId; }
@@ -56,6 +60,9 @@ public class TaskInstance {
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }
 
+    public String getBizDate() { return bizDate; }
+    public void setBizDate(String bizDate) { this.bizDate = bizDate; }
+
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }
 
@@ -64,6 +71,12 @@ public class TaskInstance {
 
     public String getWorkerNodeCode() { return workerNodeCode; }
     public void setWorkerNodeCode(String workerNodeCode) { this.workerNodeCode = workerNodeCode; }
+
+    public LocalDateTime getLeaseExpireAt() { return leaseExpireAt; }
+    public void setLeaseExpireAt(LocalDateTime leaseExpireAt) { this.leaseExpireAt = leaseExpireAt; }
+
+    public String getFailureReason() { return failureReason; }
+    public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
 
     public LocalDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }

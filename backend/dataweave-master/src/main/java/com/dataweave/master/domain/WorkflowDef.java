@@ -21,6 +21,7 @@ public class WorkflowDef {
     private Integer hasDraftChange;
     private LocalDateTime lastFireTime;
     private Integer priority;
+    private Integer preemptible;
     private Integer timeoutSec;
     private Long createdBy;
     private Long updatedBy;
@@ -72,6 +73,9 @@ public class WorkflowDef {
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }
+
+    public Integer getPreemptible() { return preemptible; }
+    public void setPreemptible(Integer preemptible) { this.preemptible = preemptible; }
 
     public Integer getTimeoutSec() { return timeoutSec; }
     public void setTimeoutSec(Integer timeoutSec) { this.timeoutSec = timeoutSec; }

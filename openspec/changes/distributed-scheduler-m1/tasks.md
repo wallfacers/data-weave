@@ -4,26 +4,26 @@
 
 ## 1. Schema 迁移与基座
 
-- [ ] 1.1 实例类核心表主键自增改 UUIDv7（task_instance/workflow_instance 及外键），同步调整实体与现有 mock 数据生成，提供 PG 迁移 SQL（BREAKING）
-- [ ] 1.2 schema 新字段：workflow_def 加 priority/preemptible；workflow_instance 加 priority；task_instance 加 lease_expire_at/failure_reason，state 枚举加 DISPATCHED/PREEMPTED；worker_nodes 加 incarnation/reserved_test_slots
-- [ ] 1.3 新增 cron_fire 护栏表（workflow_id + scheduled_fire_time 复合唯一键）及实体/repository
-- [ ] 1.4 定义三接缝接口 EventBus/LogBus/LogArchiveStorage（domain 层）并提供内存/本地文件默认实现（all-in-one），配置项 scheduler.mode、cluster.auth.token 骨架
-- [ ] 1.5 发布期校验：工作流发布 DAG 拓扑环检测、创建 workflow_dependency 全局环检测（含单测）
+- [x] 1.1 实例类核心表主键自增改 UUIDv7（task_instance/workflow_instance 及外键），同步调整实体与现有 mock 数据生成，提供 PG 迁移 SQL（BREAKING）
+- [x] 1.2 schema 新字段：workflow_def 加 priority/preemptible；workflow_instance 加 priority；task_instance 加 lease_expire_at/failure_reason，state 枚举加 DISPATCHED/PREEMPTED；worker_nodes 加 incarnation/reserved_test_slots
+- [x] 1.3 新增 cron_fire 护栏表（workflow_id + scheduled_fire_time 复合唯一键）及实体/repository
+- [x] 1.4 定义三接缝接口 EventBus/LogBus/LogArchiveStorage（domain 层）并提供内存/本地文件默认实现（all-in-one），配置项 scheduler.mode、cluster.auth.token 骨架
+- [x] 1.5 发布期校验：工作流发布 DAG 拓扑环检测、创建 workflow_dependency 全局环检测（含单测）
 
 ## 2. 调度内核（all-in-one 先行）
 
-- [ ] 2.1 状态机服务：乐观 CAS 推进（统一入口，WHERE state=? 守卫）、固定锁序 task→workflow、事务内禁副作用的结构约束（含并发单测）
-- [ ] 2.2 认领循环：SKIP LOCKED 批量认领 WAITING 实例 + 兜底轮询（默认 5s 可配），H2/PG 双方言验证
-- [ ] 2.3 事件驱动快路径：提交/任务完成/槽位释放/心跳恢复事件经 EventBus 触发即时调度；DAG 下游解锁联动
-- [ ] 2.4 SchedulingPolicy 接缝 + 默认实现（声明优先级 + aging 防饥饿打分；least-loaded 选节点；work-conserving），含饥饿场景单测
-- [ ] 2.5 槽位管理：worker capacity 占用/释放、TEST 预留槽（默认 1 可配 0）
-- [ ] 2.6 软抢占：高优无槽时 kill preemptible 运行实例 → PREEMPTED 回 WAITING 不耗 attempt；抢占与完成竞态 CAS 裁决（含单测）
-- [ ] 2.7 cron 调度器：扫描到期工作流 → cron_fire 护栏表防重 → 创建实例；misfire 策略 fire_once/skip 可配（含多线程竞争单测）
-- [ ] 2.8 重试服务：失败按 retry_max 退避重试，attempt 递增；PREEMPTED 不计次
-- [ ] 2.9 失败恢复：断点恢复（SUCCESS 节点跳过、FAILED→RUNNING 再入）与整流重跑（全节点重置走同一机制），经 GatedActionService 留痕
-- [ ] 2.10 手动触发/rerun/恢复/测试运行接入 GatedActionService（cron 例行不进闸门）；policy_rules 默认数据：TEST=L1
-- [ ] 2.11 测试运行：TEST 模式下发草稿内容、跳过依赖检查、不入正式统计（OpsController 过滤已有，补 SLA 排除）
-- [ ] 2.12 内核集成测试：单 JVM 内多线程双"master"竞争认领、资源不足排队唤醒、0 延迟路径（提交→下发耗时断言）、死锁不变量回归
+- [x] 2.1 状态机服务：乐观 CAS 推进（统一入口，WHERE state=? 守卫）、固定锁序 task→workflow、事务内禁副作用的结构约束（含并发单测）
+- [x] 2.2 认领循环：SKIP LOCKED 批量认领 WAITING 实例 + 兜底轮询（默认 5s 可配），H2/PG 双方言验证
+- [x] 2.3 事件驱动快路径：提交/任务完成/槽位释放/心跳恢复事件经 EventBus 触发即时调度；DAG 下游解锁联动
+- [x] 2.4 SchedulingPolicy 接缝 + 默认实现（声明优先级 + aging 防饥饿打分；least-loaded 选节点；work-conserving），含饥饿场景单测
+- [x] 2.5 槽位管理：worker capacity 占用/释放、TEST 预留槽（默认 1 可配 0）
+- [x] 2.6 软抢占：高优无槽时 kill preemptible 运行实例 → PREEMPTED 回 WAITING 不耗 attempt；抢占与完成竞态 CAS 裁决（含单测）
+- [x] 2.7 cron 调度器：扫描到期工作流 → cron_fire 护栏表防重 → 创建实例；misfire 策略 fire_once/skip 可配（含多线程竞争单测）
+- [x] 2.8 重试服务：失败按 retry_max 退避重试，attempt 递增；PREEMPTED 不计次
+- [x] 2.9 失败恢复：断点恢复（SUCCESS 节点跳过、FAILED→RUNNING 再入）与整流重跑（全节点重置走同一机制），经 GatedActionService 留痕
+- [x] 2.10 手动触发/rerun/恢复/测试运行接入 GatedActionService（cron 例行不进闸门）；policy_rules 默认数据：TEST=L1
+- [x] 2.11 测试运行：TEST 模式下发草稿内容、跳过依赖检查、不入正式统计（OpsController 过滤已有，补 SLA 排除）
+- [x] 2.12 内核集成测试：单 JVM 内多线程双"master"竞争认领、资源不足排队唤醒、0 延迟路径（提交→下发耗时断言）、死锁不变量回归
 
 ## 3. 任务下发网络化（distributed 模式）
 

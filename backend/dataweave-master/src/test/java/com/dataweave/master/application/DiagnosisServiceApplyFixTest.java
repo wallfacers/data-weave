@@ -53,13 +53,13 @@ class DiagnosisServiceApplyFixTest {
         d.setWorkerNodeCode("node-3");
         when(diagnosisRepository.findById(7L)).thenReturn(Optional.of(d));
         when(gatedActionService.submit(any())).thenReturn(
-                new GateResult(GateResult.Outcome.EXECUTED, 1L, "L1", "已迁移重跑成功", null, false, 88L));
+                new GateResult(GateResult.Outcome.EXECUTED, 1L, "L1", "已迁移重跑成功", null, false, java.util.UUID.fromString("01910000-0010-7000-8000-000000000088")));
 
         DiagnosisService.FixResult r = diagnosisService.applyFix(7L, "MIGRATE_NODE", "agent", "AGENT");
 
         assertThat(r.success()).isTrue();
         assertThat(r.message()).isEqualTo("已迁移重跑成功");
-        assertThat(r.newInstanceId()).isEqualTo(88L);
+        assertThat(r.newInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
 
         ArgumentCaptor<ActionRequest> cap = ArgumentCaptor.forClass(ActionRequest.class);
         org.mockito.Mockito.verify(gatedActionService).submit(cap.capture());

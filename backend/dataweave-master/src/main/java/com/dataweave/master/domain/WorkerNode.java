@@ -22,6 +22,8 @@ public class WorkerNode {
     private String status;
     private Integer maxConcurrentTasks;
     private String nodeGroup;
+    private Long incarnation;
+    private Integer reservedTestSlots;
     private LocalDateTime lastHeartbeat;
     private Long createdBy;
     private Long updatedBy;
@@ -135,6 +137,22 @@ public class WorkerNode {
 
     public void setNodeGroup(String nodeGroup) {
         this.nodeGroup = nodeGroup;
+    }
+
+    public Long getIncarnation() {
+        return incarnation;
+    }
+
+    public void setIncarnation(Long incarnation) {
+        this.incarnation = incarnation;
+    }
+
+    public Integer getReservedTestSlots() {
+        return reservedTestSlots;
+    }
+
+    public void setReservedTestSlots(Integer reservedTestSlots) {
+        this.reservedTestSlots = reservedTestSlots;
     }
 
     public LocalDateTime getLastHeartbeat() {

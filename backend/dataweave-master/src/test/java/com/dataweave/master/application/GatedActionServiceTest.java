@@ -54,7 +54,7 @@ class GatedActionServiceTest {
     void l1_executesAndRecords() {
         when(policyEngine.decide(any())).thenReturn(decision(PolicyLevel.L1, false));
         when(executor.execute(any())).thenReturn(
-                new PlatformActionExecutor.ExecOutcome(true, "重跑成功", "{}", 77L));
+                new PlatformActionExecutor.ExecOutcome(true, "重跑成功", "{}", java.util.UUID.fromString("01910000-0010-7000-8000-000000000077")));
 
         GateResult r = gate.submit(ActionRequest.builder()
                 .toolName("task_rerun").actionType("TASK_RERUN")
@@ -62,7 +62,7 @@ class GatedActionServiceTest {
 
         assertThat(r.executed()).isTrue();
         assertThat(r.message()).isEqualTo("重跑成功");
-        assertThat(r.resultInstanceId()).isEqualTo(77L);
+        assertThat(r.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000077"));
         verify(executor).execute(any());
 
         ArgumentCaptor<AgentAction> cap = ArgumentCaptor.forClass(AgentAction.class);

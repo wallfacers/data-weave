@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -85,7 +86,7 @@ public class OpsService {
     // ─── 实例生命周期管理 ─────────────────────────────────
 
     /** 暂停工作流实例：RUNNING → PAUSED，所有 NOT_RUN 的 TaskInstance → PAUSED。 */
-    public WorkflowInstance pauseWorkflow(Long instanceId) {
+    public WorkflowInstance pauseWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
         if (!"RUNNING".equals(wi.getState())) {
@@ -105,7 +106,7 @@ public class OpsService {
     }
 
     /** 恢复工作流实例：PAUSED → RUNNING，所有 PAUSED 的 TaskInstance → NOT_RUN。 */
-    public WorkflowInstance resumeWorkflow(Long instanceId) {
+    public WorkflowInstance resumeWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
         if (!"PAUSED".equals(wi.getState())) {
@@ -124,7 +125,7 @@ public class OpsService {
     }
 
     /** 终止工作流实例：→ STOPPED，所有非终态 TaskInstance → STOPPED。 */
-    public WorkflowInstance killWorkflow(Long instanceId) {
+    public WorkflowInstance killWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
         if (isTerminal(wi.getState())) {
@@ -146,7 +147,7 @@ public class OpsService {
     }
 
     /** 暂停单个任务实例。 */
-    public TaskInstance pauseTask(Long instanceId) {
+    public TaskInstance pauseTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
         if (!"NOT_RUN".equals(ti.getState())) {
@@ -158,7 +159,7 @@ public class OpsService {
     }
 
     /** 恢复单个任务实例。 */
-    public TaskInstance resumeTask(Long instanceId) {
+    public TaskInstance resumeTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
         if (!"PAUSED".equals(ti.getState())) {
@@ -170,7 +171,7 @@ public class OpsService {
     }
 
     /** 终止单个任务实例。 */
-    public TaskInstance killTask(Long instanceId) {
+    public TaskInstance killTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
         if (isTerminal(ti.getState())) {
@@ -184,7 +185,7 @@ public class OpsService {
     }
 
     /** 获取日志分块。 */
-    public LogChunk getLog(Long instanceId, int offset, int limit) {
+    public LogChunk getLog(UUID instanceId, int offset, int limit) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
         String log = ti.getLog();

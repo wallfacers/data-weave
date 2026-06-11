@@ -170,15 +170,14 @@ public class PolicyEngine {
         if (type == null || id == null) {
             return null;
         }
-        Long pk = parseLong(id);
-        if (pk == null) {
-            return null;
-        }
+        // 实例类目标主键为 UUIDv7；任务类仍为 Long。
         if ("TASK_INSTANCE".equalsIgnoreCase(type)) {
-            return instanceRepository.findById(pk).isPresent();
+            java.util.UUID uuid = parseUuid(id);
+            return uuid == null ? null : instanceRepository.findById(uuid).isPresent();
         }
         if ("TASK".equalsIgnoreCase(type)) {
-            return taskDefRepository.findById(pk).isPresent();
+            Long pk = parseLong(id);
+            return pk == null ? null : taskDefRepository.findById(pk).isPresent();
         }
         return null;
     }
@@ -187,6 +186,14 @@ public class PolicyEngine {
         try {
             return Long.parseLong(s.trim());
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private java.util.UUID parseUuid(String s) {
+        try {
+            return java.util.UUID.fromString(s.trim());
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }

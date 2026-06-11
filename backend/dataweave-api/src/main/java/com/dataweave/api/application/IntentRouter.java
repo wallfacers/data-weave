@@ -119,7 +119,7 @@ public class IntentRouter {
 
     // ---- 诊断意图 ----
     private AgentReply tryDiagnosis(PageContext ctx) {
-        Long instanceId = ctx != null ? ctx.instanceIdAsLong() : null;
+        java.util.UUID instanceId = ctx != null ? ctx.instanceIdAsUuid() : null;
         Optional<TaskDiagnosis> opt = instanceId != null
                 ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
                 : diagnosisService.diagnoseLatestFailure();

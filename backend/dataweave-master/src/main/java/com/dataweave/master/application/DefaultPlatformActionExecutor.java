@@ -6,12 +6,15 @@ import com.dataweave.master.domain.TaskDiagnosisRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.domain.WorkflowDef;
+import com.dataweave.master.domain.WorkflowDefRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 默认平台动作执行器：按 action_type 执行 applyFix 四动作、任务重跑、节点受控执行。
@@ -26,17 +29,26 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final FleetService fleetService;
     private final TaskService taskService;
     private final ObjectProvider<NodeExecGateway> nodeExecGateway;
+    private final WorkflowTriggerService triggerService;
+    private final RecoveryService recoveryService;
+    private final WorkflowDefRepository workflowDefRepository;
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
                                          TaskDiagnosisRepository diagnosisRepository,
                                          FleetService fleetService,
                                          TaskService taskService,
-                                         ObjectProvider<NodeExecGateway> nodeExecGateway) {
+                                         ObjectProvider<NodeExecGateway> nodeExecGateway,
+                                         WorkflowTriggerService triggerService,
+                                         RecoveryService recoveryService,
+                                         WorkflowDefRepository workflowDefRepository) {
         this.instanceRepository = instanceRepository;
         this.diagnosisRepository = diagnosisRepository;
         this.fleetService = fleetService;
         this.taskService = taskService;
         this.nodeExecGateway = nodeExecGateway;
+        this.triggerService = triggerService;
+        this.recoveryService = recoveryService;
+        this.workflowDefRepository = workflowDefRepository;
     }
 
     @Override
@@ -50,6 +62,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "TASK_RERUN" -> taskRerun(action);
             case "CREATE_TASK" -> createTask(action);
             case "NODE_EXEC" -> nodeExec(action);
+            case "TEST_RUN" -> testRun(action);
+            case "TRIGGER_WORKFLOW" -> triggerWorkflow(action);
+            case "RESUME_WORKFLOW" -> resumeWorkflow(action);
+            case "RERUN_WORKFLOW" -> rerunWorkflow(action);
             default -> new ExecOutcome(false, "不支持的动作类型：" + action.getActionType(),
                     json(Map.of("error", "unsupported_action", "actionType", action.getActionType())), null);
         };
@@ -102,7 +118,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
 
     // ---- 任务实例重跑（MCP task_rerun / CLI dw task rerun）----
     private ExecOutcome taskRerun(AgentAction action) {
-        Long instanceId = parseLong(action.getTargetId());
+        UUID instanceId = parseUuid(action.getTargetId());
         TaskInstance src = instanceId == null ? null : instanceRepository.findById(instanceId).orElse(null);
         Long taskId = src != null ? src.getTaskId() : null;
         String node = src != null && src.getWorkerNodeCode() != null ? src.getWorkerNodeCode()
@@ -140,6 +156,51 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         result.put("stderr", r.stderr());
         result.put("truncated", r.truncated());
         return new ExecOutcome(r.success(), r.message(), json(result), null);
+    }
+
+    // ---- 调度类动作（distributed-scheduler-m1）----
+
+    /** 单任务测试运行：targetId=taskId，command=bizDate（可空）。 */
+    private ExecOutcome testRun(AgentAction action) {
+        Long taskId = parseLong(action.getTargetId());
+        if (taskId == null) {
+            return new ExecOutcome(false, "缺少任务 id", json(Map.of("error", "missing_task_id")), null);
+        }
+        String bizDate = action.getCommand();
+        UUID instanceId = triggerService.triggerTestRun(taskId, bizDate);
+        return new ExecOutcome(true, "已提交任务 #" + taskId + " 的测试运行（草稿内容，留痕）。",
+                json(Map.of("testInstanceId", instanceId.toString(), "taskId", taskId)), instanceId);
+    }
+
+    /** 手动触发工作流：targetId=workflowId，command=bizDate（可空）。 */
+    private ExecOutcome triggerWorkflow(AgentAction action) {
+        Long workflowId = parseLong(action.getTargetId());
+        WorkflowDef wf = workflowId == null ? null : workflowDefRepository.findById(workflowId).orElse(null);
+        if (wf == null) {
+            return new ExecOutcome(false, "工作流不存在：" + action.getTargetId(),
+                    json(Map.of("error", "workflow_not_found")), null);
+        }
+        UUID wiId = triggerService.trigger(wf, "MANUAL", action.getCommand(), wf.getPriority());
+        return new ExecOutcome(true, "已手动触发工作流「" + wf.getName() + "」。",
+                json(Map.of("workflowInstanceId", wiId.toString(), "workflowId", workflowId)), wiId);
+    }
+
+    /** 断点恢复：targetId=workflowInstanceId(UUID)。 */
+    private ExecOutcome resumeWorkflow(AgentAction action) {
+        UUID wiId = parseUuid(action.getTargetId());
+        boolean ok = wiId != null && recoveryService.resume(wiId);
+        return new ExecOutcome(ok, ok ? "已断点恢复工作流实例（保留成功节点，从失败点续跑）。"
+                : "断点恢复未生效（实例非失败态或不存在）。",
+                json(Map.of("resumed", ok, "workflowInstanceId", String.valueOf(action.getTargetId()))), wiId);
+    }
+
+    /** 整流重跑：targetId=workflowInstanceId(UUID)。 */
+    private ExecOutcome rerunWorkflow(AgentAction action) {
+        UUID wiId = parseUuid(action.getTargetId());
+        boolean ok = wiId != null && recoveryService.rerunAll(wiId);
+        return new ExecOutcome(ok, ok ? "已整流重跑工作流实例（全节点重置）。"
+                : "整流重跑未生效（实例不存在）。",
+                json(Map.of("rerun", ok, "workflowInstanceId", String.valueOf(action.getTargetId()))), wiId);
     }
 
     // ---- helpers ----
@@ -186,6 +247,17 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         try {
             return Long.parseLong(s.trim());
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private UUID parseUuid(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(s.trim());
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }

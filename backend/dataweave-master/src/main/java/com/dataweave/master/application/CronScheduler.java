@@ -1,8 +1,13 @@
 package com.dataweave.master.application;
 
-import com.dataweave.master.domain.*;
+import com.dataweave.master.domain.CronFire;
+import com.dataweave.master.domain.CronFireRepository;
+import com.dataweave.master.domain.WorkflowDef;
+import com.dataweave.master.domain.WorkflowDefRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
@@ -10,9 +15,14 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Cron 调度引擎：每分钟扫描可调度工作流，到期则触发执行。
+ * Cron 调度器（design D4，task 2.7）：每个 master 都扫到期工作流并尝试触发；触发前先向护栏表
+ * {@code cron_fire(workflow_id, scheduled_fire_time)} 插入记录，撞复合唯一键即放弃——多 master 零协调防重。
+ *
+ * <p>misfire 策略可配：{@code fire_once}（默认，恢复后补触发最近一个错过点一次）/ {@code skip}
+ * （错过多个点则跳过、仅推进基准）。实例创建委托 {@link WorkflowTriggerService}，统一走调度内核执行。
  */
 @Component
 public class CronScheduler {
@@ -21,18 +31,18 @@ public class CronScheduler {
     private static final DateTimeFormatter BIZ_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final WorkflowDefRepository workflowDefRepository;
-    private final WorkflowNodeRepository workflowNodeRepository;
-    private final WorkflowInstanceRepository workflowInstanceRepository;
-    private final TaskInstanceRepository taskInstanceRepository;
+    private final CronFireRepository cronFireRepository;
+    private final WorkflowTriggerService triggerService;
+    private final String misfirePolicy;
 
     public CronScheduler(WorkflowDefRepository workflowDefRepository,
-                         WorkflowNodeRepository workflowNodeRepository,
-                         WorkflowInstanceRepository workflowInstanceRepository,
-                         TaskInstanceRepository taskInstanceRepository) {
+                         CronFireRepository cronFireRepository,
+                         WorkflowTriggerService triggerService,
+                         @Value("${scheduler.cron-misfire:fire_once}") String misfirePolicy) {
         this.workflowDefRepository = workflowDefRepository;
-        this.workflowNodeRepository = workflowNodeRepository;
-        this.workflowInstanceRepository = workflowInstanceRepository;
-        this.taskInstanceRepository = taskInstanceRepository;
+        this.cronFireRepository = cronFireRepository;
+        this.triggerService = triggerService;
+        this.misfirePolicy = misfirePolicy;
     }
 
     @Scheduled(fixedRate = 60000)
@@ -40,103 +50,82 @@ public class CronScheduler {
         LocalDateTime now = LocalDateTime.now();
         List<WorkflowDef> schedulable = workflowDefRepository
                 .findByScheduleTypeAndStatusAndDeleted("CRON", "ONLINE", 0);
-
         int triggered = 0;
         for (WorkflowDef wf : schedulable) {
             try {
-                if (shouldFire(wf, now)) {
-                    fireWorkflow(wf, now);
+                if (tryFire(wf, now)) {
                     triggered++;
                 }
             } catch (Exception e) {
-                log.error("[CronScheduler] failed to trigger workflow id={}: {}", wf.getId(), e.getMessage(), e);
+                log.error("[CronScheduler] 触发工作流 id={} 失败：{}", wf.getId(), e.getMessage(), e);
             }
         }
-        log.info("[CronScheduler] tick: scanned={}, triggered={}", schedulable.size(), triggered);
+        if (!schedulable.isEmpty()) {
+            log.info("[CronScheduler] tick: 扫描={}, 触发={}", schedulable.size(), triggered);
+        }
     }
 
-    /** 判断工作流是否应触发：cron 有效 + 在调度窗口内 + 到达触发时间。 */
-    private boolean shouldFire(WorkflowDef wf, LocalDateTime now) {
-        if (wf.getCron() == null || wf.getCron().isBlank()) return false;
-
-        // 调度窗口检查
-        if (wf.getScheduleStart() != null && now.isBefore(wf.getScheduleStart())) return false;
-        if (wf.getScheduleEnd() != null && now.isAfter(wf.getScheduleEnd())) return false;
-
-        // 解析 cron
+    /** 计算到期触发点并按 misfire 策略+护栏表防重触发一次。返回是否本 master 触发成功。 */
+    private boolean tryFire(WorkflowDef wf, LocalDateTime now) {
+        if (wf.getCron() == null || wf.getCron().isBlank()) {
+            return false;
+        }
+        if (wf.getScheduleStart() != null && now.isBefore(wf.getScheduleStart())) {
+            return false;
+        }
+        if (wf.getScheduleEnd() != null && now.isAfter(wf.getScheduleEnd())) {
+            return false;
+        }
         CronExpression cron;
         try {
             cron = CronExpression.parse(wf.getCron());
         } catch (Exception e) {
-            log.warn("[CronScheduler] invalid cron '{}' for workflow id={}", wf.getCron(), wf.getId());
+            log.warn("[CronScheduler] 非法 cron '{}' workflow id={}", wf.getCron(), wf.getId());
             return false;
         }
 
-        // 计算上次触发后的下次触发时间
-        LocalDateTime lastFire = wf.getLastFireTime();
-        LocalDateTime nextFire;
-        if (lastFire == null) {
-            // 从未触发过：用 createdAt 作为基准
-            nextFire = cron.next(wf.getCreatedAt() != null ? wf.getCreatedAt() : now.minusDays(1));
-        } else {
-            nextFire = cron.next(lastFire);
+        LocalDateTime base = wf.getLastFireTime() != null ? wf.getLastFireTime()
+                : (wf.getCreatedAt() != null ? wf.getCreatedAt() : now.minusMinutes(1));
+        // 找 (base, now] 区间内最近的触发点，并统计错过点数
+        LocalDateTime due = null;
+        int missed = 0;
+        LocalDateTime cursor = cron.next(base);
+        while (cursor != null && !cursor.isAfter(now)) {
+            due = cursor;
+            missed++;
+            cursor = cron.next(cursor);
+        }
+        if (due == null) {
+            return false;  // 未到触发点
+        }
+        // misfire：skip 且错过多个点 → 仅推进基准不触发
+        if ("skip".equalsIgnoreCase(misfirePolicy) && missed > 1) {
+            wf.setLastFireTime(due);
+            wf.setUpdatedAt(now);
+            workflowDefRepository.save(wf);
+            log.info("[CronScheduler] workflow id={} 错过 {} 个触发点，misfire=skip 跳过至 {}", wf.getId(), missed, due);
+            return false;
         }
 
-        return !now.isBefore(nextFire);
-    }
-
-    /** 触发工作流执行。 */
-    private void fireWorkflow(WorkflowDef wf, LocalDateTime now) {
-        // 获取工作流节点
-        List<WorkflowNode> nodes = workflowNodeRepository.findByWorkflowId(wf.getId());
-        if (nodes.isEmpty()) {
-            log.warn("[CronScheduler] workflow id={} has no nodes, skipping", wf.getId());
-            return;
+        // 护栏表防重：插入 (workflow_id, due) 成功者拥有本次触发
+        CronFire guard = new CronFire(wf.getId(), due);
+        guard.setCreatedAt(now);
+        try {
+            cronFireRepository.save(guard);
+        } catch (DataIntegrityViolationException dup) {
+            return false;  // 别的 master 已触发本点
         }
 
-        // 创建工作流实例
-        WorkflowInstance wi = new WorkflowInstance();
-        wi.setTenantId(wf.getTenantId());
-        wi.setProjectId(wf.getProjectId());
-        wi.setWorkflowId(wf.getId());
-        wi.setWorkflowVersionNo(wf.getCurrentVersionNo());
-        wi.setTriggerType("CRON");
-        wi.setState("RUNNING");
-        wi.setBizDate(now.minusDays(1).format(BIZ_DATE_FMT));
-        wi.setTotalTasks(nodes.size());
-        wi.setCompletedTasks(0);
-        wi.setFailedTasks(0);
-        wi.setStartedAt(now);
-        wi.setCreatedAt(now);
-        wi.setUpdatedAt(now);
-        wi.setDeleted(0);
-        wi.setVersion(0L);
-        WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
+        UUID wiId = triggerService.trigger(wf, "CRON", due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority());
+        guard.setWorkflowInstanceId(wiId);
+        guard.setFiredAt(LocalDateTime.now());
+        cronFireRepository.save(guard);
 
-        // 为每个节点创建任务实例
-        for (WorkflowNode node : nodes) {
-            TaskInstance ti = new TaskInstance();
-            ti.setTenantId(wf.getTenantId());
-            ti.setProjectId(wf.getProjectId());
-            ti.setWorkflowInstanceId(savedWi.getId());
-            ti.setWorkflowNodeId(node.getId());
-            ti.setTaskId(node.getTaskId());
-            ti.setRunMode("NORMAL");
-            ti.setState("NOT_RUN");
-            ti.setAttempt(0);
-            ti.setCreatedAt(now);
-            ti.setUpdatedAt(now);
-            ti.setDeleted(0);
-            ti.setVersion(0L);
-            taskInstanceRepository.save(ti);
-        }
-
-        // 更新 last_fire_time
-        wf.setLastFireTime(now);
+        wf.setLastFireTime(due);
         wf.setUpdatedAt(now);
         workflowDefRepository.save(wf);
-
-        log.info("[CronScheduler] fired workflow id={} name='{}' instanceId={} nodes={}",
-                wf.getId(), wf.getName(), savedWi.getId(), nodes.size());
+        log.info("[CronScheduler] 触发 workflow id={} name='{}' 触发点={} 实例={}",
+                wf.getId(), wf.getName(), due, wiId);
+        return true;
     }
 }

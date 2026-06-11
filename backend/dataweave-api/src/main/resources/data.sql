@@ -89,26 +89,26 @@ INSERT INTO workflow_edge (id, tenant_id, project_id, workflow_id, from_node_id,
 
 -- 工作流实例：wi1 失败(诊断现场) / wi2 成功 / wi3 运行中(含等待)
 INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 1, 1, 1, 1, 'CRON',   'FAILED',  '2026-06-09', TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
-(2, 1, 1, 1, 1, 'MANUAL', 'SUCCESS', '2026-06-09', TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 0, 0),
-(3, 1, 1, 1, 1, 'MANUAL', 'RUNNING', '2026-06-10', TIMESTAMP '2026-06-10 09:30:00', NULL,                          1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0);
+('01910000-0001-7000-8000-000000000001', 1, 1, 1, 1, 'CRON',   'FAILED',  '2026-06-09', TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+('01910000-0002-7000-8000-000000000002', 1, 1, 1, 1, 'MANUAL', 'SUCCESS', '2026-06-09', TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 0, 0),
+('01910000-0003-7000-8000-000000000003', 1, 1, 1, 1, 'MANUAL', 'RUNNING', '2026-06-10', TIMESTAMP '2026-06-10 09:30:00', NULL,                          1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0);
 
 -- 节点实例
 -- wi1：n1 失败(OOM@node-3) → n2/n3 因上游失败被取消 STOPPED
 INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 1, 1, 1, 1, 2, 1, 'NORMAL', 'FAILED',  1, 'node-3', TIMESTAMP '2026-06-10 02:00:03', TIMESTAMP '2026-06-10 02:07:51', 'java.lang.OutOfMemoryError: Java heap space at executor stage 3; container killed by YARN, used 8.1GB of 8GB physical memory', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:07:51', 0, 0),
-(2, 1, 1, 1, 2, 1, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
-(3, 1, 1, 1, 3, 3, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+('01910000-0010-7000-8000-000000000001', 1, 1, '01910000-0001-7000-8000-000000000001', 1, 2, 1, 'NORMAL', 'FAILED',  1, 'node-3', TIMESTAMP '2026-06-10 02:00:03', TIMESTAMP '2026-06-10 02:07:51', 'java.lang.OutOfMemoryError: Java heap space at executor stage 3; container killed by YARN, used 8.1GB of 8GB physical memory', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:07:51', 0, 0),
+('01910000-0010-7000-8000-000000000002', 1, 1, '01910000-0001-7000-8000-000000000001', 2, 1, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+('01910000-0010-7000-8000-000000000003', 1, 1, '01910000-0001-7000-8000-000000000001', 3, 3, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
 -- wi2：全部成功
-(4, 1, 1, 2, 1, 2, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-10 08:00:05', TIMESTAMP '2026-06-10 08:00:55', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:00:55', 0, 0),
-(5, 1, 1, 2, 2, 1, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', 0, 0),
-(6, 1, 1, 2, 3, 3, 1, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', 0, 0),
+('01910000-0010-7000-8000-000000000004', 1, 1, '01910000-0002-7000-8000-000000000002', 1, 2, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-10 08:00:05', TIMESTAMP '2026-06-10 08:00:55', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:00:55', 0, 0),
+('01910000-0010-7000-8000-000000000005', 1, 1, '01910000-0002-7000-8000-000000000002', 2, 1, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', 0, 0),
+('01910000-0010-7000-8000-000000000006', 1, 1, '01910000-0002-7000-8000-000000000002', 3, 3, 1, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', 0, 0),
 -- wi3：n1 运行中 → n2/n3 等待上游
-(7, 1, 1, 3, 1, 2, 1, 'NORMAL', 'RUNNING', 1, 'node-5', TIMESTAMP '2026-06-10 09:30:05', NULL, '执行中…', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:05', 0, 0),
-(8, 1, 1, 3, 2, 1, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
-(9, 1, 1, 3, 3, 3, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
+('01910000-0010-7000-8000-000000000007', 1, 1, '01910000-0003-7000-8000-000000000003', 1, 2, 1, 'NORMAL', 'RUNNING', 1, 'node-5', TIMESTAMP '2026-06-10 09:30:05', NULL, '执行中…', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:05', 0, 0),
+('01910000-0010-7000-8000-000000000008', 1, 1, '01910000-0003-7000-8000-000000000003', 2, 1, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
+('01910000-0010-7000-8000-000000000009', 1, 1, '01910000-0003-7000-8000-000000000003', 3, 3, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
 -- 试跑：脱离工作流、跑草稿版(task_version_no=NULL)、run_mode=TEST，不计入生产
-(10, 1, 1, NULL, NULL, 1, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
+('01910000-0010-7000-8000-00000000000a', 1, 1, NULL, NULL, 1, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
 
 -- ===== 域 D · 指标体系 =====
 INSERT INTO dimensions (id, tenant_id, project_id, code, name, data_type, expr, created_by, updated_by, created_at, updated_at, deleted, version)
@@ -137,7 +137,7 @@ INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, loa
 (5, 'node-5', 'worker-5', '10.0.0.15', '8C/16G', 12.0, 30.0, 40.0, 0.90, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0);
 
 INSERT INTO task_diagnosis (id, tenant_id, project_id, task_instance_id, workflow_instance_id, task_id, worker_node_code, title, root_cause, context_json, suggestions_json, status, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, 1, 1, 1, 2, 'node-3',
+VALUES (1, 1, 1, '01910000-0010-7000-8000-000000000001', '01910000-0001-7000-8000-000000000001', 2, 'node-3',
   '订单宽表加工 失败 · 节点内存不足导致 OOM',
   'node-3 内存使用率 95%，本任务在 stage 3 触发 OutOfMemoryError 被容器终止；同时段 node-3 上还并发运行 2 个任务，存在资源争抢。',
   '{"nodeId":"node-3","nodeMem":95,"nodeCpu":72,"nodeLoad":9.4,"concurrentTasks":2,"history":"近 7 天该任务在 node-3 失败 2 次"}',
@@ -154,7 +154,7 @@ VALUES (1, 1, 1, 'GMV 工作流失败告警', 'WORKFLOW', '1', 'state = FAILED',
 -- ===== 域 G · 审计与 mock 业务 =====
 INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, target_id, detail_json, created_at) VALUES
 (1, 1, 1, 1, 'CREATE', 'WORKFLOW', '1', '{"name":"每日 GMV 工作流"}', TIMESTAMP '2026-06-06 00:00:00'),
-(2, 1, 1, 1, 'DIAGNOSE', 'TASK_INSTANCE', '1', '{"result":"OOM@node-3"}', TIMESTAMP '2026-06-10 02:08:00');
+(2, 1, 1, 1, 'DIAGNOSE', 'TASK_INSTANCE', '01910000-0010-7000-8000-000000000001', '{"result":"OOM@node-3"}', TIMESTAMP '2026-06-10 02:08:00');
 
 -- ===== 域 H · Agent 策略规则（policy_rules）=====
 -- 分级维度：爆炸半径 × 可逆性 × 资源归属 × 环境。归属/环境/数量阈值在 PolicyEngine 运行时抬升，
@@ -190,6 +190,11 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (31, 'TOOL', 'create_task',             NULL, 'L1', '建任务并上线（可逆）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (32, 'TOOL', 'apply_fix',               NULL, 'L1', '一键修复（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (33, 'TOOL', 'node_exec',               NULL, 'L1', '节点受控执行（按命令串解析抬升）', 1, 25, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 调度类写工具（L1，可逆例行；distributed-scheduler-m1）。TEST 试跑是「未发布内容上 worker」唯一口子，须留痕。
+(34, 'TOOL', 'test_run',                NULL, 'L1', '单任务测试运行（草稿上 worker，留痕）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(35, 'TOOL', 'trigger_workflow',        NULL, 'L1', '手动触发工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(36, 'TOOL', 'resume_workflow',         NULL, 'L1', '断点恢复工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(37, 'TOOL', 'rerun_workflow',          NULL, 'L1', '整流重跑工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 (40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
@@ -221,8 +226,7 @@ ALTER TABLE workflow_def_version ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE workflow_dependency ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE workflow_node ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE workflow_edge ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE workflow_instance ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE task_instance ALTER COLUMN id RESTART WITH 100;
+-- workflow_instance / task_instance 主键为 UUIDv7（应用层生成），无自增序列，故不 RESTART
 ALTER TABLE dimensions ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE atomic_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE derived_metrics ALTER COLUMN id RESTART WITH 100;

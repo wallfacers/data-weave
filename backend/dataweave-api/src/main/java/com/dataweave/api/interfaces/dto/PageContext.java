@@ -39,8 +39,16 @@ public record PageContext(String module, String pathname, String taskId, String 
         return sb.toString();
     }
 
-    public Long instanceIdAsLong() {
-        return parse(instanceId);
+    /** 实例 id 解析为 UUIDv7（实例类主键）。无法解析返回 null。 */
+    public java.util.UUID instanceIdAsUuid() {
+        if (blank(instanceId)) {
+            return null;
+        }
+        try {
+            return java.util.UUID.fromString(instanceId.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public Long taskIdAsLong() {

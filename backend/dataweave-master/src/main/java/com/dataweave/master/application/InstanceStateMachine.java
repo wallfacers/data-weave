@@ -1,0 +1,98 @@
+package com.dataweave.master.application;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * 两级实例状态机的统一推进入口（design D3 死锁防御不变量）。
+ *
+ * <p>纪律：
+ * <ol>
+ *   <li><b>乐观 CAS</b>：所有状态推进走 {@code UPDATE … WHERE id=? AND state=?}，影响行数 0 即让步——
+ *       无先读后写锁窗口，永不等待行锁，竞态由 DB 原子裁决（先到先得）。</li>
+ *   <li><b>固定锁序</b>：跨两级更新一律先 task 后 workflow（本类方法各自单语句自治，调用方按此序组合）。</li>
+ *   <li><b>事务内禁副作用</b>：本类只做状态落库，HTTP 下发等副作用由调用方在 CAS 成功（提交）之后执行。</li>
+ * </ol>
+ * 每个 CAS 方法返回是否成功（恰好 1 行受影响），调用方据此决定继续或让步。
+ */
+@Service
+public class InstanceStateMachine {
+
+    private final JdbcTemplate jdbc;
+
+    public InstanceStateMachine(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    // ─── task_instance ───────────────────────────────────
+
+    /** CAS 推进任务实例状态：{@code from → to}。成功（1 行）返回 true。 */
+    public boolean casTaskState(UUID id, String from, String to) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state=?, updated_at=? WHERE id=? AND state=? AND deleted=0",
+                to, LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+
+    /**
+     * 写前置下发：CAS {@code WAITING → DISPATCHED} 并落 worker/租约/attempt（design D7 第一层）。
+     * 成功后调用方才在事务外发起下发；下发失败再 CAS 回 WAITING。
+     */
+    public boolean casDispatch(UUID id, String from, String workerNodeCode,
+                               LocalDateTime leaseExpireAt, int attempt) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='DISPATCHED', worker_node_code=?, lease_expire_at=?, "
+                        + "attempt=?, updated_at=? WHERE id=? AND state=? AND deleted=0",
+                workerNodeCode, leaseExpireAt, attempt, LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+
+    /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。 */
+    public boolean casTaskTerminal(UUID id, String from, String to, String failureReason) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state=?, failure_reason=?, finished_at=?, updated_at=? "
+                        + "WHERE id=? AND state=? AND deleted=0",
+                to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+
+    /** 软抢占：CAS {@code RUNNING/DISPATCHED → PREEMPTED}（不耗 attempt）。 */
+    public boolean casPreempt(UUID id, String from) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='PREEMPTED', failure_reason='PREEMPTED', updated_at=? "
+                        + "WHERE id=? AND state=? AND deleted=0",
+                LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+
+    /** 回炉：CAS {@code PREEMPTED → WAITING}，清空 worker/租约（attempt 不变）。 */
+    public boolean casRequeue(UUID id, String from) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='WAITING', worker_node_code=NULL, lease_expire_at=NULL, "
+                        + "failure_reason=NULL, updated_at=? WHERE id=? AND state=? AND deleted=0",
+                LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+
+    /** 续租：心跳到达时延长租约（仅运行中实例）。 */
+    public boolean renewLease(UUID id, LocalDateTime leaseExpireAt) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET lease_expire_at=?, updated_at=? "
+                        + "WHERE id=? AND state IN ('DISPATCHED','RUNNING') AND deleted=0",
+                leaseExpireAt, LocalDateTime.now(), id);
+        return n == 1;
+    }
+
+    // ─── workflow_instance ───────────────────────────────
+
+    /** CAS 推进工作流实例状态：{@code from → to}（固定锁序：在 task 之后调用）。 */
+    public boolean casWorkflowState(UUID id, String from, String to) {
+        int n = jdbc.update(
+                "UPDATE workflow_instance SET state=?, updated_at=? WHERE id=? AND state=? AND deleted=0",
+                to, LocalDateTime.now(), id, from);
+        return n == 1;
+    }
+}

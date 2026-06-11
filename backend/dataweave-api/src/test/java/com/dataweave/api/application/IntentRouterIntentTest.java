@@ -85,15 +85,15 @@ class IntentRouterIntentTest {
         diagnosis.setId(7L);
         diagnosis.setTitle("OOM on node-3");
         diagnosis.setRootCause("内存溢出");
-        when(diagnosisService.diagnoseInstance(100L)).thenReturn(diagnosis);
+        when(diagnosisService.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"))).thenReturn(diagnosis);
 
-        PageContext ctx = new PageContext("/ops", "/ops", null, "100", null);
+        PageContext ctx = new PageContext("/ops", "/ops", null, "01910000-0010-7000-8000-000000000100", null);
         AgentReply reply = router.route("为什么挂了", ctx);
 
         assertThat(reply.customEventName()).isEqualTo("dataweave.diagnosis");
         assertThat(reply.structured().get("id")).isEqualTo(7L);
         // 用了上下文的 instanceId，而非 diagnoseLatestFailure
-        org.mockito.Mockito.verify(diagnosisService).diagnoseInstance(100L);
+        org.mockito.Mockito.verify(diagnosisService).diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
         org.mockito.Mockito.verify(diagnosisService, org.mockito.Mockito.never()).diagnoseLatestFailure();
     }
 

@@ -3,17 +3,19 @@ package com.dataweave.master.domain;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Table("workflow_instance")
 public class WorkflowInstance {
     @Id
-    private Long id;
+    private UUID id;
     private Long tenantId;
     private Long projectId;
     private Long workflowId;
     private Integer workflowVersionNo;
     private String triggerType;
     private String state;
+    private Integer priority;
     private String bizDate;
     private Integer totalTasks;
     private Integer completedTasks;
@@ -29,8 +31,8 @@ public class WorkflowInstance {
 
     public WorkflowInstance() {}
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
@@ -49,6 +51,9 @@ public class WorkflowInstance {
 
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
 
     public String getBizDate() { return bizDate; }
     public void setBizDate(String bizDate) { this.bizDate = bizDate; }

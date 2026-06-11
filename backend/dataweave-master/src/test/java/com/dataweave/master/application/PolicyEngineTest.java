@@ -76,7 +76,7 @@ class PolicyEngineTest {
     void reversibleWriteTool_ownedPlatform_isL1_execute() {
         PolicyDecision d = engine("dev", 50).decide(
                 ActionRequest.builder().toolName("task_rerun")
-                        .targetType("TASK_INSTANCE").targetId("100")
+                        .targetType("TASK_INSTANCE").targetId("01910000-0010-7000-8000-000000000100")
                         .ownedByPlatform(true).build());
         assertThat(d.level()).isEqualTo(PolicyLevel.L1);
         assertThat(d.outcome()).isEqualTo(PolicyDecision.Outcome.EXECUTE);
@@ -113,16 +113,16 @@ class PolicyEngineTest {
 
     @Test
     void ownershipResolvedFromDb_whenNotGiven() {
-        when(instanceRepository.findById(100L)).thenReturn(Optional.of(new TaskInstance()));
+        when(instanceRepository.findById(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"))).thenReturn(Optional.of(new TaskInstance()));
         PolicyDecision owned = engine("dev", 50).decide(
                 ActionRequest.builder().toolName("task_rerun")
-                        .targetType("TASK_INSTANCE").targetId("100").build());
+                        .targetType("TASK_INSTANCE").targetId("01910000-0010-7000-8000-000000000100").build());
         assertThat(owned.level()).isEqualTo(PolicyLevel.L1);
 
-        when(instanceRepository.findById(999L)).thenReturn(Optional.empty());
+        when(instanceRepository.findById(java.util.UUID.fromString("01910000-0010-7000-8000-000000000999"))).thenReturn(Optional.empty());
         PolicyDecision foreign = engine("dev", 50).decide(
                 ActionRequest.builder().toolName("task_rerun")
-                        .targetType("TASK_INSTANCE").targetId("999").build());
+                        .targetType("TASK_INSTANCE").targetId("01910000-0010-7000-8000-000000000999").build());
         assertThat(foreign.level()).isEqualTo(PolicyLevel.L2);
     }
 

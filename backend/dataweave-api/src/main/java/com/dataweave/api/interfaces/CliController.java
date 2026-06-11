@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * `dw` CLI 的 REST 契约。读类直通领域查询；写类（rerun）经 {@link GatedActionService} 闸门——
@@ -70,7 +71,7 @@ public class CliController {
     }
 
     @GetMapping("/instances/{id}/logs")
-    public ApiResponse<Map<String, Object>> logs(@PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> logs(@PathVariable UUID id) {
         TaskInstance inst = instanceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "实例不存在：" + id));
         Map<String, Object> r = new LinkedHashMap<>();
@@ -82,7 +83,7 @@ public class CliController {
     }
 
     @PostMapping("/instances/{id}/rerun")
-    public ApiResponse<GateResult> rerun(@PathVariable Long id,
+    public ApiResponse<GateResult> rerun(@PathVariable UUID id,
                             @RequestHeader(value = "X-DW-Token", required = false) String token) {
         requireToken(token);
         ActionRequest req = ActionRequest.builder()

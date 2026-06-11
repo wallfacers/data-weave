@@ -119,8 +119,8 @@ public class ApprovalService {
      * @param action           审批单（成功时）
      * @param resultInstanceId 执行产生的实例 id（若有）
      */
-    public record ApprovalResult(boolean success, String message, AgentAction action, Long resultInstanceId) {
-        static ApprovalResult ok(AgentAction a, String msg, Long instanceId) {
+    public record ApprovalResult(boolean success, String message, AgentAction action, java.util.UUID resultInstanceId) {
+        static ApprovalResult ok(AgentAction a, String msg, java.util.UUID instanceId) {
             return new ApprovalResult(true, msg, a, instanceId);
         }
 

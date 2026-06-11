@@ -17,7 +17,7 @@ public record GateResult(Outcome outcome,
                          String message,
                          String summary,
                          boolean requiresConfirmation,
-                         Long resultInstanceId) {
+                         java.util.UUID resultInstanceId) {
 
     public enum Outcome {
         EXECUTED, PENDING_APPROVAL, REJECTED

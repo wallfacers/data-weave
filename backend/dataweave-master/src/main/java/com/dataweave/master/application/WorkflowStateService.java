@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 工作流实例状态聚合服务（两级状态机的「聚合」侧）。
@@ -98,7 +99,7 @@ public class WorkflowStateService {
      *
      * @return 聚合后的状态；找不到实例时返回 {@code Optional.empty()}
      */
-    public Optional<String> computeAndUpdate(Long workflowInstanceId) {
+    public Optional<String> computeAndUpdate(UUID workflowInstanceId) {
         Optional<WorkflowInstance> opt = workflowInstanceRepository.findById(workflowInstanceId);
         if (opt.isEmpty()) {
             return Optional.empty();

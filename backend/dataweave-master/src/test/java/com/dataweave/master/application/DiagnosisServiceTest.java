@@ -54,10 +54,10 @@ class DiagnosisServiceTest {
     void diagnoseInstance_idempotent_returnsExistingWithoutReanalyzing() {
         TaskDiagnosis existing = new TaskDiagnosis();
         existing.setId(5L);
-        when(diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(100L))
+        when(diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100")))
                 .thenReturn(Optional.of(existing));
 
-        TaskDiagnosis result = service.diagnoseInstance(100L);
+        TaskDiagnosis result = service.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
 
         assertThat(result).isSameAs(existing);
         verify(analyzer, never()).analyze(any(), any(), any());
@@ -66,15 +66,15 @@ class DiagnosisServiceTest {
 
     @Test
     void diagnoseInstance_collectsContext_andPersistsAnalysis() {
-        when(diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(100L))
+        when(diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100")))
                 .thenReturn(Optional.empty());
 
         TaskInstance instance = new TaskInstance();
-        instance.setId(100L);
+        instance.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
         instance.setTaskId(10L);
-        instance.setWorkflowInstanceId(7L);
+        instance.setWorkflowInstanceId(java.util.UUID.fromString("01910000-0001-7000-8000-000000000007"));
         instance.setWorkerNodeCode("node-3");
-        when(instanceRepository.findById(100L)).thenReturn(Optional.of(instance));
+        when(instanceRepository.findById(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"))).thenReturn(Optional.of(instance));
 
         WorkerNode node = new WorkerNode();
         node.setNodeCode("node-3");
@@ -88,7 +88,7 @@ class DiagnosisServiceTest {
                 "OOM@node-3", "executor 内存溢出", "{\"node\":\"node-3\"}", "[{\"label\":\"调大内存\"}]"));
         when(diagnosisRepository.save(any(TaskDiagnosis.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        TaskDiagnosis result = service.diagnoseInstance(100L);
+        TaskDiagnosis result = service.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
 
         // 采集了正确的上下文对象
         verify(analyzer).analyze(instance, node, task);
@@ -96,8 +96,8 @@ class DiagnosisServiceTest {
         ArgumentCaptor<TaskDiagnosis> cap = ArgumentCaptor.forClass(TaskDiagnosis.class);
         verify(diagnosisRepository).save(cap.capture());
         TaskDiagnosis saved = cap.getValue();
-        assertThat(saved.getTaskInstanceId()).isEqualTo(100L);
-        assertThat(saved.getWorkflowInstanceId()).isEqualTo(7L);
+        assertThat(saved.getTaskInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
+        assertThat(saved.getWorkflowInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0001-7000-8000-000000000007"));
         assertThat(saved.getTaskId()).isEqualTo(10L);
         assertThat(saved.getWorkerNodeCode()).isEqualTo("node-3");
         assertThat(saved.getTitle()).isEqualTo("OOM@node-3");

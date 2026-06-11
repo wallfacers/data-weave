@@ -170,8 +170,8 @@ public class McpToolRegistry {
                 });
 
         register("query_diagnosis", "诊断指定失败实例（缺省诊断最近一条失败实例）",
-                schema(prop("instanceId", "integer", "任务实例 id，可选")), args -> {
-                    Long instanceId = lng(args, "instanceId");
+                schema(prop("instanceId", "string", "任务实例 id（UUID），可选")), args -> {
+                    java.util.UUID instanceId = uuid(args, "instanceId");
                     Optional<TaskDiagnosis> d = instanceId != null
                             ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
                             : diagnosisService.diagnoseLatestFailure();
@@ -201,9 +201,9 @@ public class McpToolRegistry {
                 });
 
         register("task_rerun", "重跑一个任务实例（经策略闸门）",
-                schema(req("instanceId", "integer", "任务实例 id")),
+                schema(req("instanceId", "string", "任务实例 id（UUID）")),
                 args -> {
-                    Long instanceId = requiredLong(args, "instanceId");
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("task_rerun").actionType("TASK_RERUN")
                             .targetType("TASK_INSTANCE").targetId(String.valueOf(instanceId))
@@ -291,9 +291,9 @@ public class McpToolRegistry {
                 });
 
         register("pause_instance", "暂停工作流实例（经策略闸门）",
-                schema(req("instanceId", "integer", "工作流实例 id")),
+                schema(req("instanceId", "string", "工作流实例 id（UUID）")),
                 args -> {
-                    Long instanceId = requiredLong(args, "instanceId");
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("pause_instance").actionType("PAUSE_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
@@ -306,9 +306,9 @@ public class McpToolRegistry {
                 });
 
         register("resume_instance", "恢复工作流实例（经策略闸门）",
-                schema(req("instanceId", "integer", "工作流实例 id")),
+                schema(req("instanceId", "string", "工作流实例 id（UUID）")),
                 args -> {
-                    Long instanceId = requiredLong(args, "instanceId");
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("resume_instance").actionType("RESUME_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
@@ -321,9 +321,9 @@ public class McpToolRegistry {
                 });
 
         register("kill_instance", "终止工作流实例（经策略闸门）",
-                schema(req("instanceId", "integer", "工作流实例 id")),
+                schema(req("instanceId", "string", "工作流实例 id（UUID）")),
                 args -> {
-                    Long instanceId = requiredLong(args, "instanceId");
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("kill_instance").actionType("KILL_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
@@ -333,6 +333,63 @@ public class McpToolRegistry {
                     GateResult gr = gatedActionService.submit(req);
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     return opsService.killWorkflow(instanceId);
+                });
+
+        // ---- 调度类写工具（distributed-scheduler-m1，全部经闸门）----
+        register("test_run", "单任务测试运行：下发草稿内容到 worker，不入正式统计（经策略闸门，留痕）",
+                schema(req("taskId", "integer", "任务定义 id"),
+                        prop("bizDate", "string", "业务日期 yyyy-MM-dd，可选")),
+                args -> {
+                    Long taskId = requiredLong(args, "taskId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("test_run").actionType("TEST_RUN")
+                            .targetType("TASK").targetId(String.valueOf(taskId))
+                            .command(str(args, "bizDate"))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("测试运行任务 #" + taskId)
+                            .build();
+                    return gateText(gatedActionService.submit(req));
+                });
+
+        register("trigger_workflow", "手动触发工作流执行（经策略闸门）",
+                schema(req("workflowId", "integer", "工作流定义 id"),
+                        prop("bizDate", "string", "业务日期 yyyy-MM-dd，可选")),
+                args -> {
+                    Long workflowId = requiredLong(args, "workflowId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("trigger_workflow").actionType("TRIGGER_WORKFLOW")
+                            .targetType("WORKFLOW").targetId(String.valueOf(workflowId))
+                            .command(str(args, "bizDate"))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("手动触发工作流 #" + workflowId)
+                            .build();
+                    return gateText(gatedActionService.submit(req));
+                });
+
+        register("resume_workflow", "断点恢复失败的工作流实例：保留成功节点，从失败点续跑（经策略闸门）",
+                schema(req("instanceId", "string", "工作流实例 id（UUID）")),
+                args -> {
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("resume_workflow").actionType("RESUME_WORKFLOW")
+                            .targetType("WORKFLOW_INSTANCE").targetId(instanceId.toString())
+                            .actor("agent").actorSource("AGENT")
+                            .summary("断点恢复实例 " + instanceId)
+                            .build();
+                    return gateText(gatedActionService.submit(req));
+                });
+
+        register("rerun_workflow", "整流重跑工作流实例：全节点重置后重跑（经策略闸门）",
+                schema(req("instanceId", "string", "工作流实例 id（UUID）")),
+                args -> {
+                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("rerun_workflow").actionType("RERUN_WORKFLOW")
+                            .targetType("WORKFLOW_INSTANCE").targetId(instanceId.toString())
+                            .actor("agent").actorSource("AGENT")
+                            .summary("整流重跑实例 " + instanceId)
+                            .build();
+                    return gateText(gatedActionService.submit(req));
                 });
     }
 
@@ -455,6 +512,26 @@ public class McpToolRegistry {
 
     private Long requiredLong(Map<String, Object> args, String key) {
         Long v = lng(args, key);
+        if (v == null) {
+            throw new IllegalArgumentException("缺少必填参数 " + key);
+        }
+        return v;
+    }
+
+    private java.util.UUID uuid(Map<String, Object> args, String key) {
+        Object v = args.get(key);
+        if (v == null) {
+            return null;
+        }
+        try {
+            return java.util.UUID.fromString(v.toString().trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(key + " 必须为 UUID");
+        }
+    }
+
+    private java.util.UUID requiredUuid(Map<String, Object> args, String key) {
+        java.util.UUID v = uuid(args, key);
         if (v == null) {
             throw new IllegalArgumentException("缺少必填参数 " + key);
         }

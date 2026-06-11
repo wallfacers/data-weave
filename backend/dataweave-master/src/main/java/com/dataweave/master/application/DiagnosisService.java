@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 失败自诊断服务：采集失败实例上下文 → 调 {@link DiagnosisAnalyzer} 产出根因+建议 → 持久化；
@@ -57,7 +58,7 @@ public class DiagnosisService {
     /**
      * 诊断指定实例：已有诊断则幂等返回；否则采集上下文 + 分析 + 落库。
      */
-    public TaskDiagnosis diagnoseInstance(Long taskInstanceId) {
+    public TaskDiagnosis diagnoseInstance(UUID taskInstanceId) {
         Optional<TaskDiagnosis> existing =
                 diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(taskInstanceId);
         if (existing.isPresent()) {
@@ -151,6 +152,6 @@ public class DiagnosisService {
      * @param message       面向用户的反馈
      * @param newInstanceId 若产生了重跑实例，其 id
      */
-    public record FixResult(boolean success, String message, Long newInstanceId) {
+    public record FixResult(boolean success, String message, UUID newInstanceId) {
     }
 }

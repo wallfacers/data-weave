@@ -10,6 +10,7 @@ import com.dataweave.master.domain.WorkflowInstance;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 调度运维 / 驾驶舱查询 REST 端点：全局概况、任务定义、运行实例、失败清单。
@@ -54,37 +55,37 @@ public class OpsController {
     // ─── 实例生命周期操作 ─────────────────────────────────
 
     @PostMapping("/instances/{id}/pause")
-    public ApiResponse<?> pause(@PathVariable Long id) {
+    public ApiResponse<?> pause(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.pauseWorkflow(id));
     }
 
     @PostMapping("/instances/{id}/resume")
-    public ApiResponse<?> resume(@PathVariable Long id) {
+    public ApiResponse<?> resume(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.resumeWorkflow(id));
     }
 
     @PostMapping("/instances/{id}/kill")
-    public ApiResponse<?> kill(@PathVariable Long id) {
+    public ApiResponse<?> kill(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.killWorkflow(id));
     }
 
     @PostMapping("/task-instances/{id}/pause")
-    public ApiResponse<?> pauseTask(@PathVariable Long id) {
+    public ApiResponse<?> pauseTask(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.pauseTask(id));
     }
 
     @PostMapping("/task-instances/{id}/resume")
-    public ApiResponse<?> resumeTask(@PathVariable Long id) {
+    public ApiResponse<?> resumeTask(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.resumeTask(id));
     }
 
     @PostMapping("/task-instances/{id}/kill")
-    public ApiResponse<?> killTask(@PathVariable Long id) {
+    public ApiResponse<?> killTask(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.killTask(id));
     }
 
     @GetMapping("/instances/{id}/log")
-    public ApiResponse<?> log(@PathVariable Long id,
+    public ApiResponse<?> log(@PathVariable UUID id,
                                  @RequestParam(defaultValue = "0") int offset,
                                  @RequestParam(defaultValue = "65536") int limit) {
         return ApiResponse.ok(opsService.getLog(id, offset, limit));

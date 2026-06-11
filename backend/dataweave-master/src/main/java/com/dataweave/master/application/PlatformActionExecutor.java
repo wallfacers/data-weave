@@ -19,6 +19,6 @@ public interface PlatformActionExecutor {
      * @param resultJson       结构化结果（落 agent_action.result_json）
      * @param resultInstanceId 若产生重跑实例，其 id
      */
-    record ExecOutcome(boolean success, String message, String resultJson, Long resultInstanceId) {
+    record ExecOutcome(boolean success, String message, String resultJson, java.util.UUID resultInstanceId) {
     }
 }

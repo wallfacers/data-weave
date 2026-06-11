@@ -40,16 +40,22 @@ class DefaultPlatformActionExecutorTest {
     private TaskService taskService;
     @Mock
     private ObjectProvider<NodeExecGateway> nodeExecGateway;
+    @Mock
+    private WorkflowTriggerService triggerService;
+    @Mock
+    private RecoveryService recoveryService;
+    @Mock
+    private com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository;
 
     private DefaultPlatformActionExecutor executor;
 
     @BeforeEach
     void setUp() {
         executor = new DefaultPlatformActionExecutor(instanceRepository, diagnosisRepository,
-                fleetService, taskService, nodeExecGateway);
+                fleetService, taskService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository);
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
-            t.setId(88L);
+            t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
             return t;
         });
     }
@@ -75,7 +81,7 @@ class DefaultPlatformActionExecutorTest {
         when(diagnosisRepository.findById(7L)).thenReturn(Optional.of(diagnosis()));
         var out = executor.execute(fixAction("APPLY_FIX_RERUN"));
         assertThat(out.success()).isTrue();
-        assertThat(out.resultInstanceId()).isEqualTo(88L);
+        assertThat(out.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
         verifyResolved();
     }
 
@@ -89,7 +95,7 @@ class DefaultPlatformActionExecutorTest {
         var out = executor.execute(fixAction("APPLY_FIX_MIGRATE_NODE"));
         assertThat(out.success()).isTrue();
         assertThat(out.message()).contains("node-9");
-        assertThat(out.resultInstanceId()).isEqualTo(88L);
+        assertThat(out.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
         verifyResolved();
     }
 
@@ -115,19 +121,19 @@ class DefaultPlatformActionExecutorTest {
     @Test
     void taskRerun_loadsInstanceAndProducesNew() {
         TaskInstance src = new TaskInstance();
-        src.setId(100L);
+        src.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
         src.setTaskId(10L);
         src.setWorkerNodeCode("node-1");
-        when(instanceRepository.findById(100L)).thenReturn(Optional.of(src));
+        when(instanceRepository.findById(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"))).thenReturn(Optional.of(src));
 
         AgentAction a = new AgentAction();
         a.setActionType("TASK_RERUN");
         a.setTargetType("TASK_INSTANCE");
-        a.setTargetId("100");
+        a.setTargetId("01910000-0010-7000-8000-000000000100");
 
         var out = executor.execute(a);
         assertThat(out.success()).isTrue();
-        assertThat(out.resultInstanceId()).isEqualTo(88L);
+        assertThat(out.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
     }
 
     @Test

@@ -54,12 +54,12 @@ class ApprovalServiceTest {
         AgentAction a = pending("L2", "100");
         when(actionRepository.findById(42L)).thenReturn(Optional.of(a));
         when(executor.execute(a)).thenReturn(
-                new PlatformActionExecutor.ExecOutcome(true, "已执行", "{}", 88L));
+                new PlatformActionExecutor.ExecOutcome(true, "已执行", "{}", java.util.UUID.fromString("01910000-0010-7000-8000-000000000088")));
 
         ApprovalService.ApprovalResult r = approvalService.approve(42L, "alice", null);
 
         assertThat(r.success()).isTrue();
-        assertThat(r.resultInstanceId()).isEqualTo(88L);
+        assertThat(r.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
         assertThat(a.getApprovalStatus()).isEqualTo("APPROVED");
         assertThat(a.getApprovedBy()).isEqualTo("alice");
         assertThat(a.getExecutedAt()).isNotNull();

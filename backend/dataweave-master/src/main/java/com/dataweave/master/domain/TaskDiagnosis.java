@@ -4,6 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Table("task_diagnosis")
 public class TaskDiagnosis {
@@ -12,8 +13,8 @@ public class TaskDiagnosis {
     private Long id;
     private Long tenantId;
     private Long projectId;
-    private Long taskInstanceId;
-    private Long workflowInstanceId;
+    private UUID taskInstanceId;
+    private UUID workflowInstanceId;
     private Long taskId;
     private String workerNodeCode;
     private String title;
@@ -55,19 +56,19 @@ public class TaskDiagnosis {
         this.projectId = projectId;
     }
 
-    public Long getTaskInstanceId() {
+    public UUID getTaskInstanceId() {
         return taskInstanceId;
     }
 
-    public void setTaskInstanceId(Long taskInstanceId) {
+    public void setTaskInstanceId(UUID taskInstanceId) {
         this.taskInstanceId = taskInstanceId;
     }
 
-    public Long getWorkflowInstanceId() {
+    public UUID getWorkflowInstanceId() {
         return workflowInstanceId;
     }
 
-    public void setWorkflowInstanceId(Long workflowInstanceId) {
+    public void setWorkflowInstanceId(UUID workflowInstanceId) {
         this.workflowInstanceId = workflowInstanceId;
     }
 
