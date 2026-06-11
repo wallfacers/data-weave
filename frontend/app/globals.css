@@ -243,3 +243,11 @@ html [data-copilotkit] .copilotKitInput {
 html [data-copilotkit] *:has(> .copilotKitInput) {
   padding-inline: 12px !important;
 }
+
+/* 空/对话两态输入框同宽。空状态的居中包裹层（cpk:flex-1 … justify-center px-4）额外带 16px
+   水平内边距，使空状态输入框比对话态窄一圈、宽度不对齐。清零它的水平内边距，让两态都只保留
+   上面那层 12px 内缩 → 同宽。该层仅空状态含输入框（对话态的 cpk:flex-1 是消息滚动区，不含
+   输入框，:has 不命中），故只影响空状态。 */
+html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
+  padding-inline: 0 !important;
+}
