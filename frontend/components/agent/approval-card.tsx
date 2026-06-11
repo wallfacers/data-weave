@@ -5,7 +5,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { ApiResponse } from "@/lib/types"
+import { type ApiResponse, authFetch } from "@/lib/types"
 
 /** 审批单（dataweave.approval CUSTOM 事件负载）。 */
 export interface Approval {
@@ -42,7 +42,7 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
       const headers: Record<string, string> = { "Content-Type": "application/json" }
       if (token) headers["Authorization"] = `Bearer ${token}`
 
-      const res = await fetch(`${apiBase}/api/approvals/${approval.approvalId}/${action}`, {
+      const res = await authFetch(`${apiBase}/api/approvals/${approval.approvalId}/${action}`, {
         method: "POST",
         headers,
         body: JSON.stringify({ approver: "ui-user", confirmation }),

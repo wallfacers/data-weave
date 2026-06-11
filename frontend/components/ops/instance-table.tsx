@@ -15,8 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type TaskInstance, formatDateTime, API_BASE } from "@/lib/types"
-import { LogViewer } from "./log-viewer"
+import { type TaskInstance, formatDateTime, API_BASE, authFetch } from "@/lib/types"
+import { useSidePanelStore } from "@/lib/side-panel/store"
 
 function stateBadge(state: string) {
   switch (state) {
@@ -40,12 +40,12 @@ function stateBadge(state: string) {
 }
 
 async function doAction(instanceId: number, action: string) {
-  await fetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
+  await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
 }
 
 export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
-  const [logInstance, setLogInstance] = useState<TaskInstance | null>(null)
   const [, setRefresh] = useState(0)
+  const sidePanel = useSidePanelStore()
 
   if (instances.length === 0) {
     return (
@@ -59,6 +59,15 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
         </p>
       </div>
     )
+  }
+
+  function handleViewLog(inst: TaskInstance) {
+    sidePanel.open("log-viewer", `实例 #${inst.id} 日志`, {
+      instanceId: inst.id,
+      taskId: inst.taskId,
+      startedAt: inst.startedAt,
+      finishedAt: inst.finishedAt,
+    })
   }
 
   return (
@@ -111,17 +120,13 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
                   {(inst.state === "SUCCESS" || inst.state === "FAILED") && (
                     <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>重跑</Button>
                   )}
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setLogInstance(inst)}>日志</Button>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => handleViewLog(inst)}>日志</Button>
                 </div>
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-
-      {logInstance && (
-        <LogViewer instance={logInstance} onClose={() => setLogInstance(null)} />
-      )}
     </div>
   )
 }

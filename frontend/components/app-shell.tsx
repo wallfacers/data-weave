@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AgentRail } from "@/components/agent-rail"
+import { SidePanel } from "@/components/side-panel/side-panel"
 import { useAuth } from "@/lib/auth"
 
 /**
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex h-svh min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>
+        <SidePanel />
       </div>
     </TooltipProvider>
   )

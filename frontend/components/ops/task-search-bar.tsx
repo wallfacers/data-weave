@@ -6,6 +6,19 @@ import { Search01Icon, Add01Icon } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DropdownSelect } from "@/components/ui/select"
+
+const TYPE_OPTIONS = [
+  { value: "", label: "全部类型" },
+  { value: "SQL", label: "SQL" },
+  { value: "SHELL", label: "SHELL" },
+]
+
+const STATUS_OPTIONS = [
+  { value: "", label: "全部状态" },
+  { value: "DRAFT", label: "草稿" },
+  { value: "ONLINE", label: "在线" },
+]
 
 export interface TaskSearchParams {
   keyword: string
@@ -42,25 +55,19 @@ export function TaskSearchBar({ params, onChange, onNewTask }: TaskSearchBarProp
         />
       </div>
 
-      <select
-        className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none"
+      <DropdownSelect
         value={params.type}
-        onChange={(e) => set("type", e.target.value)}
-      >
-        <option value="">全部类型</option>
-        <option value="SQL">SQL</option>
-        <option value="SHELL">SHELL</option>
-      </select>
+        onChange={(v) => set("type", v)}
+        options={TYPE_OPTIONS}
+        placeholder="全部类型"
+      />
 
-      <select
-        className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none"
+      <DropdownSelect
         value={params.status}
-        onChange={(e) => set("status", e.target.value)}
-      >
-        <option value="">全部状态</option>
-        <option value="DRAFT">草稿</option>
-        <option value="ONLINE">在线</option>
-      </select>
+        onChange={(v) => set("status", v)}
+        options={STATUS_OPTIONS}
+        placeholder="全部状态"
+      />
 
       <div className="flex-1" />
 

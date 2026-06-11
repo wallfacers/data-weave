@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type TaskDef, formatDateTime, API_BASE } from "@/lib/types"
+import { type TaskDef, formatDateTime, API_BASE, authFetch } from "@/lib/types"
 
 interface TaskDefListProps {
   tasks: TaskDef[]
@@ -39,11 +39,11 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
     setMenuOpen(null)
     try {
       if (action === "publish") {
-        await fetch(`${API_BASE}/api/tasks/${task.id}/publish`, { method: "POST" })
+        await authFetch(`${API_BASE}/api/tasks/${task.id}/publish`, { method: "POST" })
       } else if (action === "offline") {
-        await fetch(`${API_BASE}/api/tasks/${task.id}/offline`, { method: "POST" })
+        await authFetch(`${API_BASE}/api/tasks/${task.id}/offline`, { method: "POST" })
       } else if (action === "delete") {
-        await fetch(`${API_BASE}/api/tasks/${task.id}`, { method: "DELETE" })
+        await authFetch(`${API_BASE}/api/tasks/${task.id}`, { method: "DELETE" })
       } else if (action === "edit") {
         onEdit(task)
         return

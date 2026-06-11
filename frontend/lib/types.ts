@@ -13,6 +13,18 @@
 
 export const API_BASE = "";
 
+const AUTH_TOKEN_KEY = "dw.auth.token"
+
+/** 自动带 Bearer token 的 fetch 封装。所有调后端 API 的 fetch 应统一走这个。 */
+export function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  return fetch(path, { ...init, headers })
+}
+
 // ─── 统一响应格式 ─────────────────────────────────────────
 
 /** 后端统一返回格式：{code: number, data: T | null, message: string}。code=0 成功，非零为业务错误码。 */

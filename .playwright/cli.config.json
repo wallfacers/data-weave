@@ -1,1 +1,1 @@
-{ "browser": { "browserName": "chromium", "launchOptions": { "executablePath": "/home/wallfacers/.cache/ms-playwright/chromium-1224/chrome-linux64/chrome", "headless": true, "args": ["--no-sandbox"] } } }
+{ "browser": { "browserName": "chromium", "launchOptions": { "executablePath": "/home/wushengzhou/.cache/ms-playwright/chromium-1222/chrome-linux64/chrome", "headless": true, "args": ["--no-sandbox"] } } }
