@@ -20,6 +20,8 @@ public class TaskDefVersion {
     private String paramsJson;
     private Integer timeoutSec;
     private Integer retryMax;
+    private Integer priority;
+    private String description;
     private String remark;
     private Long publishedBy;
     private LocalDateTime publishedAt;
@@ -65,6 +67,12 @@ public class TaskDefVersion {
 
     public Integer getRetryMax() { return retryMax; }
     public void setRetryMax(Integer retryMax) { this.retryMax = retryMax; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }

@@ -8,6 +8,8 @@ import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.LineageService;
 import com.dataweave.master.application.MetricService;
+import com.dataweave.master.application.OpsService;
+import com.dataweave.master.application.TaskService;
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AtomicMetric;
 import com.dataweave.master.domain.TaskDef;
@@ -46,6 +48,8 @@ public class McpToolRegistry {
     private final DiagnosisService diagnosisService;
     private final GatedActionService gatedActionService;
     private final ApprovalService approvalService;
+    private final TaskService taskService;
+    private final OpsService opsService;
     private final ObjectMapper objectMapper;
     private final int outputThreshold;
     private final Path archiveDir;
@@ -60,6 +64,8 @@ public class McpToolRegistry {
                            DiagnosisService diagnosisService,
                            GatedActionService gatedActionService,
                            ApprovalService approvalService,
+                           TaskService taskService,
+                           OpsService opsService,
                            ObjectMapper objectMapper,
                            @Value("${mcp.output-threshold:8000}") int outputThreshold,
                            @Value("${mcp.archive-dir:${java.io.tmpdir}/dataweave-tool-outputs}") String archiveDir) {
@@ -71,6 +77,8 @@ public class McpToolRegistry {
         this.diagnosisService = diagnosisService;
         this.gatedActionService = gatedActionService;
         this.approvalService = approvalService;
+        this.taskService = taskService;
+        this.opsService = opsService;
         this.objectMapper = objectMapper;
         this.outputThreshold = outputThreshold;
         this.archiveDir = Path.of(archiveDir);
@@ -241,6 +249,90 @@ public class McpToolRegistry {
                         r.put("note", "仍待人工批准（右舷审批卡片）");
                     }
                     return r;
+                });
+
+        // ---- CRUD 工具（经策略闸门 L1）----
+        register("update_task", "更新任务定义（仅 DRAFT 状态可改，经策略闸门）",
+                schema(req("taskId", "integer", "任务 id"),
+                        prop("name", "string", "新名称"),
+                        prop("content", "string", "新内容（SQL）"),
+                        prop("description", "string", "任务描述")),
+                args -> {
+                    Long taskId = requiredLong(args, "taskId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("update_task").actionType("UPDATE_TASK")
+                            .targetType("TASK").targetId(String.valueOf(taskId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("更新任务 #" + taskId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req);
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    TaskDef patch = new TaskDef();
+                    if (str(args, "name") != null) patch.setName(str(args, "name"));
+                    if (str(args, "content") != null) patch.setContent(str(args, "content"));
+                    if (str(args, "description") != null) patch.setDescription(str(args, "description"));
+                    return taskService.update(taskId, patch);
+                });
+
+        register("delete_task", "软删除任务（仅 DRAFT 可删，经策略闸门）",
+                schema(req("taskId", "integer", "任务 id")),
+                args -> {
+                    Long taskId = requiredLong(args, "taskId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("delete_task").actionType("DELETE_TASK")
+                            .targetType("TASK").targetId(String.valueOf(taskId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("删除任务 #" + taskId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req);
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    taskService.softDelete(taskId);
+                    return Map.of("deleted", true, "taskId", taskId);
+                });
+
+        register("pause_instance", "暂停工作流实例（经策略闸门）",
+                schema(req("instanceId", "integer", "工作流实例 id")),
+                args -> {
+                    Long instanceId = requiredLong(args, "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("pause_instance").actionType("PAUSE_INSTANCE")
+                            .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("暂停实例 #" + instanceId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req);
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    return opsService.pauseWorkflow(instanceId);
+                });
+
+        register("resume_instance", "恢复工作流实例（经策略闸门）",
+                schema(req("instanceId", "integer", "工作流实例 id")),
+                args -> {
+                    Long instanceId = requiredLong(args, "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("resume_instance").actionType("RESUME_INSTANCE")
+                            .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("恢复实例 #" + instanceId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req);
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    return opsService.resumeWorkflow(instanceId);
+                });
+
+        register("kill_instance", "终止工作流实例（经策略闸门）",
+                schema(req("instanceId", "integer", "工作流实例 id")),
+                args -> {
+                    Long instanceId = requiredLong(args, "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("kill_instance").actionType("KILL_INSTANCE")
+                            .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary("终止实例 #" + instanceId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req);
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    return opsService.killWorkflow(instanceId);
                 });
     }
 

@@ -39,7 +39,8 @@ export type TaskState =
   | "RUNNING"
   | "WAITING"
   | "NOT_RUN"
-  | "STOPPED";
+  | "STOPPED"
+  | "PAUSED";
 
 export interface TaskInstance {
   id: number;
@@ -101,9 +102,19 @@ export interface TaskDef {
   name: string
   type: string // "SQL" etc.
   content: string // SQL text
-  status: "ONLINE" | "OFFLINE"
+  status: "ONLINE" | "DRAFT"
   currentVersionNo: number
+  hasDraftChange: number
+  priority: number
+  description: string | null
+  ownerId: number | null
+  datasourceId: number | null
+  targetDatasourceId: number | null
+  paramsJson: string | null
+  timeoutSec: number | null
+  retryMax: number | null
   createdAt: string
+  updatedAt: string | null
 }
 
 // ─── MetricCard ──────────────────────────────────────────
@@ -132,18 +143,14 @@ export function safeJsonParse<T>(json: string | null | undefined): T | null {
   }
 }
 
-/** Format an ISO datetime string to a human-readable local time. */
+/** Format a datetime string to yyyy-MM-dd HH:mm:ss. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   } catch {
     return iso;
   }

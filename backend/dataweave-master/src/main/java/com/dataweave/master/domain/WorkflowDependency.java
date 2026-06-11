@@ -14,7 +14,7 @@ public class WorkflowDependency {
     private Long nodeId;
     private Long dependWorkflowId;
     private Long dependNodeId;
-    private Integer dateOffset;
+    private String dateOffset;
     private String depType;
     private Integer enabled;
     private Long createdBy;
@@ -47,8 +47,8 @@ public class WorkflowDependency {
     public Long getDependNodeId() { return dependNodeId; }
     public void setDependNodeId(Long dependNodeId) { this.dependNodeId = dependNodeId; }
 
-    public Integer getDateOffset() { return dateOffset; }
-    public void setDateOffset(Integer dateOffset) { this.dateOffset = dateOffset; }
+    public String getDateOffset() { return dateOffset; }
+    public void setDateOffset(String dateOffset) { this.dateOffset = dateOffset; }
 
     public String getDepType() { return depType; }
     public void setDepType(String depType) { this.depType = depType; }

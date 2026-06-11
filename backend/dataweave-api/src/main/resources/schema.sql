@@ -220,6 +220,9 @@ CREATE TABLE task_def (
     status              VARCHAR(32) DEFAULT 'DRAFT',
     current_version_no  INTEGER DEFAULT 0,   -- 最后发布版本号（0=未发布）
     has_draft_change    SMALLINT DEFAULT 1,  -- 有未发布改动
+    priority            INTEGER DEFAULT 5,   -- 执行优先级（0=最高，9=最低）
+    description         VARCHAR(512),        -- 任务描述
+    owner_id            BIGINT,              -- 任务负责人
     created_by          BIGINT,
     updated_by          BIGINT,
     created_at          TIMESTAMP,
@@ -243,6 +246,8 @@ CREATE TABLE task_def_version (
     params_json          VARCHAR(2000),
     timeout_sec          INTEGER,
     retry_max            INTEGER,
+    priority             INTEGER,              -- 发布时优先级快照
+    description          VARCHAR(512),         -- 发布时描述快照
     remark               VARCHAR(512),
     published_by         BIGINT,
     published_at         TIMESTAMP,
@@ -262,6 +267,9 @@ CREATE TABLE workflow_def (
     status        VARCHAR(32) DEFAULT 'DRAFT',
     current_version_no INTEGER DEFAULT 0,   -- 最后发布版本号（0=未发布）
     has_draft_change   SMALLINT DEFAULT 1,  -- 有未发布改动
+    last_fire_time  TIMESTAMP,               -- 上次调度触发时间（防重复触发）
+    priority        INTEGER DEFAULT 5,       -- 工作流优先级
+    timeout_sec     INTEGER,                 -- 工作流级超时（秒）
     created_by    BIGINT,
     updated_by    BIGINT,
     created_at    TIMESTAMP,
@@ -330,6 +338,9 @@ CREATE TABLE workflow_instance (
     trigger_type VARCHAR(32),
     state        VARCHAR(32) DEFAULT 'NOT_RUN',
     biz_date     VARCHAR(32),
+    total_tasks     INTEGER DEFAULT 0,       -- 总节点数
+    completed_tasks INTEGER DEFAULT 0,       -- 已完成节点数
+    failed_tasks    INTEGER DEFAULT 0,       -- 失败节点数
     started_at   TIMESTAMP,
     finished_at  TIMESTAMP,
     created_by   BIGINT,
@@ -354,7 +365,9 @@ CREATE TABLE task_instance (
     worker_node_code     VARCHAR(64),
     started_at           TIMESTAMP,
     finished_at          TIMESTAMP,
-    log                  VARCHAR(4000),
+    log                  TEXT,                  -- 执行日志（不截断）
+    exit_code            INTEGER,              -- 进程退出码（0=成功）
+    error_message        VARCHAR(2000),        -- 结构化错误摘要
     created_by           BIGINT,
     updated_by           BIGINT,
     created_at           TIMESTAMP,
@@ -494,6 +507,8 @@ CREATE TABLE worker_nodes (
     load_avg       NUMERIC(6, 2),
     running_tasks  INTEGER,
     status         VARCHAR(32),
+    max_concurrent_tasks INTEGER DEFAULT 10, -- 单节点最大并发任务数
+    node_group           VARCHAR(64),        -- 节点分组（如 high-cpu / gpu）
     last_heartbeat TIMESTAMP,
     created_by     BIGINT,
     updated_by     BIGINT,

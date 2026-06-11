@@ -15,6 +15,9 @@ public class WorkflowInstance {
     private String triggerType;
     private String state;
     private String bizDate;
+    private Integer totalTasks;
+    private Integer completedTasks;
+    private Integer failedTasks;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
     private Long createdBy;
@@ -49,6 +52,15 @@ public class WorkflowInstance {
 
     public String getBizDate() { return bizDate; }
     public void setBizDate(String bizDate) { this.bizDate = bizDate; }
+
+    public Integer getTotalTasks() { return totalTasks; }
+    public void setTotalTasks(Integer totalTasks) { this.totalTasks = totalTasks; }
+
+    public Integer getCompletedTasks() { return completedTasks; }
+    public void setCompletedTasks(Integer completedTasks) { this.completedTasks = completedTasks; }
+
+    public Integer getFailedTasks() { return failedTasks; }
+    public void setFailedTasks(Integer failedTasks) { this.failedTasks = failedTasks; }
 
     public LocalDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }

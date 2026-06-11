@@ -21,6 +21,8 @@ public class TaskInstance {
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
     private String log;
+    private Integer exitCode;
+    private String errorMessage;
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -71,6 +73,12 @@ public class TaskInstance {
 
     public String getLog() { return log; }
     public void setLog(String log) { this.log = log; }
+
+    public Integer getExitCode() { return exitCode; }
+    public void setExitCode(Integer exitCode) { this.exitCode = exitCode; }
+
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

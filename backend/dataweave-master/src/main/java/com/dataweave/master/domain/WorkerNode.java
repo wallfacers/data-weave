@@ -20,6 +20,8 @@ public class WorkerNode {
     private Double loadAvg;
     private Integer runningTasks;
     private String status;
+    private Integer maxConcurrentTasks;
+    private String nodeGroup;
     private LocalDateTime lastHeartbeat;
     private Long createdBy;
     private Long updatedBy;
@@ -117,6 +119,22 @@ public class WorkerNode {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Integer getMaxConcurrentTasks() {
+        return maxConcurrentTasks;
+    }
+
+    public void setMaxConcurrentTasks(Integer maxConcurrentTasks) {
+        this.maxConcurrentTasks = maxConcurrentTasks;
+    }
+
+    public String getNodeGroup() {
+        return nodeGroup;
+    }
+
+    public void setNodeGroup(String nodeGroup) {
+        this.nodeGroup = nodeGroup;
     }
 
     public LocalDateTime getLastHeartbeat() {
