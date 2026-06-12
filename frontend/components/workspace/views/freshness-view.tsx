@@ -91,7 +91,7 @@ export function FreshnessView() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-24 font-mono">任务#</TableHead>
+                <TableHead className="w-24 font-mono">任务</TableHead>
                 <TableHead>任务名</TableHead>
                 <TableHead className="w-24">时效</TableHead>
                 <TableHead className="w-44">最近成功</TableHead>

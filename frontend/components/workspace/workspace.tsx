@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { useWorkspacePersistence } from "@/lib/workspace/persistence"
+import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { cn } from "@/lib/utils"
 import { WorkspaceTabBar } from "./tab-bar"
+import { WorkspaceLogPanel } from "./log-panel"
 
 /**
  * Workspace 主区：tab 条 + 视图渲染区。
@@ -46,12 +48,17 @@ export function Workspace() {
     if (!liveIds.has(id)) mountedRef.current.delete(id)
   }
 
+  const logPanelExpanded = useLogPanelStore((s) => s.expanded)
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceTabBar />
       {/* 内容区做成与左侧 Agent 面板同款的浮起卡（bg-sidebar + border + shadow-lg + rounded-lg），
           让激活 tab 下方的视图读成「这张卡」，并与左栏对话面板成同材质的一对。 */}
-      <div className="relative mx-3 mb-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
+      <div className={cn(
+        "relative mx-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg",
+        !logPanelExpanded && "mb-3",
+      )}>
         {tabs
           .filter((t) => mountedRef.current.has(t.id))
           .map((tab) => {
@@ -69,6 +76,9 @@ export function Workspace() {
             )
           })}
       </div>
+
+      {/* 底部日志面板（条件渲染，含拖拽分割线） */}
+      <WorkspaceLogPanel />
     </div>
   )
 }

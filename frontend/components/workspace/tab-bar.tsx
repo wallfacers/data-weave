@@ -7,6 +7,7 @@ import { Cancel01Icon, PinIcon, PinOffIcon, PlusSignIcon } from "@hugeicons/core
 import { useWorkspaceStore, type WorkspaceTab } from "@/lib/workspace/store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META, type ViewType } from "@/lib/workspace/views"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import { cn } from "@/lib/utils"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
@@ -81,7 +82,7 @@ function Launcher() {
 
   // 展开前在点击事件里同步抓取按钮视口坐标（不能放 useEffect：绘制后才执行，
   // 首帧菜单会闪现在视口左上角再跳回按钮下方）。下拉菜单用 fixed 定位——
-  // 逃离 TabBar 的 overflow-x-auto 裁切（否则下拉被裁成一条缝看不见）。
+  // 逃离 TabBar 的 DwScroll 裁切（否则下拉被裁成一条缝看不见）。
   const toggleMenu = () => {
     if (!menuOpen && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
@@ -142,11 +143,11 @@ export function WorkspaceTabBar() {
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 overflow-x-auto px-3">
+    <DwScroll direction="horizontal" className="h-12 shrink-0" innerClassName="flex items-center gap-1 px-3">
       {tabs.map((tab) => (
         <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} />
       ))}
       <Launcher />
-    </div>
+    </DwScroll>
   )
 }

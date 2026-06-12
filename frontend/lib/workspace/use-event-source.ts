@@ -16,15 +16,24 @@ export function useEventSource(url: string): EventSourceState {
   const eventSourceRef = useRef<EventSource | null>(null)
 
   const connect = useCallback(() => {
+    // 空 URL 不建立连接
+    if (!url) return
+
     // 关闭旧连接
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
     }
 
-    // 构建 URL（带 Last-Event-ID）
-    const fullUrl = lastEventIdRef.current
-      ? `${url}${url.includes("?") ? "&" : "?"}lastEventId=${encodeURIComponent(lastEventIdRef.current)}`
-      : url
+    // 拼接 JWT token（EventSource 不支持自定义 header，走 query param 兜底）
+    const token = typeof window !== "undefined" ? localStorage.getItem("dw.auth.token") : null
+    let fullUrl = url
+    if (token) {
+      fullUrl += `${fullUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+    }
+    // 带 Last-Event-ID 断线续传
+    if (lastEventIdRef.current) {
+      fullUrl += `${fullUrl.includes("?") ? "&" : "?"}lastEventId=${encodeURIComponent(lastEventIdRef.current)}`
+    }
 
     const es = new EventSource(fullUrl)
     eventSourceRef.current = es

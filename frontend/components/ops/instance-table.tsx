@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { BoxIcon } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { type TaskInstance, formatDateTime, API_BASE, authFetch } from "@/lib/types"
-import { useSidePanelStore } from "@/lib/side-panel/store"
+import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 
 function stateBadge(state: string) {
   switch (state) {
@@ -39,13 +40,32 @@ function stateBadge(state: string) {
   }
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  pause: "暂停",
+  resume: "恢复",
+  kill: "终止",
+  rerun: "重跑",
+  recover: "断点恢复",
+}
+
 async function doAction(instanceId: number, action: string) {
-  await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
+  const label = ACTION_LABELS[action] ?? action
+  try {
+    const res = await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
+    const json = await res.json().catch(() => null)
+    if (!res.ok || (json && json.code !== 0)) {
+      const msg = json?.message ?? `HTTP ${res.status}`
+      toast.error(`${label}失败：${msg}`)
+      return
+    }
+    toast.success(`${label}成功`)
+  } catch (e) {
+    toast.error(`${label}失败：${e instanceof Error ? e.message : "网络异常"}`)
+  }
 }
 
 export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
   const [, setRefresh] = useState(0)
-  const sidePanel = useSidePanelStore()
 
   if (instances.length === 0) {
     return (
@@ -62,8 +82,7 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
   }
 
   function handleViewLog(inst: TaskInstance) {
-    sidePanel.open("log-viewer", `实例 #${inst.id} 日志`, {
-      instanceId: inst.id,
+    useLogPanelStore.getState().open(String(inst.id), {
       taskId: inst.taskId,
       startedAt: inst.startedAt,
       finishedAt: inst.finishedAt,
@@ -75,8 +94,8 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-24 font-mono">实例#</TableHead>
-            <TableHead className="w-20 font-mono">任务#</TableHead>
+            <TableHead className="w-24 font-mono">实例</TableHead>
+            <TableHead className="w-20 font-mono">任务</TableHead>
             <TableHead className="w-24">状态</TableHead>
             <TableHead className="w-28">节点</TableHead>
             <TableHead className="w-40">开始时间</TableHead>
@@ -118,7 +137,7 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
                     </>
                   )}
                   {(inst.state === "SUCCESS" || inst.state === "FAILED") && (
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>重跑</Button>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "rerun").then(() => setRefresh(n => n + 1))}>重跑</Button>
                   )}
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => handleViewLog(inst)}>日志</Button>
                 </div>

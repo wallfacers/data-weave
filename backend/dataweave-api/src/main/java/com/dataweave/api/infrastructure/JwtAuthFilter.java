@@ -63,14 +63,23 @@ public class JwtAuthFilter implements WebFilter {
             }
         }
 
-        // 提取 Bearer token
+        // 提取 Bearer token（header 优先，query param 兜底——EventSource 不支持自定义 header）
         String auth = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (auth == null || !auth.startsWith("Bearer ")) {
+        String token = null;
+        if (auth != null && auth.startsWith("Bearer ")) {
+            token = auth.substring(7).trim();
+        } else {
+            // SSE 端点兜底：从 ?token= 读取
+            String queryToken = exchange.getRequest().getQueryParams().getFirst("token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                token = queryToken.trim();
+            }
+        }
+        if (token == null) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
-        String token = auth.substring(7).trim();
         Claims claims = jwtUtil.parse(token);
         if (claims == null) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);

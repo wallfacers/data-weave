@@ -4,9 +4,9 @@ import com.dataweave.master.domain.LogBus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.data.redis.connection.stream.ObjectRecord;
-import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.domain.Range;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -52,20 +52,11 @@ public class RedisLogBus implements LogBus {
     public List<Entry> read(UUID instanceId, String afterId, int limit) {
         String key = streamKey(instanceId);
         try {
+            // XRANGE：afterId 非空时从其下一个开始（exclusive: "(" 前缀），否则从头读
+            String start = (afterId != null && !afterId.isBlank()) ? "(" + afterId : "-";
             @SuppressWarnings("unchecked")
-            List<org.springframework.data.redis.connection.stream.MapRecord<String, Object, Object>> records;
-            if (afterId == null || afterId.isBlank()) {
-                records = (List) redisTemplate.opsForStream().read(
-                        org.springframework.data.redis.connection.stream.Consumer.from("dw-log", "reader"),
-                        org.springframework.data.redis.connection.stream.StreamReadOptions.empty().count(limit),
-                        org.springframework.data.redis.connection.stream.StreamOffset.fromStart(key));
-            } else {
-                records = (List) redisTemplate.opsForStream().read(
-                        org.springframework.data.redis.connection.stream.Consumer.from("dw-log", "reader"),
-                        org.springframework.data.redis.connection.stream.StreamReadOptions.empty().count(limit),
-                        org.springframework.data.redis.connection.stream.StreamOffset.create(key,
-                                org.springframework.data.redis.connection.stream.ReadOffset.from(afterId)));
-            }
+            List<MapRecord<String, Object, Object>> records = (List) redisTemplate.opsForStream()
+                    .range(key, Range.closed(start, "+"));
 
             if (records == null || records.isEmpty()) {
                 return List.of();

@@ -4,6 +4,7 @@ import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.OpsService;
 import com.dataweave.master.application.OpsService.DashboardSummary;
 import com.dataweave.master.application.OpsService.LogChunk;
+import com.dataweave.master.application.RecoveryService;
 import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.application.SchedulerMetrics.MetricsSnapshot;
 import com.dataweave.master.application.SlaService;
@@ -34,15 +35,18 @@ import java.util.UUID;
 public class OpsController {
 
     private final OpsService opsService;
+    private final RecoveryService recoveryService;
     private final SchedulerMetrics metrics;
     private final SlaService slaService;
     private final LogBus logBus;
     private final LogArchiveStorage logArchive;
     private final EventBus eventBus;
 
-    public OpsController(OpsService opsService, SchedulerMetrics metrics, SlaService slaService,
+    public OpsController(OpsService opsService, RecoveryService recoveryService,
+                         SchedulerMetrics metrics, SlaService slaService,
                          LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus) {
         this.opsService = opsService;
+        this.recoveryService = recoveryService;
         this.metrics = metrics;
         this.slaService = slaService;
         this.logBus = logBus;
@@ -89,6 +93,18 @@ public class OpsController {
     @PostMapping("/instances/{id}/kill")
     public ApiResponse<?> kill(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.killWorkflow(id));
+    }
+
+    @PostMapping("/instances/{id}/rerun")
+    public ApiResponse<?> rerun(@PathVariable UUID id) {
+        boolean ok = recoveryService.rerunAll(id);
+        return ok ? ApiResponse.ok("已触发整流重跑") : ApiResponse.err(400, "重跑未生效（实例不存在或非终态）");
+    }
+
+    @PostMapping("/instances/{id}/recover")
+    public ApiResponse<?> recover(@PathVariable UUID id) {
+        boolean ok = recoveryService.resume(id);
+        return ok ? ApiResponse.ok("已触发断点恢复") : ApiResponse.err(400, "恢复未生效（实例非失败态或不存在）");
     }
 
     @PostMapping("/task-instances/{id}/pause")

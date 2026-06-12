@@ -128,8 +128,8 @@ export function CockpitView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-sans">实例 #</TableHead>
-                  <TableHead className="font-sans">任务 #</TableHead>
+                  <TableHead className="font-sans">实例</TableHead>
+                  <TableHead className="font-sans">任务</TableHead>
                   <TableHead className="font-sans">节点</TableHead>
                   <TableHead className="font-sans">状态</TableHead>
                   <TableHead className="font-sans">结束时间</TableHead>
@@ -201,7 +201,7 @@ export function CockpitView() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-sans">诊断 #</TableHead>
+                  <TableHead className="font-sans">诊断</TableHead>
                   <TableHead>标题</TableHead>
                   <TableHead className="font-sans">节点</TableHead>
                   <TableHead className="font-sans">状态</TableHead>

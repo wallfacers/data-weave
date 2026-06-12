@@ -1,11 +1,10 @@
 import type { ComponentType } from "react"
 import type { IconSvgElement } from "@hugeicons/react"
-import { Edit02Icon, File02Icon } from "@hugeicons/core-free-icons"
+import { Edit02Icon } from "@hugeicons/core-free-icons"
 
 import { TaskEditPanel } from "@/components/ops/task-edit-panel"
-import { LogViewerPanel } from "@/components/ops/log-viewer-panel"
 
-export type SidePanelViewType = "task-edit" | "log-viewer"
+export type SidePanelViewType = "task-edit"
 
 export interface SidePanelViewProps {
   params?: Record<string, unknown>
@@ -19,7 +18,6 @@ export interface SidePanelViewRender {
 
 export const SIDE_PANEL_VIEW_RENDER: Record<SidePanelViewType, SidePanelViewRender> = {
   "task-edit": { icon: Edit02Icon, component: TaskEditPanel },
-  "log-viewer": { icon: File02Icon, component: LogViewerPanel },
 }
 
 export function isKnownSidePanelView(view: string): view is SidePanelViewType {

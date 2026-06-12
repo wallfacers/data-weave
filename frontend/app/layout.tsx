@@ -4,6 +4,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppShell } from "@/components/app-shell"
 import { AuthProvider } from "@/lib/auth"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils";
 
 const merriweather = Merriweather({subsets:['latin'],variable:'--font-serif'});
@@ -47,6 +48,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <AppShell>{children}</AppShell>
+            <Toaster richColors position="top-right" />
           </AuthProvider>
         </ThemeProvider>
       </body>

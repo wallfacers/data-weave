@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { CheckListIcon, BoxIcon, MoreVerticalIcon } from "@hugeicons/core-free-icons"
+import { CheckListIcon, BoxIcon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,11 +32,10 @@ function statusBadge(status: string) {
 }
 
 export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit, onRefresh }: TaskDefListProps) {
-  const [menuOpen, setMenuOpen] = useState<number | null>(null)
+  const [, setRefresh] = useState(0)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  async function handleAction(task: TaskDef, action: string) {
-    setMenuOpen(null)
+  async function doAction(task: TaskDef, action: string) {
     try {
       if (action === "publish") {
         await authFetch(`${API_BASE}/api/tasks/${task.id}/publish`, { method: "POST" })
@@ -44,10 +43,8 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
         await authFetch(`${API_BASE}/api/tasks/${task.id}/offline`, { method: "POST" })
       } else if (action === "delete") {
         await authFetch(`${API_BASE}/api/tasks/${task.id}`, { method: "DELETE" })
-      } else if (action === "edit") {
-        onEdit(task)
-        return
       }
+      setRefresh(n => n + 1)
       onRefresh()
     } catch { /* ignore */ }
   }
@@ -75,25 +72,25 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
       ) : (
         <>
           <div className="font-sans">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead>名称</TableHead>
+                  <TableHead className="w-44">名称</TableHead>
                   <TableHead className="w-20">类型</TableHead>
                   <TableHead className="w-20">状态</TableHead>
                   <TableHead className="w-14 text-right">优先级</TableHead>
                   <TableHead className="w-16 text-right">版本</TableHead>
                   <TableHead className="w-40">创建时间</TableHead>
-                  <TableHead className="w-20 text-right">操作</TableHead>
+                  <TableHead className="w-40 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tasks.map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="w-44 max-w-0 truncate font-medium" title={t.name}>
                       {t.name}
                       {t.description && (
-                        <span className="ml-2 text-xs text-muted-foreground">{t.description}</span>
+                        <div className="truncate text-xs font-normal text-muted-foreground">{t.description}</div>
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{t.type}</TableCell>
@@ -102,28 +99,16 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
                     <TableCell className="text-right tabular-nums">v{t.currentVersionNo}</TableCell>
                     <TableCell className="tabular-nums">{formatDateTime(t.createdAt)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="relative inline-block">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-7 p-0"
-                          onClick={() => setMenuOpen(menuOpen === t.id ? null : t.id)}
-                        >
-                          <HugeiconsIcon icon={MoreVerticalIcon} className="size-4" />
-                        </Button>
-                        {menuOpen === t.id && (
-                          <div className="absolute right-0 z-50 mt-1 w-32 rounded-md border bg-popover p-1 shadow-md">
-                            <button className="flex w-full rounded-sm px-2 py-1.5 text-xs hover:bg-accent" onClick={() => handleAction(t, "edit")}>编辑</button>
-                            {t.status === "DRAFT" && (
-                              <button className="flex w-full rounded-sm px-2 py-1.5 text-xs hover:bg-accent" onClick={() => handleAction(t, "publish")}>发布上线</button>
-                            )}
-                            {t.status === "ONLINE" && (
-                              <button className="flex w-full rounded-sm px-2 py-1.5 text-xs hover:bg-accent" onClick={() => handleAction(t, "offline")}>下线</button>
-                            )}
-                            {t.status === "DRAFT" && (
-                              <button className="flex w-full rounded-sm px-2 py-1.5 text-xs text-destructive hover:bg-accent" onClick={() => handleAction(t, "delete")}>删除</button>
-                            )}
-                          </div>
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(t)}>编辑</Button>
+                        {t.status === "DRAFT" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(t, "publish")}>发布</Button>
+                        )}
+                        {t.status === "ONLINE" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(t, "offline")}>下线</Button>
+                        )}
+                        {t.status === "DRAFT" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(t, "delete")}>删除</Button>
                         )}
                       </div>
                     </TableCell>
