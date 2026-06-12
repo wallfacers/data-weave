@@ -176,7 +176,10 @@ public class SchedulerKernel {
             for (NodeSlot ns : nodes) {
                 int free = test ? ns.free() : ns.normalFree();
                 if (free > 0) {
-                    avail.add(new NodeLoad(stub(ns), ns.capacity - ns.used, ns.capacity));
+                    // NodeLoad.free()==capacity-used，须等于本模式可用槽 free；故 used 取 capacity-free。
+                    // （原写法误传 capacity-used 作 used，使空闲节点 free()=0 永不入选，busy 节点反被选——
+                    //  all-in-one 因种子节点有负载 + 进程内网关无视节点码而被掩盖，distributed 下暴露。）
+                    avail.add(new NodeLoad(stub(ns), ns.capacity - free, ns.capacity));
                 }
             }
             policy.place(toCandidate(r), avail).ifPresent(chosen -> {

@@ -30,6 +30,12 @@
             <groupId>com.dataweave</groupId>
             <artifactId>dataweave-worker</artifactId>
         </dependency>
+        <!-- distributed 模式：把 master 里 optional 的 spring-data-redis 显式打进部署 jar，
+             供 RedisEventBus/RedisLogBus（eventbus.type=redis / logbus.type=redis）运行时加载 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.dataweave</groupId>
             <artifactId>dataweave-alert</artifactId>

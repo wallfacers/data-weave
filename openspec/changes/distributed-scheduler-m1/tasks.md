@@ -35,8 +35,10 @@
 - [x] 3.6 失效回收：incarnation 变化 → 该节点实例 FAILED(WORKER_RESTART)；租约过期/离线 → FAILED(WORKER_LOST)；联动重试（含集成测试）
 - [x] 3.7 worker 独立进程入口（dataweave-worker 自己的 Spring Boot 启动）+ SIGTERM 优雅 drain（拒新任务、等待运行中至超时、上报）
 - [x] 3.8 Redis 实现：EventBus(pub/sub dw:wake) + LogBus(Stream dw:log:{id}, TTL/maxlen)；docker-compose 验证
-- [ ] 3.9 distributed 集成验证：docker compose 起 PG+Redis+MinIO+2 master+2 worker，验证竞争认领唯一、worker 重启失败可知、Redis 宕机退化轮询零丢失
-  - ⏸ 未完成（环境受限）：distributed 代码已实现且单测通过（worker 21 测试 + ClusterReportTest/LeaseReaperTest + Redis/S3 实现），但 docker-compose 的 distributed profile 引用预构建镜像 `dataweave/dataweave-{api,worker}:latest` 且**缺 Dockerfile/构建上下文**，无法在本环境起多节点集群做活体验证。补 Dockerfile + 真实集群后方可勾选。
+- [x] 3.9 distributed 集成验证：docker compose 起 PG+Redis+MinIO+2 master+2 worker，验证竞争认领唯一、worker 重启失败可知、Redis 宕机退化轮询零丢失
+  - 补齐 `backend/dataweave-{api,worker}/Dockerfile`（temurin 25-jre-alpine）+ compose distributed profile 扩为 2 master(8080/8082) + 2 worker(worker-1/worker-2)，build 段就位。
+  - 修复 3 个分布式 wiring bug：① api 缺 `spring-data-redis` 运行时依赖（master optional 不传递，RedisEventBus 启动 NoClassDefFound）；② 新 worker 注册 `max_concurrent_tasks` 落 NULL 致 SlotManager 当 0 槽永不下发（FleetService 补默认 10/1）；③ **SchedulerKernel.assign() 的 NodeLoad 构造把 `capacity-used` 误当 used 传，使空闲节点 free()=0 永不入选、busy 节点反被选**——all-in-one 因种子节点有负载 + 进程内网关无视节点码而被掩盖，distributed 下暴露（真 worker used=0 收不到任务）。
+  - 活体验证（2026-06-12，真实 docker 集群）：**① e2e** 注入 SHELL 实例 → 派真 worker → ShellTaskExecutor 真执行 `echo` → 回报 SUCCESS（3s）；**② 竞争认领唯一** 31 实例 / 2 master 竞争 → 各恰一次、worker-1:15 / worker-2:16 均衡、零幂等拒绝、全 SUCCESS；**③ Redis 宕机退化轮询零丢失** 停 redis 注入 10 个 → 事件总线死、第 11s 经兜底轮询全完成、0 残留；**④ worker 重启可知** 重启 worker-1 → incarnation 1781225271→1781227446、master 检测「incarnation 变化，worker 重启」并触发实例标记。
 
 ## 4. 实时管道与归档
 

@@ -70,8 +70,11 @@ services:
   # 用法：docker compose --profile distributed up -d
   # 先起基础服务：docker compose up -d postgres redis minio
 
+  # master-1：负责 schema/data 初始化（SQL init mode=always）
   dataweave-master:
     image: ${DATAWEAVE_API_IMAGE:-dataweave/dataweave-api:latest}
+    build:
+      context: ./backend/dataweave-api
     container_name: dataweave-master
     profiles: ["distributed"]
     depends_on:
@@ -82,7 +85,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: pg
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
       SPRING_DATASOURCE_USERNAME: dataweave
       SPRING_DATASOURCE_PASSWORD: dataweave
@@ -91,19 +93,68 @@ services:
       EVENTBUS_TYPE: redis
       LOGBUS_TYPE: redis
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+      DATAWEAVE_FLEET_SIMULATE: "false"           # 关掉假节点心跳模拟，只认真实注册的 worker
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
-  dataweave-worker:
-    image: ${DATAWEAVE_WORKER_IMAGE:-dataweave/dataweave-worker:latest}
+  # master-2：第二个对等 master（验证多 master 竞争认领唯一）。不重复初始化库（init mode=never）。
+  dataweave-master-2:
+    image: ${DATAWEAVE_API_IMAGE:-dataweave/dataweave-api:latest}
+    container_name: dataweave-master-2
     profiles: ["distributed"]
     depends_on:
-      redis:
+      dataweave-master:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
+      SPRING_DATASOURCE_USERNAME: dataweave
+      SPRING_DATASOURCE_PASSWORD: dataweave
+      SPRING_DATA_REDIS_HOST: redis
+      SCHEDULER_MODE: distributed
+      EVENTBUS_TYPE: redis
+      LOGBUS_TYPE: redis
+      CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+      DATAWEAVE_FLEET_SIMULATE: "false"
+      SPRING_SQL_INIT_MODE: never                 # 不重建库，避免与 master-1 互相 DROP
+    restart: unless-stopped
+
+  # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8081 下发）。
+  worker-1:
+    image: ${DATAWEAVE_WORKER_IMAGE:-dataweave/dataweave-worker:latest}
+    build:
+      context: ./backend/dataweave-worker
+    container_name: worker-1
+    profiles: ["distributed"]
+    depends_on:
+      dataweave-master:
         condition: service_healthy
     ports:
       - "8081:8081"
     environment:
       DATAWEAVE_MASTER_URL: http://dataweave-master:8080
       DATAWEAVE_WORKER_NODE_CODE: worker-1
+      DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
+      CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+    restart: unless-stopped
+
+  worker-2:
+    image: ${DATAWEAVE_WORKER_IMAGE:-dataweave/dataweave-worker:latest}
+    container_name: worker-2
+    profiles: ["distributed"]
+    depends_on:
+      dataweave-master:
+        condition: service_healthy
+    ports:
+      - "8083:8081"
+    environment:
+      DATAWEAVE_MASTER_URL: http://dataweave-master:8080
+      DATAWEAVE_WORKER_NODE_CODE: worker-2
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
     restart: unless-stopped
