@@ -30,7 +30,7 @@ deploy/workhorse/                  # workhorse-agent 部署配置（config.yaml 
 docs/architecture.md               # 架构真相源
 openspec/                          # OpenSpec SDD：changes / specs / archive
   changes/<name>/                  # 一个变更一个目录（proposal + design + specs + tasks）
-docker-compose.yml                 # 生产态 PostgreSQL + Redis（+ workhorse profile，开发态用内置 H2）
+docker-compose.yml                 # PostgreSQL + Redis（+ workhorse profile）；后端默认即连此 PG
 ```
 
 ## Tech Stack
@@ -41,7 +41,7 @@ docker-compose.yml                 # 生产态 PostgreSQL + Redis（+ workhorse 
 | 对话     | CopilotKit **v2**（`@copilotkit/react-core/v2`）+ `@ag-ui/client` `HttpAgent`，直连 AG-UI，**不跑 Node Runtime** |
 | 后端     | Java 25, Spring Boot 4.0 / Spring Framework 7（**Jackson 3**）, WebFlux（AG-UI SSE）, Maven 多模块 |
 | 数据访问 | Spring Data JDBC + JdbcTemplate                                              |
-| 存储     | PostgreSQL（生产）/ **H2**（开发零依赖，DDL 兼容）· Redis（EventBus/LogBus）· MinIO（日志归档） |
+| 存储     | **PostgreSQL（默认）** · H2（`-Dspring-boot.run.profiles=h2` 内存库，无 Docker 时用，DDL 兼容）· Redis（EventBus/LogBus）· MinIO（日志归档） |
 | 调度     | 多 master 对等 + SKIP LOCKED 认领 + 事件驱动 + 软抢占 + cron 护栏表防重，`scheduler.mode=all-in-one\|distributed` |
 | 指标     | Micrometer + Actuator，四层指标（性能/资源/管道/SLA），`/api/ops/metrics` + `/actuator/prometheus` |
 | Agent    | 双模式 `agent.mode=mock\|workhorse`（默认 mock=`IntentRouter`；workhorse=真 LLM 大脑经桥接层）|
@@ -53,8 +53,9 @@ docker-compose.yml                 # 生产态 PostgreSQL + Redis（+ workhorse 
 ## Build & Run
 
 ```bash
-# 后端（默认 H2，零外部依赖）
+# 后端（默认连 PostgreSQL，须先起 Docker 库）
 cd backend
+docker compose up -d                               # PostgreSQL + Redis（默认连 localhost:5432）
 ./mvnw install -DskipTests                         # 首次/改 domain·application·infra 后必做
 ./mvnw -pl dataweave-api spring-boot:run           # 端口 8080；AG-UI: POST /agui；健康: GET /api/health
 
@@ -63,9 +64,8 @@ cd frontend
 pnpm install
 pnpm dev                                           # http://localhost:3000（左对话主驾 + 右 Workspace）
 
-# 接真实库（可选）
-docker compose up -d                               # PostgreSQL + Redis
-cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=pg
+# 零外部依赖（无 Docker 时用 H2 内存库）
+cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=h2
 ```
 
 当前运行入口：前端 `http://localhost:3000`，后端 `http://localhost:8080`，前端经 `NEXT_PUBLIC_AGENT_URL`（默认 `http://localhost:8080/agui`）连后端。
