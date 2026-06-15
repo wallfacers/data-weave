@@ -44,13 +44,13 @@ class WorkflowGraphValidatorTest {
 
     @Test
     void acyclicWorkflowDag_passes() {
-        when(edgeRepository.findByWorkflowId(1L)).thenReturn(List.of(edge(1, 2), edge(1, 3), edge(2, 4), edge(3, 4)));
+        when(edgeRepository.findByWorkflowIdAndDeleted(1L, 0)).thenReturn(List.of(edge(1, 2), edge(1, 3), edge(2, 4), edge(3, 4)));
         assertThatCode(() -> validator.validateWorkflowDagAcyclic(1L)).doesNotThrowAnyException();
     }
 
     @Test
     void cyclicWorkflowDag_rejected() {
-        when(edgeRepository.findByWorkflowId(1L)).thenReturn(List.of(edge(1, 2), edge(2, 3), edge(3, 1)));
+        when(edgeRepository.findByWorkflowIdAndDeleted(1L, 0)).thenReturn(List.of(edge(1, 2), edge(2, 3), edge(3, 1)));
         assertThatThrownBy(() -> validator.validateWorkflowDagAcyclic(1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("环");

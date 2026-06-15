@@ -107,11 +107,29 @@ public class WorkflowStateService {
         WorkflowInstance wi = opt.get();
         List<TaskInstance> nodes = taskInstanceRepository.findByWorkflowInstanceId(workflowInstanceId);
         String state = aggregate(nodes);
-        if (!state.equals(wi.getState())) {
+        // 进度计数与聚合态同源：只数 NORMAL 节点（TEST 试跑不计，与 total_tasks 口径一致）。
+        int completed = countByState(nodes, "SUCCESS");
+        int failed = countByState(nodes, "FAILED");
+        boolean changed = !state.equals(wi.getState())
+                || !Integer.valueOf(completed).equals(wi.getCompletedTasks())
+                || !Integer.valueOf(failed).equals(wi.getFailedTasks());
+        if (changed) {
             wi.setState(state);
+            wi.setCompletedTasks(completed);
+            wi.setFailedTasks(failed);
             wi.setUpdatedAt(LocalDateTime.now());
             workflowInstanceRepository.save(wi);
         }
         return Optional.of(state);
+    }
+
+    private static int countByState(List<TaskInstance> nodes, String state) {
+        int n = 0;
+        for (TaskInstance ti : nodes) {
+            if (ti != null && "NORMAL".equals(ti.getRunMode()) && state.equals(ti.getState())) {
+                n++;
+            }
+        }
+        return n;
     }
 }

@@ -1,11 +1,19 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.TaskInstance;
+import com.dataweave.master.domain.TaskInstanceRepository;
+import com.dataweave.master.domain.WorkflowInstance;
+import com.dataweave.master.domain.WorkflowInstanceRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 工作流状态聚合矩阵单测（design-data-model.md §4）。聚合是纯函数，免 Spring 上下文。
@@ -75,5 +83,78 @@ class WorkflowStateServiceTest {
     @Test
     void 空集合_聚合为_NOT_RUN() {
         assertThat(service.aggregate(List.of())).isEqualTo("NOT_RUN");
+    }
+
+    // ── computeAndUpdate：除聚合态外，须维护 completed_tasks / failed_tasks 进度计数 ──
+
+    @Test
+    void computeAndUpdate_全部成功_completed等于节点数() {
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(1);  // 触发时初值（如含一个物化即成功的虚拟节点）
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(5);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid))
+                .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("SUCCESS")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        String state = new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid).orElseThrow();
+
+        assertThat(state).isEqualTo("SUCCESS");
+        assertThat(wi.getCompletedTasks()).isEqualTo(5);
+        assertThat(wi.getFailedTasks()).isEqualTo(0);
+    }
+
+    @Test
+    void computeAndUpdate_含失败_分别计入_completed与failed() {
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(1);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(4);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid))
+                .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("FAILED")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        String state = new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid).orElseThrow();
+
+        assertThat(state).isEqualTo("FAILED");
+        assertThat(wi.getCompletedTasks()).isEqualTo(3);
+        assertThat(wi.getFailedTasks()).isEqualTo(1);
+    }
+
+    @Test
+    void computeAndUpdate_TEST节点不计入计数() {
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(0);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid))
+                .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), node("SUCCESS", "TEST")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid);
+
+        // TEST 试跑节点不参与计数，completed 只数两个 NORMAL SUCCESS
+        assertThat(wi.getCompletedTasks()).isEqualTo(2);
     }
 }
