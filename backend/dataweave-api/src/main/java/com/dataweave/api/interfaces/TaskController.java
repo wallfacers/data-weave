@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.TaskService;
 import com.dataweave.master.application.TaskService.PageResult;
 import com.dataweave.master.application.TaskService.TaskDetail;
@@ -8,6 +9,7 @@ import com.dataweave.master.domain.TaskDef;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -24,9 +26,11 @@ public class TaskController {
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final TaskService taskService;
+    private final ScheduleParamResolver paramResolver;
 
-    public TaskController(TaskService taskService) {
+    public TaskController(TaskService taskService, ScheduleParamResolver paramResolver) {
         this.taskService = taskService;
+        this.paramResolver = paramResolver;
     }
 
     /** 创建任务草稿。 */
@@ -86,6 +90,29 @@ public class TaskController {
     @PostMapping("/{id}/offline")
     public ApiResponse<TaskDef> offline(@PathVariable Long id) {
         return ApiResponse.ok(taskService.offline(id));
+    }
+
+    /**
+     * 预览调度参数占位符替换（任务编辑器用）：把 content 里的 {@code ${...}} / 内置参数
+     * 按 bizDate + paramsJson 替换为具体值返回。解析失败返回 400 + 占位符名。
+     */
+    @PostMapping("/preview-params")
+    public ApiResponse<Map<String, String>> previewParams(@RequestBody PreviewRequest body) {
+        try {
+            var ctx = new ScheduleParamResolver.BuiltInContext(null, null, null, LocalDate.now());
+            String resolved = paramResolver.resolve(
+                    body.content() == null ? "" : body.content(),
+                    body.bizDate(),
+                    body.paramsJson(),
+                    ctx);
+            return ApiResponse.ok(Map.of("content", resolved));
+        } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
+            return ApiResponse.err(400, "占位符解析失败：" + e.getMessage());
+        }
+    }
+
+    /** 预览请求体。 */
+    public record PreviewRequest(String content, String bizDate, String paramsJson) {
     }
 
     private LocalDateTime parseDateTime(String s) {

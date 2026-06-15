@@ -49,6 +49,7 @@ public class SchedulerKernel {
     private final PreemptionService preemptionService;
     private final SchedulerMetrics metrics;
     private final ParallelDispatcher dispatcher;
+    private final ScheduleParamResolver paramResolver;
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
@@ -66,6 +67,7 @@ public class SchedulerKernel {
                            PreemptionService preemptionService,
                            SchedulerMetrics metrics,
                            ParallelDispatcher dispatcher,
+                           ScheduleParamResolver paramResolver,
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds) {
@@ -78,6 +80,7 @@ public class SchedulerKernel {
         this.preemptionService = preemptionService;
         this.metrics = metrics;
         this.dispatcher = dispatcher;
+        this.paramResolver = paramResolver;
         this.txTemplate = new TransactionTemplate(txManager);
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
@@ -188,9 +191,13 @@ public class SchedulerKernel {
                 LocalDateTime lease = now.plusSeconds(leaseSeconds);
                 if (stateMachine.casDispatch(r.id, InstanceStates.WAITING, code, lease, attempt)) {
                     ns.used++;
+                    String content = resolveContentSafely(r, now);
+                    if (content == null) {
+                        return;  // 占位符解析失败：已 CAS 置 FAILED，不下发
+                    }
                     int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
                     out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, contentOf(r), timeout, r.taskType));
+                            r.runMode, r.bizDate, content, timeout, r.taskType));
                 }
             });
         }
@@ -282,6 +289,50 @@ public class SchedulerKernel {
         List<String> c = jdbc.query("SELECT content FROM task_def WHERE id=?",
                 (rs, n) -> rs.getString("content"), r.taskId);
         return c.isEmpty() ? null : c.get(0);
+    }
+
+    /** 取自定义参数 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。 */
+    private String paramsJsonOf(Row r) {
+        if (r.taskId == null) {
+            return null;
+        }
+        if (r.taskVersionNo != null) {
+            List<String> p = jdbc.query(
+                    "SELECT params_json FROM task_def_version WHERE task_id=? AND version_no=?",
+                    (rs, n) -> rs.getString("params_json"), r.taskId, r.taskVersionNo);
+            if (!p.isEmpty()) {
+                return p.get(0);
+            }
+        }
+        List<String> p = jdbc.query("SELECT params_json FROM task_def WHERE id=?",
+                (rs, n) -> rs.getString("params_json"), r.taskId);
+        return p.isEmpty() ? null : p.get(0);
+    }
+
+    /**
+     * 解析 content 里的调度参数占位符；失败则 CAS 置实例 FAILED 并返回 {@code null}（不下发）。
+     * 在认领事务内调用，故解析异常被吞掉而非抛穿事务——避免一个坏 content 连坐同批次。
+     */
+    private String resolveContentSafely(Row r, LocalDateTime now) {
+        String raw = contentOf(r);
+        if (raw == null || raw.indexOf('$') < 0) {
+            return raw;  // 无占位符原样返回
+        }
+        try {
+            return paramResolver.resolve(raw, r.bizDate, paramsJsonOf(r), builtInContext(r, now));
+        } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
+            log.warn("[Scheduler] 实例 {} 占位符解析失败，置 FAILED：{}", r.id, e.getMessage());
+            stateMachine.casTaskTerminal(r.id, InstanceStates.DISPATCHED, InstanceStates.FAILED, e.getMessage());
+            return null;
+        }
+    }
+
+    private ScheduleParamResolver.BuiltInContext builtInContext(Row r, LocalDateTime now) {
+        return new ScheduleParamResolver.BuiltInContext(
+                r.workflowInstanceId == null ? null : r.workflowInstanceId.toString(),
+                r.workflowNodeId == null ? null : r.workflowNodeId.toString(),
+                r.id == null ? null : r.id.toString(),
+                now.toLocalDate());
     }
 
     // ─── 内部数据结构 ─────────────────────────────────────
