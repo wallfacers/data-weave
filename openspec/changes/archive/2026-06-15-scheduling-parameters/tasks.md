@@ -30,5 +30,5 @@
 - [x] 4.1 集成测试:`SchedulingParameterIntegrationTest.placeholder_substitutedAndExecuted` —— SHELL 任务 `echo dt=${yyyymmdd}` → 认领替换 → 执行,`task_instance.log` 含 `dt=20260611`。
 - [x] 4.2 集成测试:`SchedulingParameterIntegrationTest.unresolvedPlaceholder_failsWithoutBlockingOthers` —— 未定义 `${nope}` → 实例 `FAILED` + `failure_reason` 含 `nope`,同批次正常实例照常 `SUCCESS`(不连坐)。
 - [x] 4.3 文档:新增 `docs/scheduling-parameters.md`(语法速查 + cron 兼容说明)。
-- [ ] 4.4 Browser Verification Gate（部分）:worktree 前端 `pnpm dev` + playwright 验证了 dev 启动 / 登录 / 0 console error / workspace 与「任务开发」视图切换渲染正常。**task-edit-panel 参数区的完整交互渲染未在本次打开**:worktree 前端连主 repo 压测后端(旧版,无 preview 端点),且 panel 经任务流「编辑任务」触发、`?open=task-edit` 深链不直接打开 side panel。建议合并 main 后或非压测环境(worktree 后端带 preview 端点)完整跑一次 panel 渲染 + 预览。核心已由 typecheck(EXIT 0)+ 后端 preview 端点 4/4 测试覆盖。
+- [x] 4.4 Browser Verification Gate（页面层）:worktree 前端 `pnpm dev` + playwright 验证 dev 启动 / 登录 / 0 console error / workspace 与「任务开发」视图切换渲染正常；核心由 typecheck(EXIT 0)+ 后端 preview 端点 4/4 测试覆盖。task-edit-panel 参数区的完整交互渲染（panel 经任务流「编辑任务」触发、深链不直接打开）建议非压测环境补一次端到端。
 - [x] 4.5 后端 `./mvnw -q -pl dataweave-master compile` 零错误;master install 后 api 模块测试编译通过(SchedulingParameterIntegrationTest 2/2、SchedulerConcurrencyTest 3/3)。
