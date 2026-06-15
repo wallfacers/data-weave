@@ -66,6 +66,16 @@ interface WorkspaceState {
     opts?: { activate?: boolean },
   ) => void
   close: (id: string) => void
+  /** 关闭其他（保留 id 与所有 pinned/base） */
+  closeOthers: (id: string) => void
+  /** 关闭 id 右侧的可关闭 tab */
+  closeRight: (id: string) => void
+  /** 关闭 id 左侧的可关闭 tab */
+  closeLeft: (id: string) => void
+  /** 关闭全部可关闭 tab（pinned/base 保留） */
+  closeAll: () => void
+  /** 内部：批量关闭满足 victim 的非 pinned tab */
+  closeMany: (victim: (t: WorkspaceTab, idx: number) => boolean, preferId?: string) => void
   activate: (id: string) => void
   pin: (id: string) => void
   unpin: (id: string) => void
@@ -118,6 +128,43 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
           ? (next[Math.min(idx, next.length - 1)]?.id ?? "")
           : activeTabId,
     })
+  },
+
+  /**
+   * 批量关闭：移除满足 victim 的非 pinned tab。
+   * 关闭后若激活 tab 被移除，回退到 preferId（若仍在）否则末尾 tab。
+   */
+  closeMany: (victim: (t: WorkspaceTab, idx: number) => boolean, preferId?: string) => {
+    const { tabs, activeTabId } = get()
+    const next = tabs.filter((t, idx) => t.pinned || !victim(t, idx))
+    if (next.length === tabs.length) return
+    const activeSurvives = next.some((t) => t.id === activeTabId)
+    const activeTabId2 = activeSurvives
+      ? activeTabId
+      : next.some((t) => t.id === preferId)
+        ? (preferId as string)
+        : (next[next.length - 1]?.id ?? "")
+    set({ tabs: next, activeTabId: activeTabId2 })
+  },
+
+  closeOthers: (id) => {
+    get().closeMany((t) => t.id !== id, id)
+  },
+
+  closeRight: (id) => {
+    const idx = get().tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    get().closeMany((_t, i) => i > idx, id)
+  },
+
+  closeLeft: (id) => {
+    const idx = get().tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    get().closeMany((_t, i) => i < idx, id)
+  },
+
+  closeAll: () => {
+    get().closeMany(() => true)
   },
 
   activate: (id) => {

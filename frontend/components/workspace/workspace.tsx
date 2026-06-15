@@ -52,29 +52,32 @@ export function Workspace() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <WorkspaceTabBar />
-      {/* 内容区做成与左侧 Agent 面板同款的浮起卡（bg-sidebar + border + shadow-lg + rounded-lg），
-          让激活 tab 下方的视图读成「这张卡」，并与左栏对话面板成同材质的一对。 */}
+      {/* tab 条 + 内容合成同一张浮起卡（bg-sidebar + border + shadow-lg + rounded-lg）：
+          Chrome 标签坐在卡片顶部、底角连入下方视图，整模块读成「一张卡」，
+          与左栏 Agent 对话面板成同材质的一对。 */}
       <div className={cn(
-        "relative mx-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg",
+        "relative mx-3 mt-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg",
         !logPanelExpanded && "mb-3",
       )}>
-        {tabs
-          .filter((t) => mountedRef.current.has(t.id))
-          .map((tab) => {
-            const View = VIEW_RENDER[tab.view].component
-            return (
-              <div
-                key={tab.id}
-                className={cn(
-                  "min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-                  tab.id === activeTabId ? "flex" : "hidden",
-                )}
-              >
-                <View params={tab.params} />
-              </div>
-            )
-          })}
+        <WorkspaceTabBar />
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {tabs
+            .filter((t) => mountedRef.current.has(t.id))
+            .map((tab) => {
+              const View = VIEW_RENDER[tab.view].component
+              return (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    "min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+                    tab.id === activeTabId ? "flex" : "hidden",
+                  )}
+                >
+                  <View params={tab.params} />
+                </div>
+              )
+            })}
+        </div>
       </div>
 
       {/* 底部日志面板（条件渲染，含拖拽分割线） */}

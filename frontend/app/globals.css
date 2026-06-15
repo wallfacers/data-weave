@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-serif);
+    --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -52,84 +52,86 @@
     --font-serif: var(--font-serif);
 }
 
-/* 「茶墨编辑部」主题（openspec: chamo-theme）：暖纸白底 + 真黑墨字 + 褐调茶墨 primary，
-   链接/行内代码走独立 --link（钴蓝），状态色 success/warning/info 一等公民，
-   chart-1..5 为五色织线（茶·钴蓝·金·翠·紫）。红色仅 destructive（失败/删除）。 */
+/* shadcn/ui 默认 neutral 主题（纯黑白）：零彩度中性承载层 + 近黑/近白 primary。
+   承载层全部走 shadcn 标准 neutral 取值，刻意不引入色相 —— 回归最本质的黑白观感，
+   不再为暖调主题做全局兼容适配。语义状态色（link/success/warning/info/destructive）
+   与 chart 五色作为功能色保留（任务状态编码、数据可视化需要可分辨的色相）。 */
 :root {
-    --background: oklch(0.978 0.006 80);
-    --foreground: oklch(0.17 0.012 80);
-    --card: oklch(0.99 0.004 80);
-    --card-foreground: oklch(0.17 0.012 80);
-    --popover: oklch(0.99 0.004 80);
-    --popover-foreground: oklch(0.17 0.012 80);
-    --secondary: oklch(0.945 0.009 80);
-    --secondary-foreground: oklch(0.25 0.015 80);
-    --muted: oklch(0.945 0.009 80);
-    --muted-foreground: oklch(0.45 0.02 80);
-    --accent: oklch(0.45 0.085 60);
-    --accent-foreground: oklch(0.985 0.006 80);
-    --border: oklch(0.875 0.014 80);
-    --input: oklch(0.875 0.014 80);
-    --ring: oklch(0.62 0.07 65);
-    --sidebar: oklch(0.948 0.01 80);
-    --sidebar-foreground: oklch(0.17 0.012 80);
-    --sidebar-accent: oklch(0.91 0.014 78);
-    --sidebar-accent-foreground: oklch(0.23 0.015 80);
-    --sidebar-border: oklch(0.875 0.014 80);
-    --sidebar-ring: oklch(0.62 0.07 65);
-    --primary: oklch(0.45 0.085 60);
-    --primary-foreground: oklch(0.985 0.006 80);
-    --sidebar-primary: oklch(0.52 0.1 60);
-    --sidebar-primary-foreground: oklch(0.985 0.006 80);
-    --destructive: oklch(0.55 0.22 25);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
     --link: oklch(0.49 0.22 264);
     --success: oklch(0.58 0.155 150);
     --warning: oklch(0.62 0.14 78);
     --info: oklch(0.55 0.18 250);
-    --chart-1: oklch(0.55 0.12 60);
-    --chart-2: oklch(0.49 0.24 264);
-    --chart-3: oklch(0.76 0.15 85);
-    --chart-4: oklch(0.6 0.155 150);
-    --chart-5: oklch(0.55 0.18 300);
-    --radius: 0.875rem;
+    --chart-1: oklch(0.646 0.222 41.116);
+    --chart-2: oklch(0.6 0.118 184.704);
+    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-4: oklch(0.828 0.189 84.429);
+    --chart-5: oklch(0.769 0.188 70.08);
+    --radius: 0.625rem;
 }
 
 .dark {
-    --background: oklch(0.16 0.008 65);
-    --foreground: oklch(0.97 0.006 80);
-    --card: oklch(0.215 0.012 65);
-    --card-foreground: oklch(0.97 0.006 80);
-    --popover: oklch(0.215 0.012 65);
-    --popover-foreground: oklch(0.97 0.006 80);
-    --secondary: oklch(0.27 0.012 65);
-    --secondary-foreground: oklch(0.97 0.006 80);
-    --muted: oklch(0.26 0.012 65);
-    --muted-foreground: oklch(0.74 0.02 75);
-    --accent: oklch(0.6 0.09 65);
-    --accent-foreground: oklch(0.985 0.006 80);
-    --border: oklch(0.95 0.02 80 / 14%);
-    --input: oklch(0.95 0.02 80 / 16%);
-    --ring: oklch(0.62 0.08 65);
-    --sidebar: oklch(0.215 0.012 65);
-    --sidebar-foreground: oklch(0.97 0.006 80);
-    --sidebar-accent: oklch(0.27 0.014 65);
-    --sidebar-accent-foreground: oklch(0.97 0.006 80);
-    --sidebar-border: oklch(0.95 0.02 80 / 14%);
-    --sidebar-ring: oklch(0.62 0.08 65);
-    --primary: oklch(0.72 0.1 70);
-    --primary-foreground: oklch(0.2 0.012 65);
-    --sidebar-primary: oklch(0.72 0.1 70);
-    --sidebar-primary-foreground: oklch(0.2 0.012 65);
-    --destructive: oklch(0.68 0.18 25);
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+    --primary: oklch(0.922 0 0);
+    --sidebar-primary: oklch(0.922 0 0);
+    --sidebar-primary-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
     --link: oklch(0.7 0.15 264);
     --success: oklch(0.7 0.15 152);
     --warning: oklch(0.78 0.14 80);
     --info: oklch(0.7 0.14 250);
-    --chart-1: oklch(0.72 0.1 70);
-    --chart-2: oklch(0.68 0.16 264);
-    --chart-3: oklch(0.8 0.14 85);
-    --chart-4: oklch(0.7 0.14 152);
-    --chart-5: oklch(0.68 0.15 300);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
 }
 
 @layer base {
@@ -139,35 +141,19 @@
   body {
     @apply bg-background text-foreground;
     }
-  html {
-    @apply font-serif;
-    }
 }
 
-/* CopilotKit v2 在 [data-copilotkit] 作用域里用自己的「中性灰阶」重定义了整套
-   shadcn 变量（--background/--muted/... 全为零彩度），导致对话面板是冷中性黑、
-   与本应用的暖调茶墨主题不一致。把这些变量改回继承/对齐 app 主题，让 CopilotChat
-   的文字、边框、primary 跟随项目；其中**对话面填充（--background/--card/--popover）
-   对齐 var(--sidebar)**，与 Agent 悬浮面板外层卡片、侧栏品牌区同底色（避免"标题条
-   sidebar 色、消息区却是页面底色"的割裂）。
-
-   亮色：cpk base `[data-copilotkit]`(0,1,0) 被下面 `html [data-copilotkit]`(0,1,1) 胜过。
-   暗色：cpk `.dark [data-copilotkit]`(0,2,0) 需 `html.dark [data-copilotkit]`(0,2,1) 才能胜过。 */
-
+/* CopilotKit v2 在 [data-copilotkit] 作用域里用一套零彩度中性灰阶重定义了整套 shadcn
+   变量。本应用已是 neutral 黑白主题，与 cpk 自带中性阶同家族，故此处仅做最小对齐：
+   把对话面填充对齐 var(--sidebar)（与 Agent 悬浮面板外层卡片、侧栏同底色，避免割裂），
+   其余语义 token 一律 inherit 跟随 app 主题。两态（亮/暗）对称。 */
 html [data-copilotkit] {
-  /* cpk 在本作用域把 --sidebar 也改成了它的中性版，必须先 inherit 回 app 的真值，
-     var(--sidebar) 才指向项目暖纸 sidebar，而非 cpk 的零彩度灰。 */
   --sidebar: inherit;
   --background: var(--sidebar);
   --card: var(--sidebar);
   --popover: var(--sidebar);
-  /* cpk 在本作用域把 --muted 改成零彩度冷灰；这里给显式的更深暖纸值（不用 inherit：
-     app 的 --muted 0.945 与加深后的 sidebar 0.948 几乎同明度，输入药丸/行内代码底
-     会融进面板）。0.915 比面板深一档，层次可见。 */
-  --muted: oklch(0.915 0.012 80);
+  --muted: oklch(0.94 0 0);
   --muted-foreground: inherit;
-  /* cpk 浅色作用域自带零彩度近黑 primary（发送按钮是黑圆），inherit 回茶墨；
-     其余语义 token 一并 inherit，杜绝 cpk 冷灰渗漏（与下方暗色块对称）。 */
   --foreground: inherit;
   --primary: inherit;
   --primary-foreground: inherit;
@@ -203,13 +189,8 @@ html.dark [data-copilotkit] {
 }
 
 /* CopilotChat 的 AI 回复用 Streamdown（react-markdown + Tailwind prose）渲染。
-   默认是系统字体 + 冷灰阶配色，不跟随项目。这里把 prose 字体接到项目字体
-   （正文衬线 Merriweather / 代码 Geist Mono），prose 配色映射到主题 token
-   并以钴蓝（--link）作链接·行内代码强调。token 随亮/暗自动切，单套规则覆盖两态。
-   特异度（html + 两个属性/类选择器）以胜过 .prose / .dark .prose-invert。 */
-html [data-copilotkit] .copilotKitMessage {
-  font-family: var(--font-serif);
-}
+   把 prose 配色映射到主题 token：正文/标题/加粗走 --foreground，链接/行内代码走 --link，
+   代码块底走 --muted。token 随亮/暗自动切，单套规则覆盖两态。 */
 html [data-copilotkit] [class*="prose"] {
   --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
@@ -231,7 +212,7 @@ html [data-copilotkit] [class*="prose"] code,
 html [data-copilotkit] [class*="prose"] pre {
   font-family: var(--font-mono);
 }
-/* 行内代码（非代码块内）：钴蓝（--link）文字 + 极淡底，与代码块区分 */
+/* 行内代码（非代码块内）：link 色文字 + 极淡底，与代码块区分 */
 html [data-copilotkit] [class*="prose"] :not(pre) > code {
   background-color: var(--muted);
   color: var(--link);
@@ -239,11 +220,8 @@ html [data-copilotkit] [class*="prose"] :not(pre) > code {
   border-radius: var(--radius-sm);
   font-weight: 500;
 }
-/* 代码块语法高亮：项目语法主题（lib/syntax-palette，从茶墨/钴蓝派生）经
-   agent-chat 的 markdownRenderer slot 透传给 Streamdown 的 Shiki dual-theme。
-   Shiki 把 token 颜色内联 baked：亮色走 `color:#hex`、暗色走 `--shiki-dark:#hex`
-   （底色同理 `--shiki-dark-bg`）。亮色自动生效；暗色下把前景/底色切到 --shiki-dark*。
-   与 Monaco 编辑器共用同一套主题对象，两端高亮一致。 */
+/* 代码块语法高亮：项目语法主题（lib/syntax-palette）经 agent-chat 的 markdownRenderer
+   slot 透传给 Streamdown 的 Shiki dual-theme。亮色自动生效；暗色把前景/底色切到 --shiki-dark*。 */
 html.dark [data-copilotkit] [data-streamdown="code-block-body"] code span {
   color: var(--shiki-dark, inherit) !important;
 }
@@ -252,25 +230,21 @@ html.dark [data-copilotkit] [data-streamdown="code-block-body"] pre {
   background-color: var(--shiki-dark-bg, var(--muted)) !important;
 }
 
-/* CopilotChat 容器（[data-copilotkit] 即 .copilotKitChat）自带纯白底（cpk 工具类
-   烤死的 #fff，不走 --background token），与右舷面板的 bg-sidebar、标题条「Agent
-   当前：…」割裂。改为透明 → 继承 agent-rail 卡片的 bg-sidebar，对话区与标题条同底色。 */
+/* CopilotChat 容器自带纯白底（cpk 烤死，不走 token），改透明 → 继承 agent-rail 卡片底色。 */
 html [data-copilotkit].copilotKitChat {
   background: transparent !important;
 }
 
-/* AI 输入框（.copilotKitInput）原为纯白 pill（cpk:bg-white）+ 重阴影，与暖调面板不配套。
-   改为略深于面板的暖底（muted），不加硬边框（避免与面板卡片边框重合），靠底色差与轻阴影
-   界定输入区；留左右内缩使其不贴面板边。空状态由 cpk 默认上下左右居中（不覆盖 justify）。 */
+/* AI 输入框（.copilotKitInput）：白底 + 可见边框 + 轻阴影，与全项目输入框（白底带框）统一，
+   靠边框（而非灰底）界定输入区。 */
 html [data-copilotkit] .copilotKitInput {
-  background: var(--muted) !important;
-  border: none !important;
-  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.06) !important;
+  background: var(--background) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05) !important;
 }
 
-/* 发送按钮：cpk 烤死 `cpk:bg-black cpk:dark:bg-white`（不走 --primary token），
-   亮色下是纯黑圆钮、与茶墨主题割裂。强制对齐 primary（茶墨/暗色驼色），
-   图标走 currentColor 跟随 primary-foreground。禁用态对齐 muted。 */
+/* 发送按钮：cpk 烤死 `cpk:bg-black cpk:dark:bg-white`（不走 token）。强制对齐 --primary，
+   图标走 primary-foreground，禁用态对齐 muted。 */
 html [data-copilotkit] button[data-testid="copilot-send-button"] {
   background: var(--primary) !important;
   color: var(--primary-foreground) !important;
@@ -283,67 +257,70 @@ html [data-copilotkit] button[data-testid="copilot-send-button"]:disabled {
   color: var(--muted-foreground) !important;
 }
 
-/* 输入条左右内缩（两态一致，不贴卡片边框）。cpk 对话态输入条包裹层用 `cpk:px-4 cpk:sm:px-0`，
-   视口 ≥640px 时左右内边距被清零，输入框两侧顶死右舷卡片边框（空状态因外层 flex-1 px-4
-   才有内缩，对话态没有这层 → 两态不一致）。强制给输入框的直接包裹层回插水平内边距，
-   空/对话两态都不贴边。 */
+/* 输入条左右内缩（两态一致，不贴卡片边框）。 */
 html [data-copilotkit] *:has(> .copilotKitInput) {
   padding-inline: 12px !important;
 }
-
-/* 空/对话两态输入框同宽。空状态的居中包裹层（cpk:flex-1 … justify-center px-4）额外带 16px
-   水平内边距，使空状态输入框比对话态窄一圈、宽度不对齐。清零它的水平内边距，让两态都只保留
-   上面那层 12px 内缩 → 同宽。该层仅空状态含输入框（对话态的 cpk:flex-1 是消息滚动区，不含
-   输入框，:has 不命中），故只影响空状态。 */
+/* 空/对话两态输入框同宽：清零空状态居中包裹层的额外水平内边距。 */
 html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
   padding-inline: 0 !important;
 }
 
-/* AI 输入框滚动条：内容溢出时显示茶墨暖灰细滚动条、无上下箭头。
-   难点：CopilotKit 的 `[data-copilotkit] ::-webkit-scrollbar*` 通配规则命中本 <textarea>，
-   逼它走 WebKit 自定义滚动条引擎——该引擎在 Windows Chrome 上恒渲染上下箭头按钮，
-   `::-webkit-scrollbar-button{display:none}` 去不掉；而退回系统原生滚动条，在 Windows
-   「始终显示滚动条」模式下同样带箭头（系统绘制，CSS 碰不到）。两条路都摘不掉箭头。
-   解法：① 这里把 textarea 的原生 + webkit 滚动条**彻底隐藏**（`scrollbar-width:none` 灭标准条，
-   `::-webkit-scrollbar{display:none}` 灭 webkit 条——两者都不画箭头，已实测确认）；
-   ② agent-chat.tsx 自绘一根细茶墨暖灰指示条（`.dw-textarea-thumb`）反映滚动位置。
-   滚轮/触摸板/键盘仍走 textarea 原生滚动，仅滚动条外观被接管。
-   `::-webkit-scrollbar{display:none}` 特异度（含 textarea[data-testid]）压过 cpk 的通配 width:6px。 */
+/* AI 输入框滚动条：彻底隐藏原生条，由 agent-chat.tsx 自绘 .dw-textarea-thumb 指示位置。 */
 html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
   scrollbar-width: none;
 }
 html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-scrollbar {
   display: none;
 }
-/* 自绘指示条：随亮/暗切换茶墨暖灰；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
+/* 自绘指示条：中性灰，随亮/暗切换；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
 .dw-textarea-thumb {
   position: absolute;
   width: 4px;
   border-radius: 9999px;
-  background: oklch(0.45 0.02 80);
+  background: oklch(0.556 0 0);
   opacity: 0.85;
   pointer-events: none;
   z-index: 20;
 }
 html.dark .dw-textarea-thumb {
-  background: oklch(0.74 0.02 75);
+  background: oklch(0.708 0 0);
 }
 
-/* OverlayScrollbars：尺寸和颜色对齐 .dw-textarea-thumb（4px、暖灰、无 padding）。
-   用 `html .os-theme-dark`（特异度 0,1,1）压过 OS 自带的 `.os-theme-dark`（0,1,0），
-   确保组件内 import 的 OS CSS 后加载时我们的变量仍然胜出。 */
+/* OverlayScrollbars：尺寸和颜色对齐 .dw-textarea-thumb（4px、中性灰、无 padding）。
+   用 `html .os-theme-dark`（特异度 0,1,1）压过 OS 自带的 `.os-theme-dark`（0,1,0）。 */
 html .os-theme-dark {
   --os-size: 4px;
   --os-padding-perpendicular: 0px;
   --os-padding-axis: 0px;
   --os-handle-border-radius: 9999px;
-  --os-handle-bg: oklch(0.45 0.02 80 / 85%);
-  --os-handle-bg-hover: oklch(0.45 0.02 80);
-  --os-handle-bg-active: oklch(0.38 0.02 80);
+  --os-handle-bg: oklch(0.556 0 0 / 85%);
+  --os-handle-bg-hover: oklch(0.556 0 0);
+  --os-handle-bg-active: oklch(0.45 0 0);
 }
 html.dark .os-theme-dark {
-  --os-handle-bg: oklch(0.74 0.02 75 / 85%);
-  --os-handle-bg-hover: oklch(0.74 0.02 75);
-  --os-handle-bg-active: oklch(0.62 0.02 75);
+  --os-handle-bg: oklch(0.708 0 0 / 85%);
+  --os-handle-bg-hover: oklch(0.708 0 0);
+  --os-handle-bg-active: oklch(0.6 0 0);
 }
 
+/* Chrome 卡片标签：激活态底部两角向外凸的弧度，使标签平滑融入下方内容区（非简单顶部圆角）。
+   伪元素填充表面色 --dw-tab-surface（= 内容面色，默认 sidebar），radial-gradient 切出 1/4 圆的
+   凹弧 → 标签底边向两侧外扩、与内容连体。--dw-tab-surface 由 TabStrip 在激活标签上内联注入。 */
+.dw-tab-active::before,
+.dw-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+}
+.dw-tab-active::before {
+  left: -8px;
+  background: radial-gradient(circle at top left, transparent 8px, var(--dw-tab-surface) 8px);
+}
+.dw-tab-active::after {
+  right: -8px;
+  background: radial-gradient(circle at top right, transparent 8px, var(--dw-tab-surface) 8px);
+}

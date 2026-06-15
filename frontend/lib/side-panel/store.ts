@@ -19,8 +19,13 @@ interface SidePanelState {
   activeTabId: string
   open: (view: string, title: string, params?: Record<string, unknown>) => void
   close: (id: string) => void
+  closeOthers: (id: string) => void
+  closeRight: (id: string) => void
+  closeLeft: (id: string) => void
   activate: (id: string) => void
   closeAll: () => void
+  /** 内部：仅保留满足 keep 的 tab */
+  keepOnly: (keep: (t: SidePanelTab, idx: number) => boolean) => void
 }
 
 export const useSidePanelStore = create<SidePanelState>()((set, get) => ({
@@ -57,6 +62,32 @@ export const useSidePanelStore = create<SidePanelState>()((set, get) => ({
           ? (next[Math.min(idx, next.length - 1)]?.id ?? "")
           : activeTabId,
     })
+  },
+
+  keepOnly: (keep) => {
+    const { tabs, activeTabId } = get()
+    const next = tabs.filter(keep)
+    if (next.length === tabs.length) return
+    set({
+      tabs: next,
+      activeTabId: next.some((t) => t.id === activeTabId)
+        ? activeTabId
+        : (next[next.length - 1]?.id ?? ""),
+    })
+  },
+
+  closeOthers: (id) => get().keepOnly((t) => t.id === id),
+
+  closeRight: (id) => {
+    const idx = get().tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    get().keepOnly((_t, i) => i <= idx)
+  },
+
+  closeLeft: (id) => {
+    const idx = get().tabs.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    get().keepOnly((_t, i) => i >= idx)
   },
 
   activate: (id) => {

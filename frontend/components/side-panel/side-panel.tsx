@@ -1,12 +1,10 @@
 "use client"
 
 import { useRef } from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
 
 import { useSidePanelStore } from "@/lib/side-panel/store"
 import { SIDE_PANEL_VIEW_RENDER } from "@/lib/side-panel/registry"
-import { DwScroll } from "@/components/ui/dw-scroll"
+import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { cn } from "@/lib/utils"
 
 /**
@@ -19,6 +17,10 @@ export function SidePanel() {
   const activeTabId = useSidePanelStore((s) => s.activeTabId)
   const activate = useSidePanelStore((s) => s.activate)
   const close = useSidePanelStore((s) => s.close)
+  const closeOthers = useSidePanelStore((s) => s.closeOthers)
+  const closeRight = useSidePanelStore((s) => s.closeRight)
+  const closeLeft = useSidePanelStore((s) => s.closeLeft)
+  const closeAll = useSidePanelStore((s) => s.closeAll)
 
   // keep-alive：激活过的 tab 持续挂载
   const mountedRef = useRef<Set<string>>(new Set())
@@ -33,43 +35,22 @@ export function SidePanel() {
   return (
     <div className="w-[400px] shrink-0 p-3 pl-1.5">
       <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
-        {/* Mini Tab Bar */}
-        <DwScroll direction="horizontal" className="h-10 shrink-0 px-2" innerClassName="flex items-center gap-0.5">
-          {tabs.map((tab) => {
+        {/* Mini Tab Bar（Chrome 卡片风格，统一 TabStrip） */}
+        <TabStrip
+          size="sm"
+          className="shrink-0 rounded-t-[var(--radius-lg)]"
+          tabs={tabs.map<TabStripItem>((tab) => {
             const render = SIDE_PANEL_VIEW_RENDER[tab.view as keyof typeof SIDE_PANEL_VIEW_RENDER]
-            const isActive = tab.id === activeTabId
-            return (
-              <div
-                key={tab.id}
-                className={cn(
-                  "group flex h-7 shrink-0 items-center gap-1 rounded-md pl-2 pr-1 text-xs transition-colors",
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => activate(tab.id)}
-                  className="flex items-center gap-1"
-                >
-                  {render && (
-                    <HugeiconsIcon icon={render.icon} className="size-3 shrink-0" />
-                  )}
-                  <span className="max-w-28 truncate">{tab.title}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => close(tab.id)}
-                  className="flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-foreground"
-                  aria-label={`关闭 ${tab.title}`}
-                >
-                  <HugeiconsIcon icon={Cancel01Icon} className="size-2.5" />
-                </button>
-              </div>
-            )
+            return { id: tab.id, label: tab.title, icon: render?.icon }
           })}
-        </DwScroll>
+          activeId={activeTabId}
+          onActivate={activate}
+          onClose={close}
+          onCloseOthers={closeOthers}
+          onCloseRight={closeRight}
+          onCloseLeft={closeLeft}
+          onCloseAll={closeAll}
+        />
 
         {/* 内容区：keep-alive */}
         {tabs

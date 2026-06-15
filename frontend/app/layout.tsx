@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Raleway, Figtree, Space_Grotesk, Inter, Merriweather } from "next/font/google"
+import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -7,7 +7,9 @@ import { AuthProvider } from "@/lib/auth"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils";
 
-const merriweather = Merriweather({subsets:['latin'],variable:'--font-serif'});
+// 回归 shadcn 默认黑白主题：全局走 sans（Inter），不再用 serif。
+// --font-serif / --font-heading 仍指向 Inter，使散落各处的显式 font-serif/font-heading 用法统一渲染为 sans。
+const interSerif = Inter({subsets:['latin'],variable:'--font-serif'});
 
 const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
 
@@ -32,7 +34,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, inter.variable, interHeading.variable, "font-serif", merriweather.variable)}
+      className={cn("antialiased", fontMono.variable, inter.variable, interHeading.variable, interSerif.variable)}
     >
       <body>
         {/*

@@ -3,12 +3,13 @@
 import { useCallback, useLayoutEffect, useState } from "react"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
+import { RefreshIcon } from "@hugeicons/core-free-icons"
 
 import { useLogPanelStore, type LogTab } from "@/lib/workspace/log-panel-store"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { Badge } from "@/components/ui/badge"
 import { DwScroll } from "@/components/ui/dw-scroll"
+import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { cn } from "@/lib/utils"
 import { API_BASE } from "@/lib/types"
 
@@ -21,7 +22,8 @@ const LOG_PANEL_HEIGHT_KEY = "dw.logPanel.height"
  * 底部日志面板：多卡片 tab + 水平拖拽分割线。
  */
 export function WorkspaceLogPanel() {
-  const { tabs, activeTabId, expanded, close, activate } = useLogPanelStore()
+  const { tabs, activeTabId, expanded, close, closeOthers, closeRight, closeLeft, closeAll, activate } =
+    useLogPanelStore()
 
   // ── 高度拖拽 ───────────────────────────────────────────────
   const [, setHeight] = useState(LOG_PANEL_DEFAULT_HEIGHT)
@@ -83,41 +85,32 @@ export function WorkspaceLogPanel() {
         <div className="h-0.5 w-12 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
       </div>
 
-      {/* ── 日志面板卡片 ──────────────────────────────────────── */}
+      {/* ── 日志面板卡片（浅色，与白色主题一致）──────────────────── */}
       <motion.div
-        className="mx-3 mb-3 flex shrink-0 flex-col overflow-hidden rounded-lg border bg-sidebar shadow-lg"
+        className="mx-3 mb-3 flex shrink-0 flex-col overflow-hidden rounded-lg border bg-card shadow-lg"
         style={{ height: hydrated ? heightStyle : `${LOG_PANEL_DEFAULT_HEIGHT}px` }}
       >
-        {/* Tab 条 */}
-        <DwScroll direction="horizontal" className="h-8 shrink-0" innerClassName="flex items-end gap-0.5 px-1.5 pt-1">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={cn(
-                "group flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-lg px-2.5 text-[11px] transition-colors",
-                tab.id === activeTabId
-                  ? "bg-sidebar font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => activate(tab.id)}
-            >
-              <span className="font-mono">{tab.instanceId.slice(0, 8)}…</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  close(tab.id)
-                }}
-                className="flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                title="关闭"
-              >
-                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-              </button>
-            </div>
-          ))}
-        </DwScroll>
+        {/* Tab 条（Chrome 卡片风格，统一 TabStrip；surface=card 使激活标签融入白色内容区） */}
+        <TabStrip
+          size="sm"
+          className="shrink-0 rounded-t-lg"
+          surface="card"
+          tabs={tabs.map<TabStripItem>((tab) => ({
+            id: tab.id,
+            label: `${tab.instanceId.slice(0, 8)}…`,
+            monospace: true,
+          }))}
+          activeId={activeTabId}
+          onActivate={activate}
+          onClose={close}
+          onCloseOthers={closeOthers}
+          onCloseRight={closeRight}
+          onCloseLeft={closeLeft}
+          onCloseAll={closeAll}
+        />
 
         {/* Tab 内容（keep-alive，SSE 在此层管理） */}
-        <div className="flex min-h-0 flex-1 flex-col border-t border-border/40">
+        <div className="flex min-h-0 flex-1 flex-col bg-card">
           {tabs.map((tab) => (
             <LogTabContent key={tab.id} tab={tab} active={tab.id === activeTabId} />
           ))}

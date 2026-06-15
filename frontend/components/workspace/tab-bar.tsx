@@ -2,13 +2,12 @@
 
 import { useRef, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon, PinIcon, PinOffIcon, PlusSignIcon } from "@hugeicons/core-free-icons"
+import { PlusSignIcon } from "@hugeicons/core-free-icons"
 
 import { useWorkspaceStore, type WorkspaceTab } from "@/lib/workspace/store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META, type ViewType } from "@/lib/workspace/views"
-import { DwScroll } from "@/components/ui/dw-scroll"
-import { cn } from "@/lib/utils"
+import { TabStrip, type TabStripItem, type TabContextAction } from "@/components/ui/tab-strip"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
 function tabLabel(tab: WorkspaceTab): string {
@@ -18,86 +17,31 @@ function tabLabel(tab: WorkspaceTab): string {
   return first != null ? `${title} · ${String(first)}` : title
 }
 
-function TabItem({ tab, active }: { tab: WorkspaceTab; active: boolean }) {
-  const activate = useWorkspaceStore((s) => s.activate)
-  const close = useWorkspaceStore((s) => s.close)
-  const pin = useWorkspaceStore((s) => s.pin)
-  const unpin = useWorkspaceStore((s) => s.unpin)
-
-  return (
-    <div
-      className={cn(
-        "group flex h-8 shrink-0 items-center gap-0.5 rounded-lg pl-2.5 pr-1.5 text-sm transition-colors",
-        active
-          ? "bg-muted text-foreground"
-          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => activate(tab.id)}
-        className="flex items-center gap-1.5"
-      >
-        <HugeiconsIcon icon={VIEW_RENDER[tab.view].icon} className="size-3.5 shrink-0" />
-        <span className="max-w-40 truncate">{tabLabel(tab)}</span>
-      </button>
-
-      {/* pin/unpin：仅非底座 tab 在激活态可见 */}
-      {!tab.base && active && (
-        <button
-          type="button"
-          onClick={() => (tab.pinned ? unpin(tab.id) : pin(tab.id))}
-          className="flex size-5 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-          title={tab.pinned ? "取消固定" : "固定"}
-          aria-label={tab.pinned ? "取消固定" : "固定"}
-        >
-          <HugeiconsIcon icon={tab.pinned ? PinOffIcon : PinIcon} className="size-3" />
-        </button>
-      )}
-
-      {/* 关闭：仅 Ephemeral（未固定）tab */}
-      {!tab.pinned && (
-        <button
-          type="button"
-          onClick={() => close(tab.id)}
-          className={cn(
-            "flex size-5 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground",
-            active ? "" : "opacity-0 group-hover:opacity-100",
-          )}
-          aria-label={`关闭 ${tabLabel(tab)}`}
-        >
-          <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-        </button>
-      )}
-    </div>
-  )
-}
-
 /** "+" 启动菜单：注册表全部视图，手动打开（不经 AI 的逃生舱） */
 function Launcher() {
   const [menuOpen, setMenuOpen] = useState(false)
   const open = useWorkspaceStore((s) => s.open)
   const btnRef = useRef<HTMLButtonElement>(null)
-  const [anchor, setAnchor] = useState({ top: 0, left: 0 })
+  const [anchor, setAnchor] = useState({ top: 0, right: 0 })
 
   // 展开前在点击事件里同步抓取按钮视口坐标（不能放 useEffect：绘制后才执行，
-  // 首帧菜单会闪现在视口左上角再跳回按钮下方）。下拉菜单用 fixed 定位——
-  // 逃离 TabBar 的 DwScroll 裁切（否则下拉被裁成一条缝看不见）。
+  // 首帧菜单会闪现在视口左上角再跳回按钮下方）。下拉菜单用 fixed + 右对齐
+  // （按钮在卡片最右，菜单右缘对齐按钮右缘、向左展开，避免溢出浏览器右边界）。
   const toggleMenu = () => {
     if (!menuOpen && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
-      setAnchor({ top: rect.bottom + 4, left: rect.left })
+      setAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
     }
     setMenuOpen((v) => !v)
   }
 
   return (
-    <div className="relative shrink-0">
+    <div className="relative">
       <button
         ref={btnRef}
         type="button"
         onClick={toggleMenu}
-        className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
         aria-label="打开视图"
         aria-expanded={menuOpen}
       >
@@ -105,14 +49,10 @@ function Launcher() {
       </button>
       {menuOpen && (
         <>
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setMenuOpen(false)}
-            aria-hidden
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} aria-hidden />
           <div
             className="fixed z-50 flex w-44 flex-col gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
-            style={{ top: anchor.top, left: anchor.left }}
+            style={{ top: anchor.top, right: anchor.right }}
           >
             {(Object.keys(VIEW_META) as ViewType[]).map((view) => (
               <button
@@ -124,10 +64,7 @@ function Launcher() {
                 }}
                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-popover-foreground hover:bg-muted"
               >
-                <HugeiconsIcon
-                  icon={VIEW_RENDER[view].icon}
-                  className="size-4 text-muted-foreground"
-                />
+                <HugeiconsIcon icon={VIEW_RENDER[view].icon} className="size-4 text-muted-foreground" />
                 {VIEW_META[view].title}
               </button>
             ))}
@@ -141,13 +78,46 @@ function Launcher() {
 export function WorkspaceTabBar() {
   const tabs = useWorkspaceStore((s) => s.tabs)
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const activate = useWorkspaceStore((s) => s.activate)
+  const close = useWorkspaceStore((s) => s.close)
+  const closeOthers = useWorkspaceStore((s) => s.closeOthers)
+  const closeRight = useWorkspaceStore((s) => s.closeRight)
+  const closeLeft = useWorkspaceStore((s) => s.closeLeft)
+  const closeAll = useWorkspaceStore((s) => s.closeAll)
+  const pin = useWorkspaceStore((s) => s.pin)
+  const unpin = useWorkspaceStore((s) => s.unpin)
+
+  const byId = new Map(tabs.map((t) => [t.id, t]))
+  const items: TabStripItem[] = tabs.map((tab) => ({
+    id: tab.id,
+    label: tabLabel(tab),
+    icon: VIEW_RENDER[tab.view].icon,
+    closable: !tab.pinned,
+  }))
+
+  // 固定/取消固定进右键菜单（底座 base tab 不可固定切换）
+  const extraActions = (item: TabStripItem): TabContextAction[] => {
+    const tab = byId.get(item.id)
+    if (!tab || tab.base) return []
+    return tab.pinned
+      ? [{ label: "取消固定", onClick: () => unpin(tab.id) }]
+      : [{ label: "固定标签页", onClick: () => pin(tab.id) }]
+  }
 
   return (
-    <DwScroll direction="horizontal" className="h-12 shrink-0" innerClassName="flex items-center gap-1 px-3">
-      {tabs.map((tab) => (
-        <TabItem key={tab.id} tab={tab} active={tab.id === activeTabId} />
-      ))}
-      <Launcher />
-    </DwScroll>
+    <TabStrip
+      size="md"
+      className="shrink-0"
+      tabs={items}
+      activeId={activeTabId}
+      onActivate={activate}
+      onClose={close}
+      onCloseOthers={closeOthers}
+      onCloseRight={closeRight}
+      onCloseLeft={closeLeft}
+      onCloseAll={closeAll}
+      extraActions={extraActions}
+      trailing={<Launcher />}
+    />
   )
 }
