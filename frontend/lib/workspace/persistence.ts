@@ -1,12 +1,16 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useLayoutEffect } from "react"
 
 import { API_BASE, type ApiResponse } from "@/lib/types"
 import { useWorkspaceStore } from "./store"
 
 const TOKEN_KEY = "dw.auth.token"
 const CONVERSATION_KEY = "dw.conversationId"
+
+/** SSR 安全的 layout effect：浏览器端用 useLayoutEffect（paint 前恢复，零闪烁），服务端退化为 useEffect。 */
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect
 
 /**
  * 对话会话 id：localStorage 持久化，对话（HttpAgent threadId）与 Workspace 快照共用同一 key，
@@ -26,6 +30,11 @@ function workspaceUrl(): string {
   return `${API_BASE}/api/agent/sessions/${getConversationId()}/workspace`
 }
 
+/** 本地快照缓存 key：与会话 id 绑定，刷新时可同步即时恢复，避免等后端 GET 期间的闪烁。 */
+function localSnapshotKey(): string {
+  return `dw.workspace.snapshot.${getConversationId()}`
+}
+
 const DEBOUNCE_MS = 1000
 
 /**
@@ -35,6 +44,20 @@ const DEBOUNCE_MS = 1000
  * store 变更后防抖 PUT，失败静默（下次变更重试）。
  */
 export function useWorkspacePersistence() {
+  // 本地快照同步恢复：在浏览器 paint 前从 localStorage 还原上次激活 tab，
+  // 消除「先渲染驾驶舱、再跳上次选择」的闪烁。仅当本地仍是纯 Pinned 底座才恢复，
+  // 不覆盖深链 / 先手操作。
+  useIsomorphicLayoutEffect(() => {
+    try {
+      const cached = localStorage.getItem(localSnapshotKey())
+      if (!cached) return
+      const state = useWorkspaceStore.getState()
+      if (state.tabs.every((t) => t.base)) state.restore(cached)
+    } catch {
+      // localStorage 不可用（隐私模式等）→ 静默退回后端恢复
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
@@ -42,6 +65,8 @@ export function useWorkspacePersistence() {
     const authHeaders: Record<string, string> = {}
     if (token) authHeaders["Authorization"] = `Bearer ${token}`
 
+    // 后端快照：跨设备 / 本地缓存缺失时的兜底；仅当本地仍是纯 Pinned 底座才覆盖，
+    // 避免盖掉上面 layout effect 刚从 localStorage 恢复的态或深链 / 先手操作。
     fetch(workspaceUrl(), { cache: "no-store", headers: authHeaders })
       .then((res) => res.json() as Promise<ApiResponse<string>>)
       .then((json) => {
@@ -55,9 +80,16 @@ export function useWorkspacePersistence() {
 
     let timer: ReturnType<typeof setTimeout> | null = null
     const unsubscribe = useWorkspaceStore.subscribe(() => {
+      const snapshot = useWorkspaceStore.getState().snapshot()
+      // 本地即时写：下次刷新可同步恢复（localStorage 同步、量小，不必防抖）
+      try {
+        localStorage.setItem(localSnapshotKey(), JSON.stringify(snapshot))
+      } catch {
+        // 忽略本地写失败
+      }
+      // 后端防抖写
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
-        const snapshot = useWorkspaceStore.getState().snapshot()
         fetch(workspaceUrl(), {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
