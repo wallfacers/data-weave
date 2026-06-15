@@ -304,7 +304,8 @@ CREATE TABLE workflow_node (
     tenant_id   BIGINT NOT NULL,
     project_id  BIGINT NOT NULL,
     workflow_id BIGINT NOT NULL,
-    task_id     BIGINT NOT NULL,
+    task_id     BIGINT,                       -- TASK 节点必填；VIRTUAL（zero-load）节点为空
+    node_type   VARCHAR(32) DEFAULT 'TASK',   -- TASK | VIRTUAL（虚拟起始/汇聚锚点）
     node_key    VARCHAR(64),
     name        VARCHAR(256),
     pos_x       INTEGER,
@@ -361,7 +362,7 @@ CREATE TABLE task_instance (
     project_id           BIGINT NOT NULL,
     workflow_instance_id UUID,
     workflow_node_id     BIGINT,
-    task_id              BIGINT NOT NULL,
+    task_id              BIGINT,                 -- 普通节点必填；VIRTUAL（zero-load）节点实例为空
     task_version_no      INTEGER,            -- 本次运行所跑的 task 已发布版本（NULL=试跑草稿）
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试
     biz_date             VARCHAR(32),          -- 业务日期（注入任务执行环境，幂等钥匙之一）

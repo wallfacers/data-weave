@@ -24,6 +24,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+        <!-- Jackson 3 (tools.jackson) for DAG snapshot JSON (de)serialization -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
         <!-- Micrometer core for scheduler metrics (MeterRegistry injected from boot) -->
         <dependency>
             <groupId>io.micrometer</groupId>

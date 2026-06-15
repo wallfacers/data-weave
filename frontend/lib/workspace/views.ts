@@ -6,6 +6,7 @@
 export type ViewType =
   | "cockpit"
   | "task-flow"
+  | "workflow-canvas"
   | "freshness"
   | "reports"
   | "metrics"
@@ -30,6 +31,7 @@ export interface ViewMeta {
 export const VIEW_META: Record<ViewType, ViewMeta> = {
   cockpit: { title: "驾驶舱", defaultPinned: true },
   "task-flow": { title: "任务流", defaultPinned: true },
+  "workflow-canvas": { title: "工作流编排" },
   freshness: { title: "数据新鲜度", defaultPinned: true },
   reports: { title: "业务报表", defaultPinned: true },
   metrics: { title: "系统指标", defaultPinned: true },

@@ -50,11 +50,15 @@ public class WorkflowTriggerService {
      * @return 新建 workflow_instance 的 id；工作流无节点抛 {@link IllegalStateException}
      */
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride) {
-        List<WorkflowNode> nodes = nodeRepository.findByWorkflowId(wf.getId());
+        List<WorkflowNode> nodes = nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0);
         if (nodes.isEmpty()) {
             throw new IllegalStateException("工作流无节点，无法触发：" + wf.getId());
         }
         LocalDateTime now = LocalDateTime.now();
+
+        // 虚拟节点（zero-load）物化即 SUCCESS，计入已完成数。
+        int virtualCount = (int) nodes.stream()
+                .filter(WorkflowTriggerService::isVirtual).count();
 
         WorkflowInstance wi = new WorkflowInstance();
         wi.setTenantId(wf.getTenantId());
@@ -67,7 +71,7 @@ public class WorkflowTriggerService {
                 : (wf.getPriority() != null ? wf.getPriority() : 5));
         wi.setBizDate(bizDate);
         wi.setTotalTasks(nodes.size());
-        wi.setCompletedTasks(0);
+        wi.setCompletedTasks(virtualCount);
         wi.setFailedTasks(0);
         wi.setStartedAt(now);
         wi.setCreatedAt(now);
@@ -77,21 +81,37 @@ public class WorkflowTriggerService {
         WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
 
         for (WorkflowNode node : nodes) {
-            Integer versionNo = taskDefRepository.findById(node.getTaskId())
-                    .map(TaskDef::getCurrentVersionNo).orElse(null);
             TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now);
             ti.setWorkflowInstanceId(savedWi.getId());
             ti.setWorkflowNodeId(node.getId());
-            ti.setTaskId(node.getTaskId());
-            ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);
             ti.setRunMode("NORMAL");
-            ti.setState(InstanceStates.WAITING);
             ti.setBizDate(bizDate);
+            if (isVirtual(node)) {
+                // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽。
+                ti.setTaskId(null);
+                ti.setTaskVersionNo(null);
+                ti.setState(InstanceStates.SUCCESS);
+                ti.setStartedAt(now);
+                ti.setFinishedAt(now);
+            } else {
+                Integer versionNo = node.getTaskId() != null
+                        ? taskDefRepository.findById(node.getTaskId())
+                                .map(TaskDef::getCurrentVersionNo).orElse(null)
+                        : null;
+                ti.setTaskId(node.getTaskId());
+                ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);
+                ti.setState(InstanceStates.WAITING);
+            }
             taskInstanceRepository.save(ti);
         }
 
         wake();
         return savedWi.getId();
+    }
+
+    /** VIRTUAL（zero-load）节点判定。null/缺省 node_type 视为 TASK。 */
+    private static boolean isVirtual(WorkflowNode node) {
+        return "VIRTUAL".equals(node.getNodeType());
     }
 
     /**

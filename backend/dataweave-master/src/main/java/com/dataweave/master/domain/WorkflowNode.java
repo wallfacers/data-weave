@@ -12,6 +12,7 @@ public class WorkflowNode {
     private Long projectId;
     private Long workflowId;
     private Long taskId;
+    private String nodeType;
     private String nodeKey;
     private String name;
     private Integer posX;
@@ -39,6 +40,9 @@ public class WorkflowNode {
 
     public Long getTaskId() { return taskId; }
     public void setTaskId(Long taskId) { this.taskId = taskId; }
+
+    public String getNodeType() { return nodeType; }
+    public void setNodeType(String nodeType) { this.nodeType = nodeType; }
 
     public String getNodeKey() { return nodeKey; }
     public void setNodeKey(String nodeKey) { this.nodeKey = nodeKey; }

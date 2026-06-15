@@ -137,6 +137,70 @@ export interface TaskDef {
   updatedAt: string | null
 }
 
+// ─── Workflow / DAG（画布编排）───────────────────────────
+
+/** 工作流定义（GET /api/workflows/{id}）。 */
+export interface WorkflowDef {
+  id: number
+  name: string
+  description: string | null
+  scheduleType: string // MANUAL | CRON | DEPENDENCY
+  cron: string | null
+  status: "ONLINE" | "DRAFT"
+  currentVersionNo: number
+  hasDraftChange: number
+  priority: number | null
+  preemptible: number | null
+  timeoutSec: number | null
+  version: number
+  createdAt: string
+  updatedAt: string | null
+}
+
+export type DagNodeType = "TASK" | "VIRTUAL"
+
+/** DAG 节点（以 nodeKey 为稳定标识，与后端 DagNodeDto 对应）。 */
+export interface DagNode {
+  nodeKey: string
+  nodeType: DagNodeType
+  taskId: number | null // VIRTUAL 节点为 null
+  name: string | null
+  posX: number | null
+  posY: number | null
+}
+
+/** DAG 边（端点用 nodeKey 引用）。 */
+export interface DagEdge {
+  fromNodeKey: string
+  toNodeKey: string
+}
+
+/** 读图视图（GET /api/workflows/{id}/dag）。version 用于保存时乐观锁回传。 */
+export interface DagView {
+  workflowId: number
+  version: number
+  hasDraftChange: number
+  status: string
+  nodes: DagNode[]
+  edges: DagEdge[]
+}
+
+/** 整图保存载荷（PUT /api/workflows/{id}/dag）。 */
+export interface DagPayload {
+  version: number | null
+  nodes: DagNode[]
+  edges: DagEdge[]
+}
+
+/** 分页结果（GET /api/workflows）。 */
+export interface WorkflowPage {
+  content: WorkflowDef[]
+  totalElements: number
+  totalPages: number
+  page: number
+  size: number
+}
+
 // ─── MetricCard ──────────────────────────────────────────
 
 /** GET /api/metrics → 指标卡片（每 code 最新版本 + 口径求值） */

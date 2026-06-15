@@ -37,7 +37,7 @@ public class WorkflowGraphValidator {
 
     /** 工作流内 DAG 拓扑环检测。有环抛异常并提示环路节点。 */
     public void validateWorkflowDagAcyclic(Long workflowId) {
-        List<WorkflowEdge> edges = edgeRepository.findByWorkflowId(workflowId);
+        List<WorkflowEdge> edges = edgeRepository.findByWorkflowIdAndDeleted(workflowId, 0);
         Map<Long, List<Long>> adjacency = new HashMap<>();
         for (WorkflowEdge e : edges) {
             adjacency.computeIfAbsent(e.getFromNodeId(), k -> new ArrayList<>()).add(e.getToNodeId());
