@@ -65,8 +65,8 @@ interface MenuState {
 }
 
 const SIZE = {
-  md: { pad: "px-1.5 pt-1.5", tab: "h-9 gap-1.5 pl-3 pr-2 text-sm", radius: "rounded-t-[10px]", icon: "size-3.5", close: "size-5", closeIcon: "size-3" },
-  sm: { pad: "px-1 pt-1", tab: "h-8 gap-1 pl-2.5 pr-1.5 text-xs", radius: "rounded-t-lg", icon: "size-3", close: "size-4", closeIcon: "size-2.5" },
+  md: { pad: "px-1.5 pt-1.5", tab: "h-9 gap-1.5 pl-3 pr-2 text-sm", radius: "rounded-t-[10px]", radiusFirst: "rounded-tr-[10px]", flush: "-ml-1.5", icon: "size-3.5", close: "size-5", closeIcon: "size-3" },
+  sm: { pad: "px-1 pt-1", tab: "h-8 gap-1 pl-2.5 pr-1.5 text-xs", radius: "rounded-t-lg", radiusFirst: "rounded-tr-lg", flush: "-ml-1", icon: "size-3", close: "size-4", closeIcon: "size-2.5" },
 } as const
 
 export function TabStrip({
@@ -188,7 +188,8 @@ export function TabStrip({
                 className={cn(
                   "group/tab relative flex min-w-10 cursor-pointer select-none items-center transition-colors",
                   s.tab,
-                  s.radius,
+                  // 首个标签贴左边缘：左上拉直（仅右上圆角）+ 负边距抵消容器左内边距 + 去左下外凸弧。
+                  i === 0 ? cn(s.radiusFirst, s.flush, "dw-tab-flush-left") : s.radius,
                   active
                     ? "dw-tab-active font-medium text-foreground"
                     : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",

@@ -11,6 +11,12 @@ import { useAuth } from "@/lib/auth"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { VIEW_META } from "@/lib/workspace/views"
 
+/** 长 ID（UUID）紧凑显示：含连字符的取后 6 位 hex，与日志面板 tab 短 ID 一致；短 ID 原样。 */
+function compactId(id: string): string {
+  const hex = id.replace(/-/g, "")
+  return hex.length > 8 ? hex.slice(-6) : id
+}
+
 /** 左栏对话主驾宽度：默认 / 可拖拽范围 / 持久化键 */
 const RAIL_DEFAULT_WIDTH = 440
 const RAIL_MIN_WIDTH = 340
@@ -94,8 +100,9 @@ export function AgentRail() {
     nodeId: asStr(params?.nodeId),
   }
   const moduleName = activeTab ? VIEW_META[activeTab.view].title : ""
-  const contextObject =
+  const rawContext =
     pageContext.instanceId ?? pageContext.nodeId ?? pageContext.taskId ?? null
+  const contextObject = rawContext ? compactId(rawContext) : null
 
   return (
     <motion.div
@@ -110,9 +117,17 @@ export function AgentRail() {
           </div>
           <span className="text-sm font-semibold">DataWeave</span>
           {moduleName && (
-            <span className="text-xs text-muted-foreground">
+            <span
+              className="min-w-0 truncate text-xs text-muted-foreground"
+              title={rawContext ? `${moduleName} · ${rawContext}` : moduleName}
+            >
               当前：{moduleName}
-              {contextObject && ` · ${contextObject}`}
+              {contextObject && (
+                <>
+                  {" · "}
+                  <span className="font-mono">{contextObject}</span>
+                </>
+              )}
             </span>
           )}
           <div className="flex-1" />

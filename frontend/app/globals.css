@@ -324,3 +324,7 @@ html.dark .os-theme-dark {
   right: -8px;
   background: radial-gradient(circle at top right, transparent 8px, var(--dw-tab-surface) 8px);
 }
+/* 首个标签贴左边缘：去掉左下外凸弧（左侧无相邻 tab，无需向左连体）。 */
+.dw-tab-flush-left::before {
+  content: none;
+}
