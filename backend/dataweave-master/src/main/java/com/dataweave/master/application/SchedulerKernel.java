@@ -48,6 +48,7 @@ public class SchedulerKernel {
     private final EventBus eventBus;
     private final PreemptionService preemptionService;
     private final SchedulerMetrics metrics;
+    private final ParallelDispatcher dispatcher;
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
@@ -64,6 +65,7 @@ public class SchedulerKernel {
                            EventBus eventBus,
                            PreemptionService preemptionService,
                            SchedulerMetrics metrics,
+                           ParallelDispatcher dispatcher,
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds) {
@@ -75,6 +77,7 @@ public class SchedulerKernel {
         this.eventBus = eventBus;
         this.preemptionService = preemptionService;
         this.metrics = metrics;
+        this.dispatcher = dispatcher;
         this.txTemplate = new TransactionTemplate(txManager);
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
@@ -131,15 +134,11 @@ public class SchedulerKernel {
             return;
         }
         metrics.markDispatches(dispatched.size());
-        // 事务外下发（副作用）；失败回退 WAITING 重派。
-        for (DispatchCommand cmd : dispatched) {
-            try {
-                gateway.dispatch(cmd);
-            } catch (Exception e) {
-                log.warn("[Scheduler] 下发实例 {} 失败，回退 WAITING：{}", cmd.taskInstanceId(), e.getMessage());
-                stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
-            }
-        }
+        // 事务外并行下发（副作用，不持 DB 锁）；失败回退 WAITING 重派。屏障语义：全部完成才返回，保持轮次串行。
+        dispatcher.dispatchAll(dispatched, gateway::dispatch, (cmd, err) -> {
+            log.warn("[Scheduler] 下发实例 {} 失败，回退 WAITING：{}", cmd.taskInstanceId(), err.getMessage());
+            stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
+        });
         metrics.endRound(roundSample);
     }
 
