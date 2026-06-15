@@ -328,3 +328,32 @@ html.dark .os-theme-dark {
 .dw-tab-flush-left::before {
   content: none;
 }
+
+/* ── React Flow 控件主题适配（workflow-canvas） ──────────────
+   默认 style.css 的缩放按钮(+/-)、fitView([]) 与 minimap 均为白底，
+   暗色主题下看不清。组件里 `@xyflow/react/dist/style.css` 晚于本文件
+   加载，直接覆盖 background-color 等属性会因同 specificity 被默认值压回；
+   故改为给 React Flow 官方 CSS 变量赋值——走变量消费，不抢属性优先级，
+   且全部挂语义 token，亮/暗双主题自动适配。 */
+.react-flow {
+  --xy-controls-box-shadow: none;
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-color-hover: var(--accent-foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: color-mix(in oklch, var(--background) 70%, transparent);
+  --xy-minimap-mask-stroke-color: var(--border);
+  --xy-minimap-node-background-color: var(--muted-foreground);
+  --xy-minimap-node-stroke-color: var(--border);
+}
+.react-flow__controls-button {
+  border-radius: var(--radius-sm, 0.25rem);
+  width: 24px;
+  height: 24px;
+}
+.react-flow__minimap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 0.25rem);
+}
