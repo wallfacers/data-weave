@@ -1,17 +1,56 @@
 "use client"
 
-import { useCallback, useLayoutEffect, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 
 import { useLogPanelStore, type LogTab } from "@/lib/workspace/log-panel-store"
 import { useEventSource } from "@/lib/workspace/use-event-source"
+import { useApi } from "@/lib/workspace/use-api"
 import { Badge } from "@/components/ui/badge"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { cn } from "@/lib/utils"
-import { API_BASE } from "@/lib/types"
+import { API_BASE, type TaskDef } from "@/lib/types"
+
+/** tab 连接状态：实时 / 已结束 / 断开 / 连接中。 */
+type TabConnStatus = "live" | "ended" | "error" | "connecting"
+
+/** 状态圆点（复用语义状态色，neutral 主题安全）。 */
+function StatusDot({ status }: { status: TabConnStatus }) {
+  const color =
+    status === "live"
+      ? "bg-success"
+      : status === "error"
+        ? "bg-destructive"
+        : status === "ended"
+          ? "bg-muted-foreground/40"
+          : "bg-warning"
+  return (
+    <span
+      aria-hidden
+      className={cn("size-1.5 rounded-full", color, status === "live" && "animate-pulse")}
+    />
+  )
+}
+
+/** UUIDv7 时间戳前缀重复、辨识度低 —— 取末 6 位 hex 作短 ID。 */
+function shortInstanceId(instanceId: string): string {
+  const hex = instanceId.replace(/-/g, "")
+  return hex.length > 6 ? hex.slice(-6) : hex
+}
+
+/** tab 标题：任务名 ·短ID（无任务名退化为「任务 #id」，再退化为纯短 ID）。 */
+function tabLabel(tab: LogTab, taskNames: Map<number, string>): string {
+  const sid = shortInstanceId(tab.instanceId)
+  const taskId = tab.meta?.taskId
+  if (taskId != null) {
+    const name = taskNames.get(taskId)
+    return name ? `${name} ·${sid}` : `任务 #${taskId} ·${sid}`
+  }
+  return sid
+}
 
 const LOG_PANEL_DEFAULT_HEIGHT = 240
 const LOG_PANEL_MIN_HEIGHT = 120
@@ -24,6 +63,20 @@ const LOG_PANEL_HEIGHT_KEY = "dw.logPanel.height"
 export function WorkspaceLogPanel() {
   const { tabs, activeTabId, expanded, close, closeOthers, closeRight, closeLeft, closeAll, activate } =
     useLogPanelStore()
+
+  // ── 任务名映射（一次拉全量，taskId → name）─────────────────
+  const { data: taskDefs } = useApi<TaskDef[]>("/api/ops/tasks")
+  const taskNames = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const t of taskDefs ?? []) m.set(t.id, t.name)
+    return m
+  }, [taskDefs])
+
+  // ── 各 tab 连接状态（LogTabContent 上报，驱动 tab 圆点）──────
+  const [statusMap, setStatusMap] = useState<Record<string, TabConnStatus>>({})
+  const reportStatus = useCallback((id: string, status: TabConnStatus) => {
+    setStatusMap((prev) => (prev[id] === status ? prev : { ...prev, [id]: status }))
+  }, [])
 
   // ── 高度拖拽 ───────────────────────────────────────────────
   const [, setHeight] = useState(LOG_PANEL_DEFAULT_HEIGHT)
@@ -97,8 +150,9 @@ export function WorkspaceLogPanel() {
           surface="card"
           tabs={tabs.map<TabStripItem>((tab) => ({
             id: tab.id,
-            label: `${tab.instanceId.slice(0, 8)}…`,
+            label: tabLabel(tab, taskNames),
             monospace: true,
+            indicator: <StatusDot status={statusMap[tab.id] ?? "connecting"} />,
           }))}
           activeId={activeTabId}
           onActivate={activate}
@@ -112,7 +166,12 @@ export function WorkspaceLogPanel() {
         {/* Tab 内容（keep-alive，SSE 在此层管理） */}
         <div className="flex min-h-0 flex-1 flex-col bg-card">
           {tabs.map((tab) => (
-            <LogTabContent key={tab.id} tab={tab} active={tab.id === activeTabId} />
+            <LogTabContent
+              key={tab.id}
+              tab={tab}
+              active={tab.id === activeTabId}
+              onStatus={reportStatus}
+            />
           ))}
         </div>
       </motion.div>
@@ -123,13 +182,34 @@ export function WorkspaceLogPanel() {
 /**
  * 单个 tab 的日志内容：独立 SSE 连接 + 状态徽章。
  */
-function LogTabContent({ tab, active }: { tab: LogTab; active: boolean }) {
+function LogTabContent({
+  tab,
+  active,
+  onStatus,
+}: {
+  tab: LogTab
+  active: boolean
+  onStatus: (id: string, status: TabConnStatus) => void
+}) {
+  // 全部 tab 常驻 SSE 连接（切走也实时），供 tab 圆点显示状态
   const { events, connected, error, clearEvents } = useEventSource(
-    active ? `${API_BASE}/api/ops/instances/${tab.instanceId}/logs/stream` : "",
+    `${API_BASE}/api/ops/instances/${tab.instanceId}/logs/stream`,
   )
 
   const logLines = events.filter((e) => e.type === "log").map((e) => e.data)
   const isEnded = events.some((e) => e.type === "end")
+  const status: TabConnStatus = connected
+    ? "live"
+    : isEnded
+      ? "ended"
+      : error
+        ? "error"
+        : "connecting"
+
+  // 上报连接状态给面板（驱动 tab 圆点）
+  useEffect(() => {
+    onStatus(tab.id, status)
+  }, [tab.id, status, onStatus])
 
   return (
     <div className={cn("flex flex-1 flex-col overflow-hidden", active ? "flex" : "hidden")}>

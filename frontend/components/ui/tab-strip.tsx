@@ -19,6 +19,8 @@ export interface TabStripItem {
   id: string
   label: string
   icon?: IconSvgElement
+  /** 标签最前的状态指示器（如日志面板连接状态圆点），置于 icon/label 之前 */
+  indicator?: ReactNode
   /** 默认 true；false = 不可关闭（如工作区固定底座），无 × 且 close 系列跳过 */
   closable?: boolean
   /** 标签文字用等宽字体（如日志面板实例 ID） */
@@ -192,6 +194,9 @@ export function TabStrip({
                     : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
                 )}
               >
+                {tab.indicator && (
+                  <span className="flex shrink-0 items-center">{tab.indicator}</span>
+                )}
                 {tab.icon && (
                   <HugeiconsIcon icon={tab.icon} className={cn("shrink-0", s.icon)} />
                 )}
