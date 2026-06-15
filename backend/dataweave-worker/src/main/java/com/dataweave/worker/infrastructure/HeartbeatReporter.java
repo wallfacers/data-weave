@@ -35,6 +35,14 @@ public class HeartbeatReporter {
     @Value("${dataweave.worker.node-code:worker-local}")
     private String nodeCode;
 
+    /** worker 自身 HTTP 端口，随心跳上报供 master distributed 下发寻址。 */
+    @Value("${server.port:8081}")
+    private int serverPort;
+
+    /** 对外可达主机名/IP（同机多 worker 区分用），留空则回退本机名。 */
+    @Value("${dataweave.worker.advertise-host:}")
+    private String advertiseHost;
+
     private final IncarnationManager incarnationManager;
     private final WorkerExecService execService;
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -52,7 +60,7 @@ public class HeartbeatReporter {
             return;
         }
         try {
-            String host = InetAddress.getLocalHost().getHostName();
+            String host = buildAdvertisedHost(advertiseHost, InetAddress.getLocalHost().getHostName(), serverPort);
             String capacity = "4C/8G";
             double cpu = 0.3;
             double mem = 0.45;
@@ -84,5 +92,14 @@ public class HeartbeatReporter {
             log.log(System.Logger.Level.WARNING,
                     "Heartbeat report failed: {0}", e.getMessage());
         }
+    }
+
+    /**
+     * 拼装上报的可达地址 {@code host:port}：advertiseHost 非空则用它（已含端口则原样返回），
+     * 否则回退 fallbackHost；最终统一补上 port。
+     */
+    static String buildAdvertisedHost(String advertiseHost, String fallbackHost, int port) {
+        String host = (advertiseHost != null && !advertiseHost.isBlank()) ? advertiseHost : fallbackHost;
+        return host.contains(":") ? host : host + ":" + port;
     }
 }
