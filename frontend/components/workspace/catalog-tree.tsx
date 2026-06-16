@@ -829,9 +829,14 @@ export function CatalogTree({
           {(!tree || tree.roots.length === 0) &&
             tasksByNode.size === 0 &&
             workflowsByNode.size === 0 && (
-              <p className="px-1 py-2 text-sm text-muted-foreground">
-                {searching ? "未匹配到任务/工作流" : "暂无类目，右键空白处或点「新建」建文件夹"}
-              </p>
+              searching ? (
+                <p className="px-1 py-2 text-sm text-muted-foreground">未匹配到任务/工作流</p>
+              ) : (
+                <div className="flex flex-col gap-0.5 px-1 py-2 text-sm text-muted-foreground">
+                  <span>暂无类目</span>
+                  <span className="text-xs text-muted-foreground/70">右键或点「新建」建文件夹</span>
+                </div>
+              )
             )}
         </ContextMenuTrigger>
         <ContextMenuContent>

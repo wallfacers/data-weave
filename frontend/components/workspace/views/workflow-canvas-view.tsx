@@ -670,15 +670,17 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
 
       {/* 右侧内层子 Tab 区 —— Card 边框，对齐 cockpit StatCard 观感 */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
-        <TabStrip
-          size="sm"
-          surface="background"
-          tabs={stripTabs}
-          activeId={activeKey}
-          onActivate={setActiveKey}
-          onClose={closeTab}
-          trailing={null}
-        />
+        {tabs.length > 0 && (
+          <TabStrip
+            size="sm"
+            surface="background"
+            tabs={stripTabs}
+            activeId={activeKey}
+            onActivate={setActiveKey}
+            onClose={closeTab}
+            trailing={null}
+          />
+        )}
 
         {/* 子 Tab 内容（隐藏式保活 keep-alive） */}
         <div className="relative min-h-0 flex-1">
