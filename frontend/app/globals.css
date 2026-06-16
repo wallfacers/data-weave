@@ -364,3 +364,13 @@ html.dark .os-theme-dark {
 .react-flow__background-pattern.dots {
   r: 1.2px;
 }
+
+/* ── 类目树动态操作高亮 ── */
+@keyframes catalog-item-flash {
+  0% { background-color: color-mix(in oklch, var(--primary) 15%, transparent); }
+  100% { background-color: transparent; }
+}
+.catalog-item-enter {
+  animation: catalog-item-flash 0.9s ease-out forwards;
+  border-radius: var(--radius-md, 0.375rem);
+}
