@@ -677,33 +677,14 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
           activeId={activeKey}
           onActivate={setActiveKey}
           onClose={closeTab}
-          trailing={
-            <>
-              <button
-                type="button"
-                title="新建任务"
-                onClick={() => setTaskDialog(true)}
-                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <HugeiconsIcon icon={Task01Icon} className="size-3.5" /> 任务
-              </button>
-              <button
-                type="button"
-                title="新建工作流"
-                onClick={() => setWfDialog(true)}
-                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <HugeiconsIcon icon={Share08Icon} className="size-3.5" /> 工作流
-              </button>
-            </>
-          }
+          trailing={null}
         />
 
         {/* 子 Tab 内容（隐藏式保活 keep-alive） */}
         <div className="relative min-h-0 flex-1">
           {tabs.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              从左侧类目树点开任务/工作流，或点上方「任务 / 工作流」新建
+              从左侧类目树点开任务/工作流
             </div>
           ) : (
             tabs.map((t) => (
