@@ -38,14 +38,21 @@ function stateColor(state: string): string {
   switch (state) {
     case "SUCCESS":
       return "bg-success/15 text-success border-success/30"
+    case "RUNNING":
+      return "bg-success/15 text-success border-success/30 animate-pulse"
+    case "WAIT_RETRY":
+      return "bg-info/15 text-info border-info/30 animate-pulse"
     case "FAILED":
       return "bg-destructive/15 text-destructive border-destructive/30"
-    case "RUNNING":
-      return "bg-info/15 text-info border-info/30"
+    case "KILLED":
+    case "STOPPED":
+      return "bg-destructive/15 text-destructive border-destructive/30"
     case "WAITING":
       return "bg-warning/15 text-warning border-warning/30"
     case "DISPATCHED":
       return "bg-info/15 text-info border-info/30"
+    case "SKIPPED":
+      return "bg-muted text-muted-foreground border-border"
     case "NOT_RUN":
       return "bg-muted text-muted-foreground border-border"
     default:

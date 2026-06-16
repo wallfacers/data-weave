@@ -19,18 +19,40 @@ import {
 import { type TaskInstance, formatDateTime, API_BASE, authFetch } from "@/lib/types"
 import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 
+// 活跃态脉冲圆点：继承 Badge 文字色（bg-current），随徽章语义色一起变
+function PulseDot() {
+  return (
+    <span className="relative flex size-1.5">
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+      <span className="relative inline-flex size-1.5 rounded-full bg-current" />
+    </span>
+  )
+}
+
 function stateBadge(state: string) {
   switch (state) {
     case "SUCCESS":
       return <Badge variant="success">成功</Badge>
+    case "RUNNING":
+      return <Badge variant="success"><PulseDot />运行中</Badge>
+    case "WAIT_RETRY":
+      return <Badge variant="info"><PulseDot />等待重试</Badge>
+    case "WAITING":
+      return <Badge variant="warning">等待</Badge>
+    case "DISPATCHED":
+      return <Badge variant="info">已分发</Badge>
+    case "NOT_RUN":
+      return <Badge variant="outline" className="text-muted-foreground">未运行</Badge>
     case "FAILED":
       return <Badge variant="destructive">失败</Badge>
-    case "RUNNING":
-      return <Badge variant="info">运行中</Badge>
+    case "KILLED":
+      return <Badge variant="destructive">已终止</Badge>
+    case "SKIPPED":
+      return <Badge variant="outline" className="text-muted-foreground">已跳过</Badge>
     case "PAUSED":
-      return <Badge variant="outline" className="text-amber-600">已暂停</Badge>
+      return <Badge variant="warning">已暂停</Badge>
     case "STOPPED":
-      return <Badge variant="outline" className="text-muted-foreground">已终止</Badge>
+      return <Badge variant="destructive">已终止</Badge>
     default:
       return (
         <Badge variant="outline" className="text-muted-foreground">
