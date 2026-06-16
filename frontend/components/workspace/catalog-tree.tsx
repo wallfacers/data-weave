@@ -15,6 +15,7 @@
  *
  * 交互式输入/确认统一走 base 风格 Dialog（建文件夹 / 重命名 / 删除），不使用原生 window.prompt。
  */
+import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -66,6 +67,51 @@ import {
 const MOVE_MIME = "application/dw-catalog-move"
 const TASK_MIME = "application/dw-task"
 const UNCATEGORIZED = -1
+
+/** motion  enter/exit 动画参数：淡入+下滑进、淡出+上滑出。 */
+const itemMotion = {
+  initial: { opacity: 0, height: 0, y: -6 },
+  animate: { opacity: 1, height: "auto", y: 0 },
+  exit: { opacity: 0, height: 0, y: -6 },
+  transition: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
+} as const
+
+/** 新建/移动高亮闪烁（bg 从 primary/15 过渡到透明）。 */
+const highlightClass = "catalog-item-enter"
+
+// ── 乐观树操作：直接改本地 state，不触发整树 reload ──
+
+/** 把新文件夹节点插入树的正确位置（parentId=null → roots，否则递归找父）。 */
+function insertFolderIntoTree(
+  roots: CatalogTreeNode[],
+  parentId: number | null,
+  newNode: CatalogTreeNode,
+): CatalogTreeNode[] {
+  // 后端返回的新节点可能不含 children 字段，补上空数组
+  const safeNode = { ...newNode, children: newNode.children ?? [] }
+  if (parentId == null) return [...roots, safeNode]
+  return roots.map((r) =>
+    r.id === parentId
+      ? { ...r, children: [...r.children, safeNode] }
+      : { ...r, children: insertFolderIntoTree(r.children, parentId, newNode) },
+  )
+}
+
+/** 从树中移除指定文件夹（递归）。 */
+function removeFolderFromTree(roots: CatalogTreeNode[], folderId: number): CatalogTreeNode[] {
+  return roots
+    .filter((r) => r.id !== folderId)
+    .map((r) => ({ ...r, children: removeFolderFromTree(r.children ?? [], folderId) }))
+}
+
+/** 更新树中指定文件夹的名称。 */
+function renameFolderInTree(roots: CatalogTreeNode[], folderId: number, name: string): CatalogTreeNode[] {
+  return roots.map((r) =>
+    r.id === folderId
+      ? { ...r, name }
+      : { ...r, children: renameFolderInTree(r.children ?? [], folderId, name) },
+  )
+}
 
 interface MovePayload {
   kind: "task" | "workflow"
@@ -127,6 +173,19 @@ export function CatalogTree({
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((t) => t + 1), [])
+  /** 高亮新进/移动的节点（key = `folder-${id}` | `task-${id}` | `workflow-${id}`），动画结束后清除。 */
+  const [highlightedKeys, setHighlightedKeys] = useState<Set<string>>(new Set())
+  const flashHighlight = useCallback((keys: string[]) => {
+    if (!keys.length) return
+    setHighlightedKeys((prev) => new Set([...prev, ...keys]))
+    setTimeout(() => {
+      setHighlightedKeys((prev) => {
+        const next = new Set(prev)
+        for (const k of keys) next.delete(k)
+        return next
+      })
+    }, 900)
+  }, [])
 
   // ── 本地搜索（D7）：子串过滤叶子 + 命中祖先自动展开；清空恢复 store 原展开态 ──
   const [query, setQuery] = useState("")
@@ -221,7 +280,7 @@ export function CatalogTree({
     const walk = (node: CatalogTreeNode, chain: number[]) => {
       const c = [...chain, node.id]
       map.set(node.id, c)
-      for (const child of node.children) walk(child, c)
+      for (const child of (node.children ?? [])) walk(child, c)
     }
     if (tree) for (const root of tree.roots) walk(root, [])
     return map
@@ -263,10 +322,18 @@ export function CatalogTree({
     return map
   }, [workflows, visibleWorkflowIds, matchedWorkflowIds])
 
-  // ── 移动归属（树内拖放）──
+  // ── 移动归属（树内拖放）：乐观更新 catalogNodeId，展开目标文件夹，高亮新位置 ──
   const move = useCallback(
     async (payload: MovePayload, targetNodeId: number | null) => {
       const base = payload.kind === "task" ? "tasks" : "workflows"
+      // 乐观更新：直接改本地 state
+      if (payload.kind === "task") {
+        setTasks((prev) => prev.map((i) => i.id === payload.id ? { ...i, catalogNodeId: targetNodeId } : i))
+      } else {
+        setWorkflows((prev) => prev.map((i) => i.id === payload.id ? { ...i, catalogNodeId: targetNodeId } : i))
+      }
+      if (targetNodeId != null) expand(targetNodeId)
+      flashHighlight([`${payload.kind}-${payload.id}`])
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${payload.id}/catalog`, {
           method: "PATCH",
@@ -276,15 +343,16 @@ export function CatalogTree({
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
           toast.success("已移动归属")
-          reload()
         } else {
           toast.error(json.message || "移动失败")
+          reload() // 回滚：全量重拉
         }
       } catch {
         toast.error("移动失败")
+        reload()
       }
     },
-    [reload],
+    [expand, reload, flashHighlight],
   )
 
   const onFolderDrop = useCallback(
@@ -314,9 +382,14 @@ export function CatalogTree({
           body: JSON.stringify({ projectId, parentId, name: name.trim() }),
         })
         const json = (await res.json()) as ApiResponse<CatalogTreeNode>
-        if (json.code === 0) {
+        if (json.code === 0 && json.data) {
+          const newNode = json.data
+          setTree((prev) =>
+            prev ? { ...prev, roots: insertFolderIntoTree(prev.roots, parentId, newNode) } : prev,
+          )
           if (parentId != null) expand(parentId)
-          reload()
+          flashHighlight([`folder-${newNode.id}`])
+          toast.success("已创建文件夹")
         } else {
           toast.error(json.message || "创建失败")
         }
@@ -324,15 +397,21 @@ export function CatalogTree({
         toast.error("创建失败")
       }
     },
-    [projectId, expand, reload],
+    [projectId, expand, flashHighlight],
   )
 
-  // 重命名叶子：PUT /api/{tasks|workflows}/{id}（sparse body 仅 name）。
-  // 注意：后端 TaskService.update/softDelete 仅允许 DRAFT，已发布任务改名/删会被拒（领域约束，非本组件 bug）。
+  // 重命名叶子：乐观更新 name，失败回滚全量重拉。
   const renameLeaf = useCallback(
     async (kind: "task" | "workflow", id: number, name: string) => {
       if (!name.trim()) return
       const base = kind === "task" ? "tasks" : "workflows"
+      // 乐观更新
+      if (kind === "task") {
+        setTasks((prev) => prev.map((i) => (i.id === id ? { ...i, name: name.trim() } : i)))
+      } else {
+        setWorkflows((prev) => prev.map((i) => (i.id === id ? { ...i, name: name.trim() } : i)))
+      }
+      flashHighlight([`${kind}-${id}`])
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, {
           method: "PUT",
@@ -342,38 +421,45 @@ export function CatalogTree({
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
           toast.success("已重命名")
-          reload()
         } else {
           toast.error(json.message || "重命名失败")
+          reload()
         }
       } catch {
         toast.error("重命名失败")
+        reload()
       }
     },
-    [reload],
+    [reload, flashHighlight],
   )
 
   const deleteLeaf = useCallback(
     async (kind: "task" | "workflow", id: number) => {
       const base = kind === "task" ? "tasks" : "workflows"
+      // 乐观删除（motion exit 动画会先播放）
+      if (kind === "task") {
+        setTasks((prev) => prev.filter((i) => i.id !== id))
+      } else {
+        setWorkflows((prev) => prev.filter((i) => i.id !== id))
+      }
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
           toast.success("已删除")
-          reload()
         } else {
           toast.error(json.message || "删除失败")
+          reload()
         }
       } catch {
         toast.error("删除失败")
+        reload()
       }
     },
     [reload],
   )
 
-  // 在此新建任务/工作流：POST 携带 catalogNodeId 一步归属（parentId 为 null 落未分类），
-  // 成功后调用 onOpen* 回调直接开子 Tab，并刷新树。
+  // 在此新建任务/工作流：乐观加入本地数组，并开子 Tab。
   const createLeaf = useCallback(
     async (
       kind: "task" | "workflow",
@@ -395,10 +481,18 @@ export function CatalogTree({
         })
         const json = (await res.json()) as ApiResponse<TaskDef | WorkflowDef>
         if (json.code === 0 && json.data) {
+          const newItem = json.data
+          // 乐观添加
+          if (kind === "task") {
+            setTasks((prev) => [...prev, newItem as TaskDef])
+          } else {
+            setWorkflows((prev) => [...prev, newItem as WorkflowDef])
+          }
+          if (parentId != null) expand(parentId)
+          flashHighlight([`${kind}-${(newItem as TaskDef).id}`])
           toast.success(kind === "task" ? "已创建任务草稿" : "已创建工作流草稿")
-          if (kind === "task") onOpenTask?.(json.data.id, json.data.name)
-          else onOpenWorkflow?.(json.data.id, json.data.name)
-          reload()
+          if (kind === "task") onOpenTask?.(newItem.id, newItem.name)
+          else onOpenWorkflow?.(newItem.id, newItem.name)
         } else {
           toast.error(json.message || "创建失败")
         }
@@ -406,10 +500,10 @@ export function CatalogTree({
         toast.error("创建失败")
       }
     },
-    [onOpenTask, onOpenWorkflow, reload],
+    [onOpenTask, onOpenWorkflow, expand, flashHighlight],
   )
 
-  // 文件夹改名：PATCH /api/catalog/nodes/{id}（body 仅 name）。
+  // 文件夹改名：乐观更新树内名称。
   const renameFolder = useCallback(
     async (id: number, name: string) => {
       if (!name.trim()) return
@@ -421,8 +515,11 @@ export function CatalogTree({
         })
         const json = (await res.json()) as ApiResponse<CatalogTreeNode>
         if (json.code === 0) {
+          setTree((prev) =>
+            prev ? { ...prev, roots: renameFolderInTree(prev.roots, id, name.trim()) } : prev,
+          )
           toast.success("已重命名")
-          reload()
+          flashHighlight([`folder-${id}`])
         } else {
           toast.error(json.message || "重命名失败")
         }
@@ -430,23 +527,27 @@ export function CatalogTree({
         toast.error("重命名失败")
       }
     },
-    [reload],
+    [flashHighlight],
   )
 
-  // 文件夹删除：DELETE /api/catalog/nodes/{id}。非空文件夹前端已置灰拦截，409 仍 toast 兜底。
+  // 文件夹删除：乐观从树中移除（motion exit 动画先播放）。
   const deleteFolder = useCallback(
     async (id: number) => {
       try {
         const res = await authFetch(`${API_BASE}/api/catalog/nodes/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
+          setTree((prev) =>
+            prev ? { ...prev, roots: removeFolderFromTree(prev.roots, id) } : prev,
+          )
           toast.success("已删除文件夹")
-          reload()
         } else {
           toast.error(json.message || "删除失败")
+          reload()
         }
       } catch {
         toast.error("删除失败")
+        reload()
       }
     },
     [reload],
@@ -482,54 +583,71 @@ export function CatalogTree({
 
   // ── 渲染叶子（任务/工作流）──
   // 行包 ContextMenuTrigger：右键弹「重命名/删除」菜单，与 onClick(开 Tab)、draggable(移动/上画布) 正交。
-  const renderLeaf = (kind: "task" | "workflow", id: number, name: string, depth: number) => (
-    <ContextMenu key={`${kind}-${id}`}>
-      <ContextMenuTrigger
-        draggable
-        onClick={() => (kind === "task" ? onOpenTask?.(id, name) : onOpenWorkflow?.(id, name))}
-        onDragStart={(e) => {
-          e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ kind, id } satisfies MovePayload))
-          if (kind === "task" && draggableTasksToCanvas) {
-            e.dataTransfer.setData(TASK_MIME, JSON.stringify({ id, name }))
-          }
-          e.dataTransfer.effectAllowed = "move"
-        }}
-        style={{ paddingLeft: depth * 22 + 4 }}
-        className="flex cursor-grab items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent"
+  const renderLeaf = (kind: "task" | "workflow", id: number, name: string, depth: number) => {
+    const key = `${kind}-${id}`
+    return (
+      <motion.div
+        key={key}
+        layout
+        {...itemMotion}
+        className={highlightedKeys.has(key) ? highlightClass : ""}
       >
-        {/* chevron 占位：叶子无展开三角，补齐宽度让图标与同级子文件夹对齐、比父级缩进一级 */}
-        <span className="size-4 shrink-0" aria-hidden />
-        <HugeiconsIcon
-          icon={kind === "task" ? Task01Icon : WorkflowSquare01Icon}
-          className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
-        />
-        <span className="truncate">{name}</span>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
-          <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
-        </ContextMenuItem>
-        <ContextMenuItem
-          variant="destructive"
-          onClick={() => setDialog({ mode: "delete", kind, id, name })}
-        >
-          <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
+        <ContextMenu>
+          <ContextMenuTrigger
+            draggable
+            onClick={() => (kind === "task" ? onOpenTask?.(id, name) : onOpenWorkflow?.(id, name))}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ kind, id } satisfies MovePayload))
+              if (kind === "task" && draggableTasksToCanvas) {
+                e.dataTransfer.setData(TASK_MIME, JSON.stringify({ id, name }))
+              }
+              e.dataTransfer.effectAllowed = "move"
+            }}
+            style={{ paddingLeft: depth * 22 + 4 }}
+            className="flex cursor-grab items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent"
+          >
+            <span className="size-4 shrink-0" aria-hidden />
+            <HugeiconsIcon
+              icon={kind === "task" ? Task01Icon : WorkflowSquare01Icon}
+              className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
+            />
+            <span className="truncate">{name}</span>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
+              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
+            </ContextMenuItem>
+            <ContextMenuItem
+              variant="destructive"
+              onClick={() => setDialog({ mode: "delete", kind, id, name })}
+            >
+              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      </motion.div>
+    )
+  }
 
   // ── 渲染文件夹（递归）──
   const renderFolder = (node: CatalogTreeNode, depth: number) => {
-    // 搜索态：仅渲染命中叶子的祖先文件夹（searchFolders），否则按原结构
     if (searching && !(searchFolders?.has(node.id) ?? false)) return null
     const open = searching ? true : !!expanded[node.id]
     const childTasks = tasksByNode.get(node.id) ?? []
     const childWorkflows = workflowsByNode.get(node.id) ?? []
     const isDrop = dropTarget === node.id
-    const nonEmpty = node.taskCount + node.workflowCount > 0 || node.children.length > 0
+    const nonEmpty = node.taskCount + node.workflowCount > 0 || (node.children ?? []).length > 0
+    const key = `folder-${node.id}`
     return (
-      <div key={`folder-${node.id}`}>
+      <motion.div
+        key={key}
+        layout
+        initial={{ opacity: 0, height: 0, y: -6 }}
+        animate={{ opacity: 1, height: "auto", y: 0 }}
+        exit={{ opacity: 0, height: 0, y: -6 }}
+        transition={itemMotion.transition}
+        className={highlightedKeys.has(key) ? highlightClass : ""}
+      >
         <ContextMenu>
           <ContextMenuTrigger
             onClick={() => toggleExpand(node.id)}
@@ -582,14 +700,23 @@ export function CatalogTree({
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-        {open && (
-          <div>
-            {node.children.map((c) => renderFolder(c, depth + 1))}
-            {childTasks.map((t) => renderLeaf("task", t.id, t.name, depth + 1))}
-            {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, depth + 1))}
-          </div>
-        )}
-      </div>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              key={`children-${node.id}`}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
+              className="overflow-hidden"
+            >
+              {(node.children ?? []).map((c) => renderFolder(c, depth + 1))}
+              {childTasks.map((t) => renderLeaf("task", t.id, t.name, depth + 1))}
+              {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, depth + 1))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     )
   }
 
@@ -695,7 +822,9 @@ export function CatalogTree({
       {/* 树体（容器右键 = 根级菜单：新建根文件夹 / 新建任务 / 新建工作流，均落根/未分类）*/}
       <ContextMenu>
         <ContextMenuTrigger className="flex min-h-12 flex-col">
-          {tree?.roots.map((r) => renderFolder(r, 0))}
+          <AnimatePresence initial={false}>
+            {tree?.roots.map((r) => renderFolder(r, 0))}
+          </AnimatePresence>
           {renderUncategorized()}
           {(!tree || tree.roots.length === 0) &&
             tasksByNode.size === 0 &&
