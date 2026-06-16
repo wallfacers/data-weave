@@ -129,7 +129,7 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 - **真相源：`lib/syntax-palette.ts`（具体色，非 CSS 变量）**。`buildSyntaxTheme(mode)` 由调色板生成一套 Shiki 主题（VSCode 主题形态）：
   - Monaco 端 `lib/code-highlighter.ts` 起单例 highlighter → `shikiToMonaco` 接管 tokenizer（`components/code-editor.tsx`）。
   - chat 端把 `[light, dark]` 两套主题对象经 slot 透传给 Streamdown 的 Shiki dual-theme（`components/agent-chat.tsx`）。
-- 代码高亮作为**功能性语法着色**保留彩色 token（标准编辑器即便在黑白 UI 主题下也彩色高亮），不随 UI 主题转黑白。亮/暗各一套，暗色提亮避免刺眼。
+- 调色板分两类槽：**结构槽**（`bg`/`fg`/`comment`/`operator`/`variable` 及 `editor.background`/`editor.foreground`/`editor.lineHighlightBackground`/括号高亮）跟随 `globals.css` 的**中性灰阶**（零彩度），与 app 灰主题无可见色温差，暗色底色凹陷一档于 `card`；**语义槽**（`keyword`/`string`/`number`/`func`/`type`/`constant`/`regexp`）作为**功能性语法着色**保留彩色（标准编辑器即便在黑白 UI 主题下也彩色高亮），不随 UI 主题转黑白。亮/暗各一套，暗色语义色提亮避免刺眼。
 - **刻意偏离（对早期设想）**：① 编辑器选 Monaco（非 CodeMirror）—— 要完整 IDE 体感；② 调色板放 TS 具体色（非 CSS 变量）—— Monaco 主题只吃具体十六进制色，且两个消费者都在 JS 侧，放 TS 让两端共用同一个 `buildSyntaxTheme()`。
 
 ## 统一标签条 —— `TabStrip`（Chrome 卡片风格）
