@@ -29,6 +29,7 @@ public class WorkflowDef {
     private LocalDateTime updatedAt;
     private Integer deleted;
     private Long version;
+    private Long catalogNodeId;
 
     public WorkflowDef() {}
 
@@ -97,4 +98,7 @@ public class WorkflowDef {
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+
+    public Long getCatalogNodeId() { return catalogNodeId; }
+    public void setCatalogNodeId(Long catalogNodeId) { this.catalogNodeId = catalogNodeId; }
 }

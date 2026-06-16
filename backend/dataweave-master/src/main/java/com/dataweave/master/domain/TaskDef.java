@@ -30,6 +30,7 @@ public class TaskDef {
     private LocalDateTime updatedAt;
     private Integer deleted;
     private Long version;
+    private Long catalogNodeId;
 
     public TaskDef() {}
 
@@ -101,4 +102,7 @@ public class TaskDef {
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+
+    public Long getCatalogNodeId() { return catalogNodeId; }
+    public void setCatalogNodeId(Long catalogNodeId) { this.catalogNodeId = catalogNodeId; }
 }

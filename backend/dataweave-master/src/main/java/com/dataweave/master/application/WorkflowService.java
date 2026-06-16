@@ -110,8 +110,20 @@ public class WorkflowService {
 
     // ─── Search（分页搜索）─────────────────────────────────
 
-    /** 分页搜索工作流定义。 */
+    /** 分页搜索工作流定义（兼容旧签名，无类目/标签过滤）。 */
     public PageResult search(String keyword, String status, int page, int size) {
+        return search(keyword, status, null, false, null, page, size);
+    }
+
+    /**
+     * 分页搜索工作流定义，支持类目/标签过滤。
+     *
+     * @param catalogNodeId 归属文件夹过滤（null 且 uncategorized=false 时不过滤）
+     * @param uncategorized true 仅返回未归类（catalog_node_id IS NULL）
+     * @param tagId         标签过滤（null 不过滤）
+     */
+    public PageResult search(String keyword, String status, Long catalogNodeId,
+                             boolean uncategorized, Long tagId, int page, int size) {
         StringBuilder where = new StringBuilder("WHERE deleted = 0");
         List<Object> params = new ArrayList<>();
         if (keyword != null && !keyword.isBlank()) {
@@ -121,6 +133,16 @@ public class WorkflowService {
         if (status != null && !status.isBlank()) {
             where.append(" AND status = ?");
             params.add(status);
+        }
+        if (uncategorized) {
+            where.append(" AND catalog_node_id IS NULL");
+        } else if (catalogNodeId != null) {
+            where.append(" AND catalog_node_id = ?");
+            params.add(catalogNodeId);
+        }
+        if (tagId != null) {
+            where.append(" AND id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'WORKFLOW')");
+            params.add(tagId);
         }
 
         Long total = jdbcTemplate.queryForObject(
@@ -162,6 +184,7 @@ public class WorkflowService {
         w.setUpdatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null);
         w.setDeleted(rs.getObject("deleted") != null ? rs.getInt("deleted") : null);
         w.setVersion(rs.getObject("version") != null ? rs.getLong("version") : null);
+        w.setCatalogNodeId(rs.getObject("catalog_node_id") != null ? rs.getLong("catalog_node_id") : null);
         return w;
     }
 

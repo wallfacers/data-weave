@@ -1,6 +1,8 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.application.CatalogAssignService;
+import com.dataweave.master.application.CatalogException;
 import com.dataweave.master.application.WorkflowService;
 import com.dataweave.master.application.WorkflowService.DagPayload;
 import com.dataweave.master.application.WorkflowService.DagView;
@@ -21,9 +23,11 @@ import java.util.Map;
 public class WorkflowController {
 
     private final WorkflowService workflowService;
+    private final CatalogAssignService catalogAssignService;
 
-    public WorkflowController(WorkflowService workflowService) {
+    public WorkflowController(WorkflowService workflowService, CatalogAssignService catalogAssignService) {
         this.workflowService = workflowService;
+        this.catalogAssignService = catalogAssignService;
     }
 
     /** 创建工作流草稿。 */
@@ -32,14 +36,34 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.create(body));
     }
 
-    /** 分页搜索工作流。 */
+    /** 分页搜索工作流（可选类目/标签过滤；无新参数时行为与既有一致）。 */
     @GetMapping
     public ApiResponse<PageResult> search(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(defaultValue = "false") boolean uncategorized,
+            @RequestParam(required = false) Long tagId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(workflowService.search(keyword, status, page, size));
+        return ApiResponse.ok(workflowService.search(keyword, status, catalogNodeId, uncategorized, tagId, page, size));
+    }
+
+    /**
+     * 归类工作流：{@code {"catalogNodeId": null}} 清空归属、{@code {}}（字段缺失）不改、给值则归入。
+     * {@code path} 字段一律拒收。
+     */
+    @PatchMapping("/{id}/catalog")
+    public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        if (body.containsKey("path")) {
+            throw new CatalogException(CatalogException.INVALID, "path 为后端派生字段，禁止传入");
+        }
+        if (body.containsKey("catalogNodeId")) {
+            Object v = body.get("catalogNodeId");
+            Long nodeId = v != null ? ((Number) v).longValue() : null;
+            catalogAssignService.assignWorkflow(id, nodeId);
+        }
+        return ApiResponse.ok();
     }
 
     /** 工作流详情。 */

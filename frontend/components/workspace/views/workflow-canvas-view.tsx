@@ -50,11 +50,11 @@ import {
   type DagPayload,
   type DagNode,
   type DagEdge,
-  type TaskDef,
   type WorkflowDef,
   type WorkflowPage,
 } from "@/lib/types"
 import { ViewStatus } from "./view-status"
+import { CatalogTree } from "@/components/workspace/catalog-tree"
 
 // ─── 节点数据类型 ──────────────────────────────────────────
 
@@ -156,7 +156,6 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
 
 function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
   const [workflows, setWorkflows] = useState<WorkflowDef[]>([])
-  const [tasks, setTasks] = useState<TaskDef[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(initialWorkflowId ?? null)
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
@@ -171,19 +170,13 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const nodeTypes = useMemo(() => ({ task: TaskNode, virtual: VirtualNode }), [])
 
-  // 初次加载工作流列表 + 任务列表
+  // 初次加载工作流列表（任务由左侧 <CatalogTree> 自取）
   useEffect(() => {
-    Promise.all([
-      authFetch(`${API_BASE}/api/workflows?size=100`, { cache: "no-store" })
-        .then((r) => r.json() as Promise<ApiResponse<WorkflowPage>>)
-        .then((j) => (j.code === 0 ? j.data?.content ?? [] : [])),
-      authFetch(`${API_BASE}/api/tasks?size=100`, { cache: "no-store" })
-        .then((r) => r.json() as Promise<ApiResponse<WorkflowPage & { content: TaskDef[] }>>)
-        .then((j) => (j.code === 0 ? (j.data?.content as unknown as TaskDef[]) ?? [] : [])),
-    ])
-      .then(([wfs, tks]) => {
+    authFetch(`${API_BASE}/api/workflows?size=100`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiResponse<WorkflowPage>>)
+      .then((j) => (j.code === 0 ? j.data?.content ?? [] : []))
+      .then((wfs) => {
         setWorkflows(wfs)
-        setTasks(tks)
         if (selectedId == null && wfs.length > 0) setSelectedId(wfs[0].id)
       })
       .finally(() => setLoading(false))
@@ -401,31 +394,10 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* 左侧任务面板 */}
-        <div className="w-56 shrink-0 overflow-y-auto p-3">
-          <p className="mb-2 text-xs text-muted-foreground">拖拽任务到画布</p>
-          <div className="flex flex-col gap-2">
-            {tasks.map((t) => (
-              <div
-                key={t.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(
-                    "application/dw-task",
-                    JSON.stringify({ id: t.id, name: t.name }),
-                  )
-                  e.dataTransfer.effectAllowed = "move"
-                }}
-                className="flex cursor-grab items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs hover:border-primary"
-              >
-                <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
-                <span className="truncate">{t.name}</span>
-              </div>
-            ))}
-            {tasks.length === 0 && (
-              <p className="text-xs text-muted-foreground">暂无任务，请先在「任务流」创建</p>
-            )}
-          </div>
+        {/* 左侧类目树面板（workflow-canvas delta：来源从扁平列表升级为类目树）。
+            两种拖拽以 drop target 区分：拖任务到画布建节点（TASK_MIME）/ 拖入文件夹改归属（MOVE_MIME）。 */}
+        <div className="w-64 shrink-0 overflow-y-auto border-r border-border p-3">
+          <CatalogTree draggableTasksToCanvas enableMove showTagFilter />
         </div>
 
         {/* 画布 */}

@@ -1,5 +1,6 @@
 package com.dataweave.api.infrastructure;
 
+import com.dataweave.master.application.CatalogException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -21,6 +22,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException e) {
         return ResponseEntity.ok(ApiResponse.err(409, e.getMessage()));
+    }
+
+    /** 类目领域异常 → 按稳定错误码映射：非空禁删/标签重复 409、不存在 404、成环/非法 400。 */
+    @ExceptionHandler(CatalogException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCatalog(CatalogException e) {
+        int code = switch (e.getCode()) {
+            case CatalogException.NOT_EMPTY, CatalogException.TAG_DUPLICATE -> 409;
+            case CatalogException.NOT_FOUND -> 404;
+            default -> 400; // CYCLE / INVALID
+        };
+        return ResponseEntity.ok(ApiResponse.err(code, e.getCode() + ": " + e.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

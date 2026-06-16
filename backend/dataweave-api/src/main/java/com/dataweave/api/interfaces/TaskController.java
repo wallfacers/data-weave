@@ -1,6 +1,8 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.application.CatalogAssignService;
+import com.dataweave.master.application.CatalogException;
 import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.TaskService;
 import com.dataweave.master.application.TaskService.PageResult;
@@ -27,10 +29,13 @@ public class TaskController {
 
     private final TaskService taskService;
     private final ScheduleParamResolver paramResolver;
+    private final CatalogAssignService catalogAssignService;
 
-    public TaskController(TaskService taskService, ScheduleParamResolver paramResolver) {
+    public TaskController(TaskService taskService, ScheduleParamResolver paramResolver,
+                          CatalogAssignService catalogAssignService) {
         this.taskService = taskService;
         this.paramResolver = paramResolver;
+        this.catalogAssignService = catalogAssignService;
     }
 
     /** 创建任务草稿。 */
@@ -39,7 +44,7 @@ public class TaskController {
         return ApiResponse.ok(taskService.create(body));
     }
 
-    /** 分页搜索任务。 */
+    /** 分页搜索任务（可选类目/标签过滤；无新参数时行为与既有一致）。 */
     @GetMapping
     public ApiResponse<PageResult> search(
             @RequestParam(required = false) String keyword,
@@ -47,12 +52,33 @@ public class TaskController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime,
+            @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(defaultValue = "false") boolean uncategorized,
+            @RequestParam(required = false) Long tagId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         LocalDateTime start = parseDateTime(startTime);
         LocalDateTime end = parseDateTime(endTime);
-        return ApiResponse.ok(taskService.search(keyword, type, status, start, end, page, size));
+        return ApiResponse.ok(taskService.search(keyword, type, status, start, end,
+                catalogNodeId, uncategorized, tagId, page, size));
+    }
+
+    /**
+     * 归类任务：{@code {"catalogNodeId": null}} 清空归属、{@code {}}（字段缺失）不改、给值则归入。
+     * {@code path} 字段一律拒收。
+     */
+    @PatchMapping("/{id}/catalog")
+    public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        if (body.containsKey("path")) {
+            throw new CatalogException(CatalogException.INVALID, "path 为后端派生字段，禁止传入");
+        }
+        if (body.containsKey("catalogNodeId")) {
+            Object v = body.get("catalogNodeId");
+            Long nodeId = v != null ? ((Number) v).longValue() : null;
+            catalogAssignService.assignTask(id, nodeId);
+        }
+        return ApiResponse.ok();
     }
 
     /** 获取任务详情（含版本历史）。 */

@@ -133,8 +133,37 @@ export interface TaskDef {
   paramsJson: string | null
   timeoutSec: number | null
   retryMax: number | null
+  catalogNodeId: number | null // 所属类目文件夹（null=未分类）
   createdAt: string
   updatedAt: string | null
+}
+
+// ─── Catalog 类目树 + 标签 ───────────────────────────────
+
+/** 类目树节点（GET /api/catalog/tree → data.roots[]）。 */
+export interface CatalogTreeNode {
+  id: number
+  parentId: number | null
+  name: string
+  sortOrder: number | null
+  taskCount: number
+  workflowCount: number
+  children: CatalogTreeNode[]
+}
+
+/** 整棵类目树（含未分类计数）。 */
+export interface CatalogTree {
+  roots: CatalogTreeNode[]
+  uncategorizedTaskCount: number
+  uncategorizedWorkflowCount: number
+}
+
+/** 标签（GET /api/tags）。 */
+export interface Tag {
+  id: number
+  projectId: number
+  name: string
+  color: string | null
 }
 
 // ─── Workflow / DAG（画布编排）───────────────────────────
@@ -152,6 +181,7 @@ export interface WorkflowDef {
   priority: number | null
   preemptible: number | null
   timeoutSec: number | null
+  catalogNodeId: number | null // 所属类目文件夹（null=未分类）
   version: number
   createdAt: string
   updatedAt: string | null
