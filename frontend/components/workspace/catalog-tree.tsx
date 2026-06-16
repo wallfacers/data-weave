@@ -54,6 +54,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { DropdownSelect } from "@/components/ui/select"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu"
 
 const MOVE_MIME = "application/dw-catalog-move"
 const TASK_MIME = "application/dw-task"
@@ -64,10 +72,17 @@ interface MovePayload {
   id: number
 }
 
-/** 统一 Dialog 状态：建文件夹 / 重命名叶子 / 删除叶子。 */
+/**
+ * 统一 Dialog 状态。所有写交互（建文件夹 / 文件夹改名删除 / 在此新建任务工作流 /
+ * 叶子改名删除）经此状态机驱动同一 base 风格 Dialog，不使用原生 prompt/confirm。
+ */
 type DialogState =
   | { mode: "closed" }
   | { mode: "folder"; parentId: number | null; name: string }
+  | { mode: "folder-rename"; id: number; name: string }
+  | { mode: "folder-delete"; id: number; name: string }
+  | { mode: "create-task"; parentId: number | null; name: string; taskType: "SQL" | "SHELL" }
+  | { mode: "create-workflow"; parentId: number | null; name: string }
   | { mode: "rename"; kind: "task" | "workflow"; id: number; name: string }
   | { mode: "delete"; kind: "task" | "workflow"; id: number; name: string }
 
@@ -357,12 +372,103 @@ export function CatalogTree({
     [reload],
   )
 
-  // 统一提交：空名（建文件夹/重命名）不关闭以引导输入，成功后关闭
+  // 在此新建任务/工作流：POST 携带 catalogNodeId 一步归属（parentId 为 null 落未分类），
+  // 成功后调用 onOpen* 回调直接开子 Tab，并刷新树。
+  const createLeaf = useCallback(
+    async (
+      kind: "task" | "workflow",
+      parentId: number | null,
+      name: string,
+      taskType: "SQL" | "SHELL",
+    ) => {
+      if (!name.trim()) return
+      const base = kind === "task" ? "tasks" : "workflows"
+      const body =
+        kind === "task"
+          ? { name: name.trim(), type: taskType, content: "", catalogNodeId: parentId }
+          : { name: name.trim(), catalogNodeId: parentId }
+      try {
+        const res = await authFetch(`${API_BASE}/api/${base}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+        const json = (await res.json()) as ApiResponse<TaskDef | WorkflowDef>
+        if (json.code === 0 && json.data) {
+          toast.success(kind === "task" ? "已创建任务草稿" : "已创建工作流草稿")
+          if (kind === "task") onOpenTask?.(json.data.id, json.data.name)
+          else onOpenWorkflow?.(json.data.id, json.data.name)
+          reload()
+        } else {
+          toast.error(json.message || "创建失败")
+        }
+      } catch {
+        toast.error("创建失败")
+      }
+    },
+    [onOpenTask, onOpenWorkflow, reload],
+  )
+
+  // 文件夹改名：PATCH /api/catalog/nodes/{id}（body 仅 name）。
+  const renameFolder = useCallback(
+    async (id: number, name: string) => {
+      if (!name.trim()) return
+      try {
+        const res = await authFetch(`${API_BASE}/api/catalog/nodes/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        })
+        const json = (await res.json()) as ApiResponse<CatalogTreeNode>
+        if (json.code === 0) {
+          toast.success("已重命名")
+          reload()
+        } else {
+          toast.error(json.message || "重命名失败")
+        }
+      } catch {
+        toast.error("重命名失败")
+      }
+    },
+    [reload],
+  )
+
+  // 文件夹删除：DELETE /api/catalog/nodes/{id}。非空文件夹前端已置灰拦截，409 仍 toast 兜底。
+  const deleteFolder = useCallback(
+    async (id: number) => {
+      try {
+        const res = await authFetch(`${API_BASE}/api/catalog/nodes/${id}`, { method: "DELETE" })
+        const json = (await res.json()) as ApiResponse<unknown>
+        if (json.code === 0) {
+          toast.success("已删除文件夹")
+          reload()
+        } else {
+          toast.error(json.message || "删除失败")
+        }
+      } catch {
+        toast.error("删除失败")
+      }
+    },
+    [reload],
+  )
+
+  // 统一提交：空名（建/改名/新建叶子）不关闭以引导输入，成功后关闭
   const submitDialog = async () => {
     const d = dialog
     if (d.mode === "folder") {
       if (!d.name.trim()) return
       await createFolder(d.parentId, d.name)
+    } else if (d.mode === "folder-rename") {
+      if (!d.name.trim()) return
+      await renameFolder(d.id, d.name)
+    } else if (d.mode === "folder-delete") {
+      await deleteFolder(d.id)
+    } else if (d.mode === "create-task") {
+      if (!d.name.trim()) return
+      await createLeaf("task", d.parentId, d.name, d.taskType)
+    } else if (d.mode === "create-workflow") {
+      if (!d.name.trim()) return
+      await createLeaf("workflow", d.parentId, d.name, "SQL")
     } else if (d.mode === "rename") {
       if (!d.name.trim()) return
       await renameLeaf(d.kind, d.id, d.name)
@@ -375,54 +481,42 @@ export function CatalogTree({
   }
 
   // ── 渲染叶子（任务/工作流）──
+  // 行包 ContextMenuTrigger：右键弹「重命名/删除」菜单，与 onClick(开 Tab)、draggable(移动/上画布) 正交。
   const renderLeaf = (kind: "task" | "workflow", id: number, name: string, depth: number) => (
-    <div
-      key={`${kind}-${id}`}
-      draggable
-      onClick={() => (kind === "task" ? onOpenTask?.(id, name) : onOpenWorkflow?.(id, name))}
-      onDragStart={(e) => {
-        e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ kind, id } satisfies MovePayload))
-        if (kind === "task" && draggableTasksToCanvas) {
-          e.dataTransfer.setData(TASK_MIME, JSON.stringify({ id, name }))
-        }
-        e.dataTransfer.effectAllowed = "move"
-      }}
-      style={{ paddingLeft: depth * 22 + 4 }}
-      className="group/leaf flex cursor-grab items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent"
-    >
-      {/* chevron 占位：叶子无展开三角，补齐宽度让图标与同级子文件夹对齐、比父级缩进一级 */}
-      <span className="size-4 shrink-0" aria-hidden />
-      <HugeiconsIcon
-        icon={kind === "task" ? Task01Icon : WorkflowSquare01Icon}
-        className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
-      />
-      <span className="truncate">{name}</span>
-      {/* 行内操作（hover 显） */}
-      <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/leaf:opacity-100">
-        <button
-          type="button"
-          title="重命名"
-          className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={(e) => {
-            e.stopPropagation()
-            setDialog({ mode: "rename", kind, id, name })
-          }}
+    <ContextMenu key={`${kind}-${id}`}>
+      <ContextMenuTrigger
+        draggable
+        onClick={() => (kind === "task" ? onOpenTask?.(id, name) : onOpenWorkflow?.(id, name))}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ kind, id } satisfies MovePayload))
+          if (kind === "task" && draggableTasksToCanvas) {
+            e.dataTransfer.setData(TASK_MIME, JSON.stringify({ id, name }))
+          }
+          e.dataTransfer.effectAllowed = "move"
+        }}
+        style={{ paddingLeft: depth * 22 + 4 }}
+        className="flex cursor-grab items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent"
+      >
+        {/* chevron 占位：叶子无展开三角，补齐宽度让图标与同级子文件夹对齐、比父级缩进一级 */}
+        <span className="size-4 shrink-0" aria-hidden />
+        <HugeiconsIcon
+          icon={kind === "task" ? Task01Icon : WorkflowSquare01Icon}
+          className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
+        />
+        <span className="truncate">{name}</span>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
+          <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
+        </ContextMenuItem>
+        <ContextMenuItem
+          variant="destructive"
+          onClick={() => setDialog({ mode: "delete", kind, id, name })}
         >
-          <HugeiconsIcon icon={PencilEdit01Icon} className="size-3.5" />
-        </button>
-        <button
-          type="button"
-          title="删除"
-          className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation()
-            setDialog({ mode: "delete", kind, id, name })
-          }}
-        >
-          <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-        </button>
-      </span>
-    </div>
+          <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 
   // ── 渲染文件夹（递归）──
@@ -433,41 +527,61 @@ export function CatalogTree({
     const childTasks = tasksByNode.get(node.id) ?? []
     const childWorkflows = workflowsByNode.get(node.id) ?? []
     const isDrop = dropTarget === node.id
+    const nonEmpty = node.taskCount + node.workflowCount > 0 || node.children.length > 0
     return (
       <div key={`folder-${node.id}`}>
-        <div
-          onClick={() => toggleExpand(node.id)}
-          onDragOver={enableMove ? (e) => { e.preventDefault(); setDropTarget(node.id) } : undefined}
-          onDragLeave={enableMove ? () => setDropTarget((d) => (d === node.id ? null : d)) : undefined}
-          onDrop={enableMove ? (e) => onFolderDrop(e, node.id) : undefined}
-          style={{ paddingLeft: depth * 22 + 4 }}
-          className={`group flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent ${
-            isDrop ? "bg-primary/10 ring-1 ring-primary" : ""
-          }`}
-        >
-          <HugeiconsIcon
-            icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-            className="size-4 shrink-0 text-muted-foreground"
-          />
-          <HugeiconsIcon
-            icon={open ? FolderOpenIcon : Folder01Icon}
-            className="size-4 shrink-0 text-amber-500"
-          />
-          <span className="truncate font-medium">{node.name}</span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-            {node.taskCount + node.workflowCount || ""}
-          </span>
-          {!searching && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setDialog({ mode: "folder", parentId: node.id, name: "" }) }}
-              className="hidden shrink-0 text-muted-foreground hover:text-foreground group-hover:block"
-              title="新建子文件夹"
+        <ContextMenu>
+          <ContextMenuTrigger
+            onClick={() => toggleExpand(node.id)}
+            onDragOver={enableMove ? (e) => { e.preventDefault(); setDropTarget(node.id) } : undefined}
+            onDragLeave={enableMove ? () => setDropTarget((d) => (d === node.id ? null : d)) : undefined}
+            onDrop={enableMove ? (e) => onFolderDrop(e, node.id) : undefined}
+            style={{ paddingLeft: depth * 22 + 4 }}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent ${
+              isDrop ? "bg-primary/10 ring-1 ring-primary" : ""
+            }`}
+          >
+            <HugeiconsIcon
+              icon={open ? ArrowDown01Icon : ArrowRight01Icon}
+              className="size-4 shrink-0 text-muted-foreground"
+            />
+            <HugeiconsIcon
+              icon={open ? FolderOpenIcon : Folder01Icon}
+              className="size-4 shrink-0 text-amber-500"
+            />
+            <span className="truncate font-medium">{node.name}</span>
+            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+              {node.taskCount + node.workflowCount || ""}
+            </span>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => setDialog({ mode: "folder", parentId: node.id, name: "" })}>
+              <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> 新建子文件夹
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => setDialog({ mode: "create-task", parentId: node.id, name: "", taskType: "SQL" })}
             >
-              <HugeiconsIcon icon={FolderAddIcon} className="size-4" />
-            </button>
-          )}
-        </div>
+              <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> 新建任务
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => setDialog({ mode: "create-workflow", parentId: node.id, name: "" })}
+            >
+              <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> 新建工作流
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => setDialog({ mode: "folder-rename", id: node.id, name: node.name })}>
+              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
+            </ContextMenuItem>
+            <ContextMenuItem
+              variant="destructive"
+              disabled={nonEmpty}
+              title={nonEmpty ? "请先清空或移走子项" : undefined}
+              onClick={() => setDialog({ mode: "folder-delete", id: node.id, name: node.name })}
+            >
+              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         {open && (
           <div>
             {node.children.map((c) => renderFolder(c, depth + 1))}
@@ -578,20 +692,37 @@ export function CatalogTree({
         </div>
       )}
 
-      {/* 树体 */}
-      <div className="flex flex-col">
-        {tree?.roots.map((r) => renderFolder(r, 0))}
-        {renderUncategorized()}
-        {(!tree || tree.roots.length === 0) &&
-          tasksByNode.size === 0 &&
-          workflowsByNode.size === 0 && (
-            <p className="px-1 py-2 text-sm text-muted-foreground">
-              {searching ? "未匹配到任务/工作流" : "暂无类目，点「新建」建文件夹"}
-            </p>
-          )}
-      </div>
+      {/* 树体（容器右键 = 根级菜单：新建根文件夹 / 新建任务 / 新建工作流，均落根/未分类）*/}
+      <ContextMenu>
+        <ContextMenuTrigger className="flex min-h-12 flex-col">
+          {tree?.roots.map((r) => renderFolder(r, 0))}
+          {renderUncategorized()}
+          {(!tree || tree.roots.length === 0) &&
+            tasksByNode.size === 0 &&
+            workflowsByNode.size === 0 && (
+              <p className="px-1 py-2 text-sm text-muted-foreground">
+                {searching ? "未匹配到任务/工作流" : "暂无类目，右键空白处或点「新建」建文件夹"}
+              </p>
+            )}
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => setDialog({ mode: "folder", parentId: null, name: "" })}>
+            <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> 新建根文件夹
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => setDialog({ mode: "create-task", parentId: null, name: "", taskType: "SQL" })}
+          >
+            <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> 新建任务
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => setDialog({ mode: "create-workflow", parentId: null, name: "" })}
+          >
+            <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> 新建工作流
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
-      {/* 统一 Dialog（建文件夹 / 重命名 / 删除） */}
+      {/* 统一 Dialog：建文件夹 / 文件夹改名删除 / 在此新建任务工作流 / 叶子改名删除 */}
       <Dialog
         open={dialog.mode !== "closed"}
         onOpenChange={(open) => {
@@ -603,6 +734,10 @@ export function CatalogTree({
             <DialogTitle>
               {dialog.mode === "folder" &&
                 (dialog.parentId == null ? "新建根文件夹" : "新建子文件夹")}
+              {dialog.mode === "folder-rename" && "重命名文件夹"}
+              {dialog.mode === "folder-delete" && "删除文件夹"}
+              {dialog.mode === "create-task" && "新建任务"}
+              {dialog.mode === "create-workflow" && "新建工作流"}
               {dialog.mode === "rename" &&
                 `重命名${dialog.kind === "task" ? "任务" : "工作流"}`}
               {dialog.mode === "delete" &&
@@ -613,36 +748,55 @@ export function CatalogTree({
                 确定删除「{dialog.name}」？此操作为软删除。
               </DialogDescription>
             )}
+            {dialog.mode === "folder-delete" && (
+              <DialogDescription>
+                确定删除文件夹「{dialog.name}」？
+              </DialogDescription>
+            )}
           </DialogHeader>
-          {(dialog.mode === "folder" || dialog.mode === "rename") && (
-            <Input
-              autoFocus
-              value={dialog.name}
-              placeholder="名称"
-              onChange={(e) =>
+          {/* 名称输入：除删除态外均需 */}
+          {dialog.mode !== "delete" &&
+            dialog.mode !== "folder-delete" &&
+            dialog.mode !== "closed" && (
+              <Input
+                autoFocus
+                value={dialog.name}
+                placeholder="名称"
+                onChange={(e) =>
+                  setDialog((d) => (d.mode !== "closed" ? { ...d, name: e.target.value } : d))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    submitDialog()
+                  }
+                }}
+              />
+            )}
+          {/* 新建任务额外选类型 */}
+          {dialog.mode === "create-task" && (
+            <DropdownSelect
+              value={dialog.taskType}
+              onChange={(v) =>
                 setDialog((d) =>
-                  d.mode === "folder" || d.mode === "rename"
-                    ? { ...d, name: e.target.value }
-                    : d,
+                  d.mode === "create-task" ? { ...d, taskType: v as "SQL" | "SHELL" } : d,
                 )
               }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  submitDialog()
-                }
-              }}
+              options={[
+                { value: "SQL", label: "SQL" },
+                { value: "SHELL", label: "SHELL" },
+              ]}
             />
           )}
           <DialogFooter>
             <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
-            {dialog.mode === "delete" ? (
+            {dialog.mode === "delete" || dialog.mode === "folder-delete" ? (
               <Button variant="destructive" onClick={submitDialog}>
                 删除
               </Button>
             ) : (
               <Button onClick={submitDialog}>
-                {dialog.mode === "rename" ? "保存" : "创建"}
+                {dialog.mode === "rename" || dialog.mode === "folder-rename" ? "保存" : "创建"}
               </Button>
             )}
           </DialogFooter>
