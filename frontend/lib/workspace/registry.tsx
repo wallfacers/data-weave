@@ -11,7 +11,6 @@ import {
   Activity02Icon,
   Analytics01Icon,
   BugIcon,
-  Calendar01Icon,
   CatalogueIcon,
   DashboardSquare01Icon,
   DatabaseSyncIcon,
@@ -23,17 +22,15 @@ import {
   Settings02Icon,
   ServiceIcon,
   Shield01Icon,
-  WorkflowSquare01Icon,
+  Share08Icon,
 } from "@hugeicons/core-free-icons"
 
 import { CockpitView } from "@/components/workspace/views/cockpit-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { ReportsView } from "@/components/workspace/views/reports-view"
-import { TaskFlowView } from "@/components/workspace/views/task-flow-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
 import { DiagnosisView } from "@/components/workspace/views/diagnosis-view"
 import { FleetView } from "@/components/workspace/views/fleet-view"
-import { SqlWorkbenchView } from "@/components/workspace/views/sql-workbench-view"
 import { SettingsView } from "@/components/workspace/views/settings-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
@@ -58,12 +55,10 @@ const placeholder = (title: string, description: string) => {
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   cockpit: { icon: DashboardSquare01Icon, component: CockpitView },
-  "task-flow": { icon: Calendar01Icon, component: TaskFlowView },
-  "workflow-canvas": { icon: WorkflowSquare01Icon, component: WorkflowCanvasView },
+  "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },
   reports: { icon: Analytics01Icon, component: ReportsView },
   metrics: { icon: Activity02Icon, component: MetricsView },
-  "sql-workbench": { icon: WorkflowSquare01Icon, component: SqlWorkbenchView },
   diagnosis: { icon: BugIcon, component: DiagnosisView },
   fleet: { icon: ServerStackIcon, component: FleetView },
   "instance-log": { icon: DocumentCodeIcon, component: InstanceLogView },

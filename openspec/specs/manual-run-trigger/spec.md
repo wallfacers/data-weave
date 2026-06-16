@@ -1,0 +1,57 @@
+# manual-run-trigger Specification
+
+## Purpose
+TBD - created by archiving change data-development-ide. Update Purpose after archive.
+## Requirements
+### Requirement: 任务手动触发正式实例
+
+系统 SHALL 提供 `POST /api/tasks/{id}/run`，对一个**已发布**任务即时起一个 `run_mode=NORMAL` 的**正式** task_instance，经现有调度/执行链下发。该实例"正式、计入统计"由 `run_mode=NORMAL` 判定（与 OpsService/WorkflowStateService 现有口径一致），MUST 计入正式运维统计（实例列表、失败清单、SLA），与 cron/依赖触发的实例同源同质；触发 MUST NOT 影响该任务的 cron 定时计划（不改 next_fire、不补历史）。任务侧 MUST NOT 新增 `trigger_type` 列（task_instance 现有 `run_mode` 字段已足够）。接口 MUST 在闸门放行后返回新建实例的 `instanceId`，供前端订阅日志流。
+
+#### Scenario: 手动起正式任务实例
+
+- **WHEN** 用户对一个已发布任务 `POST /api/tasks/{id}/run`
+- **THEN** 系统创建一个 `run_mode=NORMAL` 的正式 task_instance 并下发，返回其 `instanceId`，该实例计入正式统计
+
+#### Scenario: 手动触发不动 cron 计划
+
+- **WHEN** 一个带 cron 调度的任务被手动触发一次
+- **THEN** 该任务的下一次 cron 触发时间与计划不受影响，仅多出一个 NORMAL 实例
+
+#### Scenario: 未发布任务拒绝手动正式触发
+
+- **WHEN** 用户对一个仅有草稿、从未发布的任务请求手动正式运行
+- **THEN** 系统拒绝并提示需先发布
+
+### Requirement: 工作流手动触发正式实例
+
+系统 SHALL 提供 `POST /api/workflows/{id}/run`，对一个**已上线**工作流即时起一个正式 workflow_instance。实现 MUST **薄包装现成的** `WorkflowTriggerService.trigger(wf, "MANUAL", bizDate, null)`（`workflow_instance.trigger_type` 列已存在，传 `"MANUAL"`），不另起平行触发服务。实例创建与下发 MUST 遵守既有调度死锁防御不变量（认领用 SKIP LOCKED、状态推进用乐观 CAS、锁序 task→workflow、事务内只落库 HTTP 下发在事务外）。接口 MUST 返回 `workflowInstanceId`，供前端订阅 DAG 事件流给节点变色。
+
+#### Scenario: 手动起正式工作流实例
+
+- **WHEN** 用户对一个已上线工作流 `POST /api/workflows/{id}/run`
+- **THEN** 系统按当前发布版本的 DAG 创建一个 `trigger_type=MANUAL` 的 workflow_instance 并交由 `SchedulerKernel` 调度，返回 `workflowInstanceId`
+
+#### Scenario: 手动工作流实例可被事件流观测
+
+- **WHEN** 手动触发的工作流实例开始执行
+- **THEN** `/api/ops/workflow-instances/{id}/events/stream` 推送其节点状态变迁事件
+
+#### Scenario: 未上线工作流拒绝手动正式触发
+
+- **WHEN** 用户对一个无已发布版本的工作流请求手动正式运行
+- **THEN** 系统拒绝并提示需先发布上线
+
+### Requirement: 手动触发经闸门与审计
+
+任务/工作流的手动触发属人为/Agent 发起的写操作，MUST 经 `GatedActionService.submit` → `PolicyEngine` 裁决并落 `agent_action` 审计，无绕过路径。默认分级 SHALL 为 L1（留痕后直执行，不建审批单）；分级规则 MUST 数据驱动（`policy_rules` 表），允许企业按类型收紧（如 MANUAL+SHELL 抬至 L2 审批）。
+
+#### Scenario: 默认 L1 直执行
+
+- **WHEN** 用户手动触发一个 SQL 任务（默认规则）
+- **THEN** 系统留 `agent_action` 痕后立即下发，无审批等待，返回 `instanceId`
+
+#### Scenario: 规则收紧后需审批
+
+- **WHEN** 企业在 `policy_rules` 将 MANUAL+SHELL 配为 L2 后，用户手动触发一个 shell 任务
+- **THEN** 系统建审批单并返回 `PENDING_APPROVAL`，批准后才下发，全程留痕
+

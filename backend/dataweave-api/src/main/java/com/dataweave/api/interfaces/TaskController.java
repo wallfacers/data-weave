@@ -1,8 +1,11 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
+import com.dataweave.master.application.GateResult;
+import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.TaskService;
 import com.dataweave.master.application.TaskService.PageResult;
@@ -30,12 +33,15 @@ public class TaskController {
     private final TaskService taskService;
     private final ScheduleParamResolver paramResolver;
     private final CatalogAssignService catalogAssignService;
+    private final GatedActionService gatedActionService;
 
     public TaskController(TaskService taskService, ScheduleParamResolver paramResolver,
-                          CatalogAssignService catalogAssignService) {
+                          CatalogAssignService catalogAssignService,
+                          GatedActionService gatedActionService) {
         this.taskService = taskService;
         this.paramResolver = paramResolver;
         this.catalogAssignService = catalogAssignService;
+        this.gatedActionService = gatedActionService;
     }
 
     /** 创建任务草稿。 */
@@ -119,6 +125,35 @@ public class TaskController {
     }
 
     /**
+     * 手动触发正式运行（manual-run-trigger）：对**已发布**任务经闸门起一个 run_mode=NORMAL 的
+     * 正式 task_instance，计入运维统计。返回 {@link GateResult}：
+     * <ul>
+     *   <li>{@code EXECUTED} —— {@code data.resultInstanceId} 为新实例 id，前端接日志流；</li>
+     *   <li>{@code PENDING_APPROVAL} —— {@code data.actionId} 为审批单号，批准后才下发。</li>
+     * </ul>
+     * 仅草稿/未发布任务在闸门前即拒（409）；触发不触碰 cron 计划。
+     */
+    @PostMapping("/{id}/run")
+    public ApiResponse<GateResult> run(@PathVariable Long id,
+                                       @RequestBody(required = false) RunRequest body) {
+        TaskDetail detail = taskService.getById(id).orElse(null);
+        if (detail == null) {
+            return ApiResponse.err(404, "任务不存在: " + id);
+        }
+        if (!"ONLINE".equals(detail.task().getStatus())) {
+            return ApiResponse.err(409, "任务未发布，需先发布再运行");
+        }
+        ActionRequest req = ActionRequest.builder()
+                .toolName("run_task").actionType("TASK_RUN")
+                .targetType("TASK").targetId(String.valueOf(id))
+                .command(body != null ? body.bizDate() : null)
+                .actor("ui").actorSource("UI")
+                .summary("手动运行任务 #" + id + "「" + detail.task().getName() + "」")
+                .build();
+        return ApiResponse.ok(gatedActionService.submit(req));
+    }
+
+    /**
      * 预览调度参数占位符替换（任务编辑器用）：把 content 里的 {@code ${...}} / 内置参数
      * 按 bizDate + paramsJson 替换为具体值返回。解析失败返回 400 + 占位符名。
      */
@@ -139,6 +174,10 @@ public class TaskController {
 
     /** 预览请求体。 */
     public record PreviewRequest(String content, String bizDate, String paramsJson) {
+    }
+
+    /** 手动运行请求体（bizDate 可空）。 */
+    public record RunRequest(String bizDate) {
     }
 
     private LocalDateTime parseDateTime(String s) {

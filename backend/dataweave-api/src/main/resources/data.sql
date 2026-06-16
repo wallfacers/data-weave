@@ -193,6 +193,7 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 -- 调度类写工具（L1，可逆例行；distributed-scheduler-m1）。TEST 试跑是「未发布内容上 worker」唯一口子，须留痕。
 (34, 'TOOL', 'test_run',                NULL, 'L1', '单任务测试运行（草稿上 worker，留痕）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (35, 'TOOL', 'trigger_workflow',        NULL, 'L1', '手动触发工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(38, 'TOOL', 'run_task',                NULL, 'L1', '手动正式运行任务（NORMAL 实例，进统计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (36, 'TOOL', 'resume_workflow',         NULL, 'L1', '断点恢复工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (37, 'TOOL', 'rerun_workflow',          NULL, 'L1', '整流重跑工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）

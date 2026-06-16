@@ -1,9 +1,5 @@
-# agent-workspace Specification
+## MODIFIED Requirements
 
-## Purpose
-
-定义主区多 tab Workspace 工作区的行为：Pinned/Ephemeral 两层 tab、视图注册表、手动启动菜单与深链逃生舱，以及数据新鲜度、核心业务报表两个最小可用视图。
-## Requirements
 ### Requirement: Workspace 多 tab 工作区
 
 系统 SHALL 在主区呈现多 tab Workspace：顶部 tab 条 + 下方激活视图渲染区。tab 分两层：**Pinned 层**（恒定常驻、不可关闭）与 **Ephemeral 层**（由 AI 召唤或用户手动打开，可关闭、可 pin 升级为常驻）。Workspace 状态（tab 列表、激活 tab）SHALL 以前端 store 为唯一真相源。Pinned 底座 MUST NOT 再包含已移除的"任务流"视图，移除后 Pinned 为四个：驾驶舱、数据新鲜度、业务报表、系统指标。
@@ -41,41 +37,3 @@
 
 - **WHEN** Workspace 被要求打开注册表中不存在的 `viewType`（含已移除的 `sql-workbench`/`task-flow`）
 - **THEN** 请求被忽略并记 console 警告，Workspace 不崩溃、现有 tab 不受影响
-
-### Requirement: 手动启动菜单与深链逃生舱
-
-tab 条 SHALL 提供 "+" 启动菜单，列出注册表全部视图供用户不经 AI 手动打开。旧模块路由（`/tasks`、`/ops`、`/fleet` 等）SHALL 重定向为 `/?open=<view>` 深链；Workspace 挂载时 SHALL 消费 `?open=` 参数打开对应视图。
-
-#### Scenario: 手动打开视图
-
-- **WHEN** 用户点击 "+" 菜单中的「数据血缘」
-- **THEN** Workspace 打开 `lineage` tab 并激活，不发生 Agent 对话
-
-#### Scenario: 旧路由深链兜底
-
-- **WHEN** 用户访问 `/ops`
-- **THEN** 浏览器重定向到 `/?open=task-flow`，Workspace 激活任务流视图
-
-#### Scenario: 非法深链回退默认
-
-- **WHEN** 用户访问 `/?open=不存在的视图`
-- **THEN** Workspace 呈现默认 Pinned 布局，不报错
-
-### Requirement: 数据新鲜度最小视图
-
-系统 SHALL 提供 `freshness` Pinned 视图：基于任务实例的最近成功时间，列出各任务产出的更新时效（任务名、最近成功时间、距今时长），按时效倒序。该视图为最小可用版，不含告警阈值配置。
-
-#### Scenario: 展示产出时效列表
-
-- **WHEN** 用户激活「数据新鲜度」tab 且存在已成功的任务实例
-- **THEN** 视图列出各任务的最近成功时间与距今时长，最久未更新者居前
-
-### Requirement: 核心业务报表最小视图
-
-系统 SHALL 提供 `reports` Pinned 视图：以卡片网格展示 metrics 领域的指标（名称、口径版本、最新值/占位态）。该视图为最小可用版，不含图表钻取。
-
-#### Scenario: 指标卡片网格
-
-- **WHEN** 用户激活「核心业务报表」tab
-- **THEN** 视图以卡片网格展示已定义指标；无数据的指标呈现明确空态而非空白
-

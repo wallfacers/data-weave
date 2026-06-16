@@ -1,11 +1,14 @@
 "use client"
 
 /**
- * 工作流编排画布（workflow-canvas）。
+ * 数据开发 IDE（data-development-ide）。
  *
- * 基于 @xyflow/react 的 DAG 可视化编辑器：左侧 task_def 列表拖入建 TASK 节点、
- * 工具栏放置 VIRTUAL 节点、连线建边（本地即时环路检测）、保存草稿（整图 PUT）、发布。
- * 分支/归并由拓扑天然表达（多出边/多入边），无条件分支。
+ * 由原「工作流编排」视图升格：左侧常驻类目树 + 右侧内层子 Tab 系统（自管，与顶层 Workspace tab
+ * 独立）。子 Tab 两类——画布子 Tab（一个工作流一个）与编辑子 Tab（一个任务一个），按 {kind,id}
+ * 去重；点树叶子开/激活对应子 Tab；子 Tab 隐藏式保活（keep-alive）以保编辑态不丢。
+ *
+ * 画布子 Tab 订阅所属工作流实例的 events/stream，按运行态给节点叠加状态点（不掩盖类型/选中态）。
+ * 运行 = 手动触发正式实例（POST /api/workflows/{id}/run），D8：未上线禁用并提示需先发布。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -31,17 +34,26 @@ import "@xyflow/react/dist/style.css"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  WorkflowSquare01Icon,
   CircleIcon,
   DatabaseIcon,
-  Add01Icon,
   FloppyDiskIcon,
   RocketIcon,
+  Share08Icon,
+  Task01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { DropdownSelect } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import {
   API_BASE,
   authFetch,
@@ -50,11 +62,13 @@ import {
   type DagPayload,
   type DagNode,
   type DagEdge,
+  type TaskDef,
   type WorkflowDef,
-  type WorkflowPage,
 } from "@/lib/types"
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
+import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
+import { useEventSource } from "@/lib/workspace/use-event-source"
 
 // ─── 节点数据类型 ──────────────────────────────────────────
 
@@ -62,6 +76,8 @@ interface CanvasNodeData extends Record<string, unknown> {
   nodeType: "TASK" | "VIRTUAL"
   taskId: number | null
   label: string
+  /** 运行态（来自事件流叠加，仅显示用，不入 DAG 草稿） */
+  runState?: string
 }
 type CanvasNode = Node<CanvasNodeData>
 
@@ -70,12 +86,42 @@ const shortId = () =>
     ? crypto.randomUUID().slice(0, 8)
     : Math.floor(Math.random() * 1e9).toString(36))
 
+/** 节点运行态 → 状态点颜色（语义 token，不掩盖类型/选中态）。 */
+function runStateDot(state?: string): string {
+  switch (state) {
+    case "SUCCESS":
+      return "bg-success"
+    case "RUNNING":
+    case "DISPATCHED":
+      return "bg-info animate-pulse"
+    case "FAILED":
+    case "KILLED":
+    case "STOPPED":
+      return "bg-destructive"
+    case "WAITING":
+    case "WAIT_RETRY":
+      return "bg-warning animate-pulse"
+    default:
+      return "bg-muted-foreground/40"
+  }
+}
+
 // ─── 自定义节点组件 ────────────────────────────────────────
+
+function RunStateDot({ state }: { state?: string }) {
+  if (!state) return null
+  return (
+    <span
+      title={state}
+      className={`absolute -right-1 -top-1 size-2 rounded-full ring-2 ring-card ${runStateDot(state)}`}
+    />
+  )
+}
 
 function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
+      className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
         selected ? "border-primary ring-1 ring-primary" : "border-border"
       }`}
     >
@@ -83,6 +129,7 @@ function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
       <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
       <span className="max-w-40 truncate font-medium">{data.label || "任务"}</span>
       <Handle type="source" position={Position.Right} />
+      <RunStateDot state={data.runState} />
     </div>
   )
 }
@@ -90,7 +137,7 @@ function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
 function VirtualNode({ data, selected }: NodeProps<CanvasNode>) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
+      className={`relative flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
         selected ? "border-primary ring-1 ring-primary" : "border-muted-foreground/40"
       }`}
     >
@@ -98,6 +145,7 @@ function VirtualNode({ data, selected }: NodeProps<CanvasNode>) {
       <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
       <span className="max-w-40 truncate text-muted-foreground">{data.label || "虚拟节点"}</span>
       <Handle type="source" position={Position.Right} />
+      <RunStateDot state={data.runState} />
     </div>
   )
 }
@@ -152,38 +200,45 @@ function wouldCreateCycle(edges: Edge[], source: string, target: string): boolea
   return false
 }
 
-// ─── 画布内部（须在 ReactFlowProvider 内）──────────────────
+/** /run 闸门返回的 GateResult。 */
+interface RunResult {
+  outcome: "EXECUTED" | "PENDING_APPROVAL" | "REJECTED"
+  resultInstanceId?: string | null
+  actionId?: number | null
+  message?: string
+}
 
-function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
-  const [workflows, setWorkflows] = useState<WorkflowDef[]>([])
-  const [selectedId, setSelectedId] = useState<number | null>(initialWorkflowId ?? null)
+/** 工作流实例详情里的节点（用于把事件里的实例 UUID 桥接到画布 task_def id）。 */
+interface InstanceTask {
+  id: string
+  taskDefId: number
+  state: string
+}
+
+// ─── 画布子 Tab（须在 ReactFlowProvider 内）──────────────
+
+function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: string; onSaved?: () => void }) {
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
-  const [nodes, setNodes] = useState<CanvasNode[]>([])
+  const [dagNodes, setDagNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
+  // 运行态叠加：runWfId 触发订阅；runStateByTaskDef 驱动节点状态点
+  const [runWfId, setRunWfId] = useState<string | null>(null)
+  const [instanceToTaskDef, setInstanceToTaskDef] = useState<Map<string, number>>(new Map())
+  const [runStateByTaskDef, setRunStateByTaskDef] = useState<Map<number, string>>(new Map())
+
   const { screenToFlowPosition } = useReactFlow()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const nodeTypes = useMemo(() => ({ task: TaskNode, virtual: VirtualNode }), [])
 
-  // 初次加载工作流列表（任务由左侧 <CatalogTree> 自取）
-  useEffect(() => {
-    authFetch(`${API_BASE}/api/workflows?size=100`, { cache: "no-store" })
-      .then((r) => r.json() as Promise<ApiResponse<WorkflowPage>>)
-      .then((j) => (j.code === 0 ? j.data?.content ?? [] : []))
-      .then((wfs) => {
-        setWorkflows(wfs)
-        if (selectedId == null && wfs.length > 0) setSelectedId(wfs[0].id)
-      })
-      .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const online = status === "ONLINE"
 
-  // 加载选中工作流的 DAG
+  // 加载该工作流的 DAG（草稿态）
   const loadDag = useCallback((id: number) => {
     setBusy(true)
     authFetch(`${API_BASE}/api/workflows/${id}/dag`, { cache: "no-store" })
@@ -191,7 +246,7 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
       .then((j) => {
         if (j.code === 0 && j.data) {
           const { nodes: ns, edges: es } = toFlow(j.data)
-          setNodes(ns)
+          setDagNodes(ns)
           setEdges(es)
           setDagVersion(j.data.version)
           setStatus(j.data.status)
@@ -206,12 +261,50 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
   }, [])
 
   useEffect(() => {
-    if (selectedId != null) loadDag(selectedId)
-  }, [selectedId, loadDag])
+    setLoading(true)
+    loadDag(workflowId)
+    setLoading(false)
+  }, [workflowId, loadDag])
 
-  // ── ReactFlow 变更回调 ──
+  // 运行态叠加到展示节点（不入草稿 dagNodes，仅派生）
+  const displayNodes = useMemo(
+    () =>
+      dagNodes.map((n) => ({
+        ...n,
+        data: { ...n.data, runState: n.data.taskId != null ? runStateByTaskDef.get(n.data.taskId) : undefined },
+      })),
+    [dagNodes, runStateByTaskDef],
+  )
+
+  // 订阅运行实例事件流
+  const { events } = useEventSource(
+    runWfId ? `${API_BASE}/api/ops/workflow-instances/${runWfId}/events/stream` : "",
+  )
+
+  // 状态事件 → 经实例 UUID→task_def id 桥接，更新节点运行态
+  useEffect(() => {
+    const statusEvents = events.filter((e) => e.type === "status")
+    if (statusEvents.length === 0) return
+    setRunStateByTaskDef((prev) => {
+      const next = new Map(prev)
+      for (const ev of statusEvents) {
+        try {
+          const u = JSON.parse(ev.data) as { taskId?: string; taskState?: string }
+          if (u.taskId && u.taskState) {
+            const td = instanceToTaskDef.get(u.taskId)
+            if (td != null) next.set(td, u.taskState)
+          }
+        } catch {
+          /* ignore malformed event */
+        }
+      }
+      return next
+    })
+  }, [events, instanceToTaskDef])
+
+  // ── ReactFlow 变更回调（操作草稿源 dagNodes）──
   const onNodesChange = useCallback((changes: NodeChange<CanvasNode>[]) => {
-    setNodes((nds) => applyNodeChanges(changes, nds))
+    setDagNodes((nds) => applyNodeChanges(changes, nds))
     if (changes.some((c) => c.type === "remove" || (c.type === "position" && c.dragging === false))) {
       setDirty(true)
     }
@@ -251,14 +344,9 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
       const task = JSON.parse(raw) as { id: number; name: string }
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       const id = `n-${shortId()}`
-      setNodes((nds) => [
+      setDagNodes((nds) => [
         ...nds,
-        {
-          id,
-          type: "task",
-          position,
-          data: { nodeType: "TASK", taskId: task.id, label: task.name },
-        },
+        { id, type: "task", position, data: { nodeType: "TASK", taskId: task.id, label: task.name } },
       ])
       setDirty(true)
     },
@@ -268,7 +356,7 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
   // ── 工具栏动作 ──
   const addVirtualNode = useCallback(() => {
     const id = `v-${shortId()}`
-    setNodes((nds) => [
+    setDagNodes((nds) => [
       ...nds,
       {
         id,
@@ -280,33 +368,10 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
     setDirty(true)
   }, [])
 
-  const createWorkflow = useCallback(() => {
-    const name = window.prompt("新建工作流名称")
-    if (!name) return
-    setBusy(true)
-    authFetch(`${API_BASE}/api/workflows`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    })
-      .then((r) => r.json() as Promise<ApiResponse<WorkflowDef>>)
-      .then((j) => {
-        if (j.code === 0 && j.data) {
-          setWorkflows((ws) => [j.data as WorkflowDef, ...ws])
-          setSelectedId(j.data.id)
-          toast.success("已创建工作流草稿")
-        } else {
-          toast.error(j.message || "创建失败")
-        }
-      })
-      .finally(() => setBusy(false))
-  }, [])
-
   const saveDraft = useCallback(() => {
-    if (selectedId == null) return
     setBusy(true)
-    const payload = toPayload(dagVersion, nodes, edges)
-    authFetch(`${API_BASE}/api/workflows/${selectedId}/dag`, {
+    const payload = toPayload(dagVersion, dagNodes, edges)
+    authFetch(`${API_BASE}/api/workflows/${workflowId}/dag`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -326,16 +391,15 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
       })
       .catch(() => toast.error("保存失败"))
       .finally(() => setBusy(false))
-  }, [selectedId, dagVersion, nodes, edges])
+  }, [workflowId, dagVersion, dagNodes, edges])
 
   const publish = useCallback(() => {
-    if (selectedId == null) return
     if (dirty) {
       toast.error("有未保存改动，请先保存草稿")
       return
     }
     setBusy(true)
-    authFetch(`${API_BASE}/api/workflows/${selectedId}/publish`, {
+    authFetch(`${API_BASE}/api/workflows/${workflowId}/publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -346,89 +410,393 @@ function CanvasInner({ initialWorkflowId }: { initialWorkflowId?: number }) {
           setStatus(j.data.status)
           setHasDraft(false)
           toast.success(`已发布 v${j.data.currentVersionNo}`)
+          onSaved?.()
         } else {
-          // 含环路拒绝（409）：编辑态保留不丢
           toast.error(j.message || "发布失败")
         }
       })
       .catch(() => toast.error("发布失败"))
       .finally(() => setBusy(false))
-  }, [selectedId, dirty])
+  }, [workflowId, dirty, onSaved])
+
+  // 手动触发正式实例：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
+  // D8：未上线禁用。D9：只盯最近一次（新运行重置状态）。
+  const runWorkflow = useCallback(async () => {
+    setBusy(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const j = (await res.json()) as ApiResponse<RunResult>
+      if (j.code !== 0 || !j.data) {
+        toast.error(j.message || "运行失败")
+        return
+      }
+      const r = j.data
+      if (r.outcome !== "EXECUTED" || !r.resultInstanceId) {
+        if (r.outcome === "PENDING_APPROVAL") {
+          toast.info(`需审批：单号 ${r.actionId ?? "?"}`)
+        } else {
+          toast.error(r.message || "运行未执行")
+        }
+        return
+      }
+      const wiId = r.resultInstanceId
+      setRunWfId(wiId)
+      setRunStateByTaskDef(new Map())
+      // 拉实例详情建立 实例UUID→task_def id 映射 + 初始节点状态
+      const detail = await authFetch(`${API_BASE}/api/ops/workflow-instances/${wiId}`, { cache: "no-store" })
+        .then((d) => d.json() as Promise<ApiResponse<{ tasks: InstanceTask[] }>>)
+      const idMap = new Map<string, number>()
+      const stateMap = new Map<number, string>()
+      for (const t of detail.data?.tasks ?? []) {
+        idMap.set(t.id, t.taskDefId)
+        stateMap.set(t.taskDefId, t.state)
+      }
+      setInstanceToTaskDef(idMap)
+      setRunStateByTaskDef(stateMap)
+      toast.success("已触发运行")
+    } catch {
+      toast.error("运行失败")
+    } finally {
+      setBusy(false)
+    }
+  }, [workflowId])
 
   if (loading) return <ViewStatus loading />
 
   return (
     <div className="flex h-full flex-col">
-      {/* 工具栏 */}
+      {/* 工具栏：运行 / 虚拟节点 / 保存 / 发布 + 状态 */}
       <div className="flex flex-wrap items-center gap-2 p-3">
-        <HugeiconsIcon icon={WorkflowSquare01Icon} className="text-primary" />
-        <h1 className="text-sm font-medium">工作流编排</h1>
-        <DropdownSelect
-          value={selectedId != null ? String(selectedId) : ""}
-          onChange={(v) => setSelectedId(Number(v))}
-          placeholder="选择工作流"
-          className="w-48"
-          options={workflows.map((w) => ({ value: String(w.id), label: w.name }))}
-        />
-        <Button size="sm" variant="outline" onClick={createWorkflow} disabled={busy}>
-          <HugeiconsIcon icon={Add01Icon} className="size-4" /> 新建工作流
+        <HugeiconsIcon icon={Share08Icon} className="text-primary" />
+        <h1 className="text-sm font-medium">{name}</h1>
+        <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
+          <HugeiconsIcon icon={RocketIcon} className="size-4" /> 运行
         </Button>
-
+        {!online && (
+          <span className="text-xs text-muted-foreground">
+            未上线不可运行，请先
+            <button type="button" className="ml-0.5 underline hover:text-foreground" onClick={publish} disabled={busy}>
+              发布
+            </button>
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
-          {status === "ONLINE" && <Badge variant="success">已上线</Badge>}
+          {online && <Badge variant="success">已上线</Badge>}
           {(dirty || hasDraft) && (
             <Badge variant="outline" className="text-amber-600">
               {dirty ? "未保存改动" : "有未发布改动"}
             </Badge>
           )}
-          <Button size="sm" variant="outline" onClick={addVirtualNode} disabled={selectedId == null || busy}>
+          <Button size="sm" variant="outline" onClick={addVirtualNode} disabled={busy}>
             <HugeiconsIcon icon={CircleIcon} className="size-4" /> 虚拟节点
           </Button>
-          <Button size="sm" variant="outline" onClick={saveDraft} disabled={selectedId == null || busy}>
+          <Button size="sm" variant="outline" onClick={saveDraft} disabled={busy}>
             <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> 保存草稿
           </Button>
-          <Button size="sm" onClick={publish} disabled={selectedId == null || busy}>
+          <Button size="sm" onClick={publish} disabled={busy}>
             <HugeiconsIcon icon={RocketIcon} className="size-4" /> 发布
           </Button>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        {/* 左侧类目树面板（workflow-canvas delta：来源从扁平列表升级为类目树）。
-            两种拖拽以 drop target 区分：拖任务到画布建节点（TASK_MIME）/ 拖入文件夹改归属（MOVE_MIME）。 */}
-        <div className="w-64 shrink-0 overflow-y-auto border-r border-border p-3">
-          <CatalogTree draggableTasksToCanvas enableMove showTagFilter />
-        </div>
-
-        {/* 画布 */}
-        <div className="min-w-0 flex-1" ref={wrapperRef} onDrop={onDrop} onDragOver={onDragOver}>
-          {selectedId == null ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              选择或新建一个工作流开始编排
-            </div>
-          ) : (
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              fitView
-              proOptions={{ hideAttribution: true }}
-            >
-              <Background />
-              <Controls />
-              <MiniMap pannable zoomable />
-            </ReactFlow>
-          )}
-        </div>
+      <div className="min-h-0 flex-1" ref={wrapperRef} onDrop={onDrop} onDragOver={onDragOver}>
+        <ReactFlow
+          id={`canvas-${workflowId}`}
+          nodes={displayNodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background />
+          <Controls />
+          <MiniMap pannable zoomable />
+        </ReactFlow>
       </div>
     </div>
   )
 }
 
-// ─── 导出（包 ReactFlowProvider）──────────────────────────
+/** 画布子 Tab（自带 ReactFlowProvider，多子 Tab keep-alive 各自独立）。 */
+function WorkflowCanvasPane({
+  workflowId,
+  name,
+  onSaved,
+}: {
+  workflowId: number
+  name: string
+  onSaved?: () => void
+}) {
+  return (
+    <ReactFlowProvider>
+      <CanvasInner workflowId={workflowId} name={name} onSaved={onSaved} />
+    </ReactFlowProvider>
+  )
+}
+
+// ─── 数据开发 IDE 壳 ────────────────────────────────────────
+
+type SubTabKind = "canvas" | "editor"
+interface SubTab {
+  kind: SubTabKind
+  id: number
+  name: string
+}
+const tabKey = (t: SubTab) => `${t.kind}:${t.id}`
+
+function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) {
+  const [tabs, setTabs] = useState<SubTab[]>([])
+  const [activeKey, setActiveKey] = useState<string | null>(null)
+  // closeTab 用 ref 读最新 activeKey，避免 useCallback 闭包陈旧
+  const activeKeyRef = useRef<string | null>(null)
+  activeKeyRef.current = activeKey
+  const [treeReloadKey, setTreeReloadKey] = useState(0)
+  const bumpTree = useCallback(() => setTreeReloadKey((k) => k + 1), [])
+
+  // 新建任务 Dialog
+  const [taskDialog, setTaskDialog] = useState(false)
+  const [taskName, setTaskName] = useState("")
+  const [taskType, setTaskType] = useState<"SQL" | "SHELL">("SQL")
+  const [creating, setCreating] = useState(false)
+
+  // 新建工作流 Dialog
+  const [wfDialog, setWfDialog] = useState(false)
+  const [wfName, setWfName] = useState("")
+
+  const openTab = useCallback((t: SubTab) => {
+    setTabs((prev) => (prev.some((x) => x.kind === t.kind && x.id === t.id) ? prev : [...prev, t]))
+    setActiveKey(tabKey(t))
+  }, [])
+
+  const closeTab = useCallback((key: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => tabKey(t) === key)
+      const next = prev.filter((t) => tabKey(t) !== key)
+      if (key === activeKeyRef.current) {
+        const fallback = next[idx] ?? next[idx - 1] ?? null
+        setActiveKey(fallback ? tabKey(fallback) : null)
+      }
+      return next
+    })
+  }, [])
+
+  // 深链：初始工作流自动开画布子 Tab
+  useEffect(() => {
+    if (initialWorkflowId != null) openTab({ kind: "canvas", id: initialWorkflowId, name: "工作流" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 新建任务：POST 草稿 → 直接开编辑子 Tab 进编辑态（D2/D5.3）
+  const submitCreateTask = async () => {
+    if (!taskName.trim()) return
+    setCreating(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: taskName.trim(), type: taskType, content: "" }),
+      })
+      const j = (await res.json()) as ApiResponse<TaskDef>
+      if (j.code === 0 && j.data) {
+        openTab({ kind: "editor", id: j.data.id, name: j.data.name })
+        setTaskDialog(false)
+        setTaskName("")
+        bumpTree()
+        toast.success("已创建任务草稿")
+      } else {
+        toast.error(j.message || "创建失败")
+      }
+    } catch {
+      toast.error("创建失败")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const submitCreateWorkflow = async () => {
+    if (!wfName.trim()) return
+    setCreating(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/workflows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: wfName.trim() }),
+      })
+      const j = (await res.json()) as ApiResponse<WorkflowDef>
+      if (j.code === 0 && j.data) {
+        openTab({ kind: "canvas", id: j.data.id, name: j.data.name })
+        setWfDialog(false)
+        setWfName("")
+        bumpTree()
+        toast.success("已创建工作流草稿")
+      } else {
+        toast.error(j.message || "创建失败")
+      }
+    } catch {
+      toast.error("创建失败")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const stripTabs: TabStripItem[] = tabs.map((t) => ({
+    id: tabKey(t),
+    label: t.name,
+    icon: t.kind === "canvas" ? Share08Icon : Task01Icon,
+  }))
+
+  return (
+    <div className="flex h-full gap-3 p-3">
+      {/* 左侧常驻类目树 —— Card 边框，对齐 cockpit StatCard 观感 */}
+      <div className="flex w-64 shrink-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <CatalogTree
+            draggableTasksToCanvas
+            enableMove
+            showTagFilter
+            reloadKey={treeReloadKey}
+            onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
+            onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
+          />
+        </div>
+      </div>
+
+      {/* 右侧内层子 Tab 区 —— Card 边框，对齐 cockpit StatCard 观感 */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
+        <TabStrip
+          size="sm"
+          surface="background"
+          tabs={stripTabs}
+          activeId={activeKey}
+          onActivate={setActiveKey}
+          onClose={closeTab}
+          trailing={
+            <>
+              <button
+                type="button"
+                title="新建任务"
+                onClick={() => setTaskDialog(true)}
+                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <HugeiconsIcon icon={Task01Icon} className="size-3.5" /> 任务
+              </button>
+              <button
+                type="button"
+                title="新建工作流"
+                onClick={() => setWfDialog(true)}
+                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <HugeiconsIcon icon={Share08Icon} className="size-3.5" /> 工作流
+              </button>
+            </>
+          }
+        />
+
+        {/* 子 Tab 内容（隐藏式保活 keep-alive） */}
+        <div className="relative min-h-0 flex-1">
+          {tabs.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              从左侧类目树点开任务/工作流，或点上方「任务 / 工作流」新建
+            </div>
+          ) : (
+            tabs.map((t) => (
+              <div
+                key={tabKey(t)}
+                className={tabKey(t) === activeKey ? "absolute inset-0" : "absolute inset-0 hidden"}
+              >
+                {t.kind === "canvas" ? (
+                  <WorkflowCanvasPane workflowId={t.id} name={t.name} onSaved={bumpTree} />
+                ) : (
+                  <TaskEditorPane taskId={t.id} onSaved={bumpTree} />
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 新建任务 Dialog（名 + 类型） */}
+      <Dialog open={taskDialog} onOpenChange={setTaskDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新建任务</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={taskName}
+            placeholder="任务名称"
+            onChange={(e) => setTaskName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                submitCreateTask()
+              }
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">类型</span>
+            <Button
+              size="xs"
+              variant={taskType === "SQL" ? "default" : "outline"}
+              onClick={() => setTaskType("SQL")}
+            >
+              SQL
+            </Button>
+            <Button
+              size="xs"
+              variant={taskType === "SHELL" ? "default" : "outline"}
+              onClick={() => setTaskType("SHELL")}
+            >
+              SHELL
+            </Button>
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <Button onClick={submitCreateTask} disabled={creating}>
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新建工作流 Dialog */}
+      <Dialog open={wfDialog} onOpenChange={setWfDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新建工作流</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={wfName}
+            placeholder="工作流名称"
+            onChange={(e) => setWfName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                submitCreateWorkflow()
+              }
+            }}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <Button onClick={submitCreateWorkflow} disabled={creating}>
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ─── 导出（视图注册表入口）──────────────────────────────────
 
 export function WorkflowCanvasView({ params }: { params?: Record<string, unknown> }) {
   const initialWorkflowId =
@@ -437,9 +805,5 @@ export function WorkflowCanvasView({ params }: { params?: Record<string, unknown
       : typeof params?.workflowId === "string"
         ? Number(params.workflowId)
         : undefined
-  return (
-    <ReactFlowProvider>
-      <CanvasInner initialWorkflowId={initialWorkflowId} />
-    </ReactFlowProvider>
-  )
+  return <DataDevIdeShell initialWorkflowId={initialWorkflowId} />
 }

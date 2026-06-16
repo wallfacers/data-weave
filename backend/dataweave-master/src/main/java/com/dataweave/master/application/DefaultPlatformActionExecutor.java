@@ -63,6 +63,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "CREATE_TASK" -> createTask(action);
             case "NODE_EXEC" -> nodeExec(action);
             case "TEST_RUN" -> testRun(action);
+            case "TASK_RUN" -> taskRun(action);
             case "TRIGGER_WORKFLOW" -> triggerWorkflow(action);
             case "RESUME_WORKFLOW" -> resumeWorkflow(action);
             case "RERUN_WORKFLOW" -> rerunWorkflow(action);
@@ -170,6 +171,18 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         UUID instanceId = triggerService.triggerTestRun(taskId, bizDate);
         return new ExecOutcome(true, "已提交任务 #" + taskId + " 的测试运行（草稿内容，留痕）。",
                 json(Map.of("testInstanceId", instanceId.toString(), "taskId", taskId)), instanceId);
+    }
+
+    /** 手动触发正式任务运行：targetId=taskId，command=bizDate（可空）。run_mode=NORMAL，计入正式统计。 */
+    private ExecOutcome taskRun(AgentAction action) {
+        Long taskId = parseLong(action.getTargetId());
+        if (taskId == null) {
+            return new ExecOutcome(false, "缺少任务 id", json(Map.of("error", "missing_task_id")), null);
+        }
+        String bizDate = action.getCommand();
+        UUID instanceId = triggerService.triggerManualTaskRun(taskId, bizDate);
+        return new ExecOutcome(true, "已手动触发任务 #" + taskId + " 的正式运行。",
+                json(Map.of("instanceId", instanceId.toString(), "taskId", taskId, "runMode", "NORMAL")), instanceId);
     }
 
     /** 手动触发工作流：targetId=workflowId，command=bizDate（可空）。 */

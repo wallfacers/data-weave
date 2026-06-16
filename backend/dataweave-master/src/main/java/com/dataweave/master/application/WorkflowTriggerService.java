@@ -135,6 +135,32 @@ public class WorkflowTriggerService {
         return saved.getId();
     }
 
+    /**
+     * 单任务正式手动运行（manual-run-trigger）：脱离工作流、跑**已发布版本**
+     * （task_version_no=current_version_no）、run_mode=NORMAL，计入正式运维统计。返回 task_instance id。
+     *
+     * <p>与 {@link #triggerTestRun} 互为镜像——TEST 跑草稿（version=null）不计统计；
+     * 本方法跑已发布版本、计统计，是「正式实例」语义。草稿/未发布的拦截在闸门之前（controller），
+     * 此处兜底：current_version_no 缺失则按未发布处理（version 落 null）。
+     */
+    public UUID triggerManualTaskRun(Long taskId, String bizDate) {
+        TaskDef task = taskDefRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
+        Integer versionNo = task.getCurrentVersionNo();
+        LocalDateTime now = LocalDateTime.now();
+        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now);
+        ti.setWorkflowInstanceId(null);
+        ti.setWorkflowNodeId(null);
+        ti.setTaskId(taskId);
+        ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);  // 跑已发布版本
+        ti.setRunMode("NORMAL");
+        ti.setState(InstanceStates.WAITING);
+        ti.setBizDate(bizDate);
+        TaskInstance saved = taskInstanceRepository.save(ti);
+        wake();
+        return saved.getId();
+    }
+
     private TaskInstance newTaskInstance(Long tenantId, Long projectId, LocalDateTime now) {
         TaskInstance ti = new TaskInstance();
         ti.setTenantId(tenantId);

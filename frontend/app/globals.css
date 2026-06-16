@@ -357,3 +357,10 @@ html.dark .os-theme-dark {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm, 0.25rem);
 }
+/* 背景网点：默认 dot 半径 = size·zoom/2 ≈ 0.5–0.8px（亚像素），有节点时 fitView 放大
+   让网点间距变稀，整片糊成近白板（用户报「有节点变白色面板」）。把半径钉成恒定像素值
+   （不随 zoom 缩放），任意缩放级别都保持清晰点阵。色沿用 React Flow 默认 #91919a（中性灰，
+   亮/暗皆可辨）。CSS `r`（presentation attribute）覆盖组件写入的 r 属性。 */
+.react-flow__background-pattern.dots {
+  r: 1.2px;
+}

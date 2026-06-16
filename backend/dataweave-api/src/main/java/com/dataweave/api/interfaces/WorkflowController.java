@@ -1,8 +1,11 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
+import com.dataweave.master.application.GateResult;
+import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.WorkflowService;
 import com.dataweave.master.application.WorkflowService.DagPayload;
 import com.dataweave.master.application.WorkflowService.DagView;
@@ -24,10 +27,13 @@ public class WorkflowController {
 
     private final WorkflowService workflowService;
     private final CatalogAssignService catalogAssignService;
+    private final GatedActionService gatedActionService;
 
-    public WorkflowController(WorkflowService workflowService, CatalogAssignService catalogAssignService) {
+    public WorkflowController(WorkflowService workflowService, CatalogAssignService catalogAssignService,
+                              GatedActionService gatedActionService) {
         this.workflowService = workflowService;
         this.catalogAssignService = catalogAssignService;
+        this.gatedActionService = gatedActionService;
     }
 
     /** 创建工作流草稿。 */
@@ -113,5 +119,39 @@ public class WorkflowController {
                                             @RequestBody(required = false) Map<String, String> body) {
         String remark = body != null ? body.get("remark") : null;
         return ApiResponse.ok(workflowService.publish(id, remark));
+    }
+
+    /**
+     * 手动触发正式运行（manual-run-trigger）：对**已上线**工作流经闸门起一个 trigger_type=MANUAL 的
+     * 正式 workflow_instance（薄包装 {@code WorkflowTriggerService.trigger(wf, "MANUAL", bizDate, null)}）。
+     * 返回 {@link GateResult}：
+     * <ul>
+     *   <li>{@code EXECUTED} —— {@code data.resultInstanceId} 为新实例 id，前端接 DAG 事件流；</li>
+     *   <li>{@code PENDING_APPROVAL} —— {@code data.actionId} 为审批单号，批准后才下发。</li>
+     * </ul>
+     * 未上线工作流在闸门前即拒（409）。
+     */
+    @PostMapping("/{id}/run")
+    public ApiResponse<GateResult> run(@PathVariable Long id,
+                                       @RequestBody(required = false) RunRequest body) {
+        WorkflowDef wf = workflowService.getById(id).orElse(null);
+        if (wf == null) {
+            return ApiResponse.err(404, "工作流不存在: " + id);
+        }
+        if (!"ONLINE".equals(wf.getStatus())) {
+            return ApiResponse.err(409, "工作流未上线，需先发布再运行");
+        }
+        ActionRequest req = ActionRequest.builder()
+                .toolName("trigger_workflow").actionType("TRIGGER_WORKFLOW")
+                .targetType("WORKFLOW").targetId(String.valueOf(id))
+                .command(body != null ? body.bizDate() : null)
+                .actor("ui").actorSource("UI")
+                .summary("手动触发工作流 #" + id + "「" + wf.getName() + "」")
+                .build();
+        return ApiResponse.ok(gatedActionService.submit(req));
+    }
+
+    /** 手动运行请求体（bizDate 可空）。 */
+    public record RunRequest(String bizDate) {
     }
 }

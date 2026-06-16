@@ -1,8 +1,5 @@
-# workflow-canvas Specification
+## MODIFIED Requirements
 
-## Purpose
-工作流编排的前端可视化能力：基于 React Flow 的 DAG 画布编辑器，支持拖拽建节点、连线建边、节点定位，以及草稿保存与发布的交互闭环（含本地成环检测与未发布改动提示）。作为独立 workspace 视图注册，不改动既有 `task-flow-view`。
-## Requirements
 ### Requirement: 可视化 DAG 画布编辑
 
 系统 SHALL 提供基于 React Flow（`@xyflow/react` v12+）的可视化工作流画布。画布 MUST 支持：从左侧**类目树**（`<CatalogTree>`，按文件夹组织的 `task_def`）拖入节点（建 `TASK` 节点并绑定该 task）、从工具栏放置 `VIRTUAL` 节点、节点间拉线建边、节点拖动改变位置。节点位置变化 MUST 反映到内存图并在保存时回写 `pos_x/pos_y`。画布 MUST 区分两种拖拽语义：在类目树内拖动节点表示移动归属（调归类接口），从类目树拖任务到画布表示建 DAG 节点；以 drop target（树容器 vs ReactFlow pane）判定意图。画布 MUST NOT 渲染常驻拖拽提示文案。画布 MUST 作为"数据开发"IDE 内的一种**子 Tab** 呈现（一个工作流对应一个画布子 Tab），不再作为独立顶层 workspace 视图。
@@ -27,25 +24,7 @@
 - **WHEN** 用户点击类目树中一个工作流叶子
 - **THEN** 该工作流的画布在数据开发 IDE 内层区以一个画布子 Tab 打开/激活，而非独立顶层视图
 
-### Requirement: 草稿保存与发布交互
-
-画布 SHALL 在前端内存维护编辑态并跟踪脏标记。用户点击「保存草稿」时 MUST 一次性 PUT 全量 `{nodes, edges}` 到 `/api/workflows/{id}/dag`。用户点击「发布」时 MUST 调用 `/api/workflows/{id}/publish`。保存或发布成功 SHALL 清除脏标记并刷新状态；失败（含 409 冲突、发布环路拒绝）MUST 向用户给出可读提示且不静默丢弃编辑。
-
-#### Scenario: 保存草稿
-- **WHEN** 用户编辑画布后点击「保存草稿」
-- **THEN** 前端整图 PUT，成功后清除「未保存」脏标记
-
-#### Scenario: 发布环路被拒
-- **WHEN** 用户发布一个存在环路的画布，后端返回拒绝
-- **THEN** 前端展示环路提示，画布编辑态保留不丢失
-
-#### Scenario: 本地连线即时环路反馈
-- **WHEN** 用户尝试拉一条会使画布成环的边
-- **THEN** 前端本地检测并拒绝该连线，给出即时提示（不等待后端）
-
-#### Scenario: 未发布改动提示
-- **WHEN** 工作流 `has_draft_change=1`
-- **THEN** 画布明示「有未发布改动」状态
+## ADDED Requirements
 
 ### Requirement: 画布叠加 DAG 运行态
 
@@ -58,4 +37,3 @@
 #### Scenario: 编辑态与运行态可区分
 - **WHEN** 画布同时处于可编辑状态并叠加了运行态
 - **THEN** 运行态着色不掩盖节点类型与选中态，用户仍能识别 TASK/VIRTUAL 与当前选择
-

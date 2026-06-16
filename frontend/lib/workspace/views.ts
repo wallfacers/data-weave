@@ -5,12 +5,10 @@
 
 export type ViewType =
   | "cockpit"
-  | "task-flow"
   | "workflow-canvas"
   | "freshness"
   | "reports"
   | "metrics"
-  | "sql-workbench"
   | "diagnosis"
   | "fleet"
   | "instance-log"
@@ -30,12 +28,10 @@ export interface ViewMeta {
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
   cockpit: { title: "驾驶舱", defaultPinned: true },
-  "task-flow": { title: "任务流", defaultPinned: true },
-  "workflow-canvas": { title: "工作流编排" },
+  "workflow-canvas": { title: "数据开发" },
   freshness: { title: "数据新鲜度", defaultPinned: true },
   reports: { title: "业务报表", defaultPinned: true },
   metrics: { title: "系统指标", defaultPinned: true },
-  "sql-workbench": { title: "任务开发" },
   diagnosis: { title: "失败诊断" },
   fleet: { title: "集群机器" },
   "instance-log": { title: "实例日志" },
