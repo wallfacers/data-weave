@@ -96,7 +96,7 @@ class ScheduleParamResolverTest {
     void unknownCustomParameterFails() {
         assertThatThrownBy(() -> r.resolve("SELECT ${nope}", "2025-03-14", null, ctx()))
                 .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
-                .hasMessageContaining("nope");
+                .hasMessage("schedule.placeholder.undefined");
     }
 
     @Test
@@ -104,14 +104,14 @@ class ScheduleParamResolverTest {
         String params = "{\"a\":\"${b}\",\"b\":\"${a}\"}";
         assertThatThrownBy(() -> r.resolve("${a}", "2025-03-14", params, ctx()))
                 .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
-                .hasMessageContaining("循环");
+                .hasMessage("schedule.param.circular");
     }
 
     @Test
     void literalNestedPlaceholderRejected() {
         assertThatThrownBy(() -> r.resolve("SELECT ${${biz_dt}}", "2025-03-14", "{\"biz_dt\":\"x\"}", ctx()))
                 .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
-                .hasMessageContaining("嵌套");
+                .hasMessage("schedule.placeholder.nested");
     }
 
     // ── Requirement: No-op when content has no placeholders ────────────
@@ -144,7 +144,54 @@ class ScheduleParamResolverTest {
 
     @Test
     void malformedOffsetFails() {
+        // ${yyyymmdd-}：末尾悬空运算符 → schedule.offset.dangling
         assertThatThrownBy(() -> r.resolve("${yyyymmdd-}", "2025-03-14", null, ctx()))
-                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class);
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.offset.dangling");
+    }
+
+    @Test
+    void illegalOffsetFails() {
+        // ${yyyymmdd-1x}：offset 段不匹配 [-+]\d+(\*\d+)? → schedule.offset.illegal
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd-1x}", "2025-03-14", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.offset.illegal");
+    }
+
+    @Test
+    void unclosedPlaceholderFails() {
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd", "2025-03-14", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.placeholder.unclosed");
+    }
+
+    @Test
+    void emptyPlaceholderFails() {
+        assertThatThrownBy(() -> r.resolve("${}", "2025-03-14", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.placeholder.empty");
+    }
+
+    @Test
+    void emptyBizDateFails() {
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd}", " ", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.bizdate.empty");
+    }
+
+    @Test
+    void illegalBizDateFails() {
+        // 长度符合 yyyy-MM-dd 但内容非法（月份越界）→ 解析异常路径
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd}", "2025-13-40", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.bizdate.illegal");
+    }
+
+    @Test
+    void malformedBizDateFails() {
+        // 长度不符合任一格式 → schedule.bizdate.format
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd}", "2025/03/14", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.bizdate.format");
     }
 }

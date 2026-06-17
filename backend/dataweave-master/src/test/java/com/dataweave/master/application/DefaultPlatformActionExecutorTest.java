@@ -46,13 +46,19 @@ class DefaultPlatformActionExecutorTest {
     private RecoveryService recoveryService;
     @Mock
     private com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository;
+    @Mock
+    private OpsService opsService;
+    @Mock
+    private ObjectProvider<OpsService> opsServiceProvider;
 
     private DefaultPlatformActionExecutor executor;
 
     @BeforeEach
     void setUp() {
+        when(opsServiceProvider.getObject()).thenReturn(opsService);
         executor = new DefaultPlatformActionExecutor(instanceRepository, diagnosisRepository,
-                fleetService, taskService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository);
+                fleetService, taskService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
+                opsServiceProvider);
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
@@ -148,6 +154,79 @@ class DefaultPlatformActionExecutorTest {
         var out = executor.execute(a);
         assertThat(out.success()).isFalse();
         assertThat(out.message()).contains("未接线");
+    }
+
+    private AgentAction instanceAction(String type, String instanceId) {
+        AgentAction a = new AgentAction();
+        a.setActionType(type);
+        a.setTargetType("WORKFLOW_INSTANCE");
+        a.setTargetId(instanceId);
+        return a;
+    }
+
+    @Test
+    void killInstance_success_callsOpsAndReportsState() {
+        java.util.UUID id = java.util.UUID.fromString("01910000-0003-7000-8000-000000000003");
+        com.dataweave.master.domain.WorkflowInstance wi = new com.dataweave.master.domain.WorkflowInstance();
+        wi.setId(id);
+        wi.setState("STOPPED");
+        when(opsService.killWorkflow(id)).thenReturn(wi);
+
+        var out = executor.execute(instanceAction("KILL_INSTANCE", id.toString()));
+
+        assertThat(out.success()).isTrue();
+        assertThat(out.message()).contains("STOPPED");
+        assertThat(out.resultInstanceId()).isEqualTo(id);
+        verify(opsService).killWorkflow(id);
+    }
+
+    @Test
+    void pauseInstance_success_callsOps() {
+        java.util.UUID id = java.util.UUID.fromString("01910000-0003-7000-8000-000000000003");
+        com.dataweave.master.domain.WorkflowInstance wi = new com.dataweave.master.domain.WorkflowInstance();
+        wi.setId(id);
+        wi.setState("PAUSED");
+        when(opsService.pauseWorkflow(id)).thenReturn(wi);
+
+        var out = executor.execute(instanceAction("PAUSE_INSTANCE", id.toString()));
+
+        assertThat(out.success()).isTrue();
+        assertThat(out.message()).contains("PAUSED");
+        verify(opsService).pauseWorkflow(id);
+    }
+
+    @Test
+    void resumeInstance_success_callsOps() {
+        java.util.UUID id = java.util.UUID.fromString("01910000-0003-7000-8000-000000000003");
+        com.dataweave.master.domain.WorkflowInstance wi = new com.dataweave.master.domain.WorkflowInstance();
+        wi.setId(id);
+        wi.setState("RUNNING");
+        when(opsService.resumeWorkflow(id)).thenReturn(wi);
+
+        var out = executor.execute(instanceAction("RESUME_INSTANCE", id.toString()));
+
+        assertThat(out.success()).isTrue();
+        assertThat(out.message()).contains("RUNNING");
+        verify(opsService).resumeWorkflow(id);
+    }
+
+    @Test
+    void killInstance_terminalState_returnsClearFailureNotThrow() {
+        java.util.UUID id = java.util.UUID.fromString("01910000-0003-7000-8000-000000000003");
+        when(opsService.killWorkflow(id)).thenThrow(new IllegalStateException("Cannot kill a terminal instance"));
+
+        var out = executor.execute(instanceAction("KILL_INSTANCE", id.toString()));
+
+        assertThat(out.success()).isFalse();
+        assertThat(out.message()).contains("terminal");
+        assertThat(out.resultInstanceId()).isNull();
+    }
+
+    @Test
+    void instanceOp_badUuid_returnsClearError() {
+        var out = executor.execute(instanceAction("KILL_INSTANCE", "not-a-uuid"));
+        assertThat(out.success()).isFalse();
+        assertThat(out.message()).contains("非法");
     }
 
     private void verifyResolved() {

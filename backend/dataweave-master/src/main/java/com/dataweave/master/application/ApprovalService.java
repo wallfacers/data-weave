@@ -2,6 +2,7 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AgentActionRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -38,25 +39,26 @@ public class ApprovalService {
      * @param id           审批单 id
      * @param approver     审批人
      * @param confirmation L3 二次确认（回输的对象名）；非 L3 可为 null
+     * @throws BizException 审批单不存在 / 已过期 / 状态不可批准 / L3 二次确认不匹配
      */
     public ApprovalResult approve(Long id, String approver, String confirmation) {
         AgentAction action = actionRepository.findById(id).orElse(null);
         if (action == null) {
-            return ApprovalResult.fail("未找到审批单 #" + id);
+            throw new BizException("approval.not_found", id).withHttpStatus(404);
         }
         // 超时检查（懒过期）
         if (isExpired(action)) {
             markExpired(action);
-            return ApprovalResult.fail("审批单 #" + id + " 已超时过期，无法批准。");
+            throw new BizException("approval.expired", id).withHttpStatus(409);
         }
         if (!"PENDING".equals(action.getApprovalStatus())) {
-            return ApprovalResult.fail("审批单 #" + id + " 状态为 " + action.getApprovalStatus() + "，不可批准。");
+            throw new BizException("approval.wrong_state", id, action.getApprovalStatus()).withHttpStatus(409);
         }
         // L3 二次确认
         if ("L3".equals(action.getPolicyLevel())) {
             String expected = action.getTargetId();
             if (confirmation == null || expected == null || !confirmation.trim().equals(expected.trim())) {
-                return ApprovalResult.fail("L3 不可逆操作需回输目标对象名「" + expected + "」二次确认。");
+                throw new BizException("approval.l3_confirm_required", expected).withHttpStatus(400);
             }
         }
 
@@ -76,17 +78,18 @@ public class ApprovalService {
     public ApprovalResult reject(Long id, String approver) {
         AgentAction action = actionRepository.findById(id).orElse(null);
         if (action == null) {
-            return ApprovalResult.fail("未找到审批单 #" + id);
+            throw new BizException("approval.not_found", id).withHttpStatus(404);
         }
         if (!"PENDING".equals(action.getApprovalStatus())) {
-            return ApprovalResult.fail("审批单 #" + id + " 状态为 " + action.getApprovalStatus() + "，不可拒绝。");
+            throw new BizException("approval.wrong_state_on_reject", id, action.getApprovalStatus()).withHttpStatus(409);
         }
         action.setApprovalStatus("REJECTED");
         action.setApprovedBy(approver);
         action.setApprovedAt(LocalDateTime.now());
         action.setUpdatedAt(LocalDateTime.now());
         actionRepository.save(action);
-        return ApprovalResult.ok(action, "审批单 #" + id + " 已拒绝。", null);
+        // 复用 approval.rejected code 作为成功确认（由上层按 locale 本地化）。
+        return ApprovalResult.ok(action, "approval.rejected", null);
     }
 
     /** 把超时未处理的 PENDING 审批单置 EXPIRED。返回过期条数。供定时任务调用。 */

@@ -4,6 +4,7 @@ import com.dataweave.master.domain.EntityTag;
 import com.dataweave.master.domain.EntityTagRepository;
 import com.dataweave.master.domain.Tag;
 import com.dataweave.master.domain.TagRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,11 +42,11 @@ public class TagService {
     @Transactional
     public Tag create(Long projectId, String name, String color) {
         if (name == null || name.isBlank()) {
-            throw new CatalogException(CatalogException.INVALID, "标签名不能为空");
+            throw new BizException("tag.name.empty").withHttpStatus(400);
         }
         String trimmed = name.trim();
         tagRepository.findByProjectIdAndName(projectId, trimmed).ifPresent(t -> {
-            throw new CatalogException(CatalogException.TAG_DUPLICATE, "标签名已存在: " + trimmed);
+            throw new BizException("tag.name.duplicate", trimmed).withHttpStatus(409);
         });
         LocalDateTime now = LocalDateTime.now();
         Tag tag = new Tag();
@@ -62,7 +63,7 @@ public class TagService {
     @Transactional
     public void delete(Long tagId) {
         tagRepository.findById(tagId)
-                .orElseThrow(() -> new CatalogException(CatalogException.NOT_FOUND, "标签不存在: " + tagId));
+                .orElseThrow(() -> new BizException("tag.not_found", tagId).withHttpStatus(404));
         entityTagRepository.deleteByTagId(tagId);
         tagRepository.deleteById(tagId);
     }
@@ -74,7 +75,7 @@ public class TagService {
     public void tag(String entityType, Long entityId, Long tagId) {
         String type = normalizeType(entityType);
         tagRepository.findById(tagId)
-                .orElseThrow(() -> new CatalogException(CatalogException.NOT_FOUND, "标签不存在: " + tagId));
+                .orElseThrow(() -> new BizException("tag.not_found", tagId).withHttpStatus(404));
         if (entityTagRepository.findByTagIdAndEntityTypeAndEntityId(tagId, type, entityId).isPresent()) {
             return; // 幂等去重
         }
@@ -105,11 +106,11 @@ public class TagService {
 
     private String normalizeType(String entityType) {
         if (entityType == null) {
-            throw new CatalogException(CatalogException.INVALID, "entityType 不能为空");
+            throw new BizException("tag.entity_type.empty").withHttpStatus(400);
         }
         String type = entityType.trim().toUpperCase();
         if (!VALID_TYPES.contains(type)) {
-            throw new CatalogException(CatalogException.INVALID, "非法 entityType: " + entityType);
+            throw new BizException("tag.entity_type.invalid", entityType).withHttpStatus(400);
         }
         return type;
     }

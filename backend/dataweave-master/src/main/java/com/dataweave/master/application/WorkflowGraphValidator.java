@@ -5,6 +5,7 @@ import com.dataweave.master.domain.WorkflowDependency;
 import com.dataweave.master.domain.WorkflowDependencyRepository;
 import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
  *   <li>工作流发布：节点-边构成的 DAG 必须无环（有环拒绝发布）；</li>
  *   <li>创建跨流依赖：加入新依赖后全局 workflow_dependency 图必须无环。</li>
  * </ul>
- * 校验失败抛 {@link IllegalStateException}，由发布/依赖创建入口转为面向用户的拒绝。
+ * 校验失败抛 {@link BizException}（code 以 {@code workflow.graph.*} 前缀），由发布/依赖创建入口转为面向用户的拒绝。
  */
 @Service
 public class WorkflowGraphValidator {
@@ -44,8 +45,7 @@ public class WorkflowGraphValidator {
         }
         Optional<List<Long>> cycle = GraphCycles.findCycle(adjacency);
         if (cycle.isPresent()) {
-            throw new IllegalStateException("工作流发布失败：DAG 存在环路（节点 "
-                    + pathString(cycle.get()) + "），请打断环路后重试。");
+            throw new BizException("workflow.graph.cycle", pathString(cycle.get())).withHttpStatus(400);
         }
     }
 
@@ -55,7 +55,7 @@ public class WorkflowGraphValidator {
      */
     public void validateDependencyAcyclic(Long workflowId, Long dependWorkflowId) {
         if (Objects.equals(workflowId, dependWorkflowId)) {
-            throw new IllegalStateException("依赖创建失败：工作流不能依赖自身。");
+            throw new BizException("workflow.graph.self_dependency").withHttpStatus(400);
         }
         Map<Long, List<Long>> adjacency = new HashMap<>();
         for (WorkflowDependency d : dependencyRepository.findAll()) {
@@ -70,8 +70,7 @@ public class WorkflowGraphValidator {
 
         Optional<List<Long>> cycle = GraphCycles.findCycle(adjacency);
         if (cycle.isPresent()) {
-            throw new IllegalStateException("依赖创建失败：将导致工作流依赖成环（"
-                    + pathString(cycle.get()) + "）。");
+            throw new BizException("workflow.graph.dependency_cycle", pathString(cycle.get())).withHttpStatus(400);
         }
     }
 

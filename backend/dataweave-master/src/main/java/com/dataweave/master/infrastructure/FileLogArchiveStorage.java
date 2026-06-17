@@ -1,12 +1,12 @@
 package com.dataweave.master.infrastructure;
 
 import com.dataweave.master.domain.LogArchiveStorage;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +36,7 @@ public class FileLogArchiveStorage implements LogArchiveStorage {
             Files.createDirectories(target.getParent());
             Files.writeString(target, content == null ? "" : content, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("归档写入失败：" + key, e);
+            throw failed("archive.file.write_failed", key, e);
         }
     }
 
@@ -49,7 +49,7 @@ public class FileLogArchiveStorage implements LogArchiveStorage {
         try {
             return Optional.of(Files.readString(target, StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new UncheckedIOException("归档读取失败：" + key, e);
+            throw failed("archive.file.read_failed", key, e);
         }
     }
 
@@ -62,8 +62,16 @@ public class FileLogArchiveStorage implements LogArchiveStorage {
     private Path resolve(String key) {
         Path resolved = baseDir.resolve(key).normalize();
         if (!resolved.startsWith(baseDir.normalize())) {
-            throw new IllegalArgumentException("非法归档键：" + key);
+            // 非法归档键属于客户端输入问题，HTTP 400。
+            throw new BizException("archive.file.invalid_key", key);
         }
         return resolved;
+    }
+
+    /** 构造文件归档基础设施异常（HTTP 500），并保留 cause 便于日志溯源。 */
+    private static BizException failed(String code, String key, IOException cause) {
+        BizException ex = new BizException(code, key).withHttpStatus(500);
+        ex.initCause(cause);
+        return ex;
     }
 }

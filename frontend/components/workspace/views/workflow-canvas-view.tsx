@@ -10,7 +10,8 @@
  * 画布子 Tab 订阅所属工作流实例的 events/stream，按运行态给节点叠加状态点（不掩盖类型/选中态）。
  * 运行 = 手动触发正式实例（POST /api/workflows/{id}/run），D8：未上线禁用并提示需先发布。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useMotionValue, useTransform, motion } from "motion/react"
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -543,6 +544,12 @@ function WorkflowCanvasPane({
 
 // ─── 数据开发 IDE 壳 ────────────────────────────────────────
 
+/** 左侧类目树面板宽度：默认 / 可拖拽范围 / 持久化键 */
+const CATALOG_DEFAULT_WIDTH = 256 // = w-64
+const CATALOG_MIN_WIDTH = 180
+const CATALOG_MAX_WIDTH = 480
+const CATALOG_WIDTH_KEY = "dw.dataDev.catalogWidth"
+
 type SubTabKind = "canvas" | "editor"
 interface SubTab {
   kind: SubTabKind
@@ -559,6 +566,53 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
   activeKeyRef.current = activeKey
   const [treeReloadKey, setTreeReloadKey] = useState(0)
   const bumpTree = useCallback(() => setTreeReloadKey((k) => k + 1), [])
+
+  // ── 类目树面板宽度（右缘分割线拖拽，localStorage 持久化）────────
+  // 与 AgentRail 同模式：motion value 驱动渲染，拖拽过程零 React 提交
+  const [, setCatalogWidth] = useState(CATALOG_DEFAULT_WIDTH)
+  const catalogWidthMotion = useMotionValue(CATALOG_DEFAULT_WIDTH)
+  const [catalogHydrated, setCatalogHydrated] = useState(false)
+  useLayoutEffect(() => {
+    const saved = Number(localStorage.getItem(CATALOG_WIDTH_KEY))
+    if (saved >= CATALOG_MIN_WIDTH && saved <= CATALOG_MAX_WIDTH) {
+      setCatalogWidth(saved)
+      catalogWidthMotion.set(saved)
+    }
+    setCatalogHydrated(true)
+  }, [catalogWidthMotion])
+  const catalogWidthStyle = useTransform(catalogWidthMotion, (v) => `${Math.round(v)}px`)
+  const catalogWidthProp = catalogHydrated
+    ? catalogWidthStyle
+    : "var(--dw-catalog-width, 256px)"
+
+  const onCatalogResizeDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startW = catalogWidthMotion.get()
+      let current = startW
+      const onMove = (ev: PointerEvent) => {
+        current = Math.min(
+          CATALOG_MAX_WIDTH,
+          Math.max(CATALOG_MIN_WIDTH, startW + (ev.clientX - startX)),
+        )
+        catalogWidthMotion.set(current)
+      }
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        document.body.style.cursor = ""
+        document.body.style.userSelect = ""
+        setCatalogWidth(current)
+        localStorage.setItem(CATALOG_WIDTH_KEY, String(current))
+      }
+      document.body.style.cursor = "col-resize"
+      document.body.style.userSelect = "none"
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+    },
+    [catalogWidthMotion],
+  )
 
   // 新建任务 Dialog
   const [taskDialog, setTaskDialog] = useState(false)
@@ -585,6 +639,37 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
       }
       return next
     })
+  }, [])
+
+  // 标准批量关闭 —— 与驾驶舱 Tab 行为一致（TabStrip 条件渲染：传了才显示菜单项）
+  const closeOthers = useCallback((key: string) => {
+    setTabs((prev) => prev.filter((t) => tabKey(t) === key))
+    setActiveKey(key)
+  }, [])
+
+  const closeRight = useCallback((key: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => tabKey(t) === key)
+      if (idx < 0) return prev
+      const next = prev.slice(0, idx + 1)
+      if (!next.some((t) => tabKey(t) === activeKeyRef.current)) setActiveKey(key)
+      return next
+    })
+  }, [])
+
+  const closeLeft = useCallback((key: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((t) => tabKey(t) === key)
+      if (idx < 0) return prev
+      const next = prev.slice(idx)
+      if (!next.some((t) => tabKey(t) === activeKeyRef.current)) setActiveKey(key)
+      return next
+    })
+  }, [])
+
+  const closeAll = useCallback(() => {
+    setTabs([])
+    setActiveKey(null)
   }, [])
 
   // 深链：初始工作流自动开画布子 Tab
@@ -654,17 +739,32 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
 
   return (
     <div className="flex h-full gap-3 p-3">
-      {/* 左侧常驻类目树 —— Card 边框，对齐 cockpit StatCard 观感 */}
-      <div className="flex w-64 shrink-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <CatalogTree
-            draggableTasksToCanvas
-            enableMove
-            showTagFilter
-            reloadKey={treeReloadKey}
-            onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
-            onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
-          />
+      {/* 左侧常驻类目树 —— 外层 relative + pr-1.5，handle 落在 card 右侧 gap 中（同 AgentRail 结构） */}
+      <div className="relative flex shrink-0 flex-col pr-1.5">
+        <motion.div
+          className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg"
+          style={{ width: catalogWidthProp }}
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <CatalogTree
+              draggableTasksToCanvas
+              enableMove
+              showTagFilter
+              reloadKey={treeReloadKey}
+              onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
+              onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
+            />
+          </div>
+        </motion.div>
+        {/* 右缘分割线拖拽 */}
+        <div
+          onPointerDown={onCatalogResizeDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="拖拽调整类目面板宽度"
+          className="group/resize absolute inset-y-3 right-0 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
+        >
+          <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
         </div>
       </div>
 
@@ -678,6 +778,10 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             activeId={activeKey}
             onActivate={setActiveKey}
             onClose={closeTab}
+            onCloseOthers={closeOthers}
+            onCloseRight={closeRight}
+            onCloseLeft={closeLeft}
+            onCloseAll={closeAll}
             trailing={null}
           />
         )}

@@ -2,6 +2,7 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AgentActionRepository;
+import com.dataweave.master.i18n.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,8 +74,9 @@ class ApprovalServiceTest {
         a.setApprovalStatus("APPROVED");
         when(actionRepository.findById(42L)).thenReturn(Optional.of(a));
 
-        ApprovalService.ApprovalResult r = approvalService.approve(42L, "alice", null);
-        assertThat(r.success()).isFalse();
+        assertThatThrownBy(() -> approvalService.approve(42L, "alice", null))
+                .isInstanceOf(BizException.class)
+                .hasMessage("approval.wrong_state");
         verify(executor, never()).execute(any());
     }
 
@@ -83,8 +86,9 @@ class ApprovalServiceTest {
         a.setExpiresAt(LocalDateTime.now().minusMinutes(1));
         when(actionRepository.findById(42L)).thenReturn(Optional.of(a));
 
-        ApprovalService.ApprovalResult r = approvalService.approve(42L, "alice", null);
-        assertThat(r.success()).isFalse();
+        assertThatThrownBy(() -> approvalService.approve(42L, "alice", null))
+                .isInstanceOf(BizException.class)
+                .hasMessage("approval.expired");
         assertThat(a.getApprovalStatus()).isEqualTo("EXPIRED");
         verify(executor, never()).execute(any());
     }
@@ -106,8 +110,12 @@ class ApprovalServiceTest {
         AgentAction a = pending("L3", "dwd_orders");
         when(actionRepository.findById(42L)).thenReturn(Optional.of(a));
 
-        assertThat(approvalService.approve(42L, "alice", null).success()).isFalse();
-        assertThat(approvalService.approve(42L, "alice", "wrong_name").success()).isFalse();
+        assertThatThrownBy(() -> approvalService.approve(42L, "alice", null))
+                .isInstanceOf(BizException.class)
+                .hasMessage("approval.l3_confirm_required");
+        assertThatThrownBy(() -> approvalService.approve(42L, "alice", "wrong_name"))
+                .isInstanceOf(BizException.class)
+                .hasMessage("approval.l3_confirm_required");
         verify(executor, never()).execute(any());
 
         when(executor.execute(a)).thenReturn(

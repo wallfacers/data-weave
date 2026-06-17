@@ -32,6 +32,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final WorkflowTriggerService triggerService;
     private final RecoveryService recoveryService;
     private final WorkflowDefRepository workflowDefRepository;
+    // ObjectProvider 延迟查找：打破 OpsService→DiagnosisService→GatedActionService→Executor 的循环依赖。
+    private final ObjectProvider<OpsService> opsService;
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
                                          TaskDiagnosisRepository diagnosisRepository,
@@ -40,7 +42,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<NodeExecGateway> nodeExecGateway,
                                          WorkflowTriggerService triggerService,
                                          RecoveryService recoveryService,
-                                         WorkflowDefRepository workflowDefRepository) {
+                                         WorkflowDefRepository workflowDefRepository,
+                                         ObjectProvider<OpsService> opsService) {
         this.instanceRepository = instanceRepository;
         this.diagnosisRepository = diagnosisRepository;
         this.fleetService = fleetService;
@@ -49,6 +52,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.triggerService = triggerService;
         this.recoveryService = recoveryService;
         this.workflowDefRepository = workflowDefRepository;
+        this.opsService = opsService;
     }
 
     @Override
@@ -67,6 +71,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "TRIGGER_WORKFLOW" -> triggerWorkflow(action);
             case "RESUME_WORKFLOW" -> resumeWorkflow(action);
             case "RERUN_WORKFLOW" -> rerunWorkflow(action);
+            case "KILL_INSTANCE" -> instanceOp(action, "kill");
+            case "PAUSE_INSTANCE" -> instanceOp(action, "pause");
+            case "RESUME_INSTANCE" -> instanceOp(action, "resume");
             default -> new ExecOutcome(false, "不支持的动作类型：" + action.getActionType(),
                     json(Map.of("error", "unsupported_action", "actionType", action.getActionType())), null);
         };
@@ -214,6 +221,35 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         return new ExecOutcome(ok, ok ? "已整流重跑工作流实例（全节点重置）。"
                 : "整流重跑未生效（实例不存在）。",
                 json(Map.of("rerun", ok, "workflowInstanceId", String.valueOf(action.getTargetId()))), wiId);
+    }
+
+    /** 工作流实例生命周期控制：targetId=workflowInstanceId(UUID)，op ∈ kill|pause|resume。 */
+    private ExecOutcome instanceOp(AgentAction action, String op) {
+        UUID wiId = parseUuid(action.getTargetId());
+        if (wiId == null) {
+            return new ExecOutcome(false, "实例 id 非法：" + action.getTargetId(),
+                    json(Map.of("error", "bad_instance_id", "actionType", action.getActionType())), null);
+        }
+        OpsService ops = opsService.getObject();
+        try {
+            String state = switch (op) {
+                case "kill" -> ops.killWorkflow(wiId).getState();
+                case "pause" -> ops.pauseWorkflow(wiId).getState();
+                case "resume" -> ops.resumeWorkflow(wiId).getState();
+                default -> throw new IllegalArgumentException("unknown op: " + op);
+            };
+            String msg = switch (op) {
+                case "kill" -> "已终止工作流实例（→ " + state + "）。";
+                case "pause" -> "已暂停工作流实例（→ " + state + "）。";
+                default -> "已恢复工作流实例（→ " + state + "）。";
+            };
+            return new ExecOutcome(true, msg,
+                    json(Map.of("op", op, "workflowInstanceId", wiId.toString(), "state", state)), wiId);
+        } catch (RuntimeException e) {
+            // OpsService 对非法状态/不存在抛 IllegalStateException；转为可读的失败结果，不抛穿闸门。
+            return new ExecOutcome(false, op + " 未生效：" + e.getMessage(),
+                    json(Map.of("error", op + "_failed", "detail", String.valueOf(e.getMessage()))), null);
+        }
     }
 
     // ---- helpers ----

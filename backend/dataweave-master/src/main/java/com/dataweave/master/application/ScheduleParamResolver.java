@@ -12,6 +12,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import com.dataweave.master.i18n.BizException;
+
 /**
  * 调度参数占位符解析器（变更 scheduling-parameters，design D1–D7）。
  *
@@ -48,10 +50,15 @@ public final class ScheduleParamResolver {
     public record BuiltInContext(String jobId, String nodeId, String taskInstanceId, LocalDate today) {
     }
 
-    /** 占位符无法解析时抛出，message 携带占位符名，供上层转 {@code FAILED} + {@code errorMessage}。 */
-    public static final class UnresolvedPlaceholderException extends RuntimeException {
-        public UnresolvedPlaceholderException(String message) {
-            super(message);
+    /**
+     * 占位符无法解析时抛出。继承 {@link BizException}，构造时传入稳定 code + 插值参数，
+     * 由 {@code GlobalExceptionHandler} 统一本地化展示文案；{@link #getMessage()} 返回 code 便于日志溯源。
+     *
+     * <p>保留为命名子类是为维持类型语义与现有 {@code isInstanceOf} 测试断言不变。
+     */
+    public static final class UnresolvedPlaceholderException extends BizException {
+        public UnresolvedPlaceholderException(String code, Object... args) {
+            super(code, args);
         }
     }
 
@@ -104,7 +111,7 @@ public final class ScheduleParamResolver {
                     char cj = text.charAt(j);
                     if (cj == '{') {
                         throw new UnresolvedPlaceholderException(
-                                "非法嵌套占位符（不支持 ${${...}}），位置 " + i);
+                                "schedule.placeholder.nested", i);
                     }
                     if (cj == '}') {
                         end = j;
@@ -112,11 +119,11 @@ public final class ScheduleParamResolver {
                     }
                 }
                 if (end < 0) {
-                    throw new UnresolvedPlaceholderException("未闭合的 ${ 占位符，位置 " + i);
+                    throw new UnresolvedPlaceholderException("schedule.placeholder.unclosed", i);
                 }
                 String expr = text.substring(i + 2, end).trim();
                 if (expr.isEmpty()) {
-                    throw new UnresolvedPlaceholderException("空占位符 ${}");
+                    throw new UnresolvedPlaceholderException("schedule.placeholder.empty");
                 }
                 out.append(resolveExpr(expr, biz, params, ctx, stack));
                 i = end + 1;
@@ -152,14 +159,14 @@ public final class ScheduleParamResolver {
         }
         if (params.containsKey(expr)) {
             if (!stack.add(expr)) {
-                throw new UnresolvedPlaceholderException("循环引用参数：" + chain(stack, expr));
+                throw new UnresolvedPlaceholderException("schedule.param.circular", chain(stack, expr));
             }
             String val = params.get(expr);
             String expanded = resolveText(val == null ? "" : val, biz, params, ctx, stack);
             stack.remove(expr);
             return expanded;
         }
-        throw new UnresolvedPlaceholderException("未定义占位符 ${" + expr + "}");
+        throw new UnresolvedPlaceholderException("schedule.placeholder.undefined", expr);
     }
 
     /** 尝试把 {@code expr} 当日期表达式解析；非日期格式返回 {@code null}（交由参数名处理）。 */
@@ -200,14 +207,14 @@ public final class ScheduleParamResolver {
         }
         char last = fmt.charAt(fmt.length() - 1);
         if (last == '+' || last == '-') {
-            throw new UnresolvedPlaceholderException("非法偏移表达式（末尾悬空运算符）：" + expr);
+            throw new UnresolvedPlaceholderException("schedule.offset.dangling", expr);
         }
 
         long offset = 0;
         if (offsetPart != null) {
             Matcher m = OFFSET.matcher(offsetPart);
             if (!m.matches()) {
-                throw new UnresolvedPlaceholderException("非法偏移表达式：" + expr);
+                throw new UnresolvedPlaceholderException("schedule.offset.illegal", expr);
             }
             long sign = "-".equals(m.group(1)) ? -1L : 1L;
             long val = Long.parseLong(m.group(2));
@@ -284,7 +291,7 @@ public final class ScheduleParamResolver {
 
     private LocalDate parseBizDate(String bizDate) {
         if (bizDate == null || bizDate.isBlank()) {
-            throw new UnresolvedPlaceholderException("bizDate 为空，无法解析日期占位符");
+            throw new UnresolvedPlaceholderException("schedule.bizdate.empty");
         }
         String s = bizDate.trim();
         try {
@@ -295,9 +302,9 @@ public final class ScheduleParamResolver {
                 return LocalDate.parse(s, DateTimeFormatter.BASIC_ISO_DATE);
             }
         } catch (RuntimeException e) {
-            throw new UnresolvedPlaceholderException("非法 bizDate：" + bizDate);
+            throw new UnresolvedPlaceholderException("schedule.bizdate.illegal", bizDate);
         }
-        throw new UnresolvedPlaceholderException("非法 bizDate（需 yyyy-MM-dd 或 yyyyMMdd）：" + bizDate);
+        throw new UnresolvedPlaceholderException("schedule.bizdate.format", bizDate);
     }
 
     /** 解析 {@code paramsJson}（{@code {"name":"expr"}}）为 Map；非对象/空/非法 JSON 视作空 Map（容错）。 */

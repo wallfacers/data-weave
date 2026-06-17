@@ -1,6 +1,7 @@
 package com.dataweave.master.infrastructure;
 
 import com.dataweave.master.domain.LogArchiveStorage;
+import com.dataweave.master.i18n.BizException;
 import io.minio.*;
 import io.minio.errors.ErrorResponseException;
 import org.slf4j.Logger;
@@ -55,7 +56,7 @@ public class S3LogArchiveStorage implements LogArchiveStorage {
                         .build());
             }
         } catch (Exception e) {
-            throw new RuntimeException("S3 归档写入失败：" + key, e);
+            throw failed("archive.s3.write_failed", key, e);
         }
     }
 
@@ -70,9 +71,9 @@ public class S3LogArchiveStorage implements LogArchiveStorage {
             if (e.errorResponse().code().equals("NoSuchKey")) {
                 return Optional.empty();
             }
-            throw new RuntimeException("S3 归档读取失败：" + key, e);
+            throw failed("archive.s3.read_failed", key, e);
         } catch (Exception e) {
-            throw new RuntimeException("S3 归档读取失败：" + key, e);
+            throw failed("archive.s3.read_failed", key, e);
         }
     }
 
@@ -88,9 +89,9 @@ public class S3LogArchiveStorage implements LogArchiveStorage {
             if (e.errorResponse().code().equals("NoSuchKey")) {
                 return false;
             }
-            throw new RuntimeException("S3 归档检查失败：" + key, e);
+            throw failed("archive.s3.check_failed", key, e);
         } catch (Exception e) {
-            throw new RuntimeException("S3 归档检查失败：" + key, e);
+            throw failed("archive.s3.check_failed", key, e);
         }
     }
 
@@ -108,5 +109,12 @@ public class S3LogArchiveStorage implements LogArchiveStorage {
         } catch (Exception e) {
             log.warn("检查/创建 S3 归档桶失败（将在首次写入时重试）：{}", e.getMessage());
         }
+    }
+
+    /** 构造 S3 归档基础设施异常（HTTP 500），并保留 cause 便于日志溯源。 */
+    private static BizException failed(String code, String key, Exception cause) {
+        BizException ex = new BizException(code, key).withHttpStatus(500);
+        ex.initCause(cause);
+        return ex;
     }
 }

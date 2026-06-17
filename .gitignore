@@ -19,3 +19,7 @@ cli/dw-*
 # Playwright CLI 浏览器验证产物（快照/截图/本地浏览器配置），不入仓库
 .playwright-cli/
 .playwright/
+
+# workhorse 本地真 key 配置，禁止提交
+deploy/workhorse/config.local.yaml
+deploy/workhorse/.env.workhorse

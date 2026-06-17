@@ -57,7 +57,7 @@ class CatalogApiTest {
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(409)
-                .jsonPath("$.message").value(m -> assertThat((String) m).contains("CATALOG_NODE_NOT_EMPTY"));
+                .jsonPath("$.errorCode").isEqualTo("catalog.node.not_empty");
     }
 
     @Test
@@ -72,7 +72,7 @@ class CatalogApiTest {
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(400)
-                .jsonPath("$.message").value(m -> assertThat((String) m).contains("CATALOG_CYCLE"));
+                .jsonPath("$.errorCode").isEqualTo("catalog.cycle");
     }
 
     @Test
@@ -95,7 +95,7 @@ class CatalogApiTest {
         client.post().uri("/api/tags").contentType(MediaType.APPLICATION_JSON).bodyValue(body)
                 .exchange().expectStatus().isOk().expectBody()
                 .jsonPath("$.code").isEqualTo(409)
-                .jsonPath("$.message").value(m -> assertThat((String) m).contains("CATALOG_TAG_DUPLICATE"));
+                .jsonPath("$.errorCode").isEqualTo("tag.name.duplicate");
     }
 
     @Test

@@ -53,13 +53,13 @@ public class CatalogTreeService {
     @Transactional
     public CatalogNode createFolder(Long projectId, Long parentId, String name, Integer sortOrder) {
         if (name == null || name.isBlank()) {
-            throw new CatalogException(CatalogException.INVALID, "文件夹名不能为空");
+            throw new CatalogException(CatalogException.INVALID);
         }
         String parentPath = "/";
         if (parentId != null) {
             CatalogNode parent = requireNode(parentId);
             if (!parent.getProjectId().equals(projectId)) {
-                throw new CatalogException(CatalogException.INVALID, "父文件夹与目标项目不一致");
+                throw new CatalogException(CatalogException.INVALID);
             }
             parentPath = parent.getPath();
         }
@@ -142,7 +142,7 @@ public class CatalogTreeService {
     @Transactional
     public CatalogNode rename(Long id, String name) {
         if (name == null || name.isBlank()) {
-            throw new CatalogException(CatalogException.INVALID, "文件夹名不能为空");
+            throw new CatalogException(CatalogException.INVALID);
         }
         CatalogNode node = requireNode(id);
         node.setName(name.trim());
@@ -161,15 +161,15 @@ public class CatalogTreeService {
 
         if (newParentId != null) {
             if (newParentId.equals(id)) {
-                throw new CatalogException(CatalogException.CYCLE, "不能把文件夹移动到自身之下");
+                throw new CatalogException(CatalogException.CYCLE);
             }
             CatalogNode newParent = requireNode(newParentId);
             if (!newParent.getProjectId().equals(node.getProjectId())) {
-                throw new CatalogException(CatalogException.INVALID, "不能跨项目移动");
+                throw new CatalogException(CatalogException.INVALID);
             }
             // 防环：新父若是自身或后代，其 path 必以 oldPath 为前缀
             if (newParent.getPath().startsWith(oldPath)) {
-                throw new CatalogException(CatalogException.CYCLE, "不能把文件夹移动到其自身的后代之下");
+                throw new CatalogException(CatalogException.CYCLE);
             }
             newParentPath = newParent.getPath();
         }
@@ -198,11 +198,11 @@ public class CatalogTreeService {
     public void delete(Long id) {
         CatalogNode node = requireNode(id);
         if (!repository.findByParentIdAndDeleted(id, 0).isEmpty()) {
-            throw new CatalogException(CatalogException.NOT_EMPTY, "文件夹下仍有子文件夹，请先清空");
+            throw new CatalogException(CatalogException.NOT_EMPTY);
         }
         int assets = assetCount("task_def", id) + assetCount("workflow_def", id);
         if (assets > 0) {
-            throw new CatalogException(CatalogException.NOT_EMPTY, "文件夹下仍有任务或工作流，请先移走");
+            throw new CatalogException(CatalogException.NOT_EMPTY);
         }
         node.setDeleted(1);
         node.setUpdatedAt(LocalDateTime.now());
@@ -218,10 +218,10 @@ public class CatalogTreeService {
 
     // ─── Helpers ─────────────────────────────────────────
 
-    /** 加载节点，不存在或已删则抛 NOT_FOUND。 */
+    /** 加载节点，不存在或已删则抛 NOT_FOUND（id 作为插值参数）。 */
     public CatalogNode requireNode(Long id) {
         return repository.findById(id)
                 .filter(n -> n.getDeleted() == null || n.getDeleted() == 0)
-                .orElseThrow(() -> new CatalogException(CatalogException.NOT_FOUND, "文件夹不存在: " + id));
+                .orElseThrow(() -> new CatalogException(CatalogException.NOT_FOUND, id));
     }
 }

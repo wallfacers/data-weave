@@ -49,10 +49,15 @@
 - [x] 8.1 `DiagnosisService` 测试：上下文采集内容、按 taskInstanceId 幂等
 - [x] 8.2 `applyFix` 四动作测试：RERUN / MIGRATE_NODE（落最空闲节点）/ RERUN_MORE_MEMORY / CAP_NODE_WEIGHT，含诊断置 RESOLVED 与（2.4 后的）闸门路径
 
-## 9. workhorse 真机联调与验收（前置：workhorse 侧 support-dataweave-headless-integration 落地）
+## 9. workhorse 真机联调与验收
+
+> **阻塞已解除（2026-06-17 复查）**：workhorse 侧 `support-dataweave-headless-integration` 已归档落地（MCP host 接线、tool glob、`permission_request/permission_resolved` 生命周期、会话 instructions/metadata、default_allowed_tools 均已实现）；六平台二进制已编好（`workhorse-agent/dist/`）。**workhorse-agent 零改动**（OpenCode 式通用大脑，约束不接受宿主特定改动）。
+> **复查确认的事实**：续做机制 = 前端追加消息触发新 run（D4 / agent-bridge「批准续做」Scenario），与 workhorse turn-based 模型一致（其工具调用同步有界、不能阻塞等审批，唯一续做入口即 POST 新 user_message）。前后端续做接线已就位并 stub 验过（前端 `agent-chat.tsx` 决策后 append+runAgent；后端 `ApprovalService` 执行）——**仅差真 LLM key + 真 sidecar 的活体验证**。
+> **镜像缺口**：docker-compose 的 `image: dataweave/workhorse-agent` 悬空（仓库无该镜像/Dockerfile）。真机验证先走 9.6 本机直跑二进制；跨端托管与 Dockerfile 收口见独立变更 `dataweave-managed-sidecar`。
 
 - [x] 9.1 部署配置交付：workhorse config（preset_rules 放行 `dataweave__*`、default_allowed_tools 移除内置副作用工具、providers anthropic/openai）+ mcp.json（DataWeave 端点 + Bearer）+ docker compose 增 workhorse service（profile）—— `deploy/workhorse/`
-- [ ] 9.2 端到端：右舷「建一个每天凌晨跑的订单汇总任务并发布」→ agent 多步工具调用完成 → 审计回放可见全部 step　**⛔ 阻塞：待 workhorse 侧 support-dataweave-headless-integration 落地真机联调**
-- [ ] 9.3 端到端：触发 L2 操作 → 审批卡片 → 批准 → 平台执行 → agent 续做；拒绝与超时路径各验一次　**⛔ 阻塞：待 workhorse 真机；审批后端/卡片组件已就位并单测/集成测试覆盖（stub 模式 PENDING_APPROVAL→卡片 已验）**
+- [~] 9.2 端到端：查询类多步工具调用已真机验通（2026-06-17，Qwen via 百炼）：浏览器问「查询当前所有任务定义」→ agent 调 MCP `query_task_definitions` → 渲染表格「共 3 个任务，均 ONLINE」；sidecar 日志见建会话/发消息/流式 turn（dur 5.4s）。**写类多步「建任务并发布」待补验**
+- [~] 9.3 L2 审批闭环已真机验通（2026-06-17，API 级）：`kill_instance` → PolicyEngine 判 **L2** → `PENDING_APPROVAL`+approvalId（即 `dataweave.approval` 卡片数据源）；批准 #100 → 平台执行 → 实例 **RUNNING→STOPPED**；拒绝 #101 → **REJECTED** 不执行；agent_action 审计两单 L2 + approved_by。**真机修复的 bug**：`DefaultPlatformActionExecutor` 漏实现 `KILL_INSTANCE`（及 PAUSE/RESUME_INSTANCE）→ 批准后报 `unsupported_action`（非闸门路径走 handler 直调 opsService，闸门路径靠 executor 重放却没这些 case）。已补三个 case（注入 `ObjectProvider<OpsService>` 打破 OpsService→DiagnosisService→GatedActionService→Executor 循环依赖）+ 5 个单测（113/113 master 绿）。**残留**：`UPDATE_TASK`/`DELETE_TASK`（默认 L2，仅 DRAFT）executor 仍未实现，列入后续。**未做**：浏览器实跑审批卡片渲染 + agent 活体续做（playwright MCP 中断；续做机制=前端 append+runAgent，已在 9.2 证明同款会话发消息可起新 turn）；超时(30min TTL)路径未验
+- [x] 9.6 本机非 docker 跑通 sidecar：用当前源码重编的 `workhorse-agent/dist/workhorse-agent` + `deploy/workhorse/config.local.yaml`（gitignore，含真 key）跑通；后端 `--agent.mode=workhorse`。**真机踩坑记录**：① dist 旧二进制不认新 config 字段 → 须从当前源码 `build.sh` 重编；② 8787 被 Windows 宿主进程占用（WSL 镜像网络共享端口）→ 改 8799 + 后端 `--agent.workhorse.base-url`；③ **应用跑成 servlet/Tomcat 栈导致 reactive `CorsWebFilter` 失效、`/agui` 预检无 CORS 头** → 须强制 WebFlux（根因 sibling 模块泄漏 webmvc+tomcat 进 classpath）→ **已固化 `spring.main.web-application-type: reactive` 到 application.yml**（不再依赖启动参数）
 - [x] 9.4 Browser Verification Gate：Playwright 实跑（输入框渲染 ✅、console 无 error ✅、流式收发 ✅ fleet 表、forwardedProps 上下文注入 ✅ 含 instanceId），产物写 `tmp/` 验后清理（审批卡片 live 交互属 9.3 阻塞项）
 - [x] 9.5 同步 CLAUDE.md（agent.mode 说明、workhorse 运行方式、MCP 端点、dw CLI）；tasks.md 勾选与实际一致

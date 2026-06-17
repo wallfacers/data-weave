@@ -1,6 +1,13 @@
 spring:
+  main:
+    # 强制 WebFlux/Netty：classpath 含 sibling 泄漏的 webmvc+tomcat 会让 Spring 默认选 servlet 栈，
+    # 导致 reactive CorsWebFilter（CorsConfig）失效、/agui 预检无 CORS 头、前端 Failed to fetch。
+    web-application-type: reactive
   application:
     name: dataweave-api
+  messages:
+    basename: messages         # i18n 文案（classpath:messages*.properties，置于 master 模块 resources）
+    encoding: UTF-8
   # 默认：Docker PostgreSQL（docker compose up -d postgres）。dev 期每次启动重建 schema/data。
   datasource:
     url: jdbc:postgresql://localhost:5432/dataweave

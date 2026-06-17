@@ -4,6 +4,7 @@ import com.dataweave.master.domain.WorkflowDependency;
 import com.dataweave.master.domain.WorkflowDependencyRepository;
 import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
+import com.dataweave.master.i18n.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,15 +53,17 @@ class WorkflowGraphValidatorTest {
     void cyclicWorkflowDag_rejected() {
         when(edgeRepository.findByWorkflowIdAndDeleted(1L, 0)).thenReturn(List.of(edge(1, 2), edge(2, 3), edge(3, 1)));
         assertThatThrownBy(() -> validator.validateWorkflowDagAcyclic(1L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("环");
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getCode())
+                .isEqualTo("workflow.graph.cycle");
     }
 
     @Test
     void selfDependency_rejected() {
         assertThatThrownBy(() -> validator.validateDependencyAcyclic(5L, 5L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("自身");
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getCode())
+                .isEqualTo("workflow.graph.self_dependency");
     }
 
     @Test
@@ -75,7 +78,8 @@ class WorkflowGraphValidatorTest {
         // 现有：B(2) 依赖 A(1)，C(3) 依赖 B(2)。新增 A(1) 依赖 C(3) → 1→3→2→1 成环。
         when(dependencyRepository.findAll()).thenReturn(List.of(dep(2, 1), dep(3, 2)));
         assertThatThrownBy(() -> validator.validateDependencyAcyclic(1L, 3L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("成环");
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getCode())
+                .isEqualTo("workflow.graph.dependency_cycle");
     }
 }

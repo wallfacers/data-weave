@@ -7,6 +7,7 @@ import com.dataweave.master.application.WorkflowService.DagPayload;
 import com.dataweave.master.application.WorkflowService.DagView;
 import com.dataweave.master.application.WorkflowTriggerService;
 import com.dataweave.master.domain.InstanceStates;
+import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowDef;
@@ -81,7 +82,8 @@ class WorkflowServiceTest {
         assertThatThrownBy(() -> workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
                 List.of(new DagNodeDto("t1", "TASK", null, "无任务", 0, 0)),
                 List.of())))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BizException.class)
+                .hasMessage("workflow.node.task_unbound");
     }
 
     @Test
@@ -90,7 +92,8 @@ class WorkflowServiceTest {
         assertThatThrownBy(() -> workflowService.saveDag(wf.getId(), new DagPayload(999L,
                 List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0)),
                 List.of())))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BizException.class)
+                .hasMessage("workflow.stale_version");
     }
 
     @Test
@@ -112,7 +115,7 @@ class WorkflowServiceTest {
                         new DagNodeDto("t2", "TASK", 2L, "任务2", 100, 0)),
                 List.of(new DagEdgeDto("t1", "t2"), new DagEdgeDto("t2", "t1"))));
         assertThatThrownBy(() -> workflowService.publish(wf.getId(), "应失败"))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BizException.class);
         // 版本号不变（仍是 1）
         assertThat(workflowService.getById(wf.getId()).orElseThrow().getCurrentVersionNo()).isEqualTo(1);
     }

@@ -10,6 +10,7 @@ import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
 import com.dataweave.master.domain.WorkflowNode;
 import com.dataweave.master.domain.WorkflowNodeRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -226,7 +227,7 @@ public class WorkflowService {
     public WorkflowDef offline(Long id) {
         WorkflowDef wf = requireWorkflow(id);
         if (!"ONLINE".equals(wf.getStatus())) {
-            throw new IllegalStateException("工作流当前未上线");
+            throw new BizException("workflow.not_online").withHttpStatus(409);
         }
         wf.setStatus("DRAFT");
         wf.setUpdatedAt(LocalDateTime.now());
@@ -264,7 +265,7 @@ public class WorkflowService {
         WorkflowDef wf = requireWorkflow(id);
         // 乐观锁：客户端带回读到的 version，与库不一致即冲突。
         if (payload.version() != null && !payload.version().equals(wf.getVersion())) {
-            throw new IllegalStateException("工作流已被他人修改，请刷新后重试");
+            throw new BizException("workflow.stale_version").withHttpStatus(409);
         }
         List<DagNodeDto> nodes = payload.nodes() != null ? payload.nodes() : List.of();
         List<DagEdgeDto> edges = payload.edges() != null ? payload.edges() : List.of();
@@ -273,14 +274,14 @@ public class WorkflowService {
         Set<String> seenKeys = new HashSet<>();
         for (DagNodeDto dto : nodes) {
             if (dto.nodeKey() == null || dto.nodeKey().isBlank()) {
-                throw new IllegalArgumentException("节点缺少 nodeKey");
+                throw new BizException("workflow.node.key_missing");
             }
             if (!seenKeys.add(dto.nodeKey())) {
-                throw new IllegalArgumentException("节点 nodeKey 重复：" + dto.nodeKey());
+                throw new BizException("workflow.node.key_duplicate", dto.nodeKey());
             }
             String type = dto.nodeType() != null ? dto.nodeType() : "TASK";
             if ("TASK".equals(type) && dto.taskId() == null) {
-                throw new IllegalArgumentException("任务节点未绑定任务：" + dto.nodeKey());
+                throw new BizException("workflow.node.task_unbound", dto.nodeKey());
             }
         }
 
@@ -342,7 +343,7 @@ public class WorkflowService {
             Long fromId = keyToId.get(dto.fromNodeKey());
             Long toId = keyToId.get(dto.toNodeKey());
             if (fromId == null || toId == null) {
-                throw new IllegalArgumentException("边引用了不存在的节点：" + dto.fromNodeKey() + " → " + dto.toNodeKey());
+                throw new BizException("workflow.edge.node_not_found", dto.fromNodeKey(), dto.toNodeKey());
             }
             String pair = dto.fromNodeKey() + EDGE_KEY_SEP + dto.toNodeKey();
             incomingPairs.add(pair);
@@ -386,16 +387,16 @@ public class WorkflowService {
     public WorkflowDef publish(Long id, String remark) {
         WorkflowDef wf = requireWorkflow(id);
         if ("ONLINE".equals(wf.getStatus()) && (wf.getHasDraftChange() == null || wf.getHasDraftChange() == 0)) {
-            throw new IllegalStateException("无未发布改动");
+            throw new BizException("workflow.publish.no_change").withHttpStatus(409);
         }
         List<WorkflowNode> nodes = nodeRepository.findByWorkflowIdAndDeleted(id, 0);
         if (nodes.isEmpty()) {
-            throw new IllegalStateException("工作流无节点，无法发布");
+            throw new BizException("workflow.publish.empty").withHttpStatus(409);
         }
         for (WorkflowNode n : nodes) {
             boolean virtual = "VIRTUAL".equals(n.getNodeType());
             if (!virtual && n.getTaskId() == null) {
-                throw new IllegalArgumentException("任务节点未绑定任务：" + n.getNodeKey());
+                throw new BizException("workflow.node.task_unbound", n.getNodeKey());
             }
         }
         // 无环校验（复用既有校验器，只看未删边）
@@ -458,6 +459,6 @@ public class WorkflowService {
     private WorkflowDef requireWorkflow(Long id) {
         return workflowDefRepository.findById(id)
                 .filter(w -> w.getDeleted() == null || w.getDeleted() == 0)
-                .orElseThrow(() -> new IllegalStateException("工作流不存在：" + id));
+                .orElseThrow(() -> new BizException("workflow.not_found", id).withHttpStatus(404));
     }
 }

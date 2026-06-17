@@ -2,6 +2,7 @@ package com.dataweave.api.application;
 
 import com.dataweave.api.infrastructure.JwtUtil;
 import com.dataweave.master.domain.*;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -40,18 +41,18 @@ public class AuthService {
     /**
      * 登录。验证用户名+密码，返回 JWT。
      *
-     * @throws IllegalArgumentException 用户名或密码错误
+     * @throws BizException 用户名或密码错误（{@code auth.invalid_credentials}）/ 账号已禁用（{@code auth.account_disabled}）
      */
     public LoginResult login(String username, String rawPassword) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("用户名或密码错误"));
+                .orElseThrow(() -> new BizException("auth.invalid_credentials").withHttpStatus(401));
 
         if (!"ACTIVE".equals(user.getStatus())) {
-            throw new IllegalArgumentException("账号已禁用");
+            throw new BizException("auth.account_disabled").withHttpStatus(403);
         }
 
         if (!passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new BizException("auth.invalid_credentials").withHttpStatus(401);
         }
 
         List<String> roleCodes = resolveRoleCodes(user.getId(), user.getTenantId());
@@ -64,7 +65,7 @@ public class AuthService {
     /** 查询当前用户信息（含角色和权限）。 */
     public UserInfo me(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+                .orElseThrow(() -> new BizException("auth.user_not_found", userId).withHttpStatus(404));
 
         List<String> roleCodes = resolveRoleCodes(userId, user.getTenantId());
         List<String> permissionCodes = resolvePermissionCodes(userId, user.getTenantId());
