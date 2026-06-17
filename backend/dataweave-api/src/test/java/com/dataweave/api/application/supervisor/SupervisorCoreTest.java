@@ -173,4 +173,40 @@ class SupervisorCoreTest {
     void backoff_cappedAtCeiling() {
         assertThat(SupervisorCore.backoffMillis(20, 1000, 30000)).isEqualTo(30000);
     }
+
+    // ── 二进制平台选型（design D4）────────────────────────────────
+
+    @Test
+    void platformBinary_linuxAmd64() {
+        assertThat(SupervisorCore.platformBinary("Linux", "amd64")).isEqualTo("workhorse-agent-linux-amd64");
+        assertThat(SupervisorCore.platformBinary("Linux", "x86_64")).isEqualTo("workhorse-agent-linux-amd64");
+    }
+
+    @Test
+    void platformBinary_macArm64() {
+        assertThat(SupervisorCore.platformBinary("Mac OS X", "aarch64")).isEqualTo("workhorse-agent-darwin-arm64");
+        assertThat(SupervisorCore.platformBinary("Mac OS X", "arm64")).isEqualTo("workhorse-agent-darwin-arm64");
+    }
+
+    @Test
+    void platformBinary_windowsAddsExe() {
+        assertThat(SupervisorCore.platformBinary("Windows 11", "amd64")).isEqualTo("workhorse-agent-windows-amd64.exe");
+    }
+
+    @Test
+    void platformBinary_linuxArm64() {
+        assertThat(SupervisorCore.platformBinary("Linux", "aarch64")).isEqualTo("workhorse-agent-linux-arm64");
+    }
+
+    @Test
+    void platformBinary_unknownOs_throws() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> SupervisorCore.platformBinary("Solaris", "amd64"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void platformBinary_unknownArch_throws() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> SupervisorCore.platformBinary("Linux", "ppc64"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

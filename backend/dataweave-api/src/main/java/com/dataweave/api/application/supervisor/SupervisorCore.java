@@ -121,4 +121,34 @@ public final class SupervisorCore {
         }
         return Math.min(delay, capMillis);
     }
+
+    /**
+     * 按平台选 sidecar 二进制名 {@code workhorse-agent-{goos}-{goarch}[.exe]}（design D4）。
+     * {@code os.name}→goos（linux/darwin/windows）、{@code os.arch}→goarch（amd64/arm64）；Windows 加 {@code .exe}。
+     *
+     * @throws IllegalArgumentException 无法识别的 os/arch（不静默回退，指向明确报错）
+     */
+    public static String platformBinary(String osName, String osArch) {
+        String os = osName == null ? "" : osName.toLowerCase();
+        String arch = osArch == null ? "" : osArch.toLowerCase();
+        String goos;
+        if (os.contains("win")) {
+            goos = "windows";
+        } else if (os.contains("mac") || os.contains("darwin")) {
+            goos = "darwin";
+        } else if (os.contains("linux")) {
+            goos = "linux";
+        } else {
+            throw new IllegalArgumentException("不支持的 os.name：" + osName);
+        }
+        String goarch;
+        if (arch.equals("amd64") || arch.equals("x86_64")) {
+            goarch = "amd64";
+        } else if (arch.equals("aarch64") || arch.equals("arm64")) {
+            goarch = "arm64";
+        } else {
+            throw new IllegalArgumentException("不支持的 os.arch：" + osArch);
+        }
+        return "workhorse-agent-" + goos + "-" + goarch + (goos.equals("windows") ? ".exe" : "");
+    }
 }

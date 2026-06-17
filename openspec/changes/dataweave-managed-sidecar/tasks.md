@@ -8,7 +8,7 @@
 
 - [ ] 2.1 `ProcessBuilder` spawn（`serve --config <path> --host 127.0.0.1 --port <port>`）、子进程句柄持有、kill/reap（跨平台：Unix 信号 / Windows 句柄）
 - [ ] 2.2 `/health` 探测客户端（复用既有 WebClient 配置），收敛超时与退避交由既有连接逻辑
-- [ ] 2.3 二进制按平台选型（os.name/os.arch → `workhorse-agent-{goos}-{goarch}[.exe]`，`binary`/`binary-dir` 覆盖，存在性+可执行校验）
+- [~] 2.3 二进制按平台选型（os.name/os.arch → `workhorse-agent-{goos}-{goarch}[.exe]`，`binary`/`binary-dir` 覆盖，存在性+可执行校验）— 选型纯函数 `SupervisorCore.platformBinary` + 单测已做；`binary`/`binary-dir` 覆盖与存在性/可执行校验待 IO 壳（§2.1）真机
 - [ ] 2.4 本机真机验证（Linux/WSL）：冷起 spawn→Healthy；adopt 已起实例不重复拉起；kill 子进程触发退避重启；JVM 退出 reap 自起进程；外部进程不被误杀
 
 ## 3. 配置 + 生命周期接线 + 可观测
