@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect } from "react"
 
 import { API_BASE, type ApiResponse } from "@/lib/types"
 import { useWorkspaceStore } from "./store"
+import { handleUnauthorized } from "@/lib/auth-401"
 
 const TOKEN_KEY = "dw.auth.token"
 const CONVERSATION_KEY = "dw.conversationId"
@@ -68,7 +69,13 @@ export function useWorkspacePersistence() {
     // 后端快照：跨设备 / 本地缓存缺失时的兜底；仅当本地仍是纯 Pinned 底座才覆盖，
     // 避免盖掉上面 layout effect 刚从 localStorage 恢复的态或深链 / 先手操作。
     fetch(workspaceUrl(), { cache: "no-store", headers: authHeaders })
-      .then((res) => res.json() as Promise<ApiResponse<string>>)
+      .then((res) => {
+        if (res.status === 401) {
+          handleUnauthorized()
+          throw new Error("401 Unauthorized")
+        }
+        return res.json() as Promise<ApiResponse<string>>
+      })
       .then((json) => {
         if (cancelled) return
         const text = json.code === 0 ? json.data : null
@@ -94,7 +101,11 @@ export function useWorkspacePersistence() {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(snapshot),
-        }).catch(() => {})
+        })
+          .then((res) => {
+            if (res.status === 401) handleUnauthorized()
+          })
+          .catch(() => {})
       }, DEBOUNCE_MS)
     })
 

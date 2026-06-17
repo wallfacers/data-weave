@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { ApiResponse } from "@/lib/types"
+import { handleUnauthorized } from "@/lib/auth-401"
 
 const TOKEN_KEY = "dw.auth.token"
 
@@ -22,7 +23,13 @@ export function useApi<T>(path: string): ApiState<T> {
     if (token) headers["Authorization"] = `Bearer ${token}`
 
     fetch(path, { cache: "no-store", headers })
-      .then((res) => res.json() as Promise<ApiResponse<T>>)
+      .then((res) => {
+        if (res.status === 401) {
+          handleUnauthorized()
+          throw new Error("401 Unauthorized")
+        }
+        return res.json() as Promise<ApiResponse<T>>
+      })
       .then((json) => {
         if (!alive) return
         if (json.code === 0) {

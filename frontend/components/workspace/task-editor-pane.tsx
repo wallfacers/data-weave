@@ -304,7 +304,6 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
               onChange={setContent}
               language={editorLang}
               className="h-full"
-              toolbar
             />
           </div>
           {runInstanceId && (

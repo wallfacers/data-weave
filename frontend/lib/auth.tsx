@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import type { ApiResponse } from "@/lib/types"
+import { handleUnauthorized } from "@/lib/auth-401"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -144,10 +145,7 @@ export function useApi() {
       }
       const res = await fetch(path, { ...init, headers })
       if (res.status === 401) {
-        // Token 过期，清空
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem(USER_KEY)
-        window.location.href = "/login"
+        handleUnauthorized()
         throw new Error("登录已过期")
       }
       return res
