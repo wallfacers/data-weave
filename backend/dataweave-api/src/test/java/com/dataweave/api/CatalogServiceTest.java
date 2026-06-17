@@ -2,6 +2,7 @@ package com.dataweave.api;
 
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
+import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.application.CatalogTreeService;
 import com.dataweave.master.application.CatalogTreeService.CatalogTree;
 import com.dataweave.master.application.CatalogTreeService.TreeNode;
@@ -178,8 +179,8 @@ class CatalogServiceTest {
         Tag core = tagService.create(project, "核心", "#ff0000");
         // 项目内 name 唯一
         assertThatThrownBy(() -> tagService.create(project, "核心", null))
-                .isInstanceOf(CatalogException.class)
-                .extracting("code").isEqualTo(CatalogException.TAG_DUPLICATE);
+                .isInstanceOf(BizException.class)
+                .extracting("code").isEqualTo("tag.name.duplicate");
 
         long task = insertTask(project, "带标签任务", null);
         tagService.tag(EntityTag.TYPE_TASK, task, core.getId());

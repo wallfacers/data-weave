@@ -11,6 +11,7 @@ import com.dataweave.master.application.TaskService;
 import com.dataweave.master.application.TaskService.PageResult;
 import com.dataweave.master.application.TaskService.TaskDetail;
 import com.dataweave.master.domain.TaskDef;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,14 +35,17 @@ public class TaskController {
     private final ScheduleParamResolver paramResolver;
     private final CatalogAssignService catalogAssignService;
     private final GatedActionService gatedActionService;
+    private final Messages messages;
 
     public TaskController(TaskService taskService, ScheduleParamResolver paramResolver,
                           CatalogAssignService catalogAssignService,
-                          GatedActionService gatedActionService) {
+                          GatedActionService gatedActionService,
+                          Messages messages) {
         this.taskService = taskService;
         this.paramResolver = paramResolver;
         this.catalogAssignService = catalogAssignService;
         this.gatedActionService = gatedActionService;
+        this.messages = messages;
     }
 
     /** 创建任务草稿。 */
@@ -168,7 +172,9 @@ public class TaskController {
                     ctx);
             return ApiResponse.ok(Map.of("content", resolved));
         } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
-            return ApiResponse.err(400, "占位符解析失败：" + e.getMessage());
+            // 把 code+args 渲染为含占位符名的可读文案，不直接拼 e.getMessage()（=i18n code），否则丢失占位符名
+            String detail = messages.get(e.getCode(), e.getArgs());
+            return ApiResponse.err(400, "占位符解析失败：" + detail);
         }
     }
 

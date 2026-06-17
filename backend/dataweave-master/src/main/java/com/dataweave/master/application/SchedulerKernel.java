@@ -5,6 +5,7 @@ import com.dataweave.master.application.SchedulingPolicy.NodeLoad;
 import com.dataweave.master.application.TaskExecutionGateway.DispatchCommand;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
+import com.dataweave.master.i18n.Messages;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ public class SchedulerKernel {
     private final SchedulerMetrics metrics;
     private final ParallelDispatcher dispatcher;
     private final ScheduleParamResolver paramResolver;
+    private final Messages messages;
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
@@ -68,6 +70,7 @@ public class SchedulerKernel {
                            SchedulerMetrics metrics,
                            ParallelDispatcher dispatcher,
                            ScheduleParamResolver paramResolver,
+                           Messages messages,
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds) {
@@ -81,6 +84,7 @@ public class SchedulerKernel {
         this.metrics = metrics;
         this.dispatcher = dispatcher;
         this.paramResolver = paramResolver;
+        this.messages = messages;
         this.txTemplate = new TransactionTemplate(txManager);
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
@@ -321,8 +325,11 @@ public class SchedulerKernel {
         try {
             return paramResolver.resolve(raw, r.bizDate, paramsJsonOf(r), builtInContext(r, now));
         } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
-            log.warn("[Scheduler] 实例 {} 占位符解析失败，置 FAILED：{}", r.id, e.getMessage());
-            stateMachine.casTaskTerminal(r.id, InstanceStates.DISPATCHED, InstanceStates.FAILED, e.getMessage());
+            // failure_reason 落库默认中文（后台无请求 locale）：经 Messages 把 code+args 渲染为含占位符名的可读文案，
+            // 不直接落 e.getMessage()（=i18n code），否则实例详情只剩裸 key、丢失诊断信息。
+            String reason = messages.get(e.getCode(), e.getArgs());
+            log.warn("[Scheduler] 实例 {} 占位符解析失败，置 FAILED：{}", r.id, reason);
+            stateMachine.casTaskTerminal(r.id, InstanceStates.DISPATCHED, InstanceStates.FAILED, reason);
             return null;
         }
     }
