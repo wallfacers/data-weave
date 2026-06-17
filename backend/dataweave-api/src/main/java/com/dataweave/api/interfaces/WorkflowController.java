@@ -11,6 +11,7 @@ import com.dataweave.master.application.WorkflowService.DagPayload;
 import com.dataweave.master.application.WorkflowService.DagView;
 import com.dataweave.master.application.WorkflowService.PageResult;
 import com.dataweave.master.domain.WorkflowDef;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -62,7 +63,7 @@ public class WorkflowController {
     @PatchMapping("/{id}/catalog")
     public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         if (body.containsKey("path")) {
-            throw new CatalogException(CatalogException.INVALID, "path 为后端派生字段，禁止传入");
+            throw new CatalogException("catalog.path.derived");
         }
         if (body.containsKey("catalogNodeId")) {
             Object v = body.get("catalogNodeId");
@@ -77,7 +78,7 @@ public class WorkflowController {
     public ApiResponse<WorkflowDef> getById(@PathVariable Long id) {
         WorkflowDef wf = workflowService.getById(id).orElse(null);
         if (wf == null) {
-            return ApiResponse.err(404, "工作流不存在: " + id);
+            throw new BizException("workflow.not_found", id).withHttpStatus(404);
         }
         return ApiResponse.ok(wf);
     }
@@ -136,10 +137,10 @@ public class WorkflowController {
                                        @RequestBody(required = false) RunRequest body) {
         WorkflowDef wf = workflowService.getById(id).orElse(null);
         if (wf == null) {
-            return ApiResponse.err(404, "工作流不存在: " + id);
+            throw new BizException("workflow.not_found", id).withHttpStatus(404);
         }
         if (!"ONLINE".equals(wf.getStatus())) {
-            return ApiResponse.err(409, "工作流未上线，需先发布再运行");
+            throw new BizException("workflow.not_online").withHttpStatus(409);
         }
         ActionRequest req = ActionRequest.builder()
                 .toolName("trigger_workflow").actionType("TRIGGER_WORKFLOW")

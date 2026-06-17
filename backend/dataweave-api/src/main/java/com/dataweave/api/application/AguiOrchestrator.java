@@ -7,6 +7,7 @@ import com.dataweave.master.application.AgentAuditService;
 import com.dataweave.master.domain.AgentRun;
 import com.dataweave.master.domain.AgentSession;
 import com.dataweave.master.domain.AgentStep;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -31,28 +33,31 @@ public class AguiOrchestrator {
     private final WorkhorseBridge workhorseBridge;
     private final AgentAuditService audit;
     private final AguiEvents events;
+    private final Messages messages;
     private final String mode;
 
     public AguiOrchestrator(IntentRouter intentRouter,
                             WorkhorseBridge workhorseBridge,
                             AgentAuditService audit,
                             AguiEvents events,
+                            Messages messages,
                             @Value("${agent.mode:mock}") String mode) {
         this.intentRouter = intentRouter;
         this.workhorseBridge = workhorseBridge;
         this.audit = audit;
         this.events = events;
+        this.messages = messages;
         this.mode = mode;
     }
 
-    public Flux<ServerSentEvent<String>> run(RunAgentInput input) {
+    public Flux<ServerSentEvent<String>> run(RunAgentInput input, Locale locale) {
         String threadId = input.getThreadId() != null ? input.getThreadId() : UUID.randomUUID().toString();
         String runId = input.getRunId() != null ? input.getRunId() : UUID.randomUUID().toString();
         String userMessage = input.lastUserContent();
         PageContext context = input.pageContext();
 
         if ("workhorse".equalsIgnoreCase(mode)) {
-            return workhorseBridge.run(threadId, runId, userMessage, context.toPromptSegment())
+            return workhorseBridge.run(threadId, runId, userMessage, context.toPromptSegment(locale, messages))
                     .subscribeOn(Schedulers.boundedElastic());
         }
 
@@ -60,7 +65,7 @@ public class AguiOrchestrator {
         return Flux.defer(() -> {
                     AgentSession session = audit.getOrCreateSession(threadId, "MOCK", null);
                     AgentRun runRow = audit.startRun(session.getId(), runId, "USER_MESSAGE", userMessage);
-                    AgentReply reply = intentRouter.route(userMessage, context);
+                    AgentReply reply = intentRouter.route(userMessage, context, locale);
                     recordMockStep(runRow.getId(), userMessage, reply);
                     audit.finishRun(runRow.getId(), "FINISHED");
                     return Flux.fromIterable(buildEvents(threadId, runId, UUID.randomUUID().toString(), reply));

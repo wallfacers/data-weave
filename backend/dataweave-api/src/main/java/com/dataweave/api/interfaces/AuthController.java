@@ -4,6 +4,7 @@ import com.dataweave.api.application.AuthService;
 import com.dataweave.api.application.AuthService.LoginResult;
 import com.dataweave.api.application.AuthService.UserInfo;
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 
@@ -27,7 +28,7 @@ public class AuthController {
         String username = body.get("username");
         String password = body.get("password");
         if (username == null || password == null) {
-            return ApiResponse.err(400, "username 和 password 不能为空");
+            throw new BizException("auth.credentials.required");
         }
         try {
             LoginResult result = authService.login(username, password);
@@ -41,7 +42,7 @@ public class AuthController {
     public ApiResponse<?> me(ServerWebExchange exchange) {
         Object userIdAttr = exchange.getAttribute("userId");
         if (userIdAttr == null) {
-            return ApiResponse.err(401, "未登录");
+            throw new BizException("auth.unauthenticated").withHttpStatus(401);
         }
         Long userId = (Long) userIdAttr;
         try {

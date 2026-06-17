@@ -3,6 +3,7 @@ package com.dataweave.api.interfaces;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.interfaces.dto.TaskReportRequest;
 import com.dataweave.master.application.WorkerReportService;
+import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,20 +52,20 @@ public class ClusterController {
             String expected = "Bearer " + clusterToken;
             if (!expected.equals(auth)) {
                 log.warn("[ClusterController] 鉴权失败：Authorization 头不匹配");
-                return ResponseEntity.ok(ApiResponse.err(401, "鉴权失败"));
+                throw new BizException("cluster.auth_failed").withHttpStatus(401);
             }
         }
 
         // 解析 taskInstanceId
         String rawId = req.getTaskInstanceId();
         if (rawId == null || rawId.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.err(400, "taskInstanceId 不能为空"));
+            throw new BizException("cluster.task_instance_id.required");
         }
         UUID taskInstanceId;
         try {
             taskInstanceId = UUID.fromString(rawId);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.ok(ApiResponse.err(400, "无效的 taskInstanceId: " + rawId));
+            throw new BizException("cluster.task_instance_id.invalid", rawId);
         }
 
         String event = req.getEvent() != null ? req.getEvent().toLowerCase() : "";
@@ -85,8 +86,7 @@ public class ClusterController {
                 return ResponseEntity.ok(ApiResponse.ok("reported:failed"));
             }
             default -> {
-                return ResponseEntity.ok(ApiResponse.err(400,
-                        "未知事件类型: " + req.getEvent() + "，期望 started/finished/failed"));
+                throw new BizException("cluster.event.unknown", req.getEvent());
             }
         }
     }

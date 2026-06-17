@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.application.AgentAuditService;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,7 +41,7 @@ public class WorkspaceController {
     @PutMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Void> put(@PathVariable String conversationId, @RequestBody String body) {
         if (body == null || body.length() > MAX_STATE_CHARS) {
-            return ApiResponse.err(413, "workspace 状态超长（> " + MAX_STATE_CHARS + " 字符）");
+            throw new BizException("workspace.state.too_long", MAX_STATE_CHARS).withHttpStatus(413);
         }
         audit.putWorkspaceState(conversationId, body);
         return ApiResponse.ok();

@@ -9,6 +9,7 @@ import com.dataweave.master.application.SqlExecutionService;
 import com.dataweave.master.application.TaskService;
 import com.dataweave.master.domain.TaskDiagnosis;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.i18n.Messages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,8 +41,14 @@ class IntentRouterIntentTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
+        org.springframework.context.support.ReloadableResourceBundleMessageSource ms =
+                new org.springframework.context.support.ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        Messages messages = new Messages(ms);
         router = new IntentRouter(metricService, lineageService, taskService,
-                sqlExecutionService, llmClient, fleetService, diagnosisService, objectMapper);
+                sqlExecutionService, llmClient, fleetService, diagnosisService, objectMapper, messages);
     }
 
     @Test
@@ -150,5 +157,62 @@ class IntentRouterIntentTest {
         // Markdown 表格包含节点名
         assertThat(reply.markdown()).contains("node-1");
         assertThat(reply.markdown()).contains("node-2");
+    }
+
+    // ---- §4.9 英文意图命中 + 本地化 markdown ----
+
+    @Test
+    void diagnosisIntent_englishMessage_returnsDiagnosis() {
+        TaskDiagnosis diagnosis = new TaskDiagnosis();
+        diagnosis.setId(99L);
+        diagnosis.setRootCause("Executor out of memory");
+        diagnosis.setSuggestionsJson("[{\"action\":\"RERUN\",\"label\":\"Rerun\"}]");
+        when(diagnosisService.diagnoseLatestFailure()).thenReturn(Optional.of(diagnosis));
+
+        AgentReply reply = router.route("why did it fail", new PageContext(null, null, null, null, null), java.util.Locale.US);
+
+        assertThat(reply.customEventName()).isEqualTo("dataweave.diagnosis");
+        assertThat(reply.structured().get("kind")).isEqualTo("diagnosis");
+        // 英文 markdown 本地化
+        assertThat(reply.markdown()).contains("Root cause");
+        assertThat(reply.markdown()).contains("Executor out of memory");
+    }
+
+    @Test
+    void fleetIntent_englishMessage_hits() {
+        WorkerNode n1 = new WorkerNode();
+        n1.setNodeCode("node-1");
+        n1.setStatus("ONLINE");
+        when(fleetService.nodes()).thenReturn(List.of(n1));
+
+        AgentReply reply = router.route("show cluster node status", new PageContext(null, null, null, null, null), java.util.Locale.US);
+
+        assertThat(reply.customEventName()).isEqualTo("dataweave.fleet");
+        assertThat(reply.markdown()).contains("node-1");
+        assertThat(reply.markdown()).contains("Status");
+    }
+
+    @Test
+    void textToSql_englishCount_hits() {
+        when(sqlExecutionService.rejectReason("select count(*) from orders")).thenReturn(null);
+        when(sqlExecutionService.query("select count(*) from orders"))
+                .thenReturn(new com.dataweave.master.application.QueryResult(
+                        List.of("c"), List.of(Map.of("c", 5))));
+
+        AgentReply reply = router.route("how many rows in orders", new PageContext(null, null, null, null, null), java.util.Locale.US);
+
+        assertThat(reply.structured()).isNotNull();
+        assertThat(reply.structured().get("kind")).isEqualTo("table");
+        assertThat(reply.structured().get("sql")).isEqualTo("select count(*) from orders");
+        assertThat(reply.markdown()).contains("Result");
+    }
+
+    @Test
+    void fallback_englishLocale_isEnglish() {
+        AgentReply reply = router.route("hello there", new PageContext(null, null, null, null, null), java.util.Locale.US);
+
+        assertThat(reply.customEventName()).isNull();
+        assertThat(reply.markdown()).contains("DataWeave Agent");
+        assertThat(reply.markdown()).contains("Diagnose");
     }
 }

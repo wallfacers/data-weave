@@ -11,13 +11,13 @@
 
 ## 2. 后端异常错误码迁移（~65 处 `throw new`）
 
-- [ ] 2.1 `WorkflowService`（9 处）→ `BizException` + `workflow.*` code（`workflow.not_online` / `workflow.node.key.duplicate` 等）
-- [ ] 2.2 `ScheduleParamResolver`（9 处 `UnresolvedPlaceholderException`）→ `schedule.*` code
-- [ ] 2.3 `CatalogTreeService`（8 处 `CatalogException`）→ `catalog.*` code（保留原错误码语义）
-- [ ] 2.4 `S3LogArchiveStorage` / `FileLogArchiveStorage`（8 处）→ `archive.*` code
-- [ ] 2.5 `WorkflowGraphValidator`（3 处）/ `TagService`（4 处）→ code
-- [ ] 2.6 `AuthService`（2 处：账号禁用 / 凭证错误）→ `auth.*` code
-- [ ] 2.7 `ApprovalService`（7 处）→ `approval.*` code
+- [x] 2.1 `WorkflowService`（9 处）→ `BizException` + `workflow.*` code（`workflow.not_online` / `workflow.node.key.duplicate` 等）
+- [x] 2.2 `ScheduleParamResolver`（9 处 `UnresolvedPlaceholderException`）→ `schedule.*` code
+- [x] 2.3 `CatalogTreeService`（8 处 `CatalogException`）→ `catalog.*` code（保留原错误码语义）
+- [x] 2.4 `S3LogArchiveStorage` / `FileLogArchiveStorage`（8 处）→ `archive.*` code
+- [x] 2.5 `WorkflowGraphValidator`（3 处）/ `TagService`（4 处）→ code
+- [x] 2.6 `AuthService`（2 处：账号禁用 / 凭证错误）→ `auth.*` code
+- [x] 2.7 `ApprovalService`（7 处）→ `approval.*` code
 - [ ] 2.8 `PolicyEngine` 裁决理由（10 处 `reasons.add`）→ `Messages.get` 按 UI locale
 - [ ] 2.9 编译验证 + 现有异常断言测试对齐 zh_CN
 

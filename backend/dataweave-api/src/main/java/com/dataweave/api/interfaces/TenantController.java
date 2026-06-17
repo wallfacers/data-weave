@@ -3,6 +3,7 @@ package com.dataweave.api.interfaces;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.master.domain.Tenant;
 import com.dataweave.master.domain.TenantRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -31,7 +32,7 @@ public class TenantController {
     public ApiResponse<Tenant> get(@PathVariable Long id) {
         return tenantRepository.findById(id)
                 .map(ApiResponse::ok)
-                .orElse(ApiResponse.err(404, "租户不存在: " + id));
+                .orElseThrow(() -> new BizException("tenant.not_found", id).withHttpStatus(404));
     }
 
     @PostMapping
@@ -58,6 +59,6 @@ public class TenantController {
                     existing.setUpdatedAt(LocalDateTime.now());
                     return ApiResponse.ok(tenantRepository.save(existing));
                 })
-                .orElse(ApiResponse.err(404, "租户不存在: " + id));
+                .orElseThrow(() -> new BizException("tenant.not_found", id).withHttpStatus(404));
     }
 }

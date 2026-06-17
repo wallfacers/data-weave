@@ -72,7 +72,7 @@ public class CatalogController {
 
     private static void rejectPath(Map<String, Object> body) {
         if (body != null && body.containsKey("path")) {
-            throw new CatalogException(CatalogException.INVALID, "path 为后端派生字段，禁止传入");
+            throw new CatalogException("catalog.path.derived");
         }
     }
 

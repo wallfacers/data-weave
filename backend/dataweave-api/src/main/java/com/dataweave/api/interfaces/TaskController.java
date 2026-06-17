@@ -11,7 +11,7 @@ import com.dataweave.master.application.TaskService;
 import com.dataweave.master.application.TaskService.PageResult;
 import com.dataweave.master.application.TaskService.TaskDetail;
 import com.dataweave.master.domain.TaskDef;
-import com.dataweave.master.i18n.Messages;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,17 +35,14 @@ public class TaskController {
     private final ScheduleParamResolver paramResolver;
     private final CatalogAssignService catalogAssignService;
     private final GatedActionService gatedActionService;
-    private final Messages messages;
 
     public TaskController(TaskService taskService, ScheduleParamResolver paramResolver,
                           CatalogAssignService catalogAssignService,
-                          GatedActionService gatedActionService,
-                          Messages messages) {
+                          GatedActionService gatedActionService) {
         this.taskService = taskService;
         this.paramResolver = paramResolver;
         this.catalogAssignService = catalogAssignService;
         this.gatedActionService = gatedActionService;
-        this.messages = messages;
     }
 
     /** 创建任务草稿。 */
@@ -81,7 +78,7 @@ public class TaskController {
     @PatchMapping("/{id}/catalog")
     public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         if (body.containsKey("path")) {
-            throw new CatalogException(CatalogException.INVALID, "path 为后端派生字段，禁止传入");
+            throw new CatalogException("catalog.path.derived");
         }
         if (body.containsKey("catalogNodeId")) {
             Object v = body.get("catalogNodeId");
@@ -96,7 +93,7 @@ public class TaskController {
     public ApiResponse<TaskDetail> getById(@PathVariable Long id) {
         TaskDetail detail = taskService.getById(id).orElse(null);
         if (detail == null) {
-            return ApiResponse.err(404, "任务不存在: " + id);
+            throw new BizException("task.not_found", id).withHttpStatus(404);
         }
         return ApiResponse.ok(detail);
     }
@@ -142,10 +139,10 @@ public class TaskController {
                                        @RequestBody(required = false) RunRequest body) {
         TaskDetail detail = taskService.getById(id).orElse(null);
         if (detail == null) {
-            return ApiResponse.err(404, "任务不存在: " + id);
+            throw new BizException("task.not_found", id).withHttpStatus(404);
         }
         if (!"ONLINE".equals(detail.task().getStatus())) {
-            return ApiResponse.err(409, "任务未发布，需先发布再运行");
+            throw new BizException("task.not_published").withHttpStatus(409);
         }
         ActionRequest req = ActionRequest.builder()
                 .toolName("run_task").actionType("TASK_RUN")
@@ -172,9 +169,9 @@ public class TaskController {
                     ctx);
             return ApiResponse.ok(Map.of("content", resolved));
         } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
-            // 把 code+args 渲染为含占位符名的可读文案，不直接拼 e.getMessage()（=i18n code），否则丢失占位符名
-            String detail = messages.get(e.getCode(), e.getArgs());
-            return ApiResponse.err(400, "占位符解析失败：" + detail);
+            // UnresolvedPlaceholderException 本身即 BizException（携带 schedule.placeholder.* code + 占位符名 args），
+            // 直接上抛由 GlobalExceptionHandler 按请求 locale 本地化，无需在此预渲染
+            throw e;
         }
     }
 

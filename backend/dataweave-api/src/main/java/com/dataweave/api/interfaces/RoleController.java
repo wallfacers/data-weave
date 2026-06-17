@@ -6,6 +6,7 @@ import com.dataweave.master.domain.Role;
 import com.dataweave.master.domain.RolePermission;
 import com.dataweave.master.domain.RolePermissionRepository;
 import com.dataweave.master.domain.RoleRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -39,7 +40,7 @@ public class RoleController {
     public ApiResponse<Role> get(@PathVariable Long id) {
         return roleRepository.findById(id)
                 .map(ApiResponse::ok)
-                .orElse(ApiResponse.err(404, "角色不存在: " + id));
+                .orElseThrow(() -> new BizException("role.not_found", id).withHttpStatus(404));
     }
 
     @PostMapping
@@ -71,7 +72,7 @@ public class RoleController {
                     existing.setUpdatedAt(LocalDateTime.now());
                     return ApiResponse.ok(roleRepository.save(existing));
                 })
-                .orElse(ApiResponse.err(404, "角色不存在: " + id));
+                .orElseThrow(() -> new BizException("role.not_found", id).withHttpStatus(404));
     }
 
     @DeleteMapping("/{id}")
@@ -83,7 +84,7 @@ public class RoleController {
                     roleRepository.save(existing);
                     return ApiResponse.<Void>ok();
                 })
-                .orElse(ApiResponse.err(404, "角色不存在: " + id));
+                .orElseThrow(() -> new BizException("role.not_found", id).withHttpStatus(404));
     }
 
     // ===== 角色-权限绑定 =====
@@ -92,7 +93,7 @@ public class RoleController {
     public ApiResponse<Void> assignPermissions(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         List<Number> permissionIds = (List<Number>) body.get("permissionIds");
-        if (permissionIds == null) return ApiResponse.err(400, "permissionIds 不能为空");
+        if (permissionIds == null) throw new BizException("role.permission_ids.required");
 
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;

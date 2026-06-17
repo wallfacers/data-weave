@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.OpsService;
 import com.dataweave.master.application.OpsService.DashboardSummary;
 import com.dataweave.master.application.OpsService.LogChunk;
@@ -14,9 +15,12 @@ import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.WorkflowInstance;
+import com.dataweave.master.i18n.BizException;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -41,10 +45,12 @@ public class OpsController {
     private final LogBus logBus;
     private final LogArchiveStorage logArchive;
     private final EventBus eventBus;
+    private final Messages messages;
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
-                         LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus) {
+                         LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus,
+                         Messages messages) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
         this.metrics = metrics;
@@ -52,6 +58,7 @@ public class OpsController {
         this.logBus = logBus;
         this.logArchive = logArchive;
         this.eventBus = eventBus;
+        this.messages = messages;
     }
 
     /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
@@ -96,15 +103,23 @@ public class OpsController {
     }
 
     @PostMapping("/instances/{id}/rerun")
-    public ApiResponse<?> rerun(@PathVariable UUID id) {
+    public ApiResponse<?> rerun(@PathVariable UUID id, ServerWebExchange exchange) {
         boolean ok = recoveryService.rerunAll(id);
-        return ok ? ApiResponse.ok("已触发整流重跑") : ApiResponse.err(400, "重跑未生效（实例不存在或非终态）");
+        if (!ok) {
+            throw new BizException("ops.rerun.no_effect");
+        }
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+        return ApiResponse.ok(messages.get("ops.rerun.triggered", locale));
     }
 
     @PostMapping("/instances/{id}/recover")
-    public ApiResponse<?> recover(@PathVariable UUID id) {
+    public ApiResponse<?> recover(@PathVariable UUID id, ServerWebExchange exchange) {
         boolean ok = recoveryService.resume(id);
-        return ok ? ApiResponse.ok("已触发断点恢复") : ApiResponse.err(400, "恢复未生效（实例非失败态或不存在）");
+        if (!ok) {
+            throw new BizException("ops.recover.no_effect");
+        }
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+        return ApiResponse.ok(messages.get("ops.recover.triggered", locale));
     }
 
     @PostMapping("/task-instances/{id}/pause")

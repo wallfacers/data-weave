@@ -6,6 +6,7 @@ import com.dataweave.master.domain.User;
 import com.dataweave.master.domain.UserRepository;
 import com.dataweave.master.domain.UserRole;
 import com.dataweave.master.domain.UserRoleRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,7 +44,7 @@ public class UserController {
     public ApiResponse<User> get(@PathVariable Long id) {
         return userRepository.findById(id)
                 .map(ApiResponse::ok)
-                .orElse(ApiResponse.err(404, "用户不存在: " + id));
+                .orElseThrow(() -> new BizException("user.not_found", id).withHttpStatus(404));
     }
 
     @PostMapping
@@ -83,7 +84,7 @@ public class UserController {
                     existing.setUpdatedAt(LocalDateTime.now());
                     return ApiResponse.ok(userRepository.save(existing));
                 })
-                .orElse(ApiResponse.err(404, "用户不存在: " + id));
+                .orElseThrow(() -> new BizException("user.not_found", id).withHttpStatus(404));
     }
 
     @DeleteMapping("/{id}")
@@ -96,7 +97,7 @@ public class UserController {
                     userRepository.save(existing);
                     return ApiResponse.<Void>ok();
                 })
-                .orElse(ApiResponse.err(404, "用户不存在: " + id));
+                .orElseThrow(() -> new BizException("user.not_found", id).withHttpStatus(404));
     }
 
     // ===== 用户-角色绑定 =====
@@ -105,7 +106,7 @@ public class UserController {
     public ApiResponse<Void> assignRoles(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         List<Number> roleIds = (List<Number>) body.get("roleIds");
-        if (roleIds == null) return ApiResponse.err(400, "roleIds 不能为空");
+        if (roleIds == null) throw new BizException("user.role_ids.required");
 
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;

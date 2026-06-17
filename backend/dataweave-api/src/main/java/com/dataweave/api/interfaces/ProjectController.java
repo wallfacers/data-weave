@@ -3,6 +3,7 @@ package com.dataweave.api.interfaces;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.*;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -36,7 +37,7 @@ public class ProjectController {
     public ApiResponse<Project> get(@PathVariable Long id) {
         return projectRepository.findById(id)
                 .map(ApiResponse::ok)
-                .orElse(ApiResponse.err(404, "项目不存在: " + id));
+                .orElseThrow(() -> new BizException("project.not_found", id).withHttpStatus(404));
     }
 
     @PostMapping
@@ -69,7 +70,7 @@ public class ProjectController {
                     existing.setUpdatedAt(LocalDateTime.now());
                     return ApiResponse.ok(projectRepository.save(existing));
                 })
-                .orElse(ApiResponse.err(404, "项目不存在: " + id));
+                .orElseThrow(() -> new BizException("project.not_found", id).withHttpStatus(404));
     }
 
     @DeleteMapping("/{id}")
@@ -82,7 +83,7 @@ public class ProjectController {
                     projectRepository.save(existing);
                     return ApiResponse.<Void>ok();
                 })
-                .orElse(ApiResponse.err(404, "项目不存在: " + id));
+                .orElseThrow(() -> new BizException("project.not_found", id).withHttpStatus(404));
     }
 
     // ===== 项目成员管理 =====
@@ -99,7 +100,7 @@ public class ProjectController {
 
         Number userId = (Number) body.get("userId");
         Number roleId = (Number) body.get("roleId");
-        if (userId == null || roleId == null) return ApiResponse.err(400, "userId 和 roleId 不能为空");
+        if (userId == null || roleId == null) throw new BizException("project.member.required");
 
         ProjectMember pm = new ProjectMember();
         pm.setTenantId(tenantId);
@@ -125,6 +126,6 @@ public class ProjectController {
                     projectMemberRepository.save(pm);
                     return ApiResponse.<Void>ok();
                 })
-                .orElse(ApiResponse.err(404, "成员不存在: " + memberId));
+                .orElseThrow(() -> new BizException("project.member.not_found", memberId).withHttpStatus(404));
     }
 }

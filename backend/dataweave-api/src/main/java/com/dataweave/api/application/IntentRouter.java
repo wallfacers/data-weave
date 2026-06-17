@@ -13,6 +13,7 @@ import com.dataweave.master.domain.MetricLineage;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDiagnosis;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -46,6 +48,7 @@ public class IntentRouter {
     private final FleetService fleetService;
     private final DiagnosisService diagnosisService;
     private final ObjectMapper objectMapper;
+    private final Messages messages;
 
     public IntentRouter(MetricService metricService,
                         LineageService lineageService,
@@ -54,7 +57,8 @@ public class IntentRouter {
                         LlmClient llmClient,
                         FleetService fleetService,
                         DiagnosisService diagnosisService,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        Messages messages) {
         this.metricService = metricService;
         this.lineageService = lineageService;
         this.taskService = taskService;
@@ -63,68 +67,85 @@ public class IntentRouter {
         this.fleetService = fleetService;
         this.diagnosisService = diagnosisService;
         this.objectMapper = objectMapper;
+        this.messages = messages;
     }
 
     public AgentReply route(String message) {
-        return route(message, new PageContext(null, null, null, null, null));
+        return route(message, new PageContext(null, null, null, null, null), Messages.DEFAULT_LOCALE);
     }
 
-    /** 消费逐消息页面上下文：诊断意图优先用上下文中的 instanceId 定位对象，免用户复述（缺口①）。 */
+    /** 旧重载：保留行为不变，委托新签名并传默认 locale（中文）。 */
     public AgentReply route(String message, PageContext context) {
+        return route(message, context, Messages.DEFAULT_LOCALE);
+    }
+
+    /**
+     * 消费逐消息页面上下文 + locale：诊断意图优先用上下文中的 instanceId 定位对象，免用户复述（缺口①）；
+     * 面向用户的 markdown 文案按 locale 本地化；意图识别关键词中英双语。
+     */
+    public AgentReply route(String message, PageContext context, Locale locale) {
         String msg = message == null ? "" : message.trim();
         PageContext ctx = context != null ? context : new PageContext(null, null, null, null, null);
+        Locale loc = locale != null ? locale : Messages.DEFAULT_LOCALE;
         if (msg.isEmpty()) {
-            return fallback();
+            return fallback(loc);
         }
 
         // 0a) 诊断意图（优先于血缘，避免"失败"等关键词被吞）
-        if (containsAny(msg, "诊断", "为什么失败", "失败原因", "为啥失败", "排查", "跑挂", "挂了", "为什么挂", "报错原因")) {
-            return tryDiagnosis(ctx);
+        if (containsAny(msg, "诊断", "为什么失败", "失败原因", "为啥失败", "排查", "跑挂", "挂了", "为什么挂", "报错原因",
+                "diagnose", "diagnosis", "why failed", "why did it fail", "why it failed", "root cause",
+                "failure reason", "troubleshoot")) {
+            return tryDiagnosis(ctx, loc);
         }
 
         // 0b) 查机器/集群意图
-        if (containsAny(msg, "机器", "集群", "节点", "worker", "机器状态", "资源水位", "机器列表", "几台")) {
-            return tryFleet();
+        if (containsAny(msg, "机器", "集群", "节点", "worker", "机器状态", "资源水位", "机器列表", "几台",
+                "node", "cluster", "fleet", "machine", "resource usage")) {
+            return tryFleet(loc);
         }
 
         // 1) 血缘意图（优先于纯指标查询，因为也含指标名）
-        if (containsAny(msg, "血缘", "受哪些表影响", "影响", "上游", "下游", "来源表")) {
-            AgentReply lineage = tryLineage(msg);
+        if (containsAny(msg, "血缘", "受哪些表影响", "影响", "上游", "下游", "来源表",
+                "lineage", "upstream", "downstream", "source table", "depend on", "depends on", "impact")) {
+            AgentReply lineage = tryLineage(msg, loc);
             if (lineage != null) {
                 return lineage;
             }
         }
 
         // 2) 建任务意图
-        if (containsAny(msg, "创建任务", "建任务", "建个任务", "新建任务", "创建一个任务")
-                || (msg.contains("任务") && containsAny(msg, "每天", "每日", "执行", "调度", "定时"))) {
-            return createTask(msg);
+        if (containsAny(msg, "创建任务", "建任务", "建个任务", "新建任务", "创建一个任务",
+                "create task", "create a task", "new task", "add task")
+                || (msg.contains("任务") && containsAny(msg, "每天", "每日", "执行", "调度", "定时"))
+                || (msg.toLowerCase().contains("task")
+                    && containsAny(msg, "daily", "every day", "schedule", "scheduled", "run", "cron"))) {
+            return createTask(msg, loc);
         }
 
         // 3) 指标查询（消息含已注册指标名）
-        AgentReply metric = tryMetricQuery(msg);
+        AgentReply metric = tryMetricQuery(msg, loc);
         if (metric != null) {
             return metric;
         }
 
         // 4) Text-to-SQL（预置问法）
-        AgentReply sql = tryTextToSql(msg);
+        AgentReply sql = tryTextToSql(msg, loc);
         if (sql != null) {
             return sql;
         }
 
         // 5) 兜底
-        return fallback();
+        return fallback(loc);
     }
 
     // ---- 诊断意图 ----
-    private AgentReply tryDiagnosis(PageContext ctx) {
+    private AgentReply tryDiagnosis(PageContext ctx, Locale loc) {
         java.util.UUID instanceId = ctx != null ? ctx.instanceIdAsUuid() : null;
         Optional<TaskDiagnosis> opt = instanceId != null
                 ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
                 : diagnosisService.diagnoseLatestFailure();
         if (opt.isEmpty()) {
-            return AgentReply.text("当前没有失败的任务实例可诊断。");
+            return AgentReply.text(messages.get("agent.diagnosis.none", loc));
         }
         TaskDiagnosis d = opt.get();
 
@@ -142,10 +163,12 @@ public class IntentRouter {
 
         // 拼 Markdown
         StringBuilder md = new StringBuilder();
-        md.append("## 根因\n\n").append(d.getRootCause() != null ? d.getRootCause() : "(未知)").append("\n\n");
-        md.append("### 修复建议\n\n");
+        md.append(messages.get("agent.diagnosis.root_cause_heading", loc)).append("\n\n")
+                .append(d.getRootCause() != null ? d.getRootCause() : messages.get("agent.diagnosis.unknown", loc))
+                .append("\n\n");
+        md.append(messages.get("agent.diagnosis.suggestions_heading", loc)).append("\n\n");
         if (suggestions.isEmpty()) {
-            md.append("（暂无建议）\n");
+            md.append(messages.get("agent.diagnosis.no_suggestions", loc)).append("\n");
         } else {
             for (Map<String, Object> s : suggestions) {
                 Object label = s.get("label");
@@ -171,23 +194,23 @@ public class IntentRouter {
     }
 
     // ---- 查机器/集群意图 ----
-    private AgentReply tryFleet() {
+    private AgentReply tryFleet(Locale loc) {
         List<WorkerNode> nodes = fleetService.nodes();
         List<String> columns = List.of("nodeCode", "status", "cpu", "mem", "disk", "loadAvg", "runningTasks");
 
         // Markdown 表格
         StringBuilder md = new StringBuilder();
-        md.append("| 节点 | 状态 | CPU% | 内存% | 磁盘% | load | 运行任务 |\n");
+        md.append(messages.get("agent.fleet.table_header", loc)).append("\n");
         md.append("| --- | --- | --- | --- | --- | --- | --- |\n");
         List<Map<String, Object>> rows = new ArrayList<>();
         for (WorkerNode n : nodes) {
-            md.append("| ").append(fmt(n.getNodeCode()))
-                    .append(" | ").append(fmt(n.getStatus()))
+            md.append("| ").append(fmt(n.getNodeCode(), loc))
+                    .append(" | ").append(fmt(n.getStatus(), loc))
                     .append(" | ").append(fmtPct(n.getCpu()))
                     .append(" | ").append(fmtPct(n.getMem()))
                     .append(" | ").append(fmtPct(n.getDisk()))
-                    .append(" | ").append(fmt(n.getLoadAvg()))
-                    .append(" | ").append(fmt(n.getRunningTasks()))
+                    .append(" | ").append(fmt(n.getLoadAvg(), loc))
+                    .append(" | ").append(fmt(n.getRunningTasks(), loc))
                     .append(" |\n");
 
             Map<String, Object> row = new LinkedHashMap<>();
@@ -213,7 +236,7 @@ public class IntentRouter {
     }
 
     // ---- 指标查询 ----
-    private AgentReply tryMetricQuery(String msg) {
+    private AgentReply tryMetricQuery(String msg, Locale loc) {
         // 已注册指标识别：MVP 直接尝试已知指标名 GMV
         for (String name : List.of("GMV")) {
             if (msg.toUpperCase().contains(name)) {
@@ -221,11 +244,11 @@ public class IntentRouter {
                 if (m.isPresent()) {
                     AtomicMetric metric = m.get();
                     Object value = metricService.evaluate(metric);
-                    String md = "指标 **" + metric.getName() + "** 的当前值为 **" + fmt(value) + "**。\n\n"
-                            + "口径溯源：\n"
-                            + "- 口径 SQL：`" + metric.getMeasureExpr() + "`\n"
-                            + "- 来源表：`" + metric.getSourceTable() + "`\n"
-                            + "- 版本：v" + metric.getVersionNo();
+                    String md = messages.get("agent.metric.value", loc, metric.getName(), fmt(value, loc)) + "\n\n"
+                            + messages.get("agent.metric.source_heading", loc) + "\n"
+                            + messages.get("agent.metric.source_sql", loc, metric.getMeasureExpr()) + "\n"
+                            + messages.get("agent.metric.source_table", loc, metric.getSourceTable()) + "\n"
+                            + messages.get("agent.metric.version", loc, metric.getVersionNo());
                     Map<String, Object> structured = new LinkedHashMap<>();
                     structured.put("kind", "metric");
                     structured.put("name", metric.getName());
@@ -242,16 +265,20 @@ public class IntentRouter {
 
     // ---- Text-to-SQL ----
     private static final Pattern COUNT_PATTERN =
-            Pattern.compile("(多少条|有多少|count|计数|条数|行数|几条)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(多少条|有多少|count|计数|条数|行数|几条|how many|number of|row count)",
+                    Pattern.CASE_INSENSITIVE);
 
-    private AgentReply tryTextToSql(String msg) {
+    private AgentReply tryTextToSql(String msg, Locale loc) {
         String table = "orders"; // MVP 预置业务表
-        boolean mentionsOrders = msg.toLowerCase().contains("orders") || msg.contains("订单");
+        String lower = msg.toLowerCase();
+        boolean mentionsOrders = lower.contains("orders") || msg.contains("订单");
+        boolean mentionsTable = msg.contains("表") || lower.contains("table");
         String generatedSql = null;
 
-        if (COUNT_PATTERN.matcher(msg).find() && (mentionsOrders || msg.contains("表"))) {
+        if (COUNT_PATTERN.matcher(msg).find() && (mentionsOrders || mentionsTable)) {
             generatedSql = "select count(*) from " + table;
-        } else if (mentionsOrders && containsAny(msg, "查", "看", "列", "明细", "数据", "select")) {
+        } else if (mentionsOrders && containsAny(msg, "查", "看", "列", "明细", "数据", "select",
+                "show", "list", "view", "query", "rows", "data")) {
             generatedSql = "select * from " + table;
         }
 
@@ -261,12 +288,13 @@ public class IntentRouter {
 
         String reject = sqlExecutionService.rejectReason(generatedSql);
         if (reject != null) {
-            return AgentReply.text("已生成 SQL：`" + generatedSql + "`，但未通过只读校验：" + reject);
+            return AgentReply.text(messages.get("agent.sql.rejected", loc, generatedSql, reject));
         }
 
         QueryResult result = sqlExecutionService.query(generatedSql);
-        String md = "已将问题转换为 SQL：\n\n```sql\n" + generatedSql + "\n```\n\n执行结果：\n\n"
-                + toMarkdownTable(result);
+        String md = messages.get("agent.sql.converted", loc) + "\n\n```sql\n" + generatedSql + "\n```\n\n"
+                + messages.get("agent.sql.result_heading", loc) + "\n\n"
+                + toMarkdownTable(result, loc);
 
         Map<String, Object> structured = new LinkedHashMap<>();
         structured.put("kind", "table");
@@ -277,17 +305,28 @@ public class IntentRouter {
     }
 
     // ---- 建任务 ----
-    private static final Pattern HOUR_PATTERN = Pattern.compile("每天\\s*(\\d{1,2})\\s*点|每日\\s*(\\d{1,2})\\s*点");
+    private static final Pattern HOUR_PATTERN = Pattern.compile(
+            "每天\\s*(\\d{1,2})\\s*点|每日\\s*(\\d{1,2})\\s*点"
+                    + "|(?:daily|every day)\\s*at\\s*(\\d{1,2})|at\\s*(\\d{1,2})\\s*(?:daily|every day|o'clock)",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern SQL_CONTENT_PATTERN = Pattern.compile("`([^`]+)`");
 
-    private AgentReply createTask(String msg) {
+    private AgentReply createTask(String msg, Locale loc) {
         // 解析执行小时 -> cron
         int hour = 8;
         Matcher hm = HOUR_PATTERN.matcher(msg);
         if (hm.find()) {
-            String h = hm.group(1) != null ? hm.group(1) : hm.group(2);
+            String h = null;
+            for (int g = 1; g <= hm.groupCount(); g++) {
+                if (hm.group(g) != null) {
+                    h = hm.group(g);
+                    break;
+                }
+            }
             try {
-                hour = Integer.parseInt(h);
+                if (h != null) {
+                    hour = Integer.parseInt(h);
+                }
             } catch (NumberFormatException ignored) {
             }
         }
@@ -303,21 +342,21 @@ public class IntentRouter {
         }
 
         // 任务名：简单从消息派生
-        String name = "自然语言任务-" + System.currentTimeMillis() % 100000;
+        String name = messages.get("agent.task.name_nl", loc, System.currentTimeMillis() % 100000);
         if (msg.contains("GMV")) {
-            name = "GMV 统计任务";
+            name = messages.get("agent.task.name_gmv", loc);
         }
 
         var creation = taskService.createAndOnline(name, "SQL", content, cron);
         TaskDef task = creation.task();
 
-        String md = "已创建并上线任务：\n"
-                + "- 任务名：**" + task.getName() + "**\n"
-                + "- 类型：`" + task.getType() + "`\n"
-                + "- 调度（cron）：`" + creation.cron() + "`（每天 " + hour + ":00）\n"
-                + "- 执行内容：`" + task.getContent() + "`\n"
-                + "- 状态：**" + task.getStatus() + "**\n\n"
-                + "已 mock 推进一条运行实例至 SUCCESS。";
+        String md = messages.get("agent.task.created", loc) + "\n"
+                + messages.get("agent.task.field_name", loc, task.getName()) + "\n"
+                + messages.get("agent.task.field_type", loc, task.getType()) + "\n"
+                + messages.get("agent.task.field_cron", loc, creation.cron(), hour) + "\n"
+                + messages.get("agent.task.field_content", loc, task.getContent()) + "\n"
+                + messages.get("agent.task.field_status", loc, task.getStatus()) + "\n\n"
+                + messages.get("agent.task.mock_advanced", loc);
 
         Map<String, Object> structured = new LinkedHashMap<>();
         structured.put("kind", "task");
@@ -332,7 +371,7 @@ public class IntentRouter {
     }
 
     // ---- 血缘 ----
-    private AgentReply tryLineage(String msg) {
+    private AgentReply tryLineage(String msg, Locale loc) {
         for (String name : List.of("GMV")) {
             if (msg.toUpperCase().contains(name)) {
                 Optional<LineageService.LineagePath> path = lineageService.lineageOf(name);
@@ -341,7 +380,7 @@ public class IntentRouter {
                     List<MetricLineage> edges = path.get().edges();
 
                     StringBuilder md = new StringBuilder();
-                    md.append("指标 **").append(metric.getName()).append("** 的影响链路（指标 → SQL → 物理表）：\n\n");
+                    md.append(messages.get("agent.lineage.intro", loc, metric.getName())).append("\n\n");
                     md.append("`").append(metric.getName()).append("`")
                             .append(" → `").append(metric.getMeasureExpr()).append("`");
                     List<Map<String, Object>> rows = new ArrayList<>();
@@ -353,9 +392,9 @@ public class IntentRouter {
                         r.put("downstreamId", e.getDownstreamId());
                         rows.add(r);
                     }
-                    md.append("\n\n受影响的物理表：");
+                    md.append("\n\n").append(messages.get("agent.lineage.affected_tables", loc));
                     if (edges.isEmpty()) {
-                        md.append("（无记录）");
+                        md.append(messages.get("agent.lineage.no_record", loc));
                     } else {
                         for (MetricLineage e : edges) {
                             md.append(" `").append(e.getDownstreamId()).append("`");
@@ -376,35 +415,37 @@ public class IntentRouter {
     }
 
     // ---- 兜底 ----
-    private AgentReply fallback() {
-        String md = "我是 DataWeave Agent（当前为 MVP 规则 mock 引擎）。我现在支持以下问法：\n\n"
-                + "- **诊断**：如「帮我诊断为什么失败」——分析最近失败实例并给出修复建议。\n"
-                + "- **查机器**：如「看看集群机器状态」——列出 worker 节点与资源水位。\n"
-                + "- **指标查询**：如「GMV 是多少」——返回指标值与口径溯源。\n"
-                + "- **Text-to-SQL**：如「orders 表有多少条」「查一下 orders」——生成只读 SQL 并返回表格。\n"
-                + "- **建任务**：如「创建一个任务，每天 8 点执行 `select count(*) from orders`」——建任务并上线。\n"
-                + "- **血缘问答**：如「GMV 受哪些表影响」——返回「指标 → SQL → 物理表」链路。\n\n"
-                + "请换一种上述问法再试。";
+    private AgentReply fallback(Locale loc) {
+        String md = messages.get("agent.help.intro", loc) + "\n\n"
+                + messages.get("agent.help.diagnosis", loc) + "\n"
+                + messages.get("agent.help.fleet", loc) + "\n"
+                + messages.get("agent.help.metric", loc) + "\n"
+                + messages.get("agent.help.sql", loc) + "\n"
+                + messages.get("agent.help.task", loc) + "\n"
+                + messages.get("agent.help.lineage", loc) + "\n\n"
+                + messages.get("agent.help.retry", loc);
         return AgentReply.text(md);
     }
 
     // ---- helpers ----
     private boolean containsAny(String s, String... keys) {
+        String lower = s.toLowerCase();
         for (String k : keys) {
-            if (s.contains(k)) {
+            // 中文 key 大小写无关；英文 key 统一用小写匹配（关键词词典已全小写）
+            if (k.equals(k.toLowerCase()) ? lower.contains(k) : s.contains(k)) {
                 return true;
             }
         }
         return false;
     }
 
-    private String fmt(Object value) {
-        return value == null ? "(无数据)" : value.toString();
+    private String fmt(Object value, Locale loc) {
+        return value == null ? messages.get("agent.common.no_data", loc) : value.toString();
     }
 
-    private String toMarkdownTable(QueryResult result) {
+    private String toMarkdownTable(QueryResult result, Locale loc) {
         if (result.columns().isEmpty()) {
-            return "(空结果)";
+            return messages.get("agent.sql.empty_result", loc);
         }
         StringBuilder sb = new StringBuilder();
         sb.append("| ").append(String.join(" | ", result.columns())).append(" |\n");
