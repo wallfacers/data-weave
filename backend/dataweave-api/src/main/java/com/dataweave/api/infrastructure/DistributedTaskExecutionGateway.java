@@ -22,15 +22,15 @@ import java.util.Optional;
  * 共享 token 鉴权（{@code cluster.auth.token}）。
  *
  * <p>下发地址从 {@code worker_nodes} 注册表按 nodeCode 取 worker 上报的可达 {@code host}
- * （形如 {@code 127.0.0.1:8081}，含端口）。这样同机多 worker 可用不同端口区分；host 未含端口
- * 或节点缺失时回退到默认端口 8081（旧行为），保持兼容。
+ * （形如 {@code 127.0.0.1:8100}，含端口）。这样同机多 worker 可用不同端口区分；host 未含端口
+ * 或节点缺失时回退到默认端口 8100（旧行为），保持兼容。
  */
 @Component
 @ConditionalOnProperty(name = "scheduler.mode", havingValue = "distributed")
 public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
 
     private static final Logger log = LoggerFactory.getLogger(DistributedTaskExecutionGateway.class);
-    private static final int DEFAULT_WORKER_PORT = 8081;
+    private static final int DEFAULT_WORKER_PORT = 8100;
 
     private final WebClient webClient;
     private final String clusterToken;

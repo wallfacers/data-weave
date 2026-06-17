@@ -43,7 +43,7 @@ public class WorkhorseHttpClient implements WorkhorseClient {
 
     public WorkhorseHttpClient(WebClient.Builder builder,
                                ObjectMapper objectMapper,
-                               @Value("${agent.workhorse.base-url:http://127.0.0.1:8787}") String baseUrl) {
+                               @Value("${agent.workhorse.base-url:http://127.0.0.1:8300}") String baseUrl) {
         this.webClient = builder.baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
     }

@@ -152,7 +152,7 @@ NOT_RUN → RUNNING → SUCCESS
 1. **DDL 先行**：`schema.sql` 更新 → H2 重启自动建表；PostgreSQL 需手动执行 migration SQL。
 2. **后端部署**：`./mvnw install -DskipTests` → 重启 `dataweave-api`。
 3. **前端部署**：`pnpm dev` 自动热更新。
-4. **验证**：浏览器打开 `http://localhost:3000`，确认任务列表渲染、搜索可用、创建/编辑/删除流程通。
+4. **验证**：浏览器打开 `http://localhost:4000`，确认任务列表渲染、搜索可用、创建/编辑/删除流程通。
 
 ### 回滚策略
 

@@ -9,7 +9,7 @@
 //	dw logs cat <instanceId>    看实例日志
 //
 // 全子命令支持 --json（结构化输出，字段与 master REST 同构）；默认人类可读表格。
-// 配置：环境变量 DW_API（默认 http://localhost:8080）、DW_TOKEN（写类操作的 X-DW-Token）。
+// 配置：环境变量 DW_API（默认 http://localhost:8000）、DW_TOKEN（写类操作的 X-DW-Token）。
 package main
 
 import (
@@ -27,7 +27,7 @@ func apiBase() string {
 	if v := os.Getenv("DW_API"); v != "" {
 		return strings.TrimRight(v, "/")
 	}
-	return "http://localhost:8080"
+	return "http://localhost:8000"
 }
 
 func token() string { return os.Getenv("DW_TOKEN") }
@@ -288,7 +288,7 @@ func usageRoot() {
   help    本帮助
 
 环境变量：
-  DW_API    master 地址（默认 http://localhost:8080）
+  DW_API    master 地址（默认 http://localhost:8000）
   DW_TOKEN  写类操作（rerun）的 X-DW-Token
 
 示例：

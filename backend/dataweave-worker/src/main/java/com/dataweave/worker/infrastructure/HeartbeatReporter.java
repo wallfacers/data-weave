@@ -29,14 +29,14 @@ public class HeartbeatReporter {
     @Value("${dataweave.worker.heartbeat.enabled:false}")
     private boolean enabled;
 
-    @Value("${dataweave.master.url:http://localhost:8080}")
+    @Value("${dataweave.master.url:http://localhost:8000}")
     private String masterUrl;
 
     @Value("${dataweave.worker.node-code:worker-local}")
     private String nodeCode;
 
     /** worker 自身 HTTP 端口，随心跳上报供 master distributed 下发寻址。 */
-    @Value("${server.port:8081}")
+    @Value("${server.port:8100}")
     private int serverPort;
 
     /** 对外可达主机名/IP（同机多 worker 区分用），留空则回退本机名。 */

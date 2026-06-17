@@ -14,7 +14,7 @@ import { getConversationId } from "@/lib/workspace/persistence"
 // 直连后端 Java AG-UI 端点，不跑 Node CopilotKit Runtime。
 // 必须用 v2 API：selfManagedAgents 使 hasLocalAgents=true，绕过 runtime 强制要求。
 const AGENT_URL =
-  process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8080/agui"
+  process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000/agui"
 // REST API 走 Next.js rewrite 代理（自动同源，Bearer token 由各组件自行注入）。
 const API_BASE = ""
 

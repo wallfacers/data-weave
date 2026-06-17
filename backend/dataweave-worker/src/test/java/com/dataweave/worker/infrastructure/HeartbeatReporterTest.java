@@ -12,25 +12,25 @@ class HeartbeatReporterTest {
 
     @Test
     void advertiseHostConfigured_usedWithPort() {
-        assertThat(HeartbeatReporter.buildAdvertisedHost("127.0.0.1", "fallback-host", 8082))
-                .isEqualTo("127.0.0.1:8082");
+        assertThat(HeartbeatReporter.buildAdvertisedHost("127.0.0.1", "fallback-host", 8200))
+                .isEqualTo("127.0.0.1:8200");
     }
 
     @Test
     void advertiseHostBlank_fallsBackToLocalHostWithPort() {
-        assertThat(HeartbeatReporter.buildAdvertisedHost("", "fallback-host", 8081))
-                .isEqualTo("fallback-host:8081");
+        assertThat(HeartbeatReporter.buildAdvertisedHost("", "fallback-host", 8100))
+                .isEqualTo("fallback-host:8100");
     }
 
     @Test
     void advertiseHostNull_fallsBackToLocalHostWithPort() {
-        assertThat(HeartbeatReporter.buildAdvertisedHost(null, "fallback-host", 8081))
-                .isEqualTo("fallback-host:8081");
+        assertThat(HeartbeatReporter.buildAdvertisedHost(null, "fallback-host", 8100))
+                .isEqualTo("fallback-host:8100");
     }
 
     @Test
     void advertiseHostAlreadyHasPort_notDoubled() {
-        assertThat(HeartbeatReporter.buildAdvertisedHost("10.0.0.5:9090", "fallback-host", 8081))
-                .isEqualTo("10.0.0.5:9090");
+        assertThat(HeartbeatReporter.buildAdvertisedHost("10.0.0.5:8300", "fallback-host", 8100))
+                .isEqualTo("10.0.0.5:8300");
     }
 }

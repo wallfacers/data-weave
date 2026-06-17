@@ -21,13 +21,13 @@ spring:
       data-locations: classpath:data.sql
 
 server:
-  port: 8080
+  port: 8000
 
 # Agent 大脑模式与策略闸门（agent-fabric-m1）
 agent:
   mode: mock                       # mock（默认零依赖）| workhorse（接 LLM 大脑）
   workhorse:
-    base-url: http://127.0.0.1:8787
+    base-url: http://127.0.0.1:8300
 
 policy:
   environment: dev                 # dev | prod（prod 抬升 L1→L2）

@@ -4,7 +4,7 @@
 
 server:
   host: 127.0.0.1            # 仅本机绑定；dataweave-api 为唯一客户端（design 运行形态）
-  port: 8787
+  port: 8300
   default_workdir: /var/lib/workhorse/agent-workdir
 
 # 大脑 LLM 提供方（anthropic / openai 双协议；无 ${ENV} 展开，key 须字面量，部署时覆盖）。

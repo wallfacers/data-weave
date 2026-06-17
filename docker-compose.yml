@@ -57,7 +57,7 @@ services:
     image: ${WORKHORSE_IMAGE:-dataweave/workhorse-agent:latest}
     container_name: dataweave-workhorse
     profiles: ["workhorse"]
-    network_mode: host        # 绑 127.0.0.1:8787，直连宿主上的 dataweave-api:8080/mcp
+    network_mode: host        # 绑 127.0.0.1:8300，直连宿主上的 dataweave-api:8000/mcp
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -83,7 +83,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8000:8000"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
       SPRING_DATASOURCE_USERNAME: dataweave
@@ -95,7 +95,7 @@ services:
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       DATAWEAVE_FLEET_SIMULATE: "false"           # 关掉假节点心跳模拟，只认真实注册的 worker
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -110,7 +110,7 @@ services:
       dataweave-master:
         condition: service_healthy
     ports:
-      - "8082:8080"
+      - "8200:8000"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
       SPRING_DATASOURCE_USERNAME: dataweave
@@ -124,7 +124,7 @@ services:
       SPRING_SQL_INIT_MODE: never                 # 不重建库，避免与 master-1 互相 DROP
     restart: unless-stopped
 
-  # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8081 下发）。
+  # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
   worker-1:
     image: ${DATAWEAVE_WORKER_IMAGE:-dataweave/dataweave-worker:latest}
     build:
@@ -135,9 +135,9 @@ services:
       dataweave-master:
         condition: service_healthy
     ports:
-      - "8081:8081"
+      - "8100:8100"
     environment:
-      DATAWEAVE_MASTER_URL: http://dataweave-master:8080
+      DATAWEAVE_MASTER_URL: http://dataweave-master:8000
       DATAWEAVE_WORKER_NODE_CODE: worker-1
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
@@ -151,9 +151,9 @@ services:
       dataweave-master:
         condition: service_healthy
     ports:
-      - "8083:8081"
+      - "8101:8100"
     environment:
-      DATAWEAVE_MASTER_URL: http://dataweave-master:8080
+      DATAWEAVE_MASTER_URL: http://dataweave-master:8000
       DATAWEAVE_WORKER_NODE_CODE: worker-2
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token

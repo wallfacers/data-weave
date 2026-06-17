@@ -5,7 +5,7 @@
 
 #### Scenario: 默认关闭不改变现状
 - **WHEN** 未配置 `agent.workhorse.managed` 或其为 `false`
-- **THEN** DataWeave 启动不拉起 sidecar 进程，agent.mode=workhorse 仍按既有逻辑连接外部 8787，无任何新进程产生
+- **THEN** DataWeave 启动不拉起 sidecar 进程，agent.mode=workhorse 仍按既有逻辑连接外部 8300，无任何新进程产生
 
 #### Scenario: 开启后随后端就绪
 - **WHEN** `agent.workhorse.managed=true` 且 DataWeave 后端启动
@@ -15,7 +15,7 @@
 supervisor SHALL 在拉起前探测目标端口的 `/health`：已被健康 sidecar 占用且非本 supervisor 所起者 MUST 被 **adopt**（复用，绝不回收）；无人占用时 MAY spawn 新进程并记录其句柄。回收（reap）MUST 仅作用于本 supervisor 持有句柄的子进程，MUST NOT 终止任何 adopt 的或外部的进程。
 
 #### Scenario: 复用已健康的外部 sidecar
-- **WHEN** 启动时 8787 已有一个健康且非本进程所起的 sidecar
+- **WHEN** 启动时 8300 已有一个健康且非本进程所起的 sidecar
 - **THEN** supervisor 标记其为 Adopted 并复用，**不**spawn 新进程，进程退出时**不**终止它
 
 #### Scenario: 退出只回收自己拉起的

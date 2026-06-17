@@ -45,7 +45,7 @@ public class WorkerExecController {
     public WorkerExecController(WorkerExecService execService,
                                 WorkerApplication workerApp,
                                 @Value("${cluster.auth.token:}") String clusterToken,
-                                @Value("${dataweave.master.url:http://localhost:8080}") String masterUrl) {
+                                @Value("${dataweave.master.url:http://localhost:8000}") String masterUrl) {
         this.execService = execService;
         this.workerApp = workerApp;
         this.clusterToken = clusterToken;

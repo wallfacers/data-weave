@@ -3,7 +3,7 @@ spring:
     name: dataweave-worker
 
 server:
-  port: 8081
+  port: 8100
 
 # Worker 身份与 master 连接
 dataweave:
@@ -14,7 +14,7 @@ dataweave:
       interval-ms: 10000
     drain-timeout-seconds: 60       # SIGTERM 等待运行中任务完成的超时
   master:
-    url: http://localhost:8080       # master 地址
+    url: http://localhost:8000       # master 地址
 
 # 集群共享 token
 cluster:

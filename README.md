@@ -38,7 +38,7 @@ data-weave/
 cd backend
 ./mvnw install -DskipTests                       # 先把四模块装进本地仓库（首次/改动后）
 ./mvnw -pl dataweave-api spring-boot:run         # 默认 H2，零外部依赖
-# AG-UI 端点：POST http://localhost:8080/agui  ·  健康检查：GET /api/health
+# AG-UI 端点：POST http://localhost:8000/agui  ·  健康检查：GET /api/health
 ```
 > 单模块 `spring-boot:run` 需要 sibling 模块的 jar，故先 `install`。
 
@@ -46,9 +46,9 @@ cd backend
 ```bash
 cd frontend
 pnpm install
-pnpm dev                                         # http://localhost:3000 → /agent
+pnpm dev                                         # http://localhost:4000 → /agent
 ```
-前端通过 `NEXT_PUBLIC_AGENT_URL`（默认 `http://localhost:8080/agui`）连后端。
+前端通过 `NEXT_PUBLIC_AGENT_URL`（默认 `http://localhost:8000/agui`）连后端。
 
 ### 调度器模式
 

@@ -45,15 +45,15 @@ class HealthAndCorsTest {
     }
 
     @Test
-    void corsPreflightShouldAllowLocalhost3000() {
+    void corsPreflightShouldAllowLocalhost4000() {
         webTestClient.options()
                 .uri("/agui")
-                .header(HttpHeaders.ORIGIN, "http://localhost:3000")
+                .header(HttpHeaders.ORIGIN, "http://localhost:4000")
                 .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader()
                 .value(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
-                        value -> assertThat(value).isEqualTo("http://localhost:3000"));
+                        value -> assertThat(value).isEqualTo("http://localhost:4000"));
     }
 }
