@@ -121,6 +121,9 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 - **字体**：正文走 sans，代码（行内 + 代码块）走 `--font-mono`（Geist Mono）。
 - **配色映射到主题 token**（改 `--tw-prose-*`，一套规则覆盖亮/暗）：正文/标题/加粗 = `--foreground`；**链接 / 行内代码 = `--link`（钴蓝）**；行内代码加 `--muted` 淡底；代码块底 = `--muted`。
 - **代码块高亮**：chat 代码块与 **Monaco 编辑器**共用同一套 Shiki 主题对象（`lib/syntax-palette.ts`），两端高亮一致。`globals.css` 仅保留暗色 token 前景/底色切到 `--shiki-dark` / `--shiki-dark-bg` 的 swap 规则。
+- **对话紧致节奏**：Streamdown 的 prose 是长文基线（16px / 行高 1.75、段落上下各 20px，再叠 `.space-y-4` 16px → 段间约 36px），窄对话栏偏松。`globals.css` 把它收成对话节奏（**仅排版量，零颜色改动**）：正文 **13.5px / 行高 1.6**；段落与块级元素**只留下间距 ~10px、清零上间距**（消除 prose margin 与 `space-y-4` 的双重叠加），容器**首/末子元素纵向 margin 清零**；列表项 ~2px、`ul/ol` 左缩进 1rem；标题 h1/h2/h3 = 15/14/13px、字重 600；代码块顶栏 padding 收至 6/12px、表格单元格 6×10px / 12.5px。
+  - ⚠️ **间距必须用元素规则直接覆盖**（作用域 `[data-copilotkit] [class*="prose"] <元素>`）：Tailwind 的间距是硬编码进 `prose` 元素规则的，**不走** `--tw-prose-*` 变量（该组变量只控制颜色）。
+- **代码块/表格做减法**：Streamdown 默认渲染顶栏（语言标签 + 复制按钮，套 `bg-muted` / `border` token）。对话场景**隐藏下载按钮、保留复制**——Streamdown `controls.code/table` 是整条顶栏开关、无「留复制/关下载」子粒度，故经 `globals.css` 对 `[data-streamdown="code-block-download-button"]` 与表格 `button[title="Download table"]` 置 `display:none`（不动 `agent-chat.tsx` 的 `controls`）。
 
 ## 代码语法主题（编辑器 + chat 共用）
 

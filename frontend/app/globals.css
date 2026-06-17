@@ -230,6 +230,62 @@ html.dark [data-copilotkit] [data-streamdown="code-block-body"] pre {
   background-color: var(--shiki-dark-bg, var(--muted)) !important;
 }
 
+/* ── AI 回复 Markdown「对话紧致节奏」───────────────────────────────────────
+   Streamdown 的 prose 默认是长文基线（16px / 行高 1.75、段落上下各 20px，
+   再叠 .space-y-4 16px → 段间 ~36px），在窄对话栏偏松。下面把它收成对话节奏。
+   ⚠️ 间距只能靠元素规则直接覆盖（Tailwind 间距是硬编码，不走 --tw-prose-*；
+      后者仅管颜色）。全程仅改排版量（字号/行高/margin/padding），不动任何颜色。 */
+html [data-copilotkit] [class*="prose"] {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+/* 统一纵向节奏：清上间距、只留下间距（10px），块与段同一口径，消除双重叠加 */
+html [data-copilotkit] [class*="prose"]
+  :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6,
+         [data-streamdown="code-block"], [data-streamdown="table-wrapper"]) {
+  margin-top: 0;
+  margin-bottom: 0.625rem;
+}
+/* Streamdown 块容器自带 .space-y-4（子元素 margin-top:16px）→ 归零，交由上面统一节奏接管 */
+html [data-copilotkit] [class*="prose"] .space-y-4 > * {
+  margin-top: 0;
+}
+/* 首/末子元素清零纵向 margin（气泡顶/底不留多余白） */
+html [data-copilotkit] [class*="prose"] > :first-child,
+html [data-copilotkit] [class*="prose"] .space-y-4 > :first-child {
+  margin-top: 0;
+}
+html [data-copilotkit] [class*="prose"] > :last-child,
+html [data-copilotkit] [class*="prose"] .space-y-4 > :last-child {
+  margin-bottom: 0;
+}
+/* 列表贴紧 + 适度左缩进 */
+html [data-copilotkit] [class*="prose"] li {
+  margin-top: 0.125rem;
+  margin-bottom: 0.125rem;
+}
+html [data-copilotkit] [class*="prose"] :where(ul, ol) {
+  padding-left: 1rem;
+}
+/* 标题按字号比例下调，不喧宾夺主（字重保留 600） */
+html [data-copilotkit] [class*="prose"] h1 { font-size: 15px; font-weight: 600; }
+html [data-copilotkit] [class*="prose"] h2 { font-size: 14px; font-weight: 600; }
+html [data-copilotkit] [class*="prose"] :where(h3, h4, h5, h6) { font-size: 13px; font-weight: 600; }
+/* 代码块顶栏 padding 适度收敛（默认 p-3=12px → 6px/12px） */
+html [data-copilotkit] [data-streamdown="code-block-header"] {
+  padding: 0.375rem 0.75rem;
+}
+/* 表格单元格收紧（仅排版量，配色仍走 --tw-prose-*） */
+html [data-copilotkit] [class*="prose"] :where([data-streamdown="table-cell"], [data-streamdown="table-header-cell"]) {
+  padding: 0.375rem 0.625rem;
+  font-size: 12.5px;
+}
+/* 对话场景隐藏「下载」按钮（下载 SQL/表格片段无意义），保留复制按钮 */
+html [data-copilotkit] [data-streamdown="code-block-download-button"],
+html [data-copilotkit] button[title="Download table"] {
+  display: none;
+}
+
 /* CopilotChat 容器自带纯白底（cpk 烤死，不走 token），改透明 → 继承 agent-rail 卡片底色。 */
 html [data-copilotkit].copilotKitChat {
   background: transparent !important;
