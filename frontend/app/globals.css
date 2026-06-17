@@ -365,6 +365,22 @@ html.dark .os-theme-dark {
   r: 1.2px;
 }
 
+/* ── Monaco find widget 稳定化 ──
+   will-change:transform 建独立合成层，hover 重绘不再级联触发 layout 重算。
+   不覆盖 right——Monaco JS 已按 2×scrollbarWidth(=16px) 定位，保留此间距
+   可防止关闭按钮落入滚动条交互区。 */
+.monaco-editor .find-widget {
+  will-change: transform;
+}
+
+/* Monaco find widget 按钮的 hover 标签（如"(Escape)"）渲染为 .context-view，
+   是 .monaco-editor 的兄弟节点（同一父容器内）。因容器 overflow:hidden 被裁切
+   显示残缺文字，且 position:absolute 时叠压按钮造成鼠标事件闪动循环。
+   直接隐藏。代码内容 hover（变量类型提示等）走 .overflowingContentWidgets 不受影响。 */
+.monaco-editor ~ .context-view {
+  display: none !important;
+}
+
 /* ── 类目树动态操作高亮 ── */
 @keyframes catalog-item-flash {
   0% { background-color: color-mix(in oklch, var(--primary) 15%, transparent); }

@@ -137,6 +137,9 @@ export function CodeEditor({
                 tabSize: 2,
                 automaticLayout: true,
                 scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+                // addExtraSpaceOnTop 默认 true 会在 find widget 出现时插入额外行高，
+                // 触发 automaticLayout ResizeObserver → 重算位置循环 → 悬停按钮时抖动
+                find: { addExtraSpaceOnTop: false },
                 // 禁用 Monaco 默认右键菜单，用我们自己的
                 contextmenu: false,
               }}
