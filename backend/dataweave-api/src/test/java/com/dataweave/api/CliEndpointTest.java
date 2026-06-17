@@ -16,6 +16,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 class CliEndpointTest {
 
     private static final String TOKEN = "dataweave-local-cli-token";
+    /** 实例 id 为 UUID（task_instance 主键 UUID7）；用合法 UUID 触达 token 校验与闸门，非 "1"。 */
+    private static final String INSTANCE_ID = "11111111-1111-1111-1111-111111111111";
 
     @LocalServerPort
     private int port;
@@ -32,29 +34,32 @@ class CliEndpointTest {
     void taskList_returnsDefinitions() {
         client.get().uri("/api/cli/tasks").exchange()
                 .expectStatus().isOk()
-                .expectBody().jsonPath("$").isArray();
+                .expectBody().jsonPath("$.data").isArray();
     }
 
     @Test
     void rerun_withoutToken_returns401() {
-        client.post().uri("/api/cli/instances/1/rerun").exchange()
-                .expectStatus().isUnauthorized();
+        // HTTP 统一 200，鉴权失败经 GlobalExceptionHandler 表达为 body code=401
+        client.post().uri("/api/cli/instances/" + INSTANCE_ID + "/rerun").exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.code").isEqualTo(401);
     }
 
     @Test
     void rerun_wrongToken_returns401() {
-        client.post().uri("/api/cli/instances/1/rerun")
+        client.post().uri("/api/cli/instances/" + INSTANCE_ID + "/rerun")
                 .header("X-DW-Token", "nope").exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.code").isEqualTo(401);
     }
 
     @Test
     void rerun_withToken_goesThroughGate() {
-        client.post().uri("/api/cli/instances/1/rerun")
+        client.post().uri("/api/cli/instances/" + INSTANCE_ID + "/rerun")
                 .header("X-DW-Token", TOKEN).exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.outcome").exists()
-                .jsonPath("$.level").exists();
+                .jsonPath("$.data.outcome").exists()
+                .jsonPath("$.data.level").exists();
     }
 }

@@ -2,6 +2,7 @@ package com.dataweave.api;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.dataweave.api.infrastructure.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -26,11 +27,14 @@ class CatalogApiTest {
 
     @LocalServerPort int port;
     @Autowired ObjectMapper objectMapper;
+    @Autowired JwtUtil jwtUtil;
     WebTestClient client;
 
     @BeforeEach
     void setUp() {
-        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
     }
 
     @Test

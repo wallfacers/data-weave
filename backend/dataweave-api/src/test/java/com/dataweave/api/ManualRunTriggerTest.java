@@ -1,5 +1,6 @@
 package com.dataweave.api;
 
+import com.dataweave.api.infrastructure.JwtUtil;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstance;
@@ -47,12 +48,16 @@ class ManualRunTriggerTest {
     WorkflowInstanceRepository workflowInstanceRepository;
     @Autowired
     JdbcTemplate jdbcTemplate;
+    @Autowired
+    JwtUtil jwtUtil;
 
     WebTestClient client;
 
     @BeforeEach
     void setUp() {
-        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
     }
 
     @Test

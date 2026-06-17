@@ -1,7 +1,9 @@
 package com.dataweave.api;
 
+import com.dataweave.api.infrastructure.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
@@ -21,12 +23,16 @@ class WorkspaceEndpointTest {
     @LocalServerPort
     private int port;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
     private WebTestClient client;
 
     @BeforeEach
     void setUp() {
         this.client = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
                 .build();
     }
 
@@ -35,10 +41,14 @@ class WorkspaceEndpointTest {
     }
 
     @Test
-    void noSnapshot_returnsNoContent() {
+    void noSnapshot_returnsEmptyData() {
+        // 契约：HTTP 统一 200，无快照 → ApiResponse(code=0, data=null)，前端据此回落 Pinned 底座
         client.get().uri(uri("conv-" + UUID.randomUUID()))
                 .exchange()
-                .expectStatus().isNoContent();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data").isEmpty();
     }
 
     @Test
@@ -50,13 +60,16 @@ class WorkspaceEndpointTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(snapshot)
                 .exchange()
-                .expectStatus().isNoContent();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0);
 
         client.get().uri(uri(conv))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .json(snapshot);
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data").isEqualTo(snapshot);
     }
 
     @Test
@@ -66,15 +79,16 @@ class WorkspaceEndpointTest {
         String second = "{\"version\":1,\"tabs\":[{\"view\":\"lineage\",\"pinned\":true}],\"activeTabId\":\"lineage\"}";
 
         client.put().uri(uri(conv)).contentType(MediaType.APPLICATION_JSON).bodyValue(first)
-                .exchange().expectStatus().isNoContent();
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.code").isEqualTo(0);
         client.put().uri(uri(conv)).contentType(MediaType.APPLICATION_JSON).bodyValue(second)
-                .exchange().expectStatus().isNoContent();
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.code").isEqualTo(0);
 
         client.get().uri(uri(conv))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .json(second);
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data").isEqualTo(second);
     }
 
     @Test
@@ -86,6 +100,8 @@ class WorkspaceEndpointTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(huge)
                 .exchange()
-                .expectStatus().isEqualTo(413);
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(413);
     }
 }

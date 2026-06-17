@@ -1,5 +1,6 @@
 package com.dataweave.api;
 
+import com.dataweave.api.infrastructure.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,12 +29,16 @@ class WorkflowControllerTest {
 
     @Autowired
     ObjectMapper objectMapper;
+    @Autowired
+    JwtUtil jwtUtil;
 
     WebTestClient client;
 
     @BeforeEach
     void setUp() {
-        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
     }
 
     @Test

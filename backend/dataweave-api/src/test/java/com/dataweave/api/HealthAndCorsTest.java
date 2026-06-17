@@ -36,7 +36,7 @@ class HealthAndCorsTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.status").isEqualTo("ok")
+                .jsonPath("$.data.status").isEqualTo("ok")
                 .returnResult()
                 .getResponseBody();
 
