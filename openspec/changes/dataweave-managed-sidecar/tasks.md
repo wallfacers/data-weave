@@ -1,8 +1,8 @@
 ## 1. supervisor 决策核心（纯函数，平台无关）
 
-- [ ] 1.1 状态机与决策函数 `decide(state, healthProbe, ownership) → action`（Disabled/Probing/Adopted/Starting/Healthy/Restarting/Failed；action ∈ Probe/Adopt/Spawn/Restart/Reap/Fail）
-- [ ] 1.2 退避策略（指数 + 上限 → Failed）与端口单实例互斥规则
-- [ ] 1.3 单测全分支：adopt 外部健康实例不 spawn、自起崩溃退避重启、连续失败进 Failed、reap 只杀自起、Adopted 不 reap、binary 缺失 Fail、非 Windows 强制 native
+- [x] 1.1 状态机与决策函数 `decide(state, healthProbe, ownership) → action`（Disabled/Probing/Adopted/Starting/Healthy/Restarting/Failed；action ∈ Probe/Adopt/Spawn/Restart/Reap/Fail）— `SupervisorCore.decide`
+- [x] 1.2 退避策略（指数 + 上限 → Failed）与端口单实例互斥规则 — `SupervisorCore.backoffMillis`（逐步左移防溢出）+ EXTERNAL→adopt 不 spawn 体现互斥
+- [x] 1.3 单测全分支：adopt 外部健康实例不 spawn、自起崩溃退避重启、连续失败进 Failed、reap 只杀自起、Adopted 不 reap、binary 缺失 Fail、非 Windows 强制 native — `SupervisorCoreTest`（22 例全绿）
 
 ## 2. IO 壳 + native 运行时
 
