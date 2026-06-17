@@ -365,12 +365,18 @@ html.dark .os-theme-dark {
   r: 1.2px;
 }
 
-/* ── Monaco find widget 稳定化 ──
+/* ── Monaco find widget 稳定化 + 对齐设计规范 ──
    will-change:transform 建独立合成层，hover 重绘不再级联触发 layout 重算。
-   不覆盖 right——Monaco JS 已按 2×scrollbarWidth(=16px) 定位，保留此间距
-   可防止关闭按钮落入滚动条交互区。 */
+   边框/圆角/阴影对齐 --border / --radius-sm / 项目阴影风格（方向型）。
+   背景/前景留给 Monaco 主题引擎，不硬覆盖。 */
 .monaco-editor .find-widget {
   will-change: transform;
+  border-left-color: var(--border) !important;
+  border-right-color: var(--border) !important;
+  border-bottom-color: var(--border) !important;
+  border-bottom-left-radius: var(--radius-sm) !important;
+  border-bottom-right-radius: var(--radius-sm) !important;
+  box-shadow: 0 4px 12px oklch(0 0 0 / 0.12) !important;
 }
 
 /* Monaco find widget 按钮的 hover 标签（如"(Escape)"）渲染为 .context-view，
@@ -379,6 +385,45 @@ html.dark .os-theme-dark {
    直接隐藏。代码内容 hover（变量类型提示等）走 .overflowingContentWidgets 不受影响。 */
 .monaco-editor ~ .context-view {
   display: none !important;
+}
+
+/* ── Monaco find widget：IDEA 风格替换按钮 ──
+   原始按钮为 16×16 图标（codicon-find-replace / codicon-find-replace-all）。
+   隐藏 ::before codicon 字符，改用 ::after 显示文字，改为 outlined pill 样式。
+   用中文短标签（「替换」「全替」）保证在紧凑宽度下不被 overflow:hidden 裁切。 */
+.monaco-editor .find-widget .button.codicon-find-replace,
+.monaco-editor .find-widget .button.codicon-find-replace-all {
+  width: auto !important;
+  height: 20px !important;
+  padding: 0 7px !important;
+  border-radius: 3px;
+  border: 1px solid var(--border) !important;
+  margin-left: 4px;
+  font-size: 0 !important;
+}
+
+.monaco-editor .find-widget .button.codicon-find-replace::before,
+.monaco-editor .find-widget .button.codicon-find-replace-all::before {
+  content: none !important;
+}
+
+.monaco-editor .find-widget .button.codicon-find-replace::after {
+  content: "替换";
+  font: 400 11px/1 var(--font-sans, system-ui, sans-serif);
+  white-space: nowrap;
+  color: var(--vscode-editorWidget-foreground);
+}
+
+.monaco-editor .find-widget .button.codicon-find-replace-all::after {
+  content: "全替";
+  font: 400 11px/1 var(--font-sans, system-ui, sans-serif);
+  white-space: nowrap;
+  color: var(--vscode-editorWidget-foreground);
+}
+
+.monaco-editor .find-widget .button.codicon-find-replace.disabled::after,
+.monaco-editor .find-widget .button.codicon-find-replace-all.disabled::after {
+  opacity: 0.4;
 }
 
 /* ── 类目树动态操作高亮 ── */
