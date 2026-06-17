@@ -28,6 +28,16 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type CodeEditorLanguage = (typeof SYNTAX_LANGS)[number]
@@ -69,10 +79,27 @@ export function CodeEditor({
     resolvedTheme === "dark" ? SYNTAX_THEME_NAMES.dark : SYNTAX_THEME_NAMES.light
 
   const editorRef = useRef<MonacoEditor | null>(null)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
+
+  const [showClearDialog, setShowClearDialog] = useState(false)
+
+  // stable ref callback — safe to pass into Monaco action (no stale closure)
+  const requestClear = useCallback(() => setShowClearDialog(true), [])
+
+  const executeClear = useCallback(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.setValue("")
+    onChangeRef.current?.("")
+    editor.focus()
+    setShowClearDialog(false)
+  }, [])
+
   const handleMount = useCallback<OnMount>((editor, monaco) => {
     editorRef.current = editor
-    registerActions(editor, monaco, value, onChange, language)
-  }, [value, onChange, language])
+    registerActions(editor, monaco, language, requestClear)
+  }, [language, requestClear])
 
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null)
   useEffect(() => {
@@ -108,57 +135,73 @@ export function CodeEditor({
   )
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger className={cn("flex h-full w-full flex-col overflow-hidden rounded-lg bg-muted", className)}>
-        <div className="min-h-0 flex-1">
-          {highlighter ? (
-            <Editor
-              height={height}
-              language={language}
-              value={value}
-              theme={themeName}
-              beforeMount={handleBeforeMount}
-              onMount={handleMount}
-              onChange={(v) => onChange?.(v ?? "")}
-              loading={loading}
-              options={{
-                readOnly,
-                fontSize: 13,
-                fontFamily: "var(--font-mono)",
-                fontLigatures: true,
-                lineNumbersMinChars: 3,
-                minimap: { enabled: false },
-                // 关掉默认的彩虹括号配色（与语义语法主题冲突），括号跟随 token 灰
-                bracketPairColorization: { enabled: false },
-                scrollBeyondLastLine: false,
-                padding: { top: 12, bottom: 12 },
-                renderLineHighlight: "line",
-                smoothScrolling: true,
-                tabSize: 2,
-                automaticLayout: true,
-                scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-                // addExtraSpaceOnTop 默认 true 会在 find widget 出现时插入额外行高，
-                // 触发 automaticLayout ResizeObserver → 重算位置循环 → 悬停按钮时抖动
-                find: { addExtraSpaceOnTop: false },
-                // 禁用 Monaco 默认右键菜单，用我们自己的
-                contextmenu: false,
-              }}
-            />
-          ) : (
-            loading
-          )}
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <EditorContextMenu
-          editorRef={editorRef}
-          value={value}
-          onChange={onChange}
-          language={language}
-          readOnly={readOnly}
-        />
-      </ContextMenuContent>
-    </ContextMenu>
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger className={cn("flex h-full w-full flex-col overflow-hidden rounded-lg bg-muted", className)}>
+          <div className="min-h-0 flex-1">
+            {highlighter ? (
+              <Editor
+                height={height}
+                language={language}
+                value={value}
+                theme={themeName}
+                beforeMount={handleBeforeMount}
+                onMount={handleMount}
+                onChange={(v) => onChange?.(v ?? "")}
+                loading={loading}
+                options={{
+                  readOnly,
+                  fontSize: 13,
+                  fontFamily: "var(--font-mono)",
+                  fontLigatures: true,
+                  lineNumbersMinChars: 3,
+                  minimap: { enabled: false },
+                  // 关掉默认的彩虹括号配色（与语义语法主题冲突），括号跟随 token 灰
+                  bracketPairColorization: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  padding: { top: 12, bottom: 12 },
+                  renderLineHighlight: "line",
+                  smoothScrolling: true,
+                  tabSize: 2,
+                  automaticLayout: true,
+                  scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+                  // addExtraSpaceOnTop 默认 true 会在 find widget 出现时插入额外行高，
+                  // 触发 automaticLayout ResizeObserver → 重算位置循环 → 悬停按钮时抖动
+                  find: { addExtraSpaceOnTop: false },
+                  // 禁用 Monaco 默认右键菜单，用我们自己的
+                  contextmenu: false,
+                }}
+              />
+            ) : (
+              loading
+            )}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <EditorContextMenu
+            editorRef={editorRef}
+            value={value}
+            onChange={onChange}
+            language={language}
+            readOnly={readOnly}
+            onRequestClear={requestClear}
+          />
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent showCloseButton={false} className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>清空编辑器内容</DialogTitle>
+            <DialogDescription>此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <Button variant="destructive" onClick={executeClear}>确定清空</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -168,13 +211,14 @@ type ContextMenuProps = {
   onChange?: (value: string) => void
   language: string
   readOnly: boolean
+  onRequestClear: () => void
 }
 
 /**
  * 右键菜单内容。复制/查找始终可用；粘贴/格式化/清空仅可写时显示。
  * 剪贴板按钮按能力探测置灰；粘贴失败优雅降级提示 Ctrl+V（原生快捷键兜底）。
  */
-function EditorContextMenu({ editorRef, value, onChange, language, readOnly }: ContextMenuProps) {
+function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onRequestClear }: ContextMenuProps) {
   const { canWrite, canRead } = clipboardCaps(
     typeof navigator === "undefined" ? undefined : navigator,
   )
@@ -208,15 +252,6 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly }: C
   const handleFormat = useCallback(() => {
     editorRef.current?.getAction("editor.action.formatDocument")?.run()
   }, [editorRef])
-
-  const handleClear = useCallback(() => {
-    const editor = editorRef.current
-    if (!editor) return
-    if (!window.confirm("确定清空编辑器内容？此操作不可撤销。")) return
-    editor.setValue("")
-    onChange?.("")
-    editor.focus()
-  }, [editorRef, onChange])
 
   const handleFind = useCallback(() => {
     editorRef.current?.getAction("actions.find")?.run()
@@ -255,7 +290,7 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly }: C
       {!readOnly && (
         <>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={handleClear} variant="destructive">
+          <ContextMenuItem onClick={onRequestClear} variant="destructive">
             <HugeiconsIcon icon={Eraser01Icon} className="size-4" />
             清空
             <span className="ml-auto text-xs text-muted-foreground">Ctrl+Shift+Del</span>
@@ -275,9 +310,8 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly }: C
 function registerActions(
   editor: MonacoEditor,
   monaco: Monaco,
-  value: string,
-  onChange?: (value: string) => void,
   _language?: string,
+  onRequestClear?: () => void,
 ) {
   // Ctrl+Shift+C → 复制全部
   editor.addAction({
@@ -294,16 +328,13 @@ function registerActions(
     },
   })
 
-  // Ctrl+Shift+Delete → 清空
+  // Ctrl+Shift+Delete → 打开确认 Dialog（实际清空由 React 层完成）
   editor.addAction({
     id: "clear-editor",
     label: "清空编辑器",
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Delete],
-    run: (ed) => {
-      if (!window.confirm("确定清空编辑器内容？此操作不可撤销。")) return
-      ed.setValue("")
-      onChange?.("")
-      ed.focus()
+    run: () => {
+      onRequestClear?.()
     },
   })
 }
