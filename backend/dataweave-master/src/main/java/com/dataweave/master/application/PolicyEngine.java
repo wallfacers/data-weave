@@ -4,17 +4,22 @@ import com.dataweave.master.domain.PolicyRule;
 import com.dataweave.master.domain.PolicyRuleRepository;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskInstanceRepository;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 副作用分级引擎（细闸）。数据驱动（policy_rules）定基础等级，再按资源归属、环境、数量阈值与命令注入抬升。
  *
  * <p>分级维度 = 爆炸半径 × 可逆性 × 资源归属 × 环境（design D3）。归属/环境判定只有平台做得到，故放这里。
  * {@link #decide} 为纯函数（除可选的归属 DB 解析外不产生副作用），便于单测分级矩阵。
+ *
+ * <p>裁决理由（{@code reasons.add}）经 {@link Messages} 按 UI locale 本地化，供闸门回显与审计留痕；
+ * 调用方可经 {@link #decide(ActionRequest, Locale)} 显式传入 locale，缺省走中文默认（{@link Messages#DEFAULT_LOCALE}）。
  */
 @Service
 public class PolicyEngine {
@@ -22,22 +27,31 @@ public class PolicyEngine {
     private final PolicyRuleRepository ruleRepository;
     private final TaskInstanceRepository instanceRepository;
     private final TaskDefRepository taskDefRepository;
+    private final Messages messages;
     private final String defaultEnvironment;
     private final int batchThreshold;
 
     public PolicyEngine(PolicyRuleRepository ruleRepository,
                         TaskInstanceRepository instanceRepository,
                         TaskDefRepository taskDefRepository,
+                        Messages messages,
                         @Value("${policy.environment:dev}") String defaultEnvironment,
                         @Value("${policy.batch-threshold:50}") int batchThreshold) {
         this.ruleRepository = ruleRepository;
         this.instanceRepository = instanceRepository;
         this.taskDefRepository = taskDefRepository;
+        this.messages = messages;
         this.defaultEnvironment = defaultEnvironment;
         this.batchThreshold = batchThreshold;
     }
 
+    /** 默认 locale（中文）裁决：便于内部/测试无 locale 上下文调用。 */
     public PolicyDecision decide(ActionRequest req) {
+        return decide(req, Messages.DEFAULT_LOCALE);
+    }
+
+    /** 按指定 locale 本地化裁决理由（UI 场景传 UI locale，Agent 场景传 agent locale）。 */
+    public PolicyDecision decide(ActionRequest req, Locale locale) {
         List<String> reasons = new ArrayList<>();
         List<PolicyRule> rules = ruleRepository.findByEnabledOrderBySortOrderAscIdAsc(1);
 
@@ -48,9 +62,9 @@ public class PolicyEngine {
                     || "NODE_EXEC".equalsIgnoreCase(req.actionType()));
 
         // 1) 基础等级
-        BaseMatch base = baseLevel(req, rules, shellPath);
+        BaseMatch base = baseLevel(req, rules, shellPath, locale);
         PolicyLevel level = base.level;
-        reasons.add("基础等级 " + level + "（" + base.reason + "）");
+        reasons.add(messages.get("policy.reason.base_level", locale, level, base.reason));
 
         // L4 永久拒绝：禁止项优先，不再抬升
         if (level == PolicyLevel.L4) {
@@ -64,7 +78,7 @@ public class PolicyEngine {
             if (injection) {
                 PolicyLevel bumped = level.max(PolicyLevel.L2);
                 if (bumped != level) {
-                    reasons.add("命令含重定向/命令分隔/子命令注入 → 抬升至 " + bumped);
+                    reasons.add(messages.get("policy.reason.injection", locale, bumped));
                 }
                 level = bumped;
             }
@@ -75,7 +89,7 @@ public class PolicyEngine {
             Boolean owned = resolveOwnership(req);
             if (Boolean.FALSE.equals(owned)) {
                 level = level.max(PolicyLevel.L2);
-                reasons.add("目标不归属本平台 → 抬升至 L2");
+                reasons.add(messages.get("policy.reason.foreign", locale));
             }
         }
 
@@ -83,13 +97,13 @@ public class PolicyEngine {
         String env = req.environment() != null ? req.environment() : defaultEnvironment;
         if (level == PolicyLevel.L1 && "prod".equalsIgnoreCase(env)) {
             level = level.max(PolicyLevel.L2);
-            reasons.add("prod 环境的 L1 → 抬升至 L2");
+            reasons.add(messages.get("policy.reason.prod_env", locale));
         }
 
         // 5) 数量阈值抬升：批量 > N 的 L1 → L2
         if (level == PolicyLevel.L1 && req.batchCount() > batchThreshold) {
             level = level.max(PolicyLevel.L2);
-            reasons.add("批量 " + req.batchCount() + " > 阈值 " + batchThreshold + " → 抬升至 L2");
+            reasons.add(messages.get("policy.reason.batch_over", locale, req.batchCount(), batchThreshold));
         }
 
         boolean requiresConfirmation = level == PolicyLevel.L3;
@@ -98,26 +112,28 @@ public class PolicyEngine {
     }
 
     // ---- 基础等级：shell 路径走 CMD_PREFIX，否则 toolName 走 TOOL ----
-    private BaseMatch baseLevel(ActionRequest req, List<PolicyRule> rules, boolean shellPath) {
+    private BaseMatch baseLevel(ActionRequest req, List<PolicyRule> rules, boolean shellPath, Locale locale) {
         if (shellPath) {
             String first = firstCommand(req.command());
             // 规则已按 sort_order 升序：禁止项（小 sort_order）优先匹配
             for (PolicyRule r : rules) {
                 if ("CMD_PREFIX".equals(r.getMatchType()) && matchesPrefix(first, r.getPattern())) {
-                    return new BaseMatch(PolicyLevel.parse(r.getBaseLevel()), "命中命令前缀规则 " + r.getPattern());
+                    return new BaseMatch(PolicyLevel.parse(r.getBaseLevel()),
+                            messages.get("policy.reason.base_cmd_prefix", locale, r.getPattern()));
                 }
             }
-            return new BaseMatch(PolicyLevel.L2, "命令前缀未命中白名单规则，宁严按 L2");
+            return new BaseMatch(PolicyLevel.L2, messages.get("policy.reason.base_cmd_no_match", locale));
         }
         if (req.toolName() != null && !req.toolName().isBlank()) {
             for (PolicyRule r : rules) {
                 if ("TOOL".equals(r.getMatchType()) && req.toolName().equals(r.getPattern())) {
-                    return new BaseMatch(PolicyLevel.parse(r.getBaseLevel()), "命中工具规则 " + r.getPattern());
+                    return new BaseMatch(PolicyLevel.parse(r.getBaseLevel()),
+                            messages.get("policy.reason.base_tool_hit", locale, r.getPattern()));
                 }
             }
-            return new BaseMatch(PolicyLevel.L2, "工具未命中规则，宁严按 L2");
+            return new BaseMatch(PolicyLevel.L2, messages.get("policy.reason.base_tool_no_match", locale));
         }
-        return new BaseMatch(PolicyLevel.L2, "无 command/toolName，宁严按 L2");
+        return new BaseMatch(PolicyLevel.L2, messages.get("policy.reason.base_no_tool", locale));
     }
 
     /** 取命令串首个命令（管道/注入前），用于前缀匹配。 */

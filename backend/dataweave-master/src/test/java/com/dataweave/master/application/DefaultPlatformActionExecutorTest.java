@@ -6,6 +6,7 @@ import com.dataweave.master.domain.TaskDiagnosisRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.i18n.Messages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 import java.util.Optional;
 
@@ -53,12 +55,20 @@ class DefaultPlatformActionExecutorTest {
 
     private DefaultPlatformActionExecutor executor;
 
+    private Messages realMessages() {
+        ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        return new Messages(ms);
+    }
+
     @BeforeEach
     void setUp() {
         when(opsServiceProvider.getObject()).thenReturn(opsService);
         executor = new DefaultPlatformActionExecutor(instanceRepository, diagnosisRepository,
                 fleetService, taskService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
-                opsServiceProvider);
+                opsServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));

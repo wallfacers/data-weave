@@ -16,6 +16,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,7 +56,7 @@ class ApprovalServiceTest {
     void approve_pendingL2_executesAndMarksApproved() {
         AgentAction a = pending("L2", "100");
         when(actionRepository.findById(42L)).thenReturn(Optional.of(a));
-        when(executor.execute(a)).thenReturn(
+        when(executor.execute(eq(a), any())).thenReturn(
                 new PlatformActionExecutor.ExecOutcome(true, "已执行", "{}", java.util.UUID.fromString("01910000-0010-7000-8000-000000000088")));
 
         ApprovalService.ApprovalResult r = approvalService.approve(42L, "alice", null);
@@ -65,7 +66,7 @@ class ApprovalServiceTest {
         assertThat(a.getApprovalStatus()).isEqualTo("APPROVED");
         assertThat(a.getApprovedBy()).isEqualTo("alice");
         assertThat(a.getExecutedAt()).isNotNull();
-        verify(executor).execute(a);
+        verify(executor).execute(eq(a), any());
     }
 
     @Test
@@ -77,7 +78,7 @@ class ApprovalServiceTest {
         assertThatThrownBy(() -> approvalService.approve(42L, "alice", null))
                 .isInstanceOf(BizException.class)
                 .hasMessage("approval.wrong_state");
-        verify(executor, never()).execute(any());
+        verify(executor, never()).execute(any(), any());
     }
 
     @Test
@@ -90,7 +91,7 @@ class ApprovalServiceTest {
                 .isInstanceOf(BizException.class)
                 .hasMessage("approval.expired");
         assertThat(a.getApprovalStatus()).isEqualTo("EXPIRED");
-        verify(executor, never()).execute(any());
+        verify(executor, never()).execute(any(), any());
     }
 
     @Test
@@ -102,7 +103,7 @@ class ApprovalServiceTest {
         assertThat(r.success()).isTrue();
         assertThat(a.getApprovalStatus()).isEqualTo("REJECTED");
         assertThat(a.getApprovedBy()).isEqualTo("bob");
-        verify(executor, never()).execute(any());
+        verify(executor, never()).execute(any(), any());
     }
 
     @Test
@@ -116,9 +117,9 @@ class ApprovalServiceTest {
         assertThatThrownBy(() -> approvalService.approve(42L, "alice", "wrong_name"))
                 .isInstanceOf(BizException.class)
                 .hasMessage("approval.l3_confirm_required");
-        verify(executor, never()).execute(any());
+        verify(executor, never()).execute(any(), any());
 
-        when(executor.execute(a)).thenReturn(
+        when(executor.execute(eq(a), any())).thenReturn(
                 new PlatformActionExecutor.ExecOutcome(true, "drop ok", "{}", null));
         ApprovalService.ApprovalResult ok = approvalService.approve(42L, "alice", "dwd_orders");
         assertThat(ok.success()).isTrue();

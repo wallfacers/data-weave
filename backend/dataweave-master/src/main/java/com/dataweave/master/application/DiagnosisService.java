@@ -8,12 +8,14 @@ import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,31 +36,45 @@ public class DiagnosisService {
     private final TaskDiagnosisRepository diagnosisRepository;
     private final DiagnosisAnalyzer analyzer;
     private final GatedActionService gatedActionService;
+    private final Messages messages;
 
     public DiagnosisService(TaskInstanceRepository instanceRepository,
                             TaskDefRepository taskDefRepository,
                             WorkerNodeRepository nodeRepository,
                             TaskDiagnosisRepository diagnosisRepository,
                             DiagnosisAnalyzer analyzer,
-                            GatedActionService gatedActionService) {
+                            GatedActionService gatedActionService,
+                            Messages messages) {
         this.instanceRepository = instanceRepository;
         this.taskDefRepository = taskDefRepository;
         this.nodeRepository = nodeRepository;
         this.diagnosisRepository = diagnosisRepository;
         this.analyzer = analyzer;
         this.gatedActionService = gatedActionService;
+        this.messages = messages;
     }
 
-    /** 诊断最近一条失败实例；无失败实例则返回空。 */
+    /** 默认 locale（中文）诊断最近失败。 */
     public Optional<TaskDiagnosis> diagnoseLatestFailure() {
+        return diagnoseLatestFailure(Messages.DEFAULT_LOCALE);
+    }
+
+    /** 按 locale 本地化分析结果；无失败实例则返回空。 */
+    public Optional<TaskDiagnosis> diagnoseLatestFailure(Locale locale) {
         return instanceRepository.findFirstByStateOrderByIdDesc("FAILED")
-                .map(inst -> diagnoseInstance(inst.getId()));
+                .map(inst -> diagnoseInstance(inst.getId(), locale));
+    }
+
+    /** 默认 locale（中文）诊断指定实例。 */
+    public TaskDiagnosis diagnoseInstance(UUID taskInstanceId) {
+        return diagnoseInstance(taskInstanceId, Messages.DEFAULT_LOCALE);
     }
 
     /**
      * 诊断指定实例：已有诊断则幂等返回；否则采集上下文 + 分析 + 落库。
+     * 分析产出文案按传入 locale 本地化。
      */
-    public TaskDiagnosis diagnoseInstance(UUID taskInstanceId) {
+    public TaskDiagnosis diagnoseInstance(UUID taskInstanceId, Locale locale) {
         Optional<TaskDiagnosis> existing =
                 diagnosisRepository.findFirstByTaskInstanceIdOrderByIdDesc(taskInstanceId);
         if (existing.isPresent()) {
@@ -71,7 +87,7 @@ public class DiagnosisService {
         TaskDef task = instance != null && instance.getTaskId() != null
                 ? taskDefRepository.findById(instance.getTaskId()).orElse(null) : null;
 
-        DiagnosisAnalyzer.Analysis analysis = analyzer.analyze(instance, node, task);
+        DiagnosisAnalyzer.Analysis analysis = analyzer.analyze(instance, node, task, locale);
 
         LocalDateTime now = LocalDateTime.now();
         TaskDiagnosis diagnosis = new TaskDiagnosis();
@@ -112,7 +128,7 @@ public class DiagnosisService {
 
     /** UI 默认入口（操作者为右舷用户）。 */
     public FixResult applyFix(Long diagnosisId, String action) {
-        return applyFix(diagnosisId, action, "ui-user", "UI");
+        return applyFix(diagnosisId, action, "ui-user", "UI", Messages.DEFAULT_LOCALE);
     }
 
     /**
@@ -120,14 +136,15 @@ public class DiagnosisService {
      * 若被裁决为审批/拒绝，返回相应反馈（success=false）。
      *
      * @param action RERUN / MIGRATE_NODE / RERUN_MORE_MEMORY / CAP_NODE_WEIGHT
+     * @param locale 本地化反馈 message 用
      */
-    public FixResult applyFix(Long diagnosisId, String action, String actor, String actorSource) {
+    public FixResult applyFix(Long diagnosisId, String action, String actor, String actorSource, Locale locale) {
         TaskDiagnosis diagnosis = diagnosisRepository.findById(diagnosisId).orElse(null);
         if (diagnosis == null) {
-            return new FixResult(false, "未找到诊断记录 #" + diagnosisId, null);
+            return new FixResult(false, messages.get("diagnosis.fix.not_found", locale, diagnosisId), null);
         }
         String act = action == null ? "RERUN" : action.trim().toUpperCase();
-        String summary = "一键修复 " + act + " · 诊断 #" + diagnosisId
+        String summary = messages.get("diagnosis.fix.summary_label", locale, act, diagnosisId)
                 + (diagnosis.getWorkerNodeCode() != null ? " · " + diagnosis.getWorkerNodeCode() : "");
 
         ActionRequest req = ActionRequest.builder()
@@ -141,7 +158,7 @@ public class DiagnosisService {
                 .summary(summary)
                 .build();
 
-        GateResult gr = gatedActionService.submit(req);
+        GateResult gr = gatedActionService.submit(req, locale);
         return new FixResult(gr.executed(), gr.message(), gr.resultInstanceId());
     }
 

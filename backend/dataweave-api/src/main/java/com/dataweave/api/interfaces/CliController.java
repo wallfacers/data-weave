@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
@@ -9,15 +10,15 @@ import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,7 +66,7 @@ public class CliController {
     @GetMapping("/tasks/{id}")
     public ApiResponse<TaskDef> task(@PathVariable Long id) {
         TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在：" + id));
+                .orElseThrow(() -> new BizException("task.not_found", id).withHttpStatus(404));
         return ApiResponse.ok(task);
     }
 
@@ -77,7 +78,7 @@ public class CliController {
     @GetMapping("/instances/{id}/logs")
     public ApiResponse<Map<String, Object>> logs(@PathVariable UUID id) {
         TaskInstance inst = instanceRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "实例不存在：" + id));
+                .orElseThrow(() -> new BizException("task_instance.not_found", id).withHttpStatus(404));
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("instanceId", id);
         r.put("state", inst.getState());
@@ -102,7 +103,8 @@ public class CliController {
 
     @PostMapping("/instances/{id}/rerun")
     public ApiResponse<GateResult> rerun(@PathVariable UUID id,
-                            @RequestHeader(value = "X-DW-Token", required = false) String token) {
+                            @RequestHeader(value = "X-DW-Token", required = false) String token,
+                            ServerWebExchange exchange) {
         requireToken(token);
         ActionRequest req = ActionRequest.builder()
                 .toolName("task_rerun").actionType("TASK_RERUN")
@@ -110,12 +112,12 @@ public class CliController {
                 .actor("cli:" + mask(token)).actorSource("CLI")
                 .summary("CLI 重跑实例 #" + id)
                 .build();
-        return ApiResponse.ok(gatedActionService.submit(req));
+        return ApiResponse.ok(gatedActionService.submit(req, Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
     private void requireToken(String token) {
         if (token == null || token.isBlank() || !token.equals(cliToken)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "缺少或错误的 X-DW-Token");
+            throw new BizException("cli.auth.invalid").withHttpStatus(401);
         }
     }
 

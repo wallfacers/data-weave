@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
@@ -14,6 +15,7 @@ import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ServerWebExchange;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -136,7 +138,8 @@ public class TaskController {
      */
     @PostMapping("/{id}/run")
     public ApiResponse<GateResult> run(@PathVariable Long id,
-                                       @RequestBody(required = false) RunRequest body) {
+                                       @RequestBody(required = false) RunRequest body,
+                                       ServerWebExchange exchange) {
         TaskDetail detail = taskService.getById(id).orElse(null);
         if (detail == null) {
             throw new BizException("task.not_found", id).withHttpStatus(404);
@@ -151,7 +154,7 @@ public class TaskController {
                 .actor("ui").actorSource("UI")
                 .summary("手动运行任务 #" + id + "「" + detail.task().getName() + "」")
                 .build();
-        return ApiResponse.ok(gatedActionService.submit(req));
+        return ApiResponse.ok(gatedActionService.submit(req, Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.DiagnosisService.FixResult;
 import com.dataweave.master.domain.TaskDiagnosis;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
 
 import java.util.List;
 
@@ -43,7 +45,9 @@ public class DiagnosisController {
 
     @PostMapping("/{id}/fix")
     public ApiResponse<FixResult> fix(@PathVariable Long id,
-                         @RequestParam(name = "action", defaultValue = "RERUN") String action) {
-        return ApiResponse.ok(diagnosisService.applyFix(id, action));
+                         @RequestParam(name = "action", defaultValue = "RERUN") String action,
+                         ServerWebExchange exchange) {
+        return ApiResponse.ok(diagnosisService.applyFix(id, action, "ui-user", "UI",
+                Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 }

@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -62,7 +64,7 @@ class IntentRouterIntentTest {
         diagnosis.setSuggestionsJson("[{\"action\":\"RERUN\",\"label\":\"原地重跑\"},{\"action\":\"RERUN_MORE_MEMORY\",\"label\":\"加大内存重跑\"}]");
         diagnosis.setStatus("OPEN");
 
-        when(diagnosisService.diagnoseLatestFailure()).thenReturn(Optional.of(diagnosis));
+        when(diagnosisService.diagnoseLatestFailure(any())).thenReturn(Optional.of(diagnosis));
 
         AgentReply reply = router.route("帮我诊断为什么失败");
 
@@ -92,7 +94,7 @@ class IntentRouterIntentTest {
         diagnosis.setId(7L);
         diagnosis.setTitle("OOM on node-3");
         diagnosis.setRootCause("内存溢出");
-        when(diagnosisService.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"))).thenReturn(diagnosis);
+        when(diagnosisService.diagnoseInstance(eq(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100")), any())).thenReturn(diagnosis);
 
         PageContext ctx = new PageContext("/ops", "/ops", null, "01910000-0010-7000-8000-000000000100", null);
         AgentReply reply = router.route("为什么挂了", ctx);
@@ -100,13 +102,13 @@ class IntentRouterIntentTest {
         assertThat(reply.customEventName()).isEqualTo("dataweave.diagnosis");
         assertThat(reply.structured().get("id")).isEqualTo(7L);
         // 用了上下文的 instanceId，而非 diagnoseLatestFailure
-        org.mockito.Mockito.verify(diagnosisService).diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
-        org.mockito.Mockito.verify(diagnosisService, org.mockito.Mockito.never()).diagnoseLatestFailure();
+        org.mockito.Mockito.verify(diagnosisService).diagnoseInstance(eq(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100")), any());
+        org.mockito.Mockito.verify(diagnosisService, org.mockito.Mockito.never()).diagnoseLatestFailure(any());
     }
 
     @Test
     void diagnosisIntent_noFailure_returnsTextOnly() {
-        when(diagnosisService.diagnoseLatestFailure()).thenReturn(Optional.empty());
+        when(diagnosisService.diagnoseLatestFailure(any())).thenReturn(Optional.empty());
 
         AgentReply reply = router.route("排查一下报错原因");
 
@@ -167,7 +169,7 @@ class IntentRouterIntentTest {
         diagnosis.setId(99L);
         diagnosis.setRootCause("Executor out of memory");
         diagnosis.setSuggestionsJson("[{\"action\":\"RERUN\",\"label\":\"Rerun\"}]");
-        when(diagnosisService.diagnoseLatestFailure()).thenReturn(Optional.of(diagnosis));
+        when(diagnosisService.diagnoseLatestFailure(any())).thenReturn(Optional.of(diagnosis));
 
         AgentReply reply = router.route("why did it fail", new PageContext(null, null, null, null, null), java.util.Locale.US);
 

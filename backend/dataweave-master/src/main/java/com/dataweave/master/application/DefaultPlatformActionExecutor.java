@@ -8,11 +8,13 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,6 +22,9 @@ import java.util.UUID;
  * 默认平台动作执行器：按 action_type 执行 applyFix 四动作、任务重跑、节点受控执行。
  *
  * <p>node_exec 委托 {@link NodeExecGateway}（实现在 api 模块，section 3 接线；缺失时返回明确错误）。
+ *
+ * <p>{@link #execute(AgentAction, Locale)} 按 locale 本地化 {@code ExecOutcome.message}（用户可见反馈）。
+ * 审计日志类文案（写入 task_instance.log 的 "[fix]..."/"[rerun]..."）保留中文（内部审计数据，非 i18n 范围）。
  */
 @Component
 public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
@@ -34,6 +39,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final WorkflowDefRepository workflowDefRepository;
     // ObjectProvider 延迟查找：打破 OpsService→DiagnosisService→GatedActionService→Executor 的循环依赖。
     private final ObjectProvider<OpsService> opsService;
+    private final Messages messages;
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
                                          TaskDiagnosisRepository diagnosisRepository,
@@ -43,7 +49,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          WorkflowTriggerService triggerService,
                                          RecoveryService recoveryService,
                                          WorkflowDefRepository workflowDefRepository,
-                                         ObjectProvider<OpsService> opsService) {
+                                         ObjectProvider<OpsService> opsService,
+                                         Messages messages) {
         this.instanceRepository = instanceRepository;
         this.diagnosisRepository = diagnosisRepository;
         this.fleetService = fleetService;
@@ -53,29 +60,32 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.recoveryService = recoveryService;
         this.workflowDefRepository = workflowDefRepository;
         this.opsService = opsService;
+        this.messages = messages;
     }
 
     @Override
-    public ExecOutcome execute(AgentAction action) {
+    public ExecOutcome execute(AgentAction action, Locale locale) {
         String type = action.getActionType() == null ? "" : action.getActionType().toUpperCase();
         return switch (type) {
-            case "APPLY_FIX_RERUN" -> rerun(action, null, "[fix] 原地重跑成功", "已原地重跑，运行成功。");
-            case "APPLY_FIX_MIGRATE_NODE" -> migrate(action);
-            case "APPLY_FIX_RERUN_MORE_MEMORY" -> rerunMoreMemory(action);
-            case "APPLY_FIX_CAP_NODE_WEIGHT" -> capNodeWeight(action);
-            case "TASK_RERUN" -> taskRerun(action);
-            case "CREATE_TASK" -> createTask(action);
+            case "APPLY_FIX_RERUN" -> rerun(action, null, "[fix] 原地重跑成功",
+                    messages.get("executor.fix_rerun.success", locale));
+            case "APPLY_FIX_MIGRATE_NODE" -> migrate(action, locale);
+            case "APPLY_FIX_RERUN_MORE_MEMORY" -> rerunMoreMemory(action, locale);
+            case "APPLY_FIX_CAP_NODE_WEIGHT" -> capNodeWeight(action, locale);
+            case "TASK_RERUN" -> taskRerun(action, locale);
+            case "CREATE_TASK" -> createTask(action, locale);
             case "NODE_EXEC" -> nodeExec(action);
-            case "TEST_RUN" -> testRun(action);
-            case "TASK_RUN" -> taskRun(action);
-            case "TRIGGER_WORKFLOW" -> triggerWorkflow(action);
-            case "RESUME_WORKFLOW" -> resumeWorkflow(action);
-            case "RERUN_WORKFLOW" -> rerunWorkflow(action);
-            case "KILL_INSTANCE" -> instanceOp(action, "kill");
-            case "PAUSE_INSTANCE" -> instanceOp(action, "pause");
-            case "RESUME_INSTANCE" -> instanceOp(action, "resume");
-            default -> new ExecOutcome(false, "不支持的动作类型：" + action.getActionType(),
-                    json(Map.of("error", "unsupported_action", "actionType", action.getActionType())), null);
+            case "TEST_RUN" -> testRun(action, locale);
+            case "TASK_RUN" -> taskRun(action, locale);
+            case "TRIGGER_WORKFLOW" -> triggerWorkflow(action, locale);
+            case "RESUME_WORKFLOW" -> resumeWorkflow(action, locale);
+            case "RERUN_WORKFLOW" -> rerunWorkflow(action, locale);
+            case "KILL_INSTANCE" -> instanceOp(action, "kill", locale);
+            case "PAUSE_INSTANCE" -> instanceOp(action, "pause", locale);
+            case "RESUME_INSTANCE" -> instanceOp(action, "resume", locale);
+            default -> new ExecOutcome(false,
+                    messages.get("executor.unsupported_action", locale, action.getActionType()),
+                    json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
         };
     }
 
@@ -94,58 +104,64 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 json(Map.of("newInstanceId", inst.getId(), "node", nodeCode)), inst.getId());
     }
 
-    private ExecOutcome migrate(AgentAction action) {
+    private ExecOutcome migrate(AgentAction action, Locale locale) {
         String target = fleetService.pickLeastLoadedOnline()
                 .map(WorkerNode::getNodeCode).orElse("node-online");
         TaskDiagnosis diagnosis = diagnosisOf(action);
         TaskInstance inst = rerunOnNode(diagnosis != null ? diagnosis.getTaskId() : null, target,
                 "[fix] 迁移到 " + target + " 后重跑成功");
         resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true, "已将任务迁移到空闲节点 " + target + " 重跑，运行成功。",
+        return new ExecOutcome(true,
+                messages.get("executor.fix_migrate.success", locale, target),
                 json(Map.of("newInstanceId", inst.getId(), "node", target)), inst.getId());
     }
 
-    private ExecOutcome rerunMoreMemory(AgentAction action) {
+    private ExecOutcome rerunMoreMemory(AgentAction action, Locale locale) {
         TaskDiagnosis diagnosis = diagnosisOf(action);
         String nodeCode = diagnosis != null && diagnosis.getWorkerNodeCode() != null
                 ? diagnosis.getWorkerNodeCode() : "node-1";
         TaskInstance inst = rerunOnNode(diagnosis != null ? diagnosis.getTaskId() : null, nodeCode,
                 "[fix] 调大 executor 内存后重跑成功");
         resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true, "已调大 executor 内存并在 " + nodeCode + " 重跑，运行成功。",
+        return new ExecOutcome(true,
+                messages.get("executor.fix_more_memory.success", locale, nodeCode),
                 json(Map.of("newInstanceId", inst.getId(), "node", nodeCode)), inst.getId());
     }
 
-    private ExecOutcome capNodeWeight(AgentAction action) {
+    private ExecOutcome capNodeWeight(AgentAction action, Locale locale) {
         TaskDiagnosis diagnosis = diagnosisOf(action);
         String nodeCode = diagnosis != null ? diagnosis.getWorkerNodeCode() : action.getTargetId();
         resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true, "已为节点 " + nodeCode + " 设置调度权重上限，后续将减少该节点的任务并发（mock 生效）。",
+        return new ExecOutcome(true,
+                messages.get("executor.fix_cap_weight.success", locale, nodeCode),
                 json(Map.of("node", String.valueOf(nodeCode))), null);
     }
 
     // ---- 任务实例重跑（MCP task_rerun / CLI dw task rerun）----
-    private ExecOutcome taskRerun(AgentAction action) {
+    private ExecOutcome taskRerun(AgentAction action, Locale locale) {
         UUID instanceId = parseUuid(action.getTargetId());
         TaskInstance src = instanceId == null ? null : instanceRepository.findById(instanceId).orElse(null);
         Long taskId = src != null ? src.getTaskId() : null;
         String node = src != null && src.getWorkerNodeCode() != null ? src.getWorkerNodeCode()
                 : fleetService.pickLeastLoadedOnline().map(WorkerNode::getNodeCode).orElse("node-1");
         TaskInstance inst = rerunOnNode(taskId, node, "[rerun] 重跑实例 #" + action.getTargetId() + " 成功");
-        return new ExecOutcome(true, "已重跑任务实例 #" + action.getTargetId() + "，新实例 #" + inst.getId() + " 运行成功。",
+        return new ExecOutcome(true,
+                messages.get("executor.task_rerun.success", locale, action.getTargetId(), String.valueOf(inst.getId())),
                 json(Map.of("newInstanceId", inst.getId(), "node", node, "sourceInstanceId", String.valueOf(action.getTargetId()))),
                 inst.getId());
     }
 
     // ---- 建任务并上线（MCP create_task）。command 编码为 "cron\ncontent"，targetId 为任务名 ----
-    private ExecOutcome createTask(AgentAction action) {
-        String name = action.getTargetId() != null ? action.getTargetId() : "自然语言任务";
+    private ExecOutcome createTask(AgentAction action, Locale locale) {
+        String fallbackName = messages.get("executor.create_task.default_name", locale);
+        String name = action.getTargetId() != null ? action.getTargetId() : fallbackName;
         String cmd = action.getCommand() == null ? "" : action.getCommand();
         int nl = cmd.indexOf('\n');
         String cron = nl >= 0 ? cmd.substring(0, nl) : "0 0 8 * * ?";
         String content = nl >= 0 ? cmd.substring(nl + 1) : (cmd.isBlank() ? "select count(*) from orders" : cmd);
         TaskService.TaskCreation c = taskService.createAndOnline(name, "SQL", content, cron);
-        return new ExecOutcome(true, "已创建并上线任务「" + name + "」（cron " + cron + "），并 mock 推进一条成功实例。",
+        return new ExecOutcome(true,
+                messages.get("executor.create_task.success", locale, name, cron),
                 json(Map.of("taskId", c.task().getId(), "name", name, "cron", cron, "instanceId", c.instanceId())),
                 c.instanceId());
     }
@@ -154,7 +170,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private ExecOutcome nodeExec(AgentAction action) {
         NodeExecGateway gateway = nodeExecGateway.getIfAvailable();
         if (gateway == null) {
-            return new ExecOutcome(false, "node_exec 网关未接线（worker-exec 未部署）",
+            return new ExecOutcome(false,
+                    messages.get("executor.node_exec.gateway_absent"),
                     json(Map.of("error", "node_exec_gateway_absent")), null);
         }
         NodeExecGateway.ExecResult r = gateway.exec(action.getTargetId(), action.getCommand());
@@ -169,65 +186,76 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     // ---- 调度类动作（distributed-scheduler-m1）----
 
     /** 单任务测试运行：targetId=taskId，command=bizDate（可空）。 */
-    private ExecOutcome testRun(AgentAction action) {
+    private ExecOutcome testRun(AgentAction action, Locale locale) {
         Long taskId = parseLong(action.getTargetId());
         if (taskId == null) {
-            return new ExecOutcome(false, "缺少任务 id", json(Map.of("error", "missing_task_id")), null);
+            return new ExecOutcome(false,
+                    messages.get("executor.test_run.missing_task_id", locale),
+                    json(Map.of("error", "missing_task_id")), null);
         }
         String bizDate = action.getCommand();
         UUID instanceId = triggerService.triggerTestRun(taskId, bizDate);
-        return new ExecOutcome(true, "已提交任务 #" + taskId + " 的测试运行（草稿内容，留痕）。",
+        return new ExecOutcome(true,
+                messages.get("executor.test_run.success", locale, taskId),
                 json(Map.of("testInstanceId", instanceId.toString(), "taskId", taskId)), instanceId);
     }
 
     /** 手动触发正式任务运行：targetId=taskId，command=bizDate（可空）。run_mode=NORMAL，计入正式统计。 */
-    private ExecOutcome taskRun(AgentAction action) {
+    private ExecOutcome taskRun(AgentAction action, Locale locale) {
         Long taskId = parseLong(action.getTargetId());
         if (taskId == null) {
-            return new ExecOutcome(false, "缺少任务 id", json(Map.of("error", "missing_task_id")), null);
+            return new ExecOutcome(false,
+                    messages.get("executor.test_run.missing_task_id", locale),
+                    json(Map.of("error", "missing_task_id")), null);
         }
         String bizDate = action.getCommand();
         UUID instanceId = triggerService.triggerManualTaskRun(taskId, bizDate);
-        return new ExecOutcome(true, "已手动触发任务 #" + taskId + " 的正式运行。",
+        return new ExecOutcome(true,
+                messages.get("executor.task_run.success", locale, taskId),
                 json(Map.of("instanceId", instanceId.toString(), "taskId", taskId, "runMode", "NORMAL")), instanceId);
     }
 
     /** 手动触发工作流：targetId=workflowId，command=bizDate（可空）。 */
-    private ExecOutcome triggerWorkflow(AgentAction action) {
+    private ExecOutcome triggerWorkflow(AgentAction action, Locale locale) {
         Long workflowId = parseLong(action.getTargetId());
         WorkflowDef wf = workflowId == null ? null : workflowDefRepository.findById(workflowId).orElse(null);
         if (wf == null) {
-            return new ExecOutcome(false, "工作流不存在：" + action.getTargetId(),
+            return new ExecOutcome(false,
+                    messages.get("workflow.not_found", locale, action.getTargetId()),
                     json(Map.of("error", "workflow_not_found")), null);
         }
         UUID wiId = triggerService.trigger(wf, "MANUAL", action.getCommand(), wf.getPriority());
-        return new ExecOutcome(true, "已手动触发工作流「" + wf.getName() + "」。",
+        return new ExecOutcome(true,
+                messages.get("executor.trigger_workflow.success", locale, wf.getName()),
                 json(Map.of("workflowInstanceId", wiId.toString(), "workflowId", workflowId)), wiId);
     }
 
     /** 断点恢复：targetId=workflowInstanceId(UUID)。 */
-    private ExecOutcome resumeWorkflow(AgentAction action) {
+    private ExecOutcome resumeWorkflow(AgentAction action, Locale locale) {
         UUID wiId = parseUuid(action.getTargetId());
         boolean ok = wiId != null && recoveryService.resume(wiId);
-        return new ExecOutcome(ok, ok ? "已断点恢复工作流实例（保留成功节点，从失败点续跑）。"
-                : "断点恢复未生效（实例非失败态或不存在）。",
+        return new ExecOutcome(ok,
+                ok ? messages.get("executor.resume_workflow.success", locale)
+                        : messages.get("executor.resume_workflow.no_effect", locale),
                 json(Map.of("resumed", ok, "workflowInstanceId", String.valueOf(action.getTargetId()))), wiId);
     }
 
     /** 整流重跑：targetId=workflowInstanceId(UUID)。 */
-    private ExecOutcome rerunWorkflow(AgentAction action) {
+    private ExecOutcome rerunWorkflow(AgentAction action, Locale locale) {
         UUID wiId = parseUuid(action.getTargetId());
         boolean ok = wiId != null && recoveryService.rerunAll(wiId);
-        return new ExecOutcome(ok, ok ? "已整流重跑工作流实例（全节点重置）。"
-                : "整流重跑未生效（实例不存在）。",
+        return new ExecOutcome(ok,
+                ok ? messages.get("executor.rerun_workflow.success", locale)
+                        : messages.get("executor.rerun_workflow.no_effect", locale),
                 json(Map.of("rerun", ok, "workflowInstanceId", String.valueOf(action.getTargetId()))), wiId);
     }
 
     /** 工作流实例生命周期控制：targetId=workflowInstanceId(UUID)，op ∈ kill|pause|resume。 */
-    private ExecOutcome instanceOp(AgentAction action, String op) {
+    private ExecOutcome instanceOp(AgentAction action, String op, Locale locale) {
         UUID wiId = parseUuid(action.getTargetId());
         if (wiId == null) {
-            return new ExecOutcome(false, "实例 id 非法：" + action.getTargetId(),
+            return new ExecOutcome(false,
+                    messages.get("executor.instance_op.bad_id", locale, action.getTargetId()),
                     json(Map.of("error", "bad_instance_id", "actionType", action.getActionType())), null);
         }
         OpsService ops = opsService.getObject();
@@ -238,16 +266,18 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 case "resume" -> ops.resumeWorkflow(wiId).getState();
                 default -> throw new IllegalArgumentException("unknown op: " + op);
             };
-            String msg = switch (op) {
-                case "kill" -> "已终止工作流实例（→ " + state + "）。";
-                case "pause" -> "已暂停工作流实例（→ " + state + "）。";
-                default -> "已恢复工作流实例（→ " + state + "）。";
+            String msgKey = switch (op) {
+                case "kill" -> "executor.instance_op.killed";
+                case "pause" -> "executor.instance_op.paused";
+                default -> "executor.instance_op.resumed";
             };
-            return new ExecOutcome(true, msg,
+            return new ExecOutcome(true,
+                    messages.get(msgKey, locale, state),
                     json(Map.of("op", op, "workflowInstanceId", wiId.toString(), "state", state)), wiId);
         } catch (RuntimeException e) {
             // OpsService 对非法状态/不存在抛 IllegalStateException；转为可读的失败结果，不抛穿闸门。
-            return new ExecOutcome(false, op + " 未生效：" + e.getMessage(),
+            return new ExecOutcome(false,
+                    messages.get("executor.instance_op.failed", locale, op, e.getMessage()),
                     json(Map.of("error", op + "_failed", "detail", String.valueOf(e.getMessage()))), null);
         }
     }

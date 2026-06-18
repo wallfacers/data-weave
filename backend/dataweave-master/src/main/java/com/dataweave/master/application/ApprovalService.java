@@ -3,10 +3,12 @@ package com.dataweave.master.application;
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AgentActionRepository;
 import com.dataweave.master.i18n.BizException;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -33,15 +35,21 @@ public class ApprovalService {
         return actionRepository.findById(id);
     }
 
+    /** 默认 locale（中文）批准。 */
+    public ApprovalResult approve(Long id, String approver, String confirmation) {
+        return approve(id, approver, confirmation, Messages.DEFAULT_LOCALE);
+    }
+
     /**
      * 批准并执行。L3 需 confirmation 等于目标对象名（targetId）。
      *
      * @param id           审批单 id
      * @param approver     审批人
      * @param confirmation L3 二次确认（回输的对象名）；非 L3 可为 null
+     * @param locale       本地化执行结果 message 用的 locale
      * @throws BizException 审批单不存在 / 已过期 / 状态不可批准 / L3 二次确认不匹配
      */
-    public ApprovalResult approve(Long id, String approver, String confirmation) {
+    public ApprovalResult approve(Long id, String approver, String confirmation, Locale locale) {
         AgentAction action = actionRepository.findById(id).orElse(null);
         if (action == null) {
             throw new BizException("approval.not_found", id).withHttpStatus(404);
@@ -67,7 +75,7 @@ public class ApprovalService {
         action.setApprovedBy(approver);
         action.setApprovedAt(now);
 
-        PlatformActionExecutor.ExecOutcome out = executor.execute(action);
+        PlatformActionExecutor.ExecOutcome out = executor.execute(action, locale);
         action.setExecutedAt(LocalDateTime.now());
         action.setResultJson(out.resultJson());
         action.setUpdatedAt(LocalDateTime.now());

@@ -5,12 +5,14 @@ import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
+import com.dataweave.master.i18n.Messages;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +35,17 @@ class PolicyEngineTest {
     @Mock
     private TaskDefRepository taskDefRepository;
 
+    private Messages realMessages() {
+        ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        return new Messages(ms);
+    }
+
     private PolicyEngine engine(String env, int batchThreshold) {
         when(ruleRepository.findByEnabledOrderBySortOrderAscIdAsc(1)).thenReturn(seedRules());
-        return new PolicyEngine(ruleRepository, instanceRepository, taskDefRepository, env, batchThreshold);
+        return new PolicyEngine(ruleRepository, instanceRepository, taskDefRepository, realMessages(), env, batchThreshold);
     }
 
     private List<PolicyRule> seedRules() {

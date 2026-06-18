@@ -3,17 +3,20 @@ package com.dataweave.api.interfaces;
 import com.dataweave.api.application.mcp.McpTool;
 import com.dataweave.api.application.mcp.McpToolRegistry;
 import com.dataweave.api.application.mcp.ToolResult;
+import com.dataweave.api.infrastructure.Locales;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -35,21 +38,23 @@ public class McpController {
 
     @PostMapping(value = "/mcp", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<ResponseEntity<Map<String, Object>>> rpc(@RequestBody Map<String, Object> request) {
+    public Mono<ResponseEntity<Map<String, Object>>> rpc(@RequestBody Map<String, Object> request,
+                                                         ServerWebExchange exchange) {
         Object id = request.get("id");
         String method = str(request.get("method"));
+        Locale agentLocale = Locales.agentLocale(exchange.getRequest().getHeaders());
 
         // 通知（无 id）：不回 body
         if (id == null && method != null && method.startsWith("notifications/")) {
             return Mono.just(ResponseEntity.accepted().build());
         }
 
-        return Mono.fromCallable(() -> ResponseEntity.ok(dispatch(id, method, request)))
+        return Mono.fromCallable(() -> ResponseEntity.ok(dispatch(id, method, request, agentLocale)))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> dispatch(Object id, String method, Map<String, Object> request) {
+    private Map<String, Object> dispatch(Object id, String method, Map<String, Object> request, Locale agentLocale) {
         if (method == null) {
             return error(id, -32600, "Invalid Request: missing method");
         }
@@ -74,7 +79,7 @@ public class McpController {
                 Object argsObj = params.get("arguments");
                 Map<String, Object> arguments = argsObj instanceof Map
                         ? (Map<String, Object>) argsObj : Map.of();
-                ToolResult tr = registry.call(name, arguments);
+                ToolResult tr = registry.call(name, arguments, agentLocale);
                 Map<String, Object> content = Map.of("type", "text", "text", tr.text());
                 Map<String, Object> callResult = new LinkedHashMap<>();
                 callResult.put("content", List.of(content));

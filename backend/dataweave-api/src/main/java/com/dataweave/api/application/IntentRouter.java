@@ -142,8 +142,8 @@ public class IntentRouter {
     private AgentReply tryDiagnosis(PageContext ctx, Locale loc) {
         java.util.UUID instanceId = ctx != null ? ctx.instanceIdAsUuid() : null;
         Optional<TaskDiagnosis> opt = instanceId != null
-                ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
-                : diagnosisService.diagnoseLatestFailure();
+                ? Optional.of(diagnosisService.diagnoseInstance(instanceId, loc))
+                : diagnosisService.diagnoseLatestFailure(loc);
         if (opt.isEmpty()) {
             return AgentReply.text(messages.get("agent.diagnosis.none", loc));
         }

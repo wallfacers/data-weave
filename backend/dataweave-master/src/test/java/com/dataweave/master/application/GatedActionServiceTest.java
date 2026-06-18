@@ -2,12 +2,14 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AgentActionRepository;
+import com.dataweave.master.i18n.Messages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 import java.util.List;
 
@@ -32,9 +34,17 @@ class GatedActionServiceTest {
 
     private GatedActionService gate;
 
+    private Messages realMessages() {
+        ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        return new Messages(ms);
+    }
+
     @BeforeEach
     void setUp() {
-        gate = new GatedActionService(policyEngine, executor, actionRepository, 30L);
+        gate = new GatedActionService(policyEngine, executor, actionRepository, realMessages(), 30L);
         // save 回填自增 id
         when(actionRepository.save(any(AgentAction.class))).thenAnswer(inv -> {
             AgentAction a = inv.getArgument(0);
@@ -52,8 +62,8 @@ class GatedActionServiceTest {
 
     @Test
     void l1_executesAndRecords() {
-        when(policyEngine.decide(any())).thenReturn(decision(PolicyLevel.L1, false));
-        when(executor.execute(any())).thenReturn(
+        when(policyEngine.decide(any(), any())).thenReturn(decision(PolicyLevel.L1, false));
+        when(executor.execute(any(), any())).thenReturn(
                 new PlatformActionExecutor.ExecOutcome(true, "重跑成功", "{}", java.util.UUID.fromString("01910000-0010-7000-8000-000000000077")));
 
         GateResult r = gate.submit(ActionRequest.builder()
@@ -63,7 +73,7 @@ class GatedActionServiceTest {
         assertThat(r.executed()).isTrue();
         assertThat(r.message()).isEqualTo("重跑成功");
         assertThat(r.resultInstanceId()).isEqualTo(java.util.UUID.fromString("01910000-0010-7000-8000-000000000077"));
-        verify(executor).execute(any());
+        verify(executor).execute(any(), any());
 
         ArgumentCaptor<AgentAction> cap = ArgumentCaptor.forClass(AgentAction.class);
         verify(actionRepository, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
@@ -75,7 +85,7 @@ class GatedActionServiceTest {
 
     @Test
     void l2_createsApprovalDoesNotExecute() {
-        when(policyEngine.decide(any())).thenReturn(decision(PolicyLevel.L2, false));
+        when(policyEngine.decide(any(), any())).thenReturn(decision(PolicyLevel.L2, false));
 
         GateResult r = gate.submit(ActionRequest.builder()
                 .toolName("task_rerun").actionType("TASK_RERUN")
@@ -94,7 +104,7 @@ class GatedActionServiceTest {
 
     @Test
     void l3_pendingWithConfirmationFlag() {
-        when(policyEngine.decide(any())).thenReturn(decision(PolicyLevel.L3, true));
+        when(policyEngine.decide(any(), any())).thenReturn(decision(PolicyLevel.L3, true));
         GateResult r = gate.submit(ActionRequest.builder()
                 .toolName("drop_table").actionType("DROP_TABLE").targetId("dwd_orders").build());
         assertThat(r.pending()).isTrue();
@@ -104,7 +114,7 @@ class GatedActionServiceTest {
 
     @Test
     void l4_rejectedDoesNotExecute() {
-        when(policyEngine.decide(any())).thenReturn(decision(PolicyLevel.L4, false));
+        when(policyEngine.decide(any(), any())).thenReturn(decision(PolicyLevel.L4, false));
         GateResult r = gate.submit(ActionRequest.builder()
                 .command("rm -rf /data").actionType("NODE_EXEC").build());
         assertThat(r.rejected()).isTrue();

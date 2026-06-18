@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,6 +37,9 @@ import java.util.Optional;
  * 写工具（create_task/task_rerun/node_exec）全部经 {@link GatedActionService} 闸门，无绕过路径。
  *
  * <p>输出超阈值时截断并附标记，完整输出存档到本地文件（M2 迁 MinIO），返回引用。
+ *
+ * <p>handler 接收 {@link McpTool.Context}（参数 + agent locale），写工具经闸门将 locale 透传给
+ * {@link GatedActionService#submit(ActionRequest, Locale)} 本地化裁决理由与闸门响应。
  */
 @Component
 public class McpToolRegistry {
@@ -93,14 +97,20 @@ public class McpToolRegistry {
         return tools.containsKey(name);
     }
 
-    /** 执行工具：序列化结果 → 截断 + 存档。未知工具/异常 → isError 结果。 */
+    /** 默认 locale（中文）执行。 */
     public ToolResult call(String name, Map<String, Object> args) {
+        return call(name, args, Locale.SIMPLIFIED_CHINESE);
+    }
+
+    /** 按 agent locale 执行：闸门响应本地化走此 locale。 */
+    public ToolResult call(String name, Map<String, Object> args, Locale locale) {
         McpTool tool = tools.get(name);
         if (tool == null) {
             return ToolResult.error("未知工具：" + name);
         }
         try {
-            Object payload = tool.handler().apply(args == null ? Map.of() : args);
+            McpTool.Context ctx = new McpTool.Context(args == null ? Map.of() : args, locale);
+            Object payload = tool.handler().apply(ctx);
             String text = payload instanceof String s ? s : objectMapper.writeValueAsString(payload);
             return truncateAndArchive(name, text);
         } catch (IllegalArgumentException e) {
@@ -115,7 +125,7 @@ public class McpToolRegistry {
     private void registerTools() {
         // ---- 查询工具（L0，直通领域服务）----
         register("query_task_definitions", "列出全部任务定义（与任务管理页 REST 同源）",
-                schema(), args -> {
+                schema(), ctx -> {
                     List<TaskDef> out = new ArrayList<>();
                     taskDefRepository.findAll().forEach(t -> {
                         if (t.getDeleted() == null || t.getDeleted() == 0) {
@@ -126,8 +136,8 @@ public class McpToolRegistry {
                 });
 
         register("query_task_instances", "列出任务实例，可选按 state 过滤（FAILED/SUCCESS/RUNNING…）",
-                schema(prop("state", "string", "运行状态，可选")), args -> {
-                    String state = str(args, "state");
+                schema(prop("state", "string", "运行状态，可选")), ctx -> {
+                    String state = str(ctx.args(), "state");
                     List<TaskInstance> out = new ArrayList<>();
                     if (state != null && !state.isBlank()) {
                         out.addAll(instanceRepository.findByState(state));
@@ -138,11 +148,11 @@ public class McpToolRegistry {
                 });
 
         register("query_fleet", "列出 worker 机器集群与资源水位",
-                schema(), args -> fleetService.nodes());
+                schema(), ctx -> fleetService.nodes());
 
         register("query_metric", "按指标 code 返回当前值与口径溯源",
-                schema(req("code", "string", "指标 code，如 GMV")), args -> {
-                    String code = required(args, "code");
+                schema(req("code", "string", "指标 code，如 GMV")), ctx -> {
+                    String code = required(ctx.args(), "code");
                     Optional<AtomicMetric> m = metricService.findLatestByCode(code);
                     if (m.isEmpty()) {
                         return Map.of("found", false, "code", code);
@@ -159,8 +169,8 @@ public class McpToolRegistry {
                 });
 
         register("query_lineage", "按指标 code 返回血缘链路（指标 → SQL → 物理表）",
-                schema(req("code", "string", "指标 code，如 GMV")), args -> {
-                    String code = required(args, "code");
+                schema(req("code", "string", "指标 code，如 GMV")), ctx -> {
+                    String code = required(ctx.args(), "code");
                     return lineageService.lineageOf(code)
                             .map(p -> (Object) Map.of(
                                     "metric", p.metric().getName(),
@@ -170,11 +180,11 @@ public class McpToolRegistry {
                 });
 
         register("query_diagnosis", "诊断指定失败实例（缺省诊断最近一条失败实例）",
-                schema(prop("instanceId", "string", "任务实例 id（UUID），可选")), args -> {
-                    java.util.UUID instanceId = uuid(args, "instanceId");
+                schema(prop("instanceId", "string", "任务实例 id（UUID），可选")), ctx -> {
+                    java.util.UUID instanceId = uuid(ctx.args(), "instanceId");
                     Optional<TaskDiagnosis> d = instanceId != null
-                            ? Optional.of(diagnosisService.diagnoseInstance(instanceId))
-                            : diagnosisService.diagnoseLatestFailure();
+                            ? Optional.of(diagnosisService.diagnoseInstance(instanceId, ctx.locale()))
+                            : diagnosisService.diagnoseLatestFailure(ctx.locale());
                     return d.map(x -> (Object) x).orElse(Map.of("found", false));
                 });
 
@@ -183,10 +193,10 @@ public class McpToolRegistry {
                 schema(req("name", "string", "任务名"),
                         req("content", "string", "执行内容（SQL）"),
                         prop("cron", "string", "cron 表达式，缺省每天 8 点")),
-                args -> {
-                    String name = required(args, "name");
-                    String content = required(args, "content");
-                    String cron = str(args, "cron");
+                ctx -> {
+                    String name = required(ctx.args(), "name");
+                    String content = required(ctx.args(), "content");
+                    String cron = str(ctx.args(), "cron");
                     if (cron == null || cron.isBlank()) {
                         cron = "0 0 8 * * ?";
                     }
@@ -197,28 +207,28 @@ public class McpToolRegistry {
                             .actor("agent").actorSource("AGENT")
                             .summary("建任务「" + name + "」 cron " + cron)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         register("task_rerun", "重跑一个任务实例（经策略闸门）",
                 schema(req("instanceId", "string", "任务实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("task_rerun").actionType("TASK_RERUN")
                             .targetType("TASK_INSTANCE").targetId(String.valueOf(instanceId))
                             .actor("agent").actorSource("AGENT")
                             .summary("重跑实例 #" + instanceId)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         register("node_exec", "在指定节点执行受控命令（白名单前缀 + 命令串安全解析，经策略闸门）",
                 schema(req("nodeCode", "string", "目标节点 code"),
                         req("command", "string", "命令串（白名单前缀）")),
-                args -> {
-                    String nodeCode = required(args, "nodeCode");
-                    String command = required(args, "command");
+                ctx -> {
+                    String nodeCode = required(ctx.args(), "nodeCode");
+                    String command = required(ctx.args(), "command");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("node_exec").actionType("NODE_EXEC")
                             .targetType("NODE").targetId(nodeCode)
@@ -226,14 +236,14 @@ public class McpToolRegistry {
                             .actor("agent").actorSource("AGENT")
                             .summary("在 " + nodeCode + " 执行：" + command)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         // ---- 审批续做：观察审批单状态/结果（不自行批准，人审在审批卡片）----
         register("approve_and_execute", "查看审批单状态与执行结果（人工批准在右舷审批卡片完成；此工具用于续做时确认结果）",
                 schema(req("approvalId", "integer", "审批单 id")),
-                args -> {
-                    Long id = requiredLong(args, "approvalId");
+                ctx -> {
+                    Long id = requiredLong(ctx.args(), "approvalId");
                     Optional<AgentAction> a = approvalService.get(id);
                     if (a.isEmpty()) {
                         return Map.of("found", false, "approvalId", id);
@@ -257,34 +267,34 @@ public class McpToolRegistry {
                         prop("name", "string", "新名称"),
                         prop("content", "string", "新内容（SQL）"),
                         prop("description", "string", "任务描述")),
-                args -> {
-                    Long taskId = requiredLong(args, "taskId");
+                ctx -> {
+                    Long taskId = requiredLong(ctx.args(), "taskId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("update_task").actionType("UPDATE_TASK")
                             .targetType("TASK").targetId(String.valueOf(taskId))
                             .actor("agent").actorSource("AGENT")
                             .summary("更新任务 #" + taskId)
                             .build();
-                    GateResult gr = gatedActionService.submit(req);
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     TaskDef patch = new TaskDef();
-                    if (str(args, "name") != null) patch.setName(str(args, "name"));
-                    if (str(args, "content") != null) patch.setContent(str(args, "content"));
-                    if (str(args, "description") != null) patch.setDescription(str(args, "description"));
+                    if (str(ctx.args(), "name") != null) patch.setName(str(ctx.args(), "name"));
+                    if (str(ctx.args(), "content") != null) patch.setContent(str(ctx.args(), "content"));
+                    if (str(ctx.args(), "description") != null) patch.setDescription(str(ctx.args(), "description"));
                     return taskService.update(taskId, patch);
                 });
 
         register("delete_task", "软删除任务（仅 DRAFT 可删，经策略闸门）",
                 schema(req("taskId", "integer", "任务 id")),
-                args -> {
-                    Long taskId = requiredLong(args, "taskId");
+                ctx -> {
+                    Long taskId = requiredLong(ctx.args(), "taskId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("delete_task").actionType("DELETE_TASK")
                             .targetType("TASK").targetId(String.valueOf(taskId))
                             .actor("agent").actorSource("AGENT")
                             .summary("删除任务 #" + taskId)
                             .build();
-                    GateResult gr = gatedActionService.submit(req);
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     taskService.softDelete(taskId);
                     return Map.of("deleted", true, "taskId", taskId);
@@ -292,45 +302,45 @@ public class McpToolRegistry {
 
         register("pause_instance", "暂停工作流实例（经策略闸门）",
                 schema(req("instanceId", "string", "工作流实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("pause_instance").actionType("PAUSE_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
                             .actor("agent").actorSource("AGENT")
                             .summary("暂停实例 #" + instanceId)
                             .build();
-                    GateResult gr = gatedActionService.submit(req);
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     return opsService.pauseWorkflow(instanceId);
                 });
 
         register("resume_instance", "恢复工作流实例（经策略闸门）",
                 schema(req("instanceId", "string", "工作流实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("resume_instance").actionType("RESUME_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
                             .actor("agent").actorSource("AGENT")
                             .summary("恢复实例 #" + instanceId)
                             .build();
-                    GateResult gr = gatedActionService.submit(req);
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     return opsService.resumeWorkflow(instanceId);
                 });
 
         register("kill_instance", "终止工作流实例（经策略闸门）",
                 schema(req("instanceId", "string", "工作流实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("kill_instance").actionType("KILL_INSTANCE")
                             .targetType("WORKFLOW_INSTANCE").targetId(String.valueOf(instanceId))
                             .actor("agent").actorSource("AGENT")
                             .summary("终止实例 #" + instanceId)
                             .build();
-                    GateResult gr = gatedActionService.submit(req);
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
                     return opsService.killWorkflow(instanceId);
                 });
@@ -339,57 +349,57 @@ public class McpToolRegistry {
         register("test_run", "单任务测试运行：下发草稿内容到 worker，不入正式统计（经策略闸门，留痕）",
                 schema(req("taskId", "integer", "任务定义 id"),
                         prop("bizDate", "string", "业务日期 yyyy-MM-dd，可选")),
-                args -> {
-                    Long taskId = requiredLong(args, "taskId");
+                ctx -> {
+                    Long taskId = requiredLong(ctx.args(), "taskId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("test_run").actionType("TEST_RUN")
                             .targetType("TASK").targetId(String.valueOf(taskId))
-                            .command(str(args, "bizDate"))
+                            .command(str(ctx.args(), "bizDate"))
                             .actor("agent").actorSource("AGENT")
                             .summary("测试运行任务 #" + taskId)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         register("trigger_workflow", "手动触发工作流执行（经策略闸门）",
                 schema(req("workflowId", "integer", "工作流定义 id"),
                         prop("bizDate", "string", "业务日期 yyyy-MM-dd，可选")),
-                args -> {
-                    Long workflowId = requiredLong(args, "workflowId");
+                ctx -> {
+                    Long workflowId = requiredLong(ctx.args(), "workflowId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("trigger_workflow").actionType("TRIGGER_WORKFLOW")
                             .targetType("WORKFLOW").targetId(String.valueOf(workflowId))
-                            .command(str(args, "bizDate"))
+                            .command(str(ctx.args(), "bizDate"))
                             .actor("agent").actorSource("AGENT")
                             .summary("手动触发工作流 #" + workflowId)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         register("resume_workflow", "断点恢复失败的工作流实例：保留成功节点，从失败点续跑（经策略闸门）",
                 schema(req("instanceId", "string", "工作流实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("resume_workflow").actionType("RESUME_WORKFLOW")
                             .targetType("WORKFLOW_INSTANCE").targetId(instanceId.toString())
                             .actor("agent").actorSource("AGENT")
                             .summary("断点恢复实例 " + instanceId)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         register("rerun_workflow", "整流重跑工作流实例：全节点重置后重跑（经策略闸门）",
                 schema(req("instanceId", "string", "工作流实例 id（UUID）")),
-                args -> {
-                    java.util.UUID instanceId = requiredUuid(args, "instanceId");
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
                     ActionRequest req = ActionRequest.builder()
                             .toolName("rerun_workflow").actionType("RERUN_WORKFLOW")
                             .targetType("WORKFLOW_INSTANCE").targetId(instanceId.toString())
                             .actor("agent").actorSource("AGENT")
                             .summary("整流重跑实例 " + instanceId)
                             .build();
-                    return gateText(gatedActionService.submit(req));
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
     }
 
@@ -440,7 +450,7 @@ public class McpToolRegistry {
     // ============================ helpers ============================
 
     private void register(String name, String description, Map<String, Object> schema,
-                          java.util.function.Function<Map<String, Object>, Object> handler) {
+                          McpTool.Handler handler) {
         tools.put(name, new McpTool(name, description, schema, handler));
     }
 

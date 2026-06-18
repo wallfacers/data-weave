@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.ApprovalService;
 import com.dataweave.master.application.ApprovalService.ApprovalResult;
 import com.dataweave.master.domain.AgentAction;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 
 import java.util.List;
 
@@ -34,10 +36,13 @@ public class ApprovalController {
     }
 
     @PostMapping("/{id}/approve")
-    public ApiResponse<ApprovalResult> approve(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
+    public ApiResponse<ApprovalResult> approve(@PathVariable Long id,
+                                               @RequestBody(required = false) ApproveRequest body,
+                                               ServerWebExchange exchange) {
         String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
         String confirmation = body != null ? body.confirmation() : null;
-        return ApiResponse.ok(approvalService.approve(id, approver, confirmation));
+        return ApiResponse.ok(approvalService.approve(id, approver, confirmation,
+                Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
     @PostMapping("/{id}/reject")
