@@ -33,6 +33,7 @@ export function DropdownSelect({
 }: DropdownSelectProps) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [anchor, setAnchor] = useState({ top: 0, left: 0, width: 0 })
 
   const recomputeAnchor = () => {
@@ -53,6 +54,7 @@ export function DropdownSelect({
     if (!open) return
     const onDocMouseDown = (e: MouseEvent) => {
       if (btnRef.current?.contains(e.target as Node)) return
+      if (panelRef.current?.contains(e.target as Node)) return
       setOpen(false)
     }
     const onScrollOrResize = () => setOpen(false)
@@ -73,6 +75,7 @@ export function DropdownSelect({
   if (open && typeof document !== "undefined") {
     dropdown = createPortal(
       <div
+        ref={panelRef}
         className="fixed z-50 flex flex-col gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
         style={{
           top: anchor.top,
