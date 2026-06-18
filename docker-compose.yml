@@ -52,19 +52,28 @@ services:
 
   # workhorse-agent 大脑（agent.mode=workhorse 时启用）。仅本机暴露，dataweave-api 为唯一客户端。
   # 默认不随 `docker compose up` 启动；用 `docker compose --profile workhorse up -d` 拉起。
-  # PROVISIONAL：image / 配置挂载以 workhorse 仓库 support-dataweave-headless-integration 落地为准。
+  #
+  # 推荐改用 managed 进程托管（agent.workhorse.managed=true）——DataWeave 后端直接拉起宿主二进制，
+  # 跨 Win/Mac/Linux 一致，无需本服务。本 compose 路线是 Linux 容器化部署的可选项，与 managed 二选一
+  # （勿同开，端口 8300 会互斥）。network_mode: host 在 macOS/Windows Docker Desktop 下不通到宿主 127.0.0.1。
+  #
+  # 镜像现由 deploy/workhorse/Dockerfile 本地构建（dataweave-managed-sidecar tasks 5.2，修复此前悬空 image）。
+  # 前置：先跑 deploy/workhorse/fetch-bin.sh 产出 bin/workhorse-agent-linux-amd64。
   workhorse:
+    build:
+      context: .
+      dockerfile: deploy/workhorse/Dockerfile
     image: ${WORKHORSE_IMAGE:-dataweave/workhorse-agent:latest}
     container_name: dataweave-workhorse
     profiles: ["workhorse"]
-    network_mode: host        # 绑 127.0.0.1:8300，直连宿主上的 dataweave-api:8000/mcp
+    network_mode: host        # 绑 127.0.0.1:8300，直连宿主上的 dataweave-api:8000/mcp（仅 Linux 成立）
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - ./deploy/workhorse/config.yaml:/etc/workhorse/config.yaml:ro
       - ./deploy/workhorse/mcp.json:/etc/workhorse/mcp.json:ro
-    command: ["--config", "/etc/workhorse/config.yaml"]
+    command: ["serve", "--config", "/etc/workhorse/config.yaml", "--host", "127.0.0.1", "--port", "8300"]
 
   # ── distributed 模式（scheduler.mode=distributed）─────────────────────────
   # 用法：docker compose --profile distributed up -d

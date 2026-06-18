@@ -23,3 +23,6 @@ cli/dw-*
 # workhorse 本地真 key 配置，禁止提交
 deploy/workhorse/config.local.yaml
 deploy/workhorse/.env.workhorse
+
+# workhorse-agent 预编译二进制（六平台，由 fetch-bin.sh 产出；交付物非源码，不入 git）
+deploy/workhorse/bin/

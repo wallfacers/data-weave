@@ -28,6 +28,21 @@ agent:
   mode: mock                       # mock（默认零依赖）| workhorse（接 LLM 大脑）
   workhorse:
     base-url: http://127.0.0.1:8300
+    # sidecar 进程托管（dataweave-managed-sidecar）。managed=false（默认）时 supervisor 旁路、
+    # 仅连外部 base-url 指向的进程，行为与未引入本能力时完全一致。
+    managed: false                 # true：DataWeave 后端托管 workhorse-agent 生命周期（起后端→agent 就绪）
+    runtime: native                # native（默认）| wsl（仅 Windows host 且 wsl 可用时生效，否则兜底 native）
+    port: 8300                     # sidecar 绑定端口（与 base-url 一致）
+    config-path: deploy/workhorse/config.yaml   # workhorse config.yaml 路径
+    binary-dir: deploy/workhorse/bin            # 预编译二进制目录（六平台，.gitignore，不入 git）
+    binary: ""                     # 覆盖按平台自动选型的二进制名/绝对路径（留空=自动 workhorse-agent-{goos}-{goarch}）
+    health-path: /health           # 健康探测路径
+    max-restarts: 5                # 连续重启上限，超过进 Failed（不无限刷）
+    probe-interval-ms: 3000        # 稳态健康探测/就绪轮询间隔
+    startup-timeout-ms: 30000      # spawn 后就绪收敛超时
+    reap-grace-ms: 5000            # reap 优雅终止宽限期（超时 destroyForcibly）
+    backoff-base-ms: 1000          # 退避基数（指数 base*2^n）
+    backoff-cap-ms: 30000          # 退避封顶
 
 policy:
   environment: dev                 # dev | prod（prod 抬升 L1→L2）

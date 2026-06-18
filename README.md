@@ -78,6 +78,40 @@ docker compose up -d                             # 启 PostgreSQL + Redis
 cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=pg
 ```
 
+### Agent 大脑模式（mock / workhorse）
+
+默认 `agent.mode=mock`（`IntentRouter` 规则路由，零依赖，克隆即跑）。接真 LLM 大脑切 `workhorse`，由
+独立进程 workhorse-agent（绑 `127.0.0.1:8300`）承载，DataWeave 后端为唯一客户端。起 sidecar 两条路：
+
+**A. managed 进程托管（推荐，跨 Win/Mac/Linux + WSL 一致）** —— DataWeave 后端拥有 sidecar 生命周期，
+「起后端 → agent 自动就绪」（按平台选二进制、健康收敛、崩溃退避重启、JVM 退出回收、端口单实例互斥）：
+
+```bash
+# 1) 取六平台预编译二进制 → deploy/workhorse/bin/（不入 git；需本地有 workhorse-agent 仓库）
+WORKHORSE_AGENT_REPO=/path/to/workhorse-agent ./deploy/workhorse/fetch-bin.sh
+# 2) 填真 key：deploy/workhorse/config.local.yaml 或环境变量（勿提交真实 key）
+# 3) 开 managed，启后端
+cd backend && ./mvnw -pl dataweave-api spring-boot:run \
+    -Dspring-boot.run.arguments="--agent.mode=workhorse --agent.workhorse.managed=true"
+```
+
+- **Windows**：默认 `native`（跑宿主 `.exe`）；若希望 sidecar 落 WSL 命名空间，加 `--agent.workhorse.runtime=wsl`（仅 `wsl -l -q` 可用时生效，否则兜底 native）。
+- **macOS / Linux**：仅 `native`（无 wsl 选项）。
+- 端口已有健康 sidecar 时 **adopt 复用**（绝不杀外部进程）；自起进程崩溃退避重启，连续失败进 `Failed`。
+- 健康可观测：`GET /api/ops/supervisor`（状态机态 + adopt 标记 + 自起 PID + 失败原因；`managed=false` 标 `external`）。
+- 关键配置（`application.yml` 的 `agent.workhorse.*`）：`managed`（默认 false）、`runtime=native|wsl`、`binary-dir`/`binary`、`max-restarts`、`startup-timeout-ms` 等。
+
+**B. docker compose（仅 Linux 可选）** —— `network_mode: host` 在 macOS/Windows Docker Desktop 下不通宿主 127.0.0.1，故仅 Linux 成立；与 managed **二选一**（端口 8300 互斥）：
+
+```bash
+./deploy/workhorse/fetch-bin.sh                  # 先产出 bin/workhorse-agent-linux-amd64
+docker compose --profile workhorse up -d --build # 本地构建镜像（deploy/workhorse/Dockerfile）并起 sidecar
+cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.arguments=--agent.mode=workhorse
+```
+
+> `agent.workhorse.managed=false`（默认）时 supervisor 完全旁路，仅连 `base-url` 指向的外部进程——
+> 与未引入托管能力时行为零差异（CI/现有部署不受影响）。
+
 ## MVP 能力（试一试）
 
 打开 `/agent`，输入（已预置种子：GMV 指标、orders 表、每日 GMV 任务）：

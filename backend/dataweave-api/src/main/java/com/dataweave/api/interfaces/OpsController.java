@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.application.supervisor.WorkhorseSupervisor;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.master.application.OpsService;
@@ -46,11 +47,12 @@ public class OpsController {
     private final LogArchiveStorage logArchive;
     private final EventBus eventBus;
     private final Messages messages;
+    private final WorkhorseSupervisor workhorseSupervisor;
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
                          LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus,
-                         Messages messages) {
+                         Messages messages, WorkhorseSupervisor workhorseSupervisor) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
         this.metrics = metrics;
@@ -59,6 +61,7 @@ public class OpsController {
         this.logArchive = logArchive;
         this.eventBus = eventBus;
         this.messages = messages;
+        this.workhorseSupervisor = workhorseSupervisor;
     }
 
     /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
@@ -155,6 +158,15 @@ public class OpsController {
         metrics.refreshSlotUtilization();
         metrics.refreshFragmentation();
         return ApiResponse.ok(metrics.snapshot());
+    }
+
+    /**
+     * workhorse sidecar supervisor 健康段（dataweave-managed-sidecar tasks 3.3）：
+     * 状态机当前态 + adopt 标记 + 自起 PID + 失败原因；managed=false 时 custody 标「external」。
+     */
+    @GetMapping("/supervisor")
+    public ApiResponse<WorkhorseSupervisor.Status> supervisor() {
+        return ApiResponse.ok(workhorseSupervisor.status());
     }
 
     // ─── 实时 SSE 端点 ─────────────────────────────────────────
