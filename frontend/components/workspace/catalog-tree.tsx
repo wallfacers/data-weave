@@ -28,6 +28,7 @@ import {
   FolderOpenIcon,
   InboxIcon,
   PencilEdit01Icon,
+  RefreshIcon,
   Tag01Icon,
   Task01Icon,
   WorkflowSquare01Icon,
@@ -80,39 +81,8 @@ const itemMotion = {
 /** 新建/移动高亮闪烁（bg 从 primary/15 过渡到透明）。 */
 const highlightClass = "catalog-item-enter"
 
-// ── 乐观树操作：直接改本地 state，不触发整树 reload ──
-
-/** 把新文件夹节点插入树的正确位置（parentId=null → roots，否则递归找父）。 */
-function insertFolderIntoTree(
-  roots: CatalogTreeNode[],
-  parentId: number | null,
-  newNode: CatalogTreeNode,
-): CatalogTreeNode[] {
-  // 后端返回的新节点可能不含 children 字段，补上空数组
-  const safeNode = { ...newNode, children: newNode.children ?? [] }
-  if (parentId == null) return [...roots, safeNode]
-  return roots.map((r) =>
-    r.id === parentId
-      ? { ...r, children: [...r.children, safeNode] }
-      : { ...r, children: insertFolderIntoTree(r.children, parentId, newNode) },
-  )
-}
-
-/** 从树中移除指定文件夹（递归）。 */
-function removeFolderFromTree(roots: CatalogTreeNode[], folderId: number): CatalogTreeNode[] {
-  return roots
-    .filter((r) => r.id !== folderId)
-    .map((r) => ({ ...r, children: removeFolderFromTree(r.children ?? [], folderId) }))
-}
-
-/** 更新树中指定文件夹的名称。 */
-function renameFolderInTree(roots: CatalogTreeNode[], folderId: number, name: string): CatalogTreeNode[] {
-  return roots.map((r) =>
-    r.id === folderId
-      ? { ...r, name }
-      : { ...r, children: renameFolderInTree(r.children ?? [], folderId, name) },
-  )
-}
+// 树结构纯函数（insertFolderIntoTree / removeFolderFromTree / renameFolderInTree）与乐观更新
+// action 已移至 catalog-tree-store.ts；本组件经 store action 调用（insertFolder / removeFolder / renameFolder）。
 
 interface MovePayload {
   kind: "task" | "workflow"
@@ -146,8 +116,6 @@ export interface CatalogTreeProps {
   onOpenTask?: (id: number, name: string) => void
   /** 点击工作流叶子（id + 名称）—— IDE 壳据此开画布子 Tab。 */
   onOpenWorkflow?: (id: number, name: string) => void
-  /** 外部触发刷新（变更后 bump）。 */
-  reloadKey?: number
   className?: string
 }
 
@@ -158,20 +126,19 @@ export function CatalogTree({
   showTagFilter = true,
   onOpenTask,
   onOpenWorkflow,
-  reloadKey,
   className,
 }: CatalogTreeProps) {
   const t = useTranslations()
-  const { expanded, toggleExpand, expand, selectedTagIds, toggleTag, clearTags } =
-    useCatalogTreeStore()
+  const {
+    expanded, toggleExpand, expand, selectedTagIds, toggleTag, clearTags,
+    tree, tasks, workflows, loading,
+    setData, upsertTask, upsertWorkflow, updateTask, updateWorkflow,
+    removeTask, removeWorkflow, insertFolder, removeFolder, renameFolder: renameFolderInStore,
+  } = useCatalogTreeStore()
 
-  const [tree, setTree] = useState<CatalogTreeData | null>(null)
-  const [tasks, setTasks] = useState<TaskDef[]>([])
-  const [workflows, setWorkflows] = useState<WorkflowDef[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [visibleTaskIds, setVisibleTaskIds] = useState<Set<number> | null>(null)
   const [visibleWorkflowIds, setVisibleWorkflowIds] = useState<Set<number> | null>(null)
-  const [loading, setLoading] = useState(true)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((t) => t + 1), [])
@@ -201,7 +168,7 @@ export function CatalogTree({
   // ── 基础数据：树 + 任务 + 工作流 + 标签 ──
   useEffect(() => {
     let alive = true
-    setLoading(true)
+    setData({ loading: true })
     Promise.all([
       authFetch(`${API_BASE}/api/catalog/tree?projectId=${projectId}`, { cache: "no-store" })
         .then((r) => r.json() as Promise<ApiResponse<CatalogTreeData>>)
@@ -218,16 +185,14 @@ export function CatalogTree({
     ])
       .then(([tr, tks, wfs, tgs]) => {
         if (!alive) return
-        setTree(tr)
-        setTasks(tks)
-        setWorkflows(wfs)
+        setData({ tree: tr, tasks: tks, workflows: wfs, loading: false })
         setTags(tgs)
       })
-      .finally(() => alive && setLoading(false))
+      .finally(() => alive && setData({ loading: false }))
     return () => {
       alive = false
     }
-  }, [projectId, reloadKey, tick])
+  }, [projectId, tick])
 
   // ── 标签过滤：取选中标签的资产 id 并集，null=不过滤 ──
   useEffect(() => {
@@ -328,11 +293,11 @@ export function CatalogTree({
   const move = useCallback(
     async (payload: MovePayload, targetNodeId: number | null) => {
       const base = payload.kind === "task" ? "tasks" : "workflows"
-      // 乐观更新：直接改本地 state
+      // 乐观更新：直接改 store
       if (payload.kind === "task") {
-        setTasks((prev) => prev.map((i) => i.id === payload.id ? { ...i, catalogNodeId: targetNodeId } : i))
+        updateTask(payload.id, { catalogNodeId: targetNodeId })
       } else {
-        setWorkflows((prev) => prev.map((i) => i.id === payload.id ? { ...i, catalogNodeId: targetNodeId } : i))
+        updateWorkflow(payload.id, { catalogNodeId: targetNodeId })
       }
       if (targetNodeId != null) expand(targetNodeId)
       flashHighlight([`${payload.kind}-${payload.id}`])
@@ -386,9 +351,7 @@ export function CatalogTree({
         const json = (await res.json()) as ApiResponse<CatalogTreeNode>
         if (json.code === 0 && json.data) {
           const newNode = json.data
-          setTree((prev) =>
-            prev ? { ...prev, roots: insertFolderIntoTree(prev.roots, parentId, newNode) } : prev,
-          )
+          insertFolder(parentId, newNode)
           if (parentId != null) expand(parentId)
           flashHighlight([`folder-${newNode.id}`])
           toast.success(t("catalog.toastFolderCreated"))
@@ -409,9 +372,9 @@ export function CatalogTree({
       const base = kind === "task" ? "tasks" : "workflows"
       // 乐观更新
       if (kind === "task") {
-        setTasks((prev) => prev.map((i) => (i.id === id ? { ...i, name: name.trim() } : i)))
+        updateTask(id, { name: name.trim() })
       } else {
-        setWorkflows((prev) => prev.map((i) => (i.id === id ? { ...i, name: name.trim() } : i)))
+        updateWorkflow(id, { name: name.trim() })
       }
       flashHighlight([`${kind}-${id}`])
       try {
@@ -440,9 +403,9 @@ export function CatalogTree({
       const base = kind === "task" ? "tasks" : "workflows"
       // 乐观删除（motion exit 动画会先播放）
       if (kind === "task") {
-        setTasks((prev) => prev.filter((i) => i.id !== id))
+        removeTask(id)
       } else {
-        setWorkflows((prev) => prev.filter((i) => i.id !== id))
+        removeWorkflow(id)
       }
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, { method: "DELETE" })
@@ -486,9 +449,9 @@ export function CatalogTree({
           const newItem = json.data
           // 乐观添加
           if (kind === "task") {
-            setTasks((prev) => [...prev, newItem as TaskDef])
+            upsertTask(newItem as TaskDef)
           } else {
-            setWorkflows((prev) => [...prev, newItem as WorkflowDef])
+            upsertWorkflow(newItem as WorkflowDef)
           }
           if (parentId != null) expand(parentId)
           flashHighlight([`${kind}-${(newItem as TaskDef).id}`])
@@ -519,9 +482,7 @@ export function CatalogTree({
         })
         const json = (await res.json()) as ApiResponse<CatalogTreeNode>
         if (json.code === 0) {
-          setTree((prev) =>
-            prev ? { ...prev, roots: renameFolderInTree(prev.roots, id, name.trim()) } : prev,
-          )
+          renameFolderInStore(id, name.trim())
           toast.success(t("catalog.toastRenamed"))
           flashHighlight([`folder-${id}`])
         } else {
@@ -541,9 +502,7 @@ export function CatalogTree({
         const res = await authFetch(`${API_BASE}/api/catalog/nodes/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
-          setTree((prev) =>
-            prev ? { ...prev, roots: removeFolderFromTree(prev.roots, id) } : prev,
-          )
+          removeFolder(id)
           toast.success(t("catalog.toastFolderDeleted"))
         } else {
           toast.error(json.message || t("catalog.toastDeleteFailed"))
@@ -771,14 +730,25 @@ export function CatalogTree({
       {/* 顶部：标题 + 新建（同一行，标题左、操作右）*/}
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{t("catalog.title")}</span>
-        <button
-          type="button"
-          onClick={() => setDialog({ mode: "folder", parentId: null, name: "" })}
-          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          title={t("catalog.newRootFolder")}
-        >
-          <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.new")}
-        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setDialog({ mode: "folder", parentId: null, name: "" })}
+            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={t("catalog.newRootFolder")}
+          >
+            <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.new")}
+          </button>
+          <button
+            type="button"
+            onClick={reload}
+            disabled={loading}
+            className="flex items-center rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+            title={t("common.refresh")}
+          >
+            <HugeiconsIcon icon={RefreshIcon} className="size-4" />
+          </button>
+        </div>
       </div>
 
       {/* 本地搜索（D7）：子串过滤叶子，命中祖先自动展开，清空恢复 */}

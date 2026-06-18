@@ -21,6 +21,7 @@ import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { CodeEditor, type CodeEditorLanguage } from "@/components/code-editor"
 import { useEventSource } from "@/lib/workspace/use-event-source"
+import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 
 const TYPE_OPTIONS = [
   { value: "SQL", label: "SQL" },
@@ -73,11 +74,9 @@ interface RunResult {
 
 export interface TaskEditorPaneProps {
   taskId: number
-  /** 保存/发布成功后回调（供 IDE 壳刷新类目树等）。 */
-  onSaved?: () => void
 }
 
-export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
+export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const t = useTranslations()
   const [name, setName] = useState("")
   const [type, setType] = useState("SQL")
@@ -189,7 +188,10 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
         body: JSON.stringify(body),
       })
       toast.success(t("taskEditor.toastSaved"))
-      onSaved?.()
+      useCatalogTreeStore.getState().updateTask(taskId, {
+        name, type, content, description, priority, timeoutSec, retryMax,
+        paramsJson: paramsJson || null,
+      })
     } catch {
       toast.error(t("taskEditor.toastSaveFailed"))
     } finally {
@@ -206,10 +208,13 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
         body: JSON.stringify({}),
       })
       const j = (await res.json()) as ApiResponse<TaskDef>
-      if (j.code === 0) {
+      if (j.code === 0 && j.data) {
         setStatus("ONLINE")
         toast.success(t("taskEditor.toastPublished"))
-        onSaved?.()
+        useCatalogTreeStore.getState().updateTask(taskId, {
+          status: "ONLINE",
+          currentVersionNo: j.data.currentVersionNo,
+        })
       } else {
         toast.error(j.message || t("taskEditor.toastPublishFailed"))
       }
@@ -231,7 +236,7 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       if (j.code === 0) {
         setStatus("DRAFT")
         toast.success(t("taskEditor.toastOffline"))
-        onSaved?.()
+        useCatalogTreeStore.getState().updateTask(taskId, { status: "DRAFT" })
       } else {
         toast.error(j.message || t("taskEditor.toastOfflineFailed"))
       }

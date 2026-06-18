@@ -71,6 +71,7 @@ import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
 import { useEventSource } from "@/lib/workspace/use-event-source"
+import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 
 // ─── 节点数据类型 ──────────────────────────────────────────
 
@@ -221,7 +222,7 @@ interface InstanceTask {
 
 // ─── 画布子 Tab（须在 ReactFlowProvider 内）──────────────
 
-function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: string; onSaved?: () => void }) {
+function CanvasInner({ workflowId, name }: { workflowId: number; name: string }) {
   const t = useTranslations("workflowCanvas")
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
@@ -415,14 +416,18 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
           setStatus(j.data.status)
           setHasDraft(false)
           toast.success(t("toastPublished", { version: j.data.currentVersionNo }))
-          onSaved?.()
+          useCatalogTreeStore.getState().updateWorkflow(workflowId, {
+            status: j.data.status,
+            currentVersionNo: j.data.currentVersionNo,
+            hasDraftChange: 0,
+          })
         } else {
           toast.error(j.message)
         }
       })
       .catch(() => toast.error(t("toastPublishFailed")))
       .finally(() => setBusy(false))
-  }, [workflowId, dirty, onSaved, t])
+  }, [workflowId, dirty, t])
 
   // 手动触发正式实例：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
   // D8：未上线禁用。D9：只盯最近一次（新运行重置状态）。
@@ -533,15 +538,13 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
 function WorkflowCanvasPane({
   workflowId,
   name,
-  onSaved,
 }: {
   workflowId: number
   name: string
-  onSaved?: () => void
 }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner workflowId={workflowId} name={name} onSaved={onSaved} />
+      <CanvasInner workflowId={workflowId} name={name} />
     </ReactFlowProvider>
   )
 }
@@ -569,8 +572,6 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
   // closeTab 用 ref 读最新 activeKey，避免 useCallback 闭包陈旧
   const activeKeyRef = useRef<string | null>(null)
   activeKeyRef.current = activeKey
-  const [treeReloadKey, setTreeReloadKey] = useState(0)
-  const bumpTree = useCallback(() => setTreeReloadKey((k) => k + 1), [])
 
   // ── 类目树面板宽度（右缘分割线拖拽，localStorage 持久化）────────
   // 与 AgentRail 同模式：motion value 驱动渲染，拖拽过程零 React 提交
@@ -698,7 +699,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         openTab({ kind: "editor", id: j.data.id, name: j.data.name })
         setTaskDialog(false)
         setTaskName("")
-        bumpTree()
+        useCatalogTreeStore.getState().upsertTask(j.data)
         toast.success(t("toastTaskDraftCreated"))
       } else {
         toast.error(j.message)
@@ -724,7 +725,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         openTab({ kind: "canvas", id: j.data.id, name: j.data.name })
         setWfDialog(false)
         setWfName("")
-        bumpTree()
+        useCatalogTreeStore.getState().upsertWorkflow(j.data)
         toast.success(t("toastWorkflowDraftCreated"))
       } else {
         toast.error(j.message)
@@ -755,7 +756,6 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
               draggableTasksToCanvas
               enableMove
               showTagFilter
-              reloadKey={treeReloadKey}
               onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
               onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
             />
@@ -804,9 +804,9 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
                 className={tabKey(t) === activeKey ? "absolute inset-0" : "absolute inset-0 hidden"}
               >
                 {t.kind === "canvas" ? (
-                  <WorkflowCanvasPane workflowId={t.id} name={t.name} onSaved={bumpTree} />
+                  <WorkflowCanvasPane workflowId={t.id} name={t.name} />
                 ) : (
-                  <TaskEditorPane taskId={t.id} onSaved={bumpTree} />
+                  <TaskEditorPane taskId={t.id} />
                 )}
               </div>
             ))
