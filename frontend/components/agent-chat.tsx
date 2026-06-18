@@ -138,6 +138,77 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
     }
   }, [])
 
+  // AI 消息区自绘滚动指示条（同输入框思路）。
+  // 背景：CopilotChat 的消息滚动容器（inline style `scrollbar-gutter; overflow:auto`）同样被
+  // CopilotKit 的 `::-webkit-scrollbar` 通配规则命中 → Windows 上恒画上下箭头按钮（去不掉）。
+  // globals.css 已彻底隐藏其原生/webkit 滚动条（避箭头），这里自绘一根细 taupe 条反映滚动位置，
+  // 使滚动条「可见但无倒三角」。滚轮/触摸/键盘仍走容器原生滚动，指示条只反映位置（不可拖拽）。
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const thumb = document.createElement("div")
+    thumb.className = "dw-textarea-thumb"
+    thumb.style.display = "none"
+    container.appendChild(thumb)
+
+    let raf = 0
+    let observed: Element | null = null
+    const ro = new ResizeObserver(() => schedule())
+    // 消息滚动外层：CopilotChat 用 scrollbar-gutter 的那个 inline-style 容器。
+    const findScroller = () =>
+      container.querySelector<HTMLElement>('[style*="scrollbar-gutter"]')
+    const update = () => {
+      raf = 0
+      const sc = findScroller()
+      if (sc && sc !== observed) {
+        if (observed) ro.unobserve(observed)
+        ro.observe(sc)
+        observed = sc
+      }
+      if (!sc || sc.scrollHeight <= sc.clientHeight + 1) {
+        thumb.style.display = "none"
+        return
+      }
+      const cRect = container.getBoundingClientRect()
+      const sRect = sc.getBoundingClientRect()
+      const trackTop = sRect.top - cRect.top
+      // 轨道底界 clamp 到 AI 输入框顶部（留 4px 间距）：指示条不得越过/压到输入框。
+      let trackBottom = sRect.bottom - cRect.top
+      const input = container.querySelector<HTMLElement>(".copilotKitInput")
+      if (input) {
+        const iTop = input.getBoundingClientRect().top - cRect.top
+        trackBottom = Math.min(trackBottom, iTop - 4)
+      }
+      const trackH = Math.max(0, trackBottom - trackTop)
+      const thumbH = Math.max(24, (sc.clientHeight / sc.scrollHeight) * trackH)
+      const maxScroll = sc.scrollHeight - sc.clientHeight
+      const ratio = maxScroll > 0 ? sc.scrollTop / maxScroll : 0
+      thumb.style.top = `${trackTop + ratio * (trackH - thumbH)}px`
+      thumb.style.left = `${sRect.right - cRect.left - 6}px`
+      thumb.style.height = `${thumbH}px`
+      thumb.style.display = "block"
+    }
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+
+    // 捕获阶段听容器滚动；子树/文本变动（新消息、流式增量）重算；窗口缩放重算。
+    container.addEventListener("scroll", schedule, true)
+    window.addEventListener("resize", schedule)
+    const mo = new MutationObserver(schedule)
+    mo.observe(container, { childList: true, subtree: true, characterData: true })
+    schedule()
+
+    return () => {
+      container.removeEventListener("scroll", schedule, true)
+      window.removeEventListener("resize", schedule)
+      ro.disconnect()
+      mo.disconnect()
+      if (raf) cancelAnimationFrame(raf)
+      thumb.remove()
+    }
+  }, [])
+
   // 订阅 agent 自定义事件：dataweave.approval → 审批卡片；
   // dataweave.ui.open → Workspace 打开/激活视图（去重由 store 保证，未知 view 由 store 忽略并 warn）。
   useEffect(() => {

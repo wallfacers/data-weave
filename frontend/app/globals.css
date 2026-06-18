@@ -329,6 +329,28 @@ html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
 html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-scrollbar {
   display: none;
 }
+
+/* ── AI 消息滚动区：去 Windows 滚动条箭头 + 左右边距对齐输入框 ─────────────────
+   CopilotChat 消息滚动外层（inline style 烤死 `scrollbar-gutter:stable both-edges;
+   overflow:auto`）与内层 `cpk:overflow-y-auto` 容器，都被 CopilotKit 的
+   `[data-copilotkit] ::-webkit-scrollbar` 通配规则逼进 WebKit 自定义滚动条引擎 ——
+   该引擎在 Windows 上恒画上下箭头按钮（去不掉，理由同输入框 textarea）。唯一稳妥：隐藏
+   原生/webkit 滚动条避开箭头，再由 agent-chat.tsx 自绘细 taupe 指示条（.dw-textarea-thumb）
+   反映滚动位置 —— 滚动条「可见但无倒三角」。隐藏后 scrollbar-gutter 预留归零 → 左右留白
+   改由下面 .copilotKitMessages 的 padding 统一控制。 */
+html [data-copilotkit] [style*="scrollbar-gutter"],
+html [data-copilotkit] [class*="overflow-y-auto"] {
+  scrollbar-width: none;
+}
+html [data-copilotkit] [style*="scrollbar-gutter"]::-webkit-scrollbar,
+html [data-copilotkit] [class*="overflow-y-auto"]::-webkit-scrollbar {
+  display: none;
+}
+/* AI 消息正文左右边距对齐输入框（.copilotKitInput 内缩 12px），不贴卡片边框。 */
+html [data-copilotkit] .copilotKitMessages {
+  padding-inline: 12px;
+}
+
 /* 自绘指示条：中性灰，随亮/暗切换；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
 .dw-textarea-thumb {
   position: absolute;
