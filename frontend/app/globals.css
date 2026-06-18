@@ -313,9 +313,9 @@ html [data-copilotkit] button[data-testid="copilot-send-button"]:disabled {
   color: var(--muted-foreground) !important;
 }
 
-/* 输入条左右内缩（两态一致，不贴卡片边框）。 */
+/* 输入条左右内缩（两态一致，不贴卡片边框；与 AI 消息正文同步）。 */
 html [data-copilotkit] *:has(> .copilotKitInput) {
-  padding-inline: 12px !important;
+  padding-inline: 16px !important;
 }
 /* 空/对话两态输入框同宽：清零空状态居中包裹层的额外水平内边距。 */
 html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
@@ -346,9 +346,9 @@ html [data-copilotkit] [style*="scrollbar-gutter"]::-webkit-scrollbar,
 html [data-copilotkit] [class*="overflow-y-auto"]::-webkit-scrollbar {
   display: none;
 }
-/* AI 消息正文左右边距对齐输入框（.copilotKitInput 内缩 12px），不贴卡片边框。 */
+/* AI 消息正文左右边距对齐输入框（.copilotKitInput 内缩 16px），不贴卡片边框。 */
 html [data-copilotkit] .copilotKitMessages {
-  padding-inline: 12px;
+  padding-inline: 16px;
 }
 
 /* 自绘指示条：中性灰，随亮/暗切换；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
