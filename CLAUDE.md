@@ -101,6 +101,8 @@ cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profile
 - **SSE 端点**（Phase 4 realtime-streams）：① `GET /api/ops/instances/{id}/logs/stream`（日志实时流，Last-Event-ID 断线续传）；② `GET /api/ops/workflow-instances/{id}/events/stream`（DAG 状态流，节点实时变色）。
 - **系统指标端点**：`GET /api/ops/metrics`（四层指标快照，前端看板用）；`/actuator/metrics` + `/actuator/prometheus`（Prometheus 刮取）。`SchedulerMetrics` 服务负责所有埋点。
 - **指标口径不可篡改**：改口径 → `metrics` 新增递增 `version`，不 UPDATE 旧版本。
+- **i18n 文案归属三规则**（新增/改任何用户可见文案必守，详见 [docs/architecture.md](docs/architecture.md) i18n 段 + [docs/i18n-error-codes.md](docs/i18n-error-codes.md)）：① **UI 静态文案**（按钮/tab/表单 label/空状态/toast）→ 前端 next-intl key 表，ICU `{name}` 占位，**按 UI locale**；② **后端动态生成**（AG-UI markdown、MCP 工具描述、诊断建议、审批理由）→ 后端 `Messages.get`，MessageFormat `{0}` 占位，**按 agent locale**；③ **错误/异常**（`throw`、`ApiResponse.err`）→ 后端 `BizException(code, args)` + `GlobalExceptionHandler` 本地化，**按 UI locale**。前端 toast 信任后端本地化 message，不再 `|| "中文兜底"`。
+- **i18n key 命名规范**：前端 messages（`frontend/messages/{zh-CN,en-US}.json`）顶层按区域命名空间（`common`/`workspace`/`ops` + 每视图独立如 `cockpit`/`metrics`/`instanceTable`…），`views.*` 只存 tab 标题；**两 bundle 键集必须完全一致**（CI/脚本校验 zh-only/en-only 为空，所有 `t("key")` 静态可解析）；非默认 locale 经 `i18n/request.ts` 深合并 zh-CN 兜底缺失 key。后端 code 命名 `<domain>.<semantic>`（kebab/snake 一致，如 `workflow.not_online`），**稳定永不复用**；数据中台术语（cron/DAG/SLA/lineage/OOM）保留英文原词；`data.sql` 业务种子数据 i18n 豁免（保留中文）。组件取 locale 用 `useLocale()`（日期经 `formatDateTime(iso, locale)`）。
 - **Spring Boot 4 注意**：① Jackson 3 —— `ObjectMapper` 在 `tools.jackson.databind.*`，注解仍在 `com.fasterxml.jackson.annotation.*`；② 无 `WebClient.Builder` 自动配置，须自建 `@Bean`（见 `WebClientConfig`）；③ 部分 test/auto-config 注解迁了包，import 报错按实际包名调整。
 - **Java 25**：本机经 symlink swap 使非交互 shell 透明使用 JDK 25。
 

@@ -6,6 +6,7 @@
  * 这里只补 React 侧的渲染映射。新增视图：两处各加一行。
  */
 import type { ComponentType } from "react"
+import { useTranslations } from "next-intl"
 import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
@@ -47,9 +48,14 @@ interface ViewRender {
   component: ComponentType<ViewProps>
 }
 
-const placeholder = (title: string, description: string) => {
-  const View = () => <PlaceholderView title={title} description={description} />
-  View.displayName = `Placeholder(${title})`
+/** 占位视图工厂：标题复用 `views.<viewKey>`，描述取 `placeholderView.<descKey>`，均按 UI locale。 */
+const placeholder = (viewKey: string, descKey: string) => {
+  const View = () => {
+    const tv = useTranslations("views")
+    const tp = useTranslations("placeholderView")
+    return <PlaceholderView title={tv(viewKey)} description={tp(descKey)} />
+  }
+  View.displayName = `Placeholder(${viewKey})`
   return View
 }
 
@@ -65,23 +71,23 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   "workflow-instance-detail": { icon: Flowchart01Icon, component: WorkflowInstanceDetail },
   lineage: {
     icon: GitBranchIcon,
-    component: placeholder("数据血缘", "表与任务的上下游依赖图谱。"),
+    component: placeholder("lineage", "descLineage"),
   },
   catalog: {
     icon: CatalogueIcon,
-    component: placeholder("资产目录", "数据表、主题域与资产盘点。"),
+    component: placeholder("catalog", "descCatalog"),
   },
   quality: {
     icon: Shield01Icon,
-    component: placeholder("数据质量", "质量规则、校验结果与告警。"),
+    component: placeholder("quality", "descQuality"),
   },
   integration: {
     icon: DatabaseSyncIcon,
-    component: placeholder("数据集成", "数据源接入与同步链路。"),
+    component: placeholder("integration", "descIntegration"),
   },
   service: {
     icon: ServiceIcon,
-    component: placeholder("数据服务", "数据 API 与服务编排。"),
+    component: placeholder("service", "descService"),
   },
   settings: {
     icon: Settings02Icon,

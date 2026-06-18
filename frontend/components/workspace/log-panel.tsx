@@ -197,6 +197,7 @@ function LogTabContent({
   active: boolean
   onStatus: (id: string, status: TabConnStatus) => void
 }) {
+  const t = useTranslations("logPanel")
   // 全部 tab 常驻 SSE 连接（切走也实时），供 tab 圆点显示状态
   const { events, connected, error, clearEvents } = useEventSource(
     `${API_BASE}/api/ops/instances/${tab.instanceId}/logs/stream`,
@@ -226,13 +227,13 @@ function LogTabContent({
           variant={connected ? "success" : error ? "destructive" : "info"}
           className="h-3.5 px-1 text-[9px]"
         >
-          {connected ? "实时" : isEnded ? "已结束" : error ? "断开" : "连接中"}
+          {connected ? t("statusLive") : isEnded ? t("statusEnded") : error ? t("statusDisconnected") : t("statusConnecting")}
         </Badge>
         <div className="flex-1" />
         <button
           onClick={clearEvents}
           className="rounded p-0.5 text-muted-foreground hover:text-foreground"
-          title="清空"
+          title={t("clear")}
         >
           <HugeiconsIcon icon={RefreshIcon} className="size-3" />
         </button>
@@ -242,7 +243,7 @@ function LogTabContent({
       <DwScroll className="flex-1" innerClassName="px-3 pb-2 font-mono text-xs leading-relaxed">
         {logLines.length === 0 ? (
           <div className="text-muted-foreground">
-            {connected ? "等待日志输出…" : isEnded ? "无日志记录" : "连接中…"}
+            {connected ? t("waiting") : isEnded ? t("noRecords") : t("connectingShort")}
           </div>
         ) : (
           <div className="space-y-px">

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { useTheme } from "next-themes"
 import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react"
 import { shikiToMonaco } from "@shikijs/monaco"
@@ -74,6 +75,7 @@ export function CodeEditor({
   height = "100%",
   className,
 }: CodeEditorProps) {
+  const t = useTranslations("codeEditor")
   const { resolvedTheme } = useTheme()
   const themeName =
     resolvedTheme === "dark" ? SYNTAX_THEME_NAMES.dark : SYNTAX_THEME_NAMES.light
@@ -98,8 +100,13 @@ export function CodeEditor({
 
   const handleMount = useCallback<OnMount>((editor, monaco) => {
     editorRef.current = editor
-    registerActions(editor, monaco, language, requestClear)
-  }, [language, requestClear])
+    registerActions(editor, monaco, requestClear, {
+      copyAll: t("copyAll"),
+      clearAction: t("clearAction"),
+      copySuccess: t("copySuccess"),
+      copyFailed: t("copyFailed"),
+    })
+  }, [requestClear, t])
 
   const [highlighter, setHighlighter] = useState<Highlighter | null>(null)
   useEffect(() => {
@@ -130,7 +137,7 @@ export function CodeEditor({
 
   const loading = (
     <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      加载编辑器…
+      {t("loading")}
     </div>
   )
 
@@ -192,12 +199,12 @@ export function CodeEditor({
       <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <DialogContent showCloseButton={false} className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>清空编辑器内容</DialogTitle>
-            <DialogDescription>此操作不可撤销。</DialogDescription>
+            <DialogTitle>{t("clearTitle")}</DialogTitle>
+            <DialogDescription>{t("clearDesc")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
-            <Button variant="destructive" onClick={executeClear}>确定清空</Button>
+            <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
+            <Button variant="destructive" onClick={executeClear}>{t("clearConfirm")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -219,6 +226,7 @@ type ContextMenuProps = {
  * 剪贴板按钮按能力探测置灰；粘贴失败优雅降级提示 Ctrl+V（原生快捷键兜底）。
  */
 function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onRequestClear }: ContextMenuProps) {
+  const t = useTranslations("codeEditor")
   const { canWrite, canRead } = clipboardCaps(
     typeof navigator === "undefined" ? undefined : navigator,
   )
@@ -227,11 +235,11 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(editorRef.current?.getValue() ?? value)
-      toast.success("已复制全部内容")
+      toast.success(t("copySuccess"))
     } catch {
-      toast.error("复制失败，请用 Ctrl+C")
+      toast.error(t("copyFailed"))
     }
-  }, [editorRef, value])
+  }, [editorRef, value, t])
 
   const handlePaste = useCallback(async () => {
     const editor = editorRef.current
@@ -245,9 +253,9 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
       ])
       editor.focus()
     } catch {
-      toast.info("浏览器拦截了读取剪贴板，请用 Ctrl+V")
+      toast.info(t("pasteBlocked"))
     }
-  }, [editorRef])
+  }, [editorRef, t])
 
   const handleFormat = useCallback(() => {
     editorRef.current?.getAction("editor.action.formatDocument")?.run()
@@ -261,13 +269,13 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
     <>
       <ContextMenuItem onClick={handleCopy} disabled={!canWrite}>
         <HugeiconsIcon icon={Copy01Icon} className="size-4" />
-        复制全部
+        {t("copyAll")}
         <span className="ml-auto text-xs text-muted-foreground">Ctrl+Shift+C</span>
       </ContextMenuItem>
       {!readOnly && (
         <ContextMenuItem onClick={handlePaste} disabled={!canRead}>
           <HugeiconsIcon icon={ClipboardPasteIcon} className="size-4" />
-          粘贴
+          {t("paste")}
           <span className="ml-auto text-xs text-muted-foreground">Ctrl+V</span>
         </ContextMenuItem>
       )}
@@ -276,7 +284,7 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleFormat}>
             <HugeiconsIcon icon={TextAlignLeftIcon} className="size-4" />
-            格式化
+            {t("format")}
             <span className="ml-auto text-xs text-muted-foreground">Shift+Alt+F</span>
           </ContextMenuItem>
         </>
@@ -284,7 +292,7 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
       <ContextMenuSeparator />
       <ContextMenuItem onClick={handleFind}>
         <HugeiconsIcon icon={Search01Icon} className="size-4" />
-        查找
+        {t("find")}
         <span className="ml-auto text-xs text-muted-foreground">Ctrl+F</span>
       </ContextMenuItem>
       {!readOnly && (
@@ -292,7 +300,7 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
           <ContextMenuSeparator />
           <ContextMenuItem onClick={onRequestClear} variant="destructive">
             <HugeiconsIcon icon={Eraser01Icon} className="size-4" />
-            清空
+            {t("clear")}
             <span className="ml-auto text-xs text-muted-foreground">Ctrl+Shift+Del</span>
           </ContextMenuItem>
         </>
@@ -310,20 +318,20 @@ function EditorContextMenu({ editorRef, value, onChange, language, readOnly, onR
 function registerActions(
   editor: MonacoEditor,
   monaco: Monaco,
-  _language?: string,
-  onRequestClear?: () => void,
+  onRequestClear: (() => void) | undefined,
+  labels: { copyAll: string; clearAction: string; copySuccess: string; copyFailed: string },
 ) {
   // Ctrl+Shift+C → 复制全部
   editor.addAction({
     id: "copy-all",
-    label: "复制全部",
+    label: labels.copyAll,
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyC],
     run: async (ed) => {
       try {
         await navigator.clipboard.writeText(ed.getValue())
-        toast.success("已复制全部内容")
+        toast.success(labels.copySuccess)
       } catch {
-        toast.error("复制失败，请用 Ctrl+C")
+        toast.error(labels.copyFailed)
       }
     },
   })
@@ -331,7 +339,7 @@ function registerActions(
   // Ctrl+Shift+Delete → 打开确认 Dialog（实际清空由 React 层完成）
   editor.addAction({
     id: "clear-editor",
-    label: "清空编辑器",
+    label: labels.clearAction,
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Delete],
     run: () => {
       onRequestClear?.()

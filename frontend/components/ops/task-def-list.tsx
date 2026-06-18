@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { CheckListIcon, BoxIcon } from "@hugeicons/core-free-icons"
 
@@ -26,14 +27,16 @@ interface TaskDefListProps {
   onRefresh: () => void
 }
 
-function statusBadge(status: string) {
-  if (status === "ONLINE") return <Badge variant="success">在线</Badge>
-  return <Badge variant="outline" className="text-muted-foreground">草稿</Badge>
-}
-
 export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit, onRefresh }: TaskDefListProps) {
+  const t = useTranslations("taskDefList")
+  const locale = useLocale()
   const [, setRefresh] = useState(0)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  function statusBadge(status: string) {
+    if (status === "ONLINE") return <Badge variant="success">{t("statusOnline")}</Badge>
+    return <Badge variant="outline" className="text-muted-foreground">{t("statusDraft")}</Badge>
+  }
 
   async function doAction(task: TaskDef, action: string) {
     try {
@@ -53,7 +56,7 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <HugeiconsIcon icon={CheckListIcon} className="text-primary" />
-        <h2 className="text-sm font-medium">任务定义</h2>
+        <h2 className="text-sm font-medium">{t("title")}</h2>
         <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
           {total}
         </span>
@@ -64,9 +67,9 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
           <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
             <HugeiconsIcon icon={BoxIcon} className="size-6" />
           </div>
-          <p className="text-sm text-muted-foreground">暂无任务定义</p>
+          <p className="text-sm text-muted-foreground">{t("emptyTitle")}</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            点击「新建任务」创建草稿，或通过 Agent 对话创建。
+            {t("emptyHint")}
           </p>
         </div>
       ) : (
@@ -75,40 +78,40 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-44">名称</TableHead>
-                  <TableHead className="w-20">类型</TableHead>
-                  <TableHead className="w-20">状态</TableHead>
-                  <TableHead className="w-14 text-right">优先级</TableHead>
-                  <TableHead className="w-16 text-right">版本</TableHead>
-                  <TableHead className="w-40">创建时间</TableHead>
-                  <TableHead className="w-40 text-right">操作</TableHead>
+                  <TableHead className="w-44">{t("colName")}</TableHead>
+                  <TableHead className="w-20">{t("colType")}</TableHead>
+                  <TableHead className="w-20">{t("colStatus")}</TableHead>
+                  <TableHead className="w-14 text-right">{t("colPriority")}</TableHead>
+                  <TableHead className="w-16 text-right">{t("colVersion")}</TableHead>
+                  <TableHead className="w-40">{t("colCreatedAt")}</TableHead>
+                  <TableHead className="w-40 text-right">{t("colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="w-44 max-w-0 truncate font-medium" title={t.name}>
-                      {t.name}
-                      {t.description && (
-                        <div className="truncate text-xs font-normal text-muted-foreground">{t.description}</div>
+                {tasks.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="w-44 max-w-0 truncate font-medium" title={task.name}>
+                      {task.name}
+                      {task.description && (
+                        <div className="truncate text-xs font-normal text-muted-foreground">{task.description}</div>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{t.type}</TableCell>
-                    <TableCell>{statusBadge(t.status)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{t.priority ?? 5}</TableCell>
-                    <TableCell className="text-right tabular-nums">v{t.currentVersionNo}</TableCell>
-                    <TableCell className="tabular-nums">{formatDateTime(t.createdAt)}</TableCell>
+                    <TableCell className="font-mono text-xs">{task.type}</TableCell>
+                    <TableCell>{statusBadge(task.status)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{task.priority ?? 5}</TableCell>
+                    <TableCell className="text-right tabular-nums">v{task.currentVersionNo}</TableCell>
+                    <TableCell className="tabular-nums">{formatDateTime(task.createdAt, locale)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(t)}>编辑</Button>
-                        {t.status === "DRAFT" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(t, "publish")}>发布</Button>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(task)}>{t("btnEdit")}</Button>
+                        {task.status === "DRAFT" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(task, "publish")}>{t("btnPublish")}</Button>
                         )}
-                        {t.status === "ONLINE" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(t, "offline")}>下线</Button>
+                        {task.status === "ONLINE" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(task, "offline")}>{t("btnOffline")}</Button>
                         )}
-                        {t.status === "DRAFT" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(t, "delete")}>删除</Button>
+                        {task.status === "DRAFT" && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(task, "delete")}>{t("btnDelete")}</Button>
                         )}
                       </div>
                     </TableCell>
@@ -121,11 +124,11 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-1">
               <span className="text-xs text-muted-foreground">
-                共 {total} 条，第 {page + 1}/{totalPages} 页
+                {t("pageInfo", { total, page: page + 1, totalPages })}
               </span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => onPageChange(page - 1)}>上一页</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page >= totalPages - 1} onClick={() => onPageChange(page + 1)}>下一页</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => onPageChange(page - 1)}>{t("prevPage")}</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page >= totalPages - 1} onClick={() => onPageChange(page + 1)}>{t("nextPage")}</Button>
               </div>
             </div>
           )}

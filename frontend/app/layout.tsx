@@ -1,6 +1,7 @@
+import type { Metadata } from "next"
 import { Geist_Mono, Inter } from "next/font/google"
 import { NextIntlClientProvider } from "next-intl"
-import { getLocale, getMessages } from "next-intl/server"
+import { getLocale, getMessages, getTranslations } from "next-intl/server"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -15,9 +16,12 @@ const interSerif = Inter({subsets:['latin'],variable:'--font-serif'});
 
 const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
 
-export const metadata = {
-  title: "DataWeave · AI 数据中台",
-  description: "用 Agent 编织数据 —— AI Agent 原生的数据中台",
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta")
+  return {
+    title: t("title"),
+    description: t("description"),
+  }
 }
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'})

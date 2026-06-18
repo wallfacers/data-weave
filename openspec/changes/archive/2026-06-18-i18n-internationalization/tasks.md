@@ -65,19 +65,19 @@ Worker 执行结果经 Agent 回显给用户，属 Agent 相关文案。
 
 ## 7. 前端 UI 静态文案抽 key（按热点文件）
 
-- [ ] 7.1 `lib/workspace/views.ts`（视图标题字典 15 处）— 集中式起点，示范 key 结构
-- [ ] 7.2 `components/workspace/catalog-tree.tsx`（54 处：右键菜单 / 对话框 / toast / 空状态）
+- [x] 7.1 `lib/workspace/views.ts`（视图标题字典 15 处）— 集中式起点，示范 key 结构
+- [x] 7.2 `components/workspace/catalog-tree.tsx`（54 处：右键菜单 / 对话框 / toast / 空状态）
 - [x] 7.3 `components/workspace/task-editor-pane.tsx`（50 处：表单 label / placeholder / toast）— `taskEditor.*` namespace（zh+en），`useTranslations`，preset 字典移入组件用 `t()`，`paramsHint` 用 `t.rich`（含 `${'{'}…{'}'}` ICU 转义），RunLogs 独立翻译；失败 toast 用 `j.message || t(...)` 兜底（对齐 7.2）
-- [ ] 7.4 `components/workspace/views/workflow-canvas-view.tsx`（48 处：toast / 节点右键菜单）
-- [ ] 7.5 `components/workspace/views/settings-view.tsx`（47 处）+ `components/settings-sheet.tsx`
-- [ ] 7.6 `components/ops/instance-table.tsx`（35 处：状态徽章映射 + toast）
-- [ ] 7.7 `components/workspace/views/metrics-view.tsx`（28 处）+ `cockpit-view.tsx`（23 处）
-- [ ] 7.8 `task-def-list.tsx`（19）/ `freshness-view.tsx`（16）/ `diagnosis-card.tsx`（8）
-- [ ] 7.9 `components/agent/approval-card.tsx` + `components/cockpit/fix-actions.tsx`（后端 message 渲染点）
-- [ ] 7.10 其余：`log-panel` / `instance-log-view` / `task-search-bar` / `registry` / `login` / `agent-rail` / `tab-strip`
-- [ ] 7.11 处理 ~12 处插值文案（ICU 参数化：catalog-tree 重命名/删除三元、approval verb、view-status、log-panel 节点拼接等）
+- [x] 7.4 `components/workspace/views/workflow-canvas-view.tsx`（48 处：toast / 节点右键菜单）
+- [x] 7.5 `components/workspace/views/settings-view.tsx`（47 处）+ `components/settings-sheet.tsx`
+- [x] 7.6 `components/ops/instance-table.tsx`（35 处：状态徽章映射 + toast）
+- [x] 7.7 `components/workspace/views/metrics-view.tsx`（28 处）+ `cockpit-view.tsx`（23 处）
+- [x] 7.8 `task-def-list.tsx`（19）/ `freshness-view.tsx`（16）/ `diagnosis-card.tsx`（8）
+- [x] 7.9 `components/agent/approval-card.tsx` + `components/cockpit/fix-actions.tsx`（后端 message 渲染点）
+- [x] 7.10 其余：`log-panel` / `instance-log-view` / `task-search-bar` / `registry` / `login` / `agent-rail` / `tab-strip`
+- [x] 7.11 处理 ~12 处插值文案（ICU 参数化：catalog-tree 重命名/删除三元、approval verb、view-status、log-panel 节点拼接等）
 - [x] 7.12 下线 `toast.*(message || "中文兜底")`：`workflow-canvas-view`（7 处 → `j.message`，未抽 key 文件信任后端本地化；`r.message || j.message` 处理 optional）+ `task-editor`（7.3 已用 `|| t()`）+ `catalog-tree`（7.2 已用 `|| t()`）。全前端 toast message 兜底已清零（grep 验证）。`fix-actions`/`auth` 的 `throw new Error(msg || "中文")` 属 7.9/7.10 非 toast，留待
-- [ ] 7.13 typecheck 验证
+- [x] 7.13 typecheck 验证
 
 ## 8. 前端设置面板语言区
 
@@ -89,16 +89,16 @@ Worker 执行结果经 Agent 回显给用户，属 Agent 相关文案。
 
 ## 9. 前端日期 / 数字 locale 化
 
-- [ ] 9.1 `lib/types.ts:formatDateTime()` → `Intl.DateTimeFormat(locale, {...})`（单点覆盖 5 处复用）
-- [ ] 9.2 `components/ops/log-viewer-panel.tsx:75` `toLocaleString()` 显式传 locale + 修 `bytes` 单位硬编码英文
-- [ ] 9.3 typecheck + 视觉验证（zh / en 日期格式差异）
+- [x] 9.1 `lib/types.ts:formatDateTime()` → `Intl.DateTimeFormat(locale, {...})`（单点覆盖 5 处复用）
+- [x] 9.2 `components/ops/log-viewer-panel.tsx:75` `toLocaleString()` 显式传 locale + 修 `bytes` 单位硬编码英文
+- [x] 9.3 typecheck + 视觉验证（zh / en 日期格式差异）
 
 ## 10. 英文 bundle 产出
 
-- [ ] 10.1 前端 `messages/en-US.json` 完整产出（key 与 zh-CN 对齐），全量标注「待母语校」
-- [ ] 10.2 后端 `messages_en_US.properties` 完整产出
-- [ ] 10.3 数据中台术语保留英文原词（cron / DAG / 血缘→lineage / SLA / OOM 等）
-- [ ] 10.4 缺失 key fallback 到 zh-CN 行为验证
+- [x] 10.1 前端 `messages/en-US.json` 完整产出（key 与 zh-CN 对齐），全量标注「待母语校」
+- [x] 10.2 后端 `messages_en_US.properties` 完整产出
+- [x] 10.3 数据中台术语保留英文原词（cron / DAG / 血缘→lineage / SLA / OOM 等）
+- [x] 10.4 缺失 key fallback 到 zh-CN 行为验证
 
 ## 11. 测试对齐
 
@@ -110,9 +110,9 @@ Worker 执行结果经 Agent 回显给用户，属 Agent 相关文案。
 
 ## 12. 规范与收尾
 
-- [ ] 12.1 产出错误码集中清单（code → zh / en 对照表，单独 md 或 design 附件）
-- [ ] 12.2 i18n key 命名规范 + 文案归属三规则补入 `CLAUDE.md` Key Conventions（约定层）
-- [ ] 12.3 可选：lint 脚本 grep 残留中文 JSX 硬编码（CI 兜底）
-- [ ] 12.4 `data.sql` 种子数据加注释标注「i18n 豁免，业务数据保留中文」
-- [ ] 12.5 更新 `docs/architecture.md` 增加 i18n 段落（架构真相源）
-- [ ] 12.6 `openspec validate i18n-internationalization` 通过
+- [x] 12.1 产出错误码集中清单（code → zh / en 对照表，单独 md 或 design 附件）
+- [x] 12.2 i18n key 命名规范 + 文案归属三规则补入 `CLAUDE.md` Key Conventions（约定层）
+- [x] 12.3 可选：lint 脚本 grep 残留中文 JSX 硬编码（CI 兜底）
+- [x] 12.4 `data.sql` 种子数据加注释标注「i18n 豁免，业务数据保留中文」
+- [x] 12.5 更新 `docs/architecture.md` 增加 i18n 段落（架构真相源）
+- [x] 12.6 `openspec validate i18n-internationalization` 通过

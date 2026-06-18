@@ -269,14 +269,27 @@ export function safeJsonParse<T>(json: string | null | undefined): T | null {
   }
 }
 
-/** Format a datetime string to yyyy-MM-dd HH:mm:ss. */
-export function formatDateTime(iso: string | null | undefined): string {
+/**
+ * 按 UI locale 格式化日期时间（D9）。locale 由调用方经 next-intl `useLocale()` 传入；
+ * 缺省时退回运行时默认 locale。zh-CN → `2026/06/18 14:30:00`，en-US → `06/18/2026, 14:30:00`。
+ */
+export function formatDateTime(
+  iso: string | null | undefined,
+  locale?: string,
+): string {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(d);
   } catch {
     return iso;
   }

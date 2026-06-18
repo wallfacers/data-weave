@@ -20,7 +20,8 @@
     "failed": "失败",
     "noData": "暂无数据",
     "operationSuccess": "操作成功",
-    "operationFailed": "操作失败"
+    "operationFailed": "操作失败",
+    "selectPlaceholder": "请选择"
   },
   "workspace": {
     "title": "Workspace",
@@ -108,7 +109,8 @@
   },
   "agentRail": {
     "current": "当前：",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "resizeHandle": "拖拽调整 Agent 面板宽度"
   },
   "taskEditor": {
     "run": "运行",
@@ -339,7 +341,12 @@
     "connectError": "无法连接后端（{apiBase}），请确认后端已启动。"
   },
   "placeholderView": {
-    "agentHint": "本模块的操作统一通过左侧 Agent 对话完成"
+    "agentHint": "本模块的操作统一通过左侧 Agent 对话完成",
+    "descLineage": "表与任务的上下游依赖图谱。",
+    "descCatalog": "数据表、主题域与资产盘点。",
+    "descQuality": "质量规则、校验结果与告警。",
+    "descIntegration": "数据源接入与同步链路。",
+    "descService": "数据 API 与服务编排。"
   },
   "settingsView": {
     "cancel": "取消",
@@ -405,5 +412,155 @@
     "signingIn": "登录中…",
     "loginFailed": "登录失败",
     "defaultAccount": "默认账号：admin / admin"
+  },
+  "instanceTable": {
+    "stateSuccess": "成功",
+    "stateRunning": "运行中",
+    "stateWaitRetry": "等待重试",
+    "stateWaiting": "等待",
+    "stateDispatched": "已分发",
+    "stateNotRun": "未运行",
+    "stateFailed": "失败",
+    "stateKilled": "已终止",
+    "stateSkipped": "已跳过",
+    "statePaused": "已暂停",
+    "stateStopped": "已终止",
+    "actionPause": "暂停",
+    "actionResume": "恢复",
+    "actionKill": "终止",
+    "actionRerun": "重跑",
+    "actionRecover": "断点恢复",
+    "actionFailed": "{label}失败：{msg}",
+    "actionSuccess": "{label}成功",
+    "networkError": "网络异常",
+    "emptyTitle": "暂无运行实例",
+    "emptyHint": "任务执行后，运行实例将在此展示。通过 Agent 对话创建并上线任务即可。",
+    "colInstance": "实例",
+    "colTask": "任务",
+    "colStatus": "状态",
+    "colNode": "节点",
+    "colStartedAt": "开始时间",
+    "colFinishedAt": "结束时间",
+    "colAttempt": "尝试",
+    "colActions": "操作",
+    "btnLog": "日志"
+  },
+  "taskDefList": {
+    "statusOnline": "在线",
+    "statusDraft": "草稿",
+    "title": "任务定义",
+    "emptyTitle": "暂无任务定义",
+    "emptyHint": "点击「新建任务」创建草稿，或通过 Agent 对话创建。",
+    "colName": "名称",
+    "colType": "类型",
+    "colStatus": "状态",
+    "colPriority": "优先级",
+    "colVersion": "版本",
+    "colCreatedAt": "创建时间",
+    "colActions": "操作",
+    "btnEdit": "编辑",
+    "btnPublish": "发布",
+    "btnOffline": "下线",
+    "btnDelete": "删除",
+    "pageInfo": "共 {total} 条，第 {page}/{totalPages} 页",
+    "prevPage": "上一页",
+    "nextPage": "下一页"
+  },
+  "taskSearchBar": {
+    "allTypes": "全部类型",
+    "allStatus": "全部状态",
+    "statusDraft": "草稿",
+    "statusOnline": "在线",
+    "searchPlaceholder": "搜索任务名称…",
+    "newTask": "新建任务"
+  },
+  "diagnosisCard": {
+    "diagnosisLabel": "诊断 #{id}",
+    "nodeLabel": "节点 {code}",
+    "taskLabel": "任务 #{id}",
+    "statusResolved": "已解决",
+    "statusPending": "待处理",
+    "rootCauseTitle": "根因分析",
+    "noRootCause": "（无根因描述）",
+    "evidenceTitle": "证据",
+    "suggestionsTitle": "修复建议"
+  },
+  "approvalCard": {
+    "operationFailed": "操作失败",
+    "verbApproved": "已批准并执行",
+    "verbRejected": "已拒绝",
+    "resultMsg": "审批单 #{id} {verb}：{msg}",
+    "requestFailed": "请求失败：{err}",
+    "title": "待审批操作",
+    "confirmPlaceholder": "不可逆操作：回输目标对象名以二次确认",
+    "btnApprove": "批准并执行",
+    "btnReject": "拒绝"
+  },
+  "fixActions": {
+    "execFailed": "执行失败"
+  },
+  "logViewer": {
+    "bytes": "{size} 字节",
+    "taskLabel": "任务 #{id}",
+    "startedLabel": "开始：{time}",
+    "finishedLabel": "结束：{time}",
+    "loading": "加载中…",
+    "emptyLog": "（无日志）",
+    "loadMore": "加载更多",
+    "download": "下载"
+  },
+  "meta": {
+    "title": "DataWeave · AI 数据中台",
+    "description": "用 Agent 编织数据 —— AI Agent 原生的数据中台"
+  },
+  "resultTable": {
+    "kindTable": "查询结果",
+    "kindFleet": "节点机群",
+    "kindLineage": "血缘",
+    "kindTask": "任务",
+    "kindMetric": "指标",
+    "kindDiagnosis": "诊断",
+    "fallbackTitle": "结果",
+    "rowCount": "{count} 行",
+    "closeLabel": "关闭结果",
+    "empty": "无数据"
+  },
+  "fleetCard": {
+    "online": "在线",
+    "offline": "离线",
+    "mem": "内存",
+    "disk": "磁盘",
+    "load": "负载",
+    "runningTasks": "运行任务",
+    "spec": "规格"
+  },
+  "codeEditor": {
+    "loading": "加载编辑器…",
+    "clearTitle": "清空编辑器内容",
+    "clearDesc": "此操作不可撤销。",
+    "cancel": "取消",
+    "clearConfirm": "确定清空",
+    "copyAll": "复制全部",
+    "paste": "粘贴",
+    "format": "格式化",
+    "find": "查找",
+    "clear": "清空",
+    "clearAction": "清空编辑器",
+    "copySuccess": "已复制全部内容",
+    "copyFailed": "复制失败，请用 Ctrl+C",
+    "pasteBlocked": "浏览器拦截了读取剪贴板，请用 Ctrl+V"
+  },
+  "tabStrip": {
+    "close": "关闭标签页",
+    "closeOthers": "关闭其他标签页",
+    "closeRight": "关闭右侧标签页",
+    "closeLeft": "关闭左侧标签页",
+    "closeAll": "关闭全部标签页",
+    "closeAria": "关闭 {label}"
+  },
+  "auth": {
+    "loginFailed": "登录失败",
+    "sessionExpired": "登录已过期",
+    "sessionExpiredToast": "登录已过期，请重新登录"
   }
 }

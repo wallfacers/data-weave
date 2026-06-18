@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Bug01Icon,
@@ -26,6 +27,7 @@ export function DiagnosisCard({
   diagnosis: TaskDiagnosis;
   highlighted?: boolean;
 }) {
+  const t = useTranslations("diagnosisCard");
   const isResolved = diagnosis.status === "RESOLVED";
   const context = safeJsonParse<Record<string, unknown>>(diagnosis.contextJson);
   const suggestions =
@@ -61,20 +63,20 @@ export function DiagnosisCard({
                 {diagnosis.title}
               </CardTitle>
               <div className="flex items-center gap-2 text-xs text-muted-foreground font-sans">
-                <span>诊断 #{diagnosis.id}</span>
+                <span>{t("diagnosisLabel", { id: diagnosis.id })}</span>
                 {diagnosis.workerNodeCode && (
                   <>
                     <span>·</span>
-                    <span>节点 {diagnosis.workerNodeCode}</span>
+                    <span>{t("nodeLabel", { code: diagnosis.workerNodeCode })}</span>
                   </>
                 )}
                 <span>·</span>
-                <span>任务 #{diagnosis.taskId}</span>
+                <span>{t("taskLabel", { id: diagnosis.taskId })}</span>
               </div>
             </div>
           </div>
           <Badge variant={isResolved ? "secondary" : "destructive"}>
-            {isResolved ? "已解决" : "待处理"}
+            {isResolved ? t("statusResolved") : t("statusPending")}
           </Badge>
         </div>
       </CardHeader>
@@ -84,14 +86,14 @@ export function DiagnosisCard({
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
             <HugeiconsIcon icon={BulbIcon} className="size-3.5" />
-            根因分析
+            {t("rootCauseTitle")}
           </div>
           <p
             className={`text-sm leading-relaxed ${
               isResolved ? "text-muted-foreground" : "text-foreground"
             }`}
           >
-            {diagnosis.rootCause || "（无根因描述）"}
+            {diagnosis.rootCause || t("noRootCause")}
           </p>
         </div>
 
@@ -99,7 +101,7 @@ export function DiagnosisCard({
         {context && Object.keys(context).length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              证据
+              {t("evidenceTitle")}
             </div>
             <div className="grid gap-1.5 rounded-lg bg-muted/50 p-3 font-sans text-xs">
               {Object.entries(context).map(([key, value]) => (
@@ -122,7 +124,7 @@ export function DiagnosisCard({
         {!isResolved && suggestions.length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              修复建议
+              {t("suggestionsTitle")}
             </div>
             <FixActions
               diagnosisId={diagnosis.id}

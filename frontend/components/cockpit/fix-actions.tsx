@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   RefreshIcon,
@@ -33,6 +34,7 @@ export function FixActions({
   disabled?: boolean;
 }) {
   const router = useRouter();
+  const t = useTranslations("fixActions");
   const [loading, setLoading] = useState<string | null>(null);
   const [result, setResult] = useState<FixResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function FixActions({
       );
       const json = await res.json() as ApiResponse<FixResult>;
       if (json.code !== 0 || !json.data) {
-        throw new Error(json.message || "执行失败");
+        throw new Error(json.message || t("execFailed"));
       }
       const data = json.data;
       setResult(data);
@@ -57,7 +59,7 @@ export function FixActions({
         setTimeout(() => router.refresh(), 600);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "执行失败");
+      setError(e instanceof Error ? e.message : t("execFailed"));
     } finally {
       setLoading(null);
     }

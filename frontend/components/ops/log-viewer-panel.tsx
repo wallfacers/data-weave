@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Download01Icon } from "@hugeicons/core-free-icons"
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react"
@@ -17,6 +18,8 @@ export interface SidePanelViewProps {
 }
 
 export function LogViewerPanel({ params, onClose }: SidePanelViewProps) {
+  const t = useTranslations("logViewer")
+  const locale = useLocale()
   const instanceId = params?.instanceId as number
   const taskId = params?.taskId as number | undefined
   const startedAt = params?.startedAt as string | undefined
@@ -72,11 +75,11 @@ export function LogViewerPanel({ params, onClose }: SidePanelViewProps) {
     <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span className="rounded-md bg-muted px-2 py-0.5 font-mono">
-          {totalSize.toLocaleString()} bytes
+          {t("bytes", { size: totalSize.toLocaleString(locale) })}
         </span>
-        {taskId && <span>任务 #{taskId}</span>}
-        {startedAt && <span>开始: {formatDateTime(startedAt)}</span>}
-        {finishedAt && <span>结束: {formatDateTime(finishedAt)}</span>}
+        {taskId && <span>{t("taskLabel", { id: taskId })}</span>}
+        {startedAt && <span>{t("startedLabel", { time: formatDateTime(startedAt, locale) })}</span>}
+        {finishedAt && <span>{t("finishedLabel", { time: formatDateTime(finishedAt, locale) })}</span>}
       </div>
 
       <OverlayScrollbarsComponent
@@ -86,19 +89,19 @@ export function LogViewerPanel({ params, onClose }: SidePanelViewProps) {
         options={{ scrollbars: { theme: "os-theme-dark", autoHide: "never" } }}
       >
         <pre className="p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
-          {content || (loading ? "加载中…" : "（无日志）")}
+          {content || (loading ? t("loading") : t("emptyLog"))}
         </pre>
       </OverlayScrollbarsComponent>
 
       <div className="flex items-center gap-2">
         {content.length < totalSize && (
           <Button variant="outline" size="sm" onClick={loadMore} disabled={loading}>
-            加载更多
+            {t("loadMore")}
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={download}>
           <HugeiconsIcon icon={Download01Icon} className="size-3.5" />
-          下载
+          {t("download")}
         </Button>
       </div>
     </div>

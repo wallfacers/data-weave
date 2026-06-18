@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   ServerStack01Icon,
@@ -56,6 +57,7 @@ function ResourceBar({
 }
 
 export function FleetCard({ node }: { node: WorkerNode }) {
+  const t = useTranslations("fleetCard");
   const isOnline = node.status === "ONLINE";
 
   return (
@@ -82,7 +84,7 @@ export function FleetCard({ node }: { node: WorkerNode }) {
             </div>
           </div>
           <Badge variant={isOnline ? "success" : "secondary"}>
-            {isOnline ? "在线" : "离线"}
+            {isOnline ? t("online") : t("offline")}
           </Badge>
         </div>
       </CardHeader>
@@ -91,8 +93,8 @@ export function FleetCard({ node }: { node: WorkerNode }) {
         {/* Resource bars */}
         <div className="flex flex-col gap-3">
           <ResourceBar label="CPU" value={node.cpu} icon={CpuIcon} />
-          <ResourceBar label="内存" value={node.mem} icon={MemoryStickIcon} />
-          <ResourceBar label="磁盘" value={node.disk} icon={Database01Icon} />
+          <ResourceBar label={t("mem")} value={node.mem} icon={MemoryStickIcon} />
+          <ResourceBar label={t("disk")} value={node.disk} icon={Database01Icon} />
         </div>
 
         {/* Meta info */}
@@ -100,7 +102,7 @@ export function FleetCard({ node }: { node: WorkerNode }) {
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <HugeiconsIcon icon={Activity01Icon} className="size-3.5" />
             <span>
-              负载{" "}
+              {t("load")}{" "}
               <span className="text-foreground">
                 {node.loadAvg?.toFixed(2) ?? "—"}
               </span>
@@ -109,14 +111,14 @@ export function FleetCard({ node }: { node: WorkerNode }) {
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <HugeiconsIcon icon={TaskDaily01Icon} className="size-3.5" />
             <span>
-              运行任务{" "}
+              {t("runningTasks")}{" "}
               <span className="text-foreground">{node.runningTasks ?? 0}</span>
             </span>
           </div>
           <div className="col-span-2 flex items-center gap-1.5 text-muted-foreground">
             <HugeiconsIcon icon={ServerStack01Icon} className="size-3.5" />
             <span>
-              规格{" "}
+              {t("spec")}{" "}
               <span className="text-foreground">{node.capacity || "—"}</span>
             </span>
           </div>

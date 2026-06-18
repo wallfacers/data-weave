@@ -1,24 +1,13 @@
 "use client"
 
 import { useCallback } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon, Add01Icon } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownSelect } from "@/components/ui/select"
-
-const TYPE_OPTIONS = [
-  { value: "", label: "全部类型" },
-  { value: "SQL", label: "SQL" },
-  { value: "SHELL", label: "SHELL" },
-]
-
-const STATUS_OPTIONS = [
-  { value: "", label: "全部状态" },
-  { value: "DRAFT", label: "草稿" },
-  { value: "ONLINE", label: "在线" },
-]
 
 export interface TaskSearchParams {
   keyword: string
@@ -33,6 +22,17 @@ interface TaskSearchBarProps {
 }
 
 export function TaskSearchBar({ params, onChange, onNewTask }: TaskSearchBarProps) {
+  const t = useTranslations("taskSearchBar")
+  const TYPE_OPTIONS = [
+    { value: "", label: t("allTypes") },
+    { value: "SQL", label: "SQL" },
+    { value: "SHELL", label: "SHELL" },
+  ]
+  const STATUS_OPTIONS = [
+    { value: "", label: t("allStatus") },
+    { value: "DRAFT", label: t("statusDraft") },
+    { value: "ONLINE", label: t("statusOnline") },
+  ]
   const set = useCallback(
     (key: keyof TaskSearchParams, value: string) => {
       onChange({ ...params, [key]: value })
@@ -49,7 +49,7 @@ export function TaskSearchBar({ params, onChange, onNewTask }: TaskSearchBarProp
         />
         <Input
           className="h-8 w-52 pl-8 text-sm"
-          placeholder="搜索任务名称…"
+          placeholder={t("searchPlaceholder")}
           value={params.keyword}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => set("keyword", e.target.value)}
         />
@@ -59,21 +59,21 @@ export function TaskSearchBar({ params, onChange, onNewTask }: TaskSearchBarProp
         value={params.type}
         onChange={(v) => set("type", v)}
         options={TYPE_OPTIONS}
-        placeholder="全部类型"
+        placeholder={t("allTypes")}
       />
 
       <DropdownSelect
         value={params.status}
         onChange={(v) => set("status", v)}
         options={STATUS_OPTIONS}
-        placeholder="全部状态"
+        placeholder={t("allStatus")}
       />
 
       <div className="flex-1" />
 
       <Button size="sm" className="h-8" onClick={onNewTask}>
         <HugeiconsIcon icon={Add01Icon} className="size-4" />
-        新建任务
+        {t("newTask")}
       </Button>
     </div>
   )

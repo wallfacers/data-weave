@@ -3,6 +3,7 @@
  * 多个并发请求同时收到 401 时，只会触发一次 toast 和一次跳转。
  */
 import { toast } from "sonner"
+import { tClient } from "@/lib/i18n-client"
 
 const TOKEN_KEY = "dw.auth.token"
 const USER_KEY = "dw.auth.user"
@@ -16,7 +17,7 @@ export function handleUnauthorized(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
 
-  toast.error("登录已过期，请重新登录")
+  toast.error(tClient("auth.sessionExpiredToast"))
 
   // 延迟跳转，让用户看到 toast
   setTimeout(() => {

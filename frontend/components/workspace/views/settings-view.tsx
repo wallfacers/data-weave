@@ -322,32 +322,33 @@ function RolesTab() {
 /* ------------------------------------------------------------------ */
 
 function ProjectsTab() {
+  const t = useTranslations("settingsView")
   const { items, loading, create, remove } = useCrud<Project>("/api/projects")
   const [adding, setAdding] = useState(false)
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">加载中…</p>
+  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">项目管理</h2>
+        <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
         <Button size="sm" onClick={() => setAdding(true)}>
-          新增项目
+          {t("addProject")}
         </Button>
       </div>
 
       {adding && (
         <InlineForm
           fields={[
-            { key: "code", label: "项目编码", placeholder: "my-project" },
-            { key: "name", label: "项目名", placeholder: "我的项目" },
+            { key: "code", label: t("fieldProjectCode"), placeholder: "my-project" },
+            { key: "name", label: t("fieldProjectName"), placeholder: t("fieldProjectNamePlaceholder") },
           ]}
           onSubmit={async (vals) => {
             await create(vals)
             setAdding(false)
           }}
           onCancel={() => setAdding(false)}
-          submitLabel="创建"
+          submitLabel={t("submitCreate")}
         />
       )}
 
@@ -355,10 +356,10 @@ function ProjectsTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">编码</th>
-              <th className="px-3 py-2 font-medium">名称</th>
-              <th className="px-3 py-2 font-medium">状态</th>
-              <th className="px-3 py-2 font-medium text-right">操作</th>
+              <th className="px-3 py-2 font-medium">{t("colCode")}</th>
+              <th className="px-3 py-2 font-medium">{t("colName")}</th>
+              <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
+              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -368,7 +369,7 @@ function ProjectsTab() {
                 <td className="px-3 py-2">{p.name}</td>
                 <td className="px-3 py-2">
                   <Badge variant={p.status === "ACTIVE" ? "success" : "secondary"}>
-                    {p.status === "ACTIVE" ? "活跃" : p.status}
+                    {p.status === "ACTIVE" ? t("statusProjectActive") : p.status}
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -377,7 +378,7 @@ function ProjectsTab() {
                     variant="ghost"
                     onClick={() => void remove(p.id)}
                   >
-                    删除
+                    {t("delete")}
                   </Button>
                 </td>
               </tr>
@@ -385,7 +386,7 @@ function ProjectsTab() {
             {items.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                  暂无项目
+                  {t("emptyProjects")}
                 </td>
               </tr>
             )}
@@ -400,27 +401,28 @@ function ProjectsTab() {
 /*  Main Settings View                                                 */
 /* ------------------------------------------------------------------ */
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "users", label: "用户" },
-  { key: "roles", label: "角色" },
-  { key: "projects", label: "项目" },
+const TABS: { key: Tab; labelKey: "tabUsers" | "tabRoles" | "tabProjects" }[] = [
+  { key: "users", labelKey: "tabUsers" },
+  { key: "roles", labelKey: "tabRoles" },
+  { key: "projects", labelKey: "tabProjects" },
 ]
 
 export function SettingsView() {
+  const t = useTranslations("settingsView")
   const [tab, setTab] = useState<Tab>("users")
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       {/* Tab 条 */}
       <div className="flex gap-1">
-        {TABS.map((t) => (
+        {TABS.map((tabItem) => (
           <Button
-            key={t.key}
-            variant={tab === t.key ? "secondary" : "ghost"}
+            key={tabItem.key}
+            variant={tab === tabItem.key ? "secondary" : "ghost"}
             size="sm"
-            onClick={() => setTab(t.key)}
+            onClick={() => setTab(tabItem.key)}
           >
-            {t.label}
+            {t(tabItem.labelKey)}
           </Button>
         ))}
       </div>

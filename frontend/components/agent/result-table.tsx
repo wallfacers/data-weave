@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 
@@ -27,31 +28,33 @@ export interface ResultData {
   rows: Record<string, unknown>[]
 }
 
-/** kind → 中文标题（无 title 时兜底）。 */
-const KIND_LABEL: Record<string, string> = {
-  table: "查询结果",
-  fleet: "节点机群",
-  lineage: "血缘",
-  task: "任务",
-  metric: "指标",
-  diagnosis: "诊断",
+/** kind → i18n key（无 title 时兜底标题）。 */
+const KIND_LABEL_KEY: Record<string, string> = {
+  table: "kindTable",
+  fleet: "kindFleet",
+  lineage: "kindLineage",
+  task: "kindTask",
+  metric: "kindMetric",
+  diagnosis: "kindDiagnosis",
 }
 
 /** 用 shadcn `Table` 富渲染 Agent 返回的结构化表格（MVP 4.6），与 markdown 表格互补。 */
 export function ResultTable({ data, onClose }: { data: ResultData; onClose: () => void }) {
+  const t = useTranslations("resultTable")
   const { columns, rows, kind, title, sql } = data
+  const kindKey = KIND_LABEL_KEY[kind ?? ""]
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border bg-card px-3 py-2.5 shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{title ?? KIND_LABEL[kind ?? ""] ?? "结果"}</span>
+        <span className="text-sm font-medium">{title ?? (kindKey ? t(kindKey) : t("fallbackTitle"))}</span>
         {kind && <Badge className="bg-muted text-muted-foreground">{kind}</Badge>}
-        <span className="ml-auto text-xs text-muted-foreground">{rows.length} 行</span>
+        <span className="ml-auto text-xs text-muted-foreground">{t("rowCount", { count: rows.length })}</span>
         <Button
           size="icon"
           variant="ghost"
           className="size-6"
           onClick={onClose}
-          aria-label="关闭结果"
+          aria-label={t("closeLabel")}
         >
           <HugeiconsIcon icon={Cancel01Icon} className="size-3.5" />
         </Button>
@@ -77,7 +80,7 @@ export function ResultTable({ data, onClose }: { data: ResultData; onClose: () =
                   colSpan={Math.max(columns.length, 1)}
                   className="text-center text-muted-foreground"
                 >
-                  无数据
+                  {t("empty")}
                 </TableCell>
               </TableRow>
             ) : (

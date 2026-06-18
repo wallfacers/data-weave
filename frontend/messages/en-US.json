@@ -20,7 +20,8 @@
     "failed": "Failed",
     "noData": "No data",
     "operationSuccess": "Operation succeeded",
-    "operationFailed": "Operation failed"
+    "operationFailed": "Operation failed",
+    "selectPlaceholder": "Select"
   },
   "workspace": {
     "title": "Workspace",
@@ -108,7 +109,8 @@
   },
   "agentRail": {
     "current": "Current: ",
-    "logout": "Log out"
+    "logout": "Log out",
+    "resizeHandle": "Drag to resize Agent panel width"
   },
   "taskEditor": {
     "run": "Run",
@@ -339,7 +341,12 @@
     "connectError": "Unable to connect to backend ({apiBase}). Please make sure the backend is running."
   },
   "placeholderView": {
-    "agentHint": "Operations for this module are handled through the Agent chat on the left"
+    "agentHint": "Operations for this module are handled through the Agent chat on the left",
+    "descLineage": "Upstream/downstream dependency graph of tables and tasks.",
+    "descCatalog": "Tables, subject domains and asset inventory.",
+    "descQuality": "Quality rules, validation results and alerts.",
+    "descIntegration": "Data source ingestion and sync pipelines.",
+    "descService": "Data APIs and service orchestration."
   },
   "settingsView": {
     "cancel": "Cancel",
@@ -405,5 +412,155 @@
     "signingIn": "Signing in…",
     "loginFailed": "Login failed",
     "defaultAccount": "Default account: admin / admin"
+  },
+  "instanceTable": {
+    "stateSuccess": "Succeeded",
+    "stateRunning": "Running",
+    "stateWaitRetry": "Waiting Retry",
+    "stateWaiting": "Waiting",
+    "stateDispatched": "Dispatched",
+    "stateNotRun": "Not Run",
+    "stateFailed": "Failed",
+    "stateKilled": "Killed",
+    "stateSkipped": "Skipped",
+    "statePaused": "Paused",
+    "stateStopped": "Stopped",
+    "actionPause": "Pause",
+    "actionResume": "Resume",
+    "actionKill": "Kill",
+    "actionRerun": "Rerun",
+    "actionRecover": "Recover",
+    "actionFailed": "{label} failed: {msg}",
+    "actionSuccess": "{label} succeeded",
+    "networkError": "Network error",
+    "emptyTitle": "No running instances",
+    "emptyHint": "Once tasks run, instances will appear here. Create and bring a task online via the Agent chat.",
+    "colInstance": "Instance",
+    "colTask": "Task",
+    "colStatus": "Status",
+    "colNode": "Node",
+    "colStartedAt": "Started At",
+    "colFinishedAt": "Finished At",
+    "colAttempt": "Attempt",
+    "colActions": "Actions",
+    "btnLog": "Logs"
+  },
+  "taskDefList": {
+    "statusOnline": "Online",
+    "statusDraft": "Draft",
+    "title": "Task Definitions",
+    "emptyTitle": "No task definitions",
+    "emptyHint": "Click “New Task” to create a draft, or create one via the Agent chat.",
+    "colName": "Name",
+    "colType": "Type",
+    "colStatus": "Status",
+    "colPriority": "Priority",
+    "colVersion": "Version",
+    "colCreatedAt": "Created At",
+    "colActions": "Actions",
+    "btnEdit": "Edit",
+    "btnPublish": "Publish",
+    "btnOffline": "Offline",
+    "btnDelete": "Delete",
+    "pageInfo": "{total} total, page {page}/{totalPages}",
+    "prevPage": "Prev",
+    "nextPage": "Next"
+  },
+  "taskSearchBar": {
+    "allTypes": "All types",
+    "allStatus": "All status",
+    "statusDraft": "Draft",
+    "statusOnline": "Online",
+    "searchPlaceholder": "Search task name…",
+    "newTask": "New Task"
+  },
+  "diagnosisCard": {
+    "diagnosisLabel": "Diagnosis #{id}",
+    "nodeLabel": "Node {code}",
+    "taskLabel": "Task #{id}",
+    "statusResolved": "Resolved",
+    "statusPending": "Pending",
+    "rootCauseTitle": "Root Cause Analysis",
+    "noRootCause": "(no root cause description)",
+    "evidenceTitle": "Evidence",
+    "suggestionsTitle": "Fix Suggestions"
+  },
+  "approvalCard": {
+    "operationFailed": "Operation failed",
+    "verbApproved": "approved and executed",
+    "verbRejected": "rejected",
+    "resultMsg": "Approval #{id} {verb}: {msg}",
+    "requestFailed": "Request failed: {err}",
+    "title": "Pending Approval",
+    "confirmPlaceholder": "Irreversible action: re-type the target object name to confirm",
+    "btnApprove": "Approve & Execute",
+    "btnReject": "Reject"
+  },
+  "fixActions": {
+    "execFailed": "Execution failed"
+  },
+  "logViewer": {
+    "bytes": "{size} bytes",
+    "taskLabel": "Task #{id}",
+    "startedLabel": "Started: {time}",
+    "finishedLabel": "Finished: {time}",
+    "loading": "Loading…",
+    "emptyLog": "(no logs)",
+    "loadMore": "Load more",
+    "download": "Download"
+  },
+  "meta": {
+    "title": "DataWeave · AI Data Platform",
+    "description": "Weave data with Agents — an AI-Agent-native data platform"
+  },
+  "resultTable": {
+    "kindTable": "Query Result",
+    "kindFleet": "Node Fleet",
+    "kindLineage": "Lineage",
+    "kindTask": "Task",
+    "kindMetric": "Metric",
+    "kindDiagnosis": "Diagnosis",
+    "fallbackTitle": "Result",
+    "rowCount": "{count} rows",
+    "closeLabel": "Close result",
+    "empty": "No data"
+  },
+  "fleetCard": {
+    "online": "Online",
+    "offline": "Offline",
+    "mem": "Memory",
+    "disk": "Disk",
+    "load": "Load",
+    "runningTasks": "Running Tasks",
+    "spec": "Spec"
+  },
+  "codeEditor": {
+    "loading": "Loading editor…",
+    "clearTitle": "Clear editor content",
+    "clearDesc": "This action cannot be undone.",
+    "cancel": "Cancel",
+    "clearConfirm": "Clear",
+    "copyAll": "Copy All",
+    "paste": "Paste",
+    "format": "Format",
+    "find": "Find",
+    "clear": "Clear",
+    "clearAction": "Clear editor",
+    "copySuccess": "Copied all content",
+    "copyFailed": "Copy failed, use Ctrl+C",
+    "pasteBlocked": "Browser blocked clipboard read, use Ctrl+V"
+  },
+  "tabStrip": {
+    "close": "Close tab",
+    "closeOthers": "Close other tabs",
+    "closeRight": "Close tabs to the right",
+    "closeLeft": "Close tabs to the left",
+    "closeAll": "Close all tabs",
+    "closeAria": "Close {label}"
+  },
+  "auth": {
+    "loginFailed": "Login failed",
+    "sessionExpired": "Session expired",
+    "sessionExpiredToast": "Session expired, please sign in again"
   }
 }

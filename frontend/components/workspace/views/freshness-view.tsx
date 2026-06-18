@@ -1,6 +1,6 @@
 "use client"
 
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 
@@ -47,6 +47,7 @@ interface Row {
 /** 数据新鲜度（最小版）：按任务实例最近成功时间推各任务产出时效，时效最差居前 */
 export function FreshnessView() {
   const t = useTranslations("freshness")
+  const locale = useLocale()
   const instances = useApi<TaskInstance[]>("/api/ops/instances")
   const tasks = useApi<TaskDef[]>("/api/ops/tasks")
 
@@ -107,7 +108,7 @@ export function FreshnessView() {
                   <TableCell>{row.name}</TableCell>
                   <TableCell>{freshnessBadge(row.lastSuccess, t)}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
-                    {formatDateTime(row.lastSuccess)}
+                    {formatDateTime(row.lastSuccess, locale)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {row.lastSuccess ? ageLabel(row.lastSuccess, t) : "—"}

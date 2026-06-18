@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { useTranslations } from "next-intl"
 import { usePathname, useRouter } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AgentRail } from "@/components/agent-rail"
@@ -15,6 +16,7 @@ import { useAuth } from "@/lib/auth"
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const t = useTranslations("common")
   const pathname = usePathname()
   const router = useRouter()
 
@@ -33,7 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (loading || !user) {
     return (
       <div className="flex h-svh items-center justify-center bg-background">
-        <span className="font-serif text-muted-foreground">加载中…</span>
+        <span className="font-serif text-muted-foreground">{t("loading")}</span>
       </div>
     )
   }

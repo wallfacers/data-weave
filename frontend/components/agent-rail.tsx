@@ -157,7 +157,7 @@ export function AgentRail() {
         onPointerDown={onResizeDown}
         role="separator"
         aria-orientation="vertical"
-        aria-label="拖拽调整 Agent 面板宽度"
+        aria-label={t("agentRail.resizeHandle")}
         className="group/resize absolute inset-y-3 right-0 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
       >
         <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />

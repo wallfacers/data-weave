@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useTranslations } from "next-intl"
 import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
@@ -28,9 +29,11 @@ export function DropdownSelect({
   value,
   onChange,
   options,
-  placeholder = "请选择",
+  placeholder,
   className,
 }: DropdownSelectProps) {
+  const tc = useTranslations("common")
+  const resolvedPlaceholder = placeholder ?? tc("selectPlaceholder")
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -69,7 +72,7 @@ export function DropdownSelect({
   }, [open])
 
   const selected = options.find((o) => o.value === value)
-  const displayLabel = selected ? selected.label : placeholder
+  const displayLabel = selected ? selected.label : resolvedPlaceholder
 
   let dropdown: ReactNode = null
   if (open && typeof document !== "undefined") {

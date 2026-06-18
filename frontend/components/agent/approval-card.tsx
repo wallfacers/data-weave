@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ const LEVEL_TONE: Record<string, string> = {
 }
 
 export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProps) {
+  const t = useTranslations("approvalCard")
   const [confirmation, setConfirmation] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,24 +51,22 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
       })
       const json = await res.json() as ApiResponse<{ success: boolean; message?: string }>
       if (json.code !== 0) {
-        setError(json.message ?? "操作失败")
+        setError(json.message ?? t("operationFailed"))
         setBusy(false)
         return
       }
       const data = json.data
       if (!data?.success) {
-        setError(data?.message ?? "操作失败")
+        setError(data?.message ?? t("operationFailed"))
         setBusy(false)
         return
       }
-      const verb = action === "approve" ? "已批准并执行" : "已拒绝"
-      setDone(`审批单 #${approval.approvalId} ${verb}：${data.message ?? ""}`)
-      onResolved(
-        approval.approvalId,
-        `审批单 #${approval.approvalId} ${verb}：${data.message ?? ""}`,
-      )
+      const verb = action === "approve" ? t("verbApproved") : t("verbRejected")
+      const resultMsg = t("resultMsg", { id: approval.approvalId, verb, msg: data.message ?? "" })
+      setDone(resultMsg)
+      onResolved(approval.approvalId, resultMsg)
     } catch (e) {
-      setError(`请求失败：${e instanceof Error ? e.message : String(e)}`)
+      setError(t("requestFailed", { err: e instanceof Error ? e.message : String(e) }))
       setBusy(false)
     }
   }
@@ -82,7 +82,7 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
   return (
     <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border bg-card px-3 py-2.5 shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">待审批操作</span>
+        <span className="text-sm font-medium">{t("title")}</span>
         {approval.level && (
           <Badge className={LEVEL_TONE[approval.level] ?? ""}>{approval.level}</Badge>
         )}
@@ -96,14 +96,14 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
         <Input
           value={confirmation}
           onChange={(e) => setConfirmation(e.target.value)}
-          placeholder="不可逆操作：回输目标对象名以二次确认"
+          placeholder={t("confirmPlaceholder")}
           className="h-8 text-xs"
         />
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
         <Button size="sm" disabled={busy} onClick={() => resolve("approve")}>
-          批准并执行
+          {t("btnApprove")}
         </Button>
         <Button
           size="sm"
@@ -111,7 +111,7 @@ export function ApprovalCard({ approval, apiBase, onResolved }: ApprovalCardProp
           disabled={busy}
           onClick={() => resolve("reject")}
         >
-          拒绝
+          {t("btnReject")}
         </Button>
       </div>
     </div>

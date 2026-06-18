@@ -1,5 +1,7 @@
 -- 种子数据（企业级 schema）。审计列：created_by/updated_by=1, deleted=0, version=0。
 -- 统一定义时间 2026-06-01；运行态时间 2026-06-10（今天）。
+-- i18n 豁免（design D10）：本文件全部业务种子数据（角色名/任务名/指标中文名/演示 error_message
+-- 与诊断 JSON 等）为演示数据，保留中文、不做双语化。i18n 仅覆盖代码路径文案，不含种子数据。
 
 -- ===== 域 A · 租户与 RBAC =====
 INSERT INTO tenants (id, code, name, status, created_by, updated_by, created_at, updated_at, deleted, version)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { BoxIcon } from "@hugeicons/core-free-icons"
@@ -29,65 +30,69 @@ function PulseDot() {
   )
 }
 
-function stateBadge(state: string) {
-  switch (state) {
-    case "SUCCESS":
-      return <Badge variant="success">成功</Badge>
-    case "RUNNING":
-      return <Badge variant="success"><PulseDot />运行中</Badge>
-    case "WAIT_RETRY":
-      return <Badge variant="info"><PulseDot />等待重试</Badge>
-    case "WAITING":
-      return <Badge variant="warning">等待</Badge>
-    case "DISPATCHED":
-      return <Badge variant="info">已分发</Badge>
-    case "NOT_RUN":
-      return <Badge variant="outline" className="text-muted-foreground">未运行</Badge>
-    case "FAILED":
-      return <Badge variant="destructive">失败</Badge>
-    case "KILLED":
-      return <Badge variant="destructive">已终止</Badge>
-    case "SKIPPED":
-      return <Badge variant="outline" className="text-muted-foreground">已跳过</Badge>
-    case "PAUSED":
-      return <Badge variant="warning">已暂停</Badge>
-    case "STOPPED":
-      return <Badge variant="destructive">已终止</Badge>
-    default:
+type BadgeVariant = "success" | "info" | "warning" | "destructive" | "outline"
+
+const STATE_BADGE: Record<string, { variant: BadgeVariant; key: string; pulse?: boolean }> = {
+  SUCCESS: { variant: "success", key: "stateSuccess" },
+  RUNNING: { variant: "success", key: "stateRunning", pulse: true },
+  WAIT_RETRY: { variant: "info", key: "stateWaitRetry", pulse: true },
+  WAITING: { variant: "warning", key: "stateWaiting" },
+  DISPATCHED: { variant: "info", key: "stateDispatched" },
+  NOT_RUN: { variant: "outline", key: "stateNotRun" },
+  FAILED: { variant: "destructive", key: "stateFailed" },
+  KILLED: { variant: "destructive", key: "stateKilled" },
+  SKIPPED: { variant: "outline", key: "stateSkipped" },
+  PAUSED: { variant: "warning", key: "statePaused" },
+  STOPPED: { variant: "destructive", key: "stateStopped" },
+}
+
+const ACTION_LABEL_KEY: Record<string, string> = {
+  pause: "actionPause",
+  resume: "actionResume",
+  kill: "actionKill",
+  rerun: "actionRerun",
+  recover: "actionRecover",
+}
+
+export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
+  const t = useTranslations("instanceTable")
+  const locale = useLocale()
+  const [, setRefresh] = useState(0)
+
+  function stateBadge(state: string) {
+    const cfg = STATE_BADGE[state]
+    if (!cfg) {
       return (
         <Badge variant="outline" className="text-muted-foreground">
           {state}
         </Badge>
       )
-  }
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  pause: "暂停",
-  resume: "恢复",
-  kill: "终止",
-  rerun: "重跑",
-  recover: "断点恢复",
-}
-
-async function doAction(instanceId: number, action: string) {
-  const label = ACTION_LABELS[action] ?? action
-  try {
-    const res = await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
-    const json = await res.json().catch(() => null)
-    if (!res.ok || (json && json.code !== 0)) {
-      const msg = json?.message ?? `HTTP ${res.status}`
-      toast.error(`${label}失败：${msg}`)
-      return
     }
-    toast.success(`${label}成功`)
-  } catch (e) {
-    toast.error(`${label}失败：${e instanceof Error ? e.message : "网络异常"}`)
+    const muted = cfg.variant === "outline" ? "text-muted-foreground" : undefined
+    return (
+      <Badge variant={cfg.variant} className={muted}>
+        {cfg.pulse && <PulseDot />}
+        {t(cfg.key)}
+      </Badge>
+    )
   }
-}
 
-export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
-  const [, setRefresh] = useState(0)
+  async function doAction(instanceId: number, action: string) {
+    const labelKey = ACTION_LABEL_KEY[action]
+    const label = labelKey ? t(labelKey) : action
+    try {
+      const res = await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, { method: "POST" })
+      const json = await res.json().catch(() => null)
+      if (!res.ok || (json && json.code !== 0)) {
+        const msg = json?.message ?? `HTTP ${res.status}`
+        toast.error(t("actionFailed", { label, msg }))
+        return
+      }
+      toast.success(t("actionSuccess", { label }))
+    } catch (e) {
+      toast.error(t("actionFailed", { label, msg: e instanceof Error ? e.message : t("networkError") }))
+    }
+  }
 
   if (instances.length === 0) {
     return (
@@ -95,9 +100,9 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
         <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
           <HugeiconsIcon icon={BoxIcon} className="size-6" />
         </div>
-        <p className="text-sm text-muted-foreground">暂无运行实例</p>
+        <p className="text-sm text-muted-foreground">{t("emptyTitle")}</p>
         <p className="max-w-sm text-xs text-muted-foreground">
-          任务执行后，运行实例将在此展示。通过 Agent 对话创建并上线任务即可。
+          {t("emptyHint")}
         </p>
       </div>
     )
@@ -116,14 +121,14 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-24 font-mono">实例</TableHead>
-            <TableHead className="w-20 font-mono">任务</TableHead>
-            <TableHead className="w-24">状态</TableHead>
-            <TableHead className="w-28">节点</TableHead>
-            <TableHead className="w-40">开始时间</TableHead>
-            <TableHead className="w-40">结束时间</TableHead>
-            <TableHead className="w-20 text-right">尝试</TableHead>
-            <TableHead className="w-40 text-right">操作</TableHead>
+            <TableHead className="w-24 font-mono">{t("colInstance")}</TableHead>
+            <TableHead className="w-20 font-mono">{t("colTask")}</TableHead>
+            <TableHead className="w-24">{t("colStatus")}</TableHead>
+            <TableHead className="w-28">{t("colNode")}</TableHead>
+            <TableHead className="w-40">{t("colStartedAt")}</TableHead>
+            <TableHead className="w-40">{t("colFinishedAt")}</TableHead>
+            <TableHead className="w-20 text-right">{t("colAttempt")}</TableHead>
+            <TableHead className="w-40 text-right">{t("colActions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -141,27 +146,27 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
                 )}
               </TableCell>
               <TableCell className="font-mono text-xs">{inst.workerNodeCode ?? "—"}</TableCell>
-              <TableCell className="tabular-nums">{formatDateTime(inst.startedAt)}</TableCell>
-              <TableCell className="tabular-nums">{formatDateTime(inst.finishedAt)}</TableCell>
+              <TableCell className="tabular-nums">{formatDateTime(inst.startedAt, locale)}</TableCell>
+              <TableCell className="tabular-nums">{formatDateTime(inst.finishedAt, locale)}</TableCell>
               <TableCell className="text-right tabular-nums">{inst.attempt}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
                   {inst.state === "RUNNING" && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "pause").then(() => setRefresh(n => n + 1))}>暂停</Button>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>终止</Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "pause").then(() => setRefresh(n => n + 1))}>{t("actionPause")}</Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>{t("actionKill")}</Button>
                     </>
                   )}
                   {inst.state === "PAUSED" && (
                     <>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "resume").then(() => setRefresh(n => n + 1))}>恢复</Button>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>终止</Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "resume").then(() => setRefresh(n => n + 1))}>{t("actionResume")}</Button>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(inst.id, "kill").then(() => setRefresh(n => n + 1))}>{t("actionKill")}</Button>
                     </>
                   )}
                   {(inst.state === "SUCCESS" || inst.state === "FAILED") && (
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "rerun").then(() => setRefresh(n => n + 1))}>重跑</Button>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(inst.id, "rerun").then(() => setRefresh(n => n + 1))}>{t("actionRerun")}</Button>
                   )}
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => handleViewLog(inst)}>日志</Button>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => handleViewLog(inst)}>{t("btnLog")}</Button>
                 </div>
               </TableCell>
             </TableRow>

@@ -10,6 +10,7 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "i18n:lint": "node scripts/check-i18n.mjs",
     "test": "vitest run",
     "design:lint": "design.md lint DESIGN.md",
     "design:export": "design.md export DESIGN.md --format css-tailwind"

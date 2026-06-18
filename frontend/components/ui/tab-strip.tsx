@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState, type ReactNode } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 
@@ -84,6 +85,7 @@ export function TabStrip({
   surface = "sidebar",
   className,
 }: TabStripProps) {
+  const t = useTranslations("tabStrip")
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const s = SIZE[size]
@@ -125,19 +127,19 @@ export function TabStrip({
     const closableOthers = tabs.some((t) => t.id !== tab.id && t.closable !== false)
     const items: TabContextAction[] = [...(extraActions?.(tab) ?? [])]
     if (tab.closable !== false) {
-      items.push({ label: "关闭标签页", onClick: () => onClose(tab.id) })
+      items.push({ label: t("close"), onClick: () => onClose(tab.id) })
     }
     if (onCloseOthers) {
-      items.push({ label: "关闭其他标签页", onClick: () => onCloseOthers(tab.id), disabled: !closableOthers })
+      items.push({ label: t("closeOthers"), onClick: () => onCloseOthers(tab.id), disabled: !closableOthers })
     }
     if (onCloseRight) {
-      items.push({ label: "关闭右侧标签页", onClick: () => onCloseRight(tab.id), disabled: !closableRight })
+      items.push({ label: t("closeRight"), onClick: () => onCloseRight(tab.id), disabled: !closableRight })
     }
     if (onCloseLeft) {
-      items.push({ label: "关闭左侧标签页", onClick: () => onCloseLeft(tab.id), disabled: !closableLeft })
+      items.push({ label: t("closeLeft"), onClick: () => onCloseLeft(tab.id), disabled: !closableLeft })
     }
     if (onCloseAll) {
-      items.push({ label: "关闭全部标签页", onClick: () => onCloseAll(), disabled: closableCount === 0 })
+      items.push({ label: t("closeAll"), onClick: () => onCloseAll(), disabled: closableCount === 0 })
     }
     return items
   }
@@ -211,7 +213,7 @@ export function TabStrip({
                       e.stopPropagation()
                       onClose(tab.id)
                     }}
-                    aria-label={`关闭 ${tab.label}`}
+                    aria-label={t("closeAria", { label: tab.label })}
                     className={cn(
                       "flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground",
                       s.close,

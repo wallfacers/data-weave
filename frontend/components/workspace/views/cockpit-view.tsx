@@ -1,6 +1,6 @@
 "use client"
 
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   CheckmarkCircle01Icon,
@@ -68,6 +68,7 @@ function StatCard({
 
 export function CockpitView() {
   const t = useTranslations("cockpit")
+  const locale = useLocale()
   const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
   const open = useWorkspaceStore((s) => s.open)
 
@@ -160,7 +161,7 @@ export function CockpitView() {
                       <Badge variant="destructive">{inst.state}</Badge>
                     </TableCell>
                     <TableCell className="font-sans text-muted-foreground">
-                      {formatDateTime(inst.finishedAt)}
+                      {formatDateTime(inst.finishedAt, locale)}
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-muted-foreground">
                       {truncate(inst.log, 50)}

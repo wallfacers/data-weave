@@ -10,6 +10,7 @@ import {
 } from "react"
 import type { ApiResponse } from "@/lib/types"
 import { handleUnauthorized } from "@/lib/auth-401"
+import { tClient } from "@/lib/i18n-client"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roles: string[]
     }>
     if (json.code !== 0 || !json.data) {
-      throw new Error(json.message || "登录失败")
+      throw new Error(json.message || tClient("auth.loginFailed"))
     }
     const token: string = json.data.token
     const user: AuthUser = {
@@ -146,7 +147,7 @@ export function useApi() {
       const res = await fetch(path, { ...init, headers })
       if (res.status === 401) {
         handleUnauthorized()
-        throw new Error("登录已过期")
+        throw new Error(tClient("auth.sessionExpired"))
       }
       return res
     },
