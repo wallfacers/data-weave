@@ -8,8 +8,10 @@ import "@copilotkit/react-core/v2/styles.css"
 
 import { CHAT_SHIKI_THEME } from "@/lib/syntax-palette"
 import { ApprovalCard, type Approval } from "@/components/agent/approval-card"
+import { ResultTable, type ResultData } from "@/components/agent/result-table"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { getConversationId } from "@/lib/workspace/persistence"
+import { acceptLanguageHeader } from "@/lib/locale-client"
 
 // 直连后端 Java AG-UI 端点，不跑 Node CopilotKit Runtime。
 // 必须用 v2 API：selfManagedAgents 使 hasLocalAgents=true，绕过 runtime 强制要求。
@@ -17,6 +19,8 @@ const AGENT_URL =
   process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000/agui"
 // REST API 走 Next.js rewrite 代理（自动同源，Bearer token 由各组件自行注入）。
 const API_BASE = ""
+// chat 内联富渲染保留的最近结果表格条数（避免无限堆积）。
+const MAX_RESULT_TABLES = 3
 
 /** 逐消息页面上下文（cockpit 缺口①）。 */
 export interface AgentPageContext {
@@ -30,10 +34,18 @@ export interface AgentPageContext {
 export function AgentChat({ context }: { context?: AgentPageContext }) {
   // threadId = 持久化的会话 id，与 Workspace 快照同 key（刷新后对话与工作区指向同一会话）
   const agent = useMemo(
-    () => new HttpAgent({ url: AGENT_URL, threadId: getConversationId() }),
+    () =>
+      new HttpAgent({
+        url: AGENT_URL,
+        threadId: getConversationId(),
+        headers: { "Accept-Language": acceptLanguageHeader() },
+      }),
     [],
   )
   const [approvals, setApprovals] = useState<Approval[]>([])
+  // 结构化结果富渲染（MVP 4.6）：保留最近 N 条含 columns/rows 的 CUSTOM 结果，用 shadcn Table 展示。
+  const [results, setResults] = useState<ResultData[]>([])
+  const resultSeq = useRef(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // 经 slot 链 CopilotChat → messageView → assistantMessage → markdownRenderer(Streamdown)
@@ -145,6 +157,25 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
             useWorkspaceStore.getState().open(v.view, v.params, { activate: v.activate })
           }
         }
+        // 结构化结果（dataweave.result / dataweave.fleet 等）：凡含 columns + rows 即 shadcn Table 富渲染。
+        const val = event?.value as
+          | { kind?: string; title?: string; sql?: string; columns?: unknown; rows?: unknown }
+          | undefined
+        if (val && Array.isArray(val.columns) && Array.isArray(val.rows)) {
+          setResults((prev) =>
+            [
+              ...prev,
+              {
+                id: (resultSeq.current += 1),
+                kind: val.kind,
+                title: val.title,
+                sql: val.sql,
+                columns: val.columns as string[],
+                rows: val.rows as Record<string, unknown>[],
+              },
+            ].slice(-MAX_RESULT_TABLES),
+          )
+        }
       },
     })
     return () => sub.unsubscribe()
@@ -185,6 +216,19 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
                 approval={a}
                 apiBase={API_BASE}
                 onResolved={handleResolved}
+              />
+            ))}
+          </div>
+        )}
+        {results.length > 0 && (
+          <div className="flex flex-col gap-2 px-3 pt-3">
+            {results.map((r) => (
+              <ResultTable
+                key={r.id}
+                data={r}
+                onClose={() =>
+                  setResults((prev) => prev.filter((x) => x.id !== r.id))
+                }
               />
             ))}
           </div>
