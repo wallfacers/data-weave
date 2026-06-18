@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useLayoutEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SparklesIcon, Logout01Icon } from "@hugeicons/core-free-icons"
@@ -99,7 +100,8 @@ export function AgentRail() {
     instanceId: asStr(params?.instanceId),
     nodeId: asStr(params?.nodeId),
   }
-  const moduleName = activeTab ? VIEW_META[activeTab.view].title : ""
+  const t = useTranslations()
+  const moduleName = activeTab ? t(VIEW_META[activeTab.view].title) : ""
   const rawContext =
     pageContext.instanceId ?? pageContext.nodeId ?? pageContext.taskId ?? null
   const contextObject = rawContext ? compactId(rawContext) : null
@@ -121,7 +123,7 @@ export function AgentRail() {
               className="min-w-0 truncate text-xs text-muted-foreground"
               title={rawContext ? `${moduleName} · ${rawContext}` : moduleName}
             >
-              当前：{moduleName}
+              {t("agentRail.current")}{moduleName}
               {contextObject && (
                 <>
                   {" · "}
@@ -136,7 +138,7 @@ export function AgentRail() {
           )}
           <button
             onClick={logout}
-            title="退出登录"
+            title={t("agentRail.logout")}
             className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <HugeiconsIcon icon={Logout01Icon} className="size-4" />

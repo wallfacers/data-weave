@@ -1,4 +1,6 @@
 import { Geist_Mono, Inter } from "next/font/google"
+import { NextIntlClientProvider } from "next-intl"
+import { getLocale, getMessages } from "next-intl/server"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -25,14 +27,16 @@ const fontMono = Geist_Mono({
   variable: "--font-mono",
 })
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const locale = await getLocale()
+  const messages = await getMessages()
   return (
     <html
-      lang="en"
+      lang={locale}
       suppressHydrationWarning
       className={cn("antialiased", fontMono.variable, inter.variable, interHeading.variable, interSerif.variable)}
     >
@@ -47,12 +51,14 @@ export default function RootLayout({
             __html: `try{var w=localStorage.getItem("dw.agentRail.width");if(w&&+w>=340&&+w<=680)document.documentElement.style.setProperty("--dw-rail-width",w+"px")}catch(e){}`,
           }}
         />
-        <ThemeProvider>
-          <AuthProvider>
-            <AppShell>{children}</AppShell>
-            <Toaster richColors position="top-right" />
-          </AuthProvider>
-        </ThemeProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider>
+            <AuthProvider>
+              <AppShell>{children}</AppShell>
+              <Toaster richColors position="top-right" />
+            </AuthProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   )

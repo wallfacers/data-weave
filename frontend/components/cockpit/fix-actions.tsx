@@ -14,7 +14,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
-import { API_BASE, type ApiResponse, type DiagnosisSuggestion, type FixResult } from "@/lib/types";
+import { API_BASE, authFetch, type ApiResponse, type DiagnosisSuggestion, type FixResult } from "@/lib/types";
 
 const ACTION_ICONS: Record<string, IconSvgElement> = {
   RERUN: RefreshIcon,
@@ -42,13 +42,9 @@ export function FixActions({
     setResult(null);
     setError(null);
     try {
-      const token = localStorage.getItem("dw.auth.token")
-      const headers: Record<string, string> = {}
-      if (token) headers["Authorization"] = `Bearer ${token}`
-
-      const res = await fetch(
+      const res = await authFetch(
         `${API_BASE}/api/diagnosis/${diagnosisId}/fix?action=${encodeURIComponent(action)}`,
-        { method: "POST", cache: "no-store", headers },
+        { method: "POST", cache: "no-store" },
       );
       const json = await res.json() as ApiResponse<FixResult>;
       if (json.code !== 0 || !json.data) {

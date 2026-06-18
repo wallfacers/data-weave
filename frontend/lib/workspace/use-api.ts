@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import type { ApiResponse } from "@/lib/types"
 import { handleUnauthorized } from "@/lib/auth-401"
+import { acceptLanguageHeader } from "@/lib/locale-client"
 
 const TOKEN_KEY = "dw.auth.token"
 
@@ -19,7 +20,9 @@ export function useApi<T>(path: string): ApiState<T> {
     setState({ data: null, loading: true, error: false })
 
     const token = localStorage.getItem(TOKEN_KEY)
-    const headers: Record<string, string> = {}
+    const headers: Record<string, string> = {
+      "Accept-Language": acceptLanguageHeader(),
+    }
     if (token) headers["Authorization"] = `Bearer ${token}`
 
     fetch(path, { cache: "no-store", headers })

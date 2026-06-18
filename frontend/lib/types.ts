@@ -15,10 +15,22 @@ export const API_BASE = "";
 
 const AUTH_TOKEN_KEY = "dw.auth.token"
 
-/** 自动带 Bearer token 的 fetch 封装。所有调后端 API 的 fetch 应统一走这个。 */
+/**
+ * 客户端读 cookie `NEXT_LOCALE` → Accept-Language 头值；回退默认中文。
+ * 内联以避免循环依赖（locale-client 亦导出同名函数，此处自给自足）。
+ */
+function acceptLanguage(): string {
+  if (typeof document === "undefined") return "zh-CN"
+  const match = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]+)/)
+  const tag = match?.[1]
+  return tag === "en-US" || tag === "zh-CN" ? tag : "zh-CN"
+}
+
+/** 自动带 Bearer token + Accept-Language 的 fetch 封装。所有调后端 API 的 fetch 应统一走这个。 */
 export function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null
   const headers: Record<string, string> = {
+    "Accept-Language": acceptLanguage(),
     ...(init?.headers as Record<string, string> | undefined),
   }
   if (token) headers["Authorization"] = `Bearer ${token}`

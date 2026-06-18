@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { useTheme } from "next-themes"
+import { useLocale, useTranslations } from "next-intl"
+import { useRouter } from "next/navigation"
 import { Dialog } from "@base-ui/react/dialog"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Settings01Icon } from "@hugeicons/core-free-icons"
@@ -9,12 +11,6 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-
-const THEME_OPTIONS = [
-  { value: "light", label: "浅色" },
-  { value: "dark", label: "深色" },
-  { value: "system", label: "跟随系统" },
-] as const
 
 function SegmentedButton({
   active,
@@ -38,7 +34,29 @@ function SegmentedButton({
 }
 
 export function SettingsTrigger() {
+  const t = useTranslations()
   const { theme, setTheme } = useTheme()
+  const locale = useLocale()
+  const router = useRouter()
+
+  const themeOptions = [
+    { value: "light", label: t("settings.themeLight") },
+    { value: "dark", label: t("settings.themeDark") },
+    { value: "system", label: t("settings.themeSystem") },
+  ]
+
+  const langOptions = [
+    { value: "zh-CN", label: t("settings.langZh") },
+    { value: "en-US", label: t("settings.langEn") },
+  ]
+
+  // 写 cookie `NEXT_LOCALE`（i18n/request.ts 据此选 bundle）+ router.refresh() 重渲染
+  // server components（layout 重新 getLocale/getMessages），界面语言即时切换、刷新后保持。
+  function changeLocale(next: string) {
+    if (next === locale) return
+    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000; samesite=lax`
+    router.refresh()
+  }
 
   return (
     <Dialog.Root>
@@ -48,7 +66,7 @@ export function SettingsTrigger() {
             variant="ghost"
             size="icon"
             className="size-7 text-muted-foreground"
-            aria-label="项目设置"
+            aria-label={t("settings.open")}
           />
         }
       >
@@ -66,18 +84,18 @@ export function SettingsTrigger() {
           )}
         >
           <Dialog.Title className="font-heading text-base font-medium">
-            项目设置
+            {t("settings.title")}
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-sm text-muted-foreground">
-            配置主题外观
+            {t("settings.description")}
           </Dialog.Description>
 
           <div className="mt-6 flex flex-col gap-6">
             {/* 外观 */}
             <section className="flex flex-col gap-3">
-              <h3 className="text-sm font-medium">外观</h3>
+              <h3 className="text-sm font-medium">{t("settings.appearance")}</h3>
               <div className="flex gap-2">
-                {THEME_OPTIONS.map((opt) => (
+                {themeOptions.map((opt) => (
                   <SegmentedButton
                     key={opt.value}
                     active={theme === opt.value}
@@ -86,6 +104,25 @@ export function SettingsTrigger() {
                     {opt.label}
                   </SegmentedButton>
                 ))}
+              </div>
+            </section>
+
+            {/* 语言（界面语言切换：写 cookie + 实时重渲染） */}
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">{t("settings.language")}</h3>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{t("settings.uiLanguage")}</span>
+                <div className="flex gap-2">
+                  {langOptions.map((opt) => (
+                    <SegmentedButton
+                      key={opt.value}
+                      active={locale === opt.value}
+                      onClick={() => changeLocale(opt.value)}
+                    >
+                      {opt.label}
+                    </SegmentedButton>
+                  ))}
+                </div>
               </div>
             </section>
           </div>
@@ -97,7 +134,7 @@ export function SettingsTrigger() {
                 variant="ghost"
                 size="icon"
                 className="absolute right-3 top-3 size-7"
-                aria-label="关闭"
+                aria-label={t("settings.close")}
               />
             }
           >

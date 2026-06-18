@@ -17,6 +17,7 @@
  */
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowDown01Icon,
@@ -160,6 +161,7 @@ export function CatalogTree({
   reloadKey,
   className,
 }: CatalogTreeProps) {
+  const t = useTranslations()
   const { expanded, toggleExpand, expand, selectedTagIds, toggleTag, clearTags } =
     useCatalogTreeStore()
 
@@ -342,13 +344,13 @@ export function CatalogTree({
         })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
-          toast.success("已移动归属")
+          toast.success(t("catalog.toastMoved"))
         } else {
-          toast.error(json.message || "移动失败")
+          toast.error(json.message || t("catalog.toastMoveFailed"))
           reload() // 回滚：全量重拉
         }
       } catch {
-        toast.error("移动失败")
+        toast.error(t("catalog.toastMoveFailed"))
         reload()
       }
     },
@@ -389,15 +391,15 @@ export function CatalogTree({
           )
           if (parentId != null) expand(parentId)
           flashHighlight([`folder-${newNode.id}`])
-          toast.success("已创建文件夹")
+          toast.success(t("catalog.toastFolderCreated"))
         } else {
-          toast.error(json.message || "创建失败")
+          toast.error(json.message || t("catalog.toastCreateFailed"))
         }
       } catch {
-        toast.error("创建失败")
+        toast.error(t("catalog.toastCreateFailed"))
       }
     },
-    [projectId, expand, flashHighlight],
+    [projectId, expand, flashHighlight, t],
   )
 
   // 重命名叶子：乐观更新 name，失败回滚全量重拉。
@@ -420,17 +422,17 @@ export function CatalogTree({
         })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
-          toast.success("已重命名")
+          toast.success(t("catalog.toastRenamed"))
         } else {
-          toast.error(json.message || "重命名失败")
+          toast.error(json.message || t("catalog.toastRenameFailed"))
           reload()
         }
       } catch {
-        toast.error("重命名失败")
+        toast.error(t("catalog.toastRenameFailed"))
         reload()
       }
     },
-    [reload, flashHighlight],
+    [reload, flashHighlight, t],
   )
 
   const deleteLeaf = useCallback(
@@ -446,17 +448,17 @@ export function CatalogTree({
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
-          toast.success("已删除")
+          toast.success(t("catalog.toastDeleted"))
         } else {
-          toast.error(json.message || "删除失败")
+          toast.error(json.message || t("catalog.toastDeleteFailed"))
           reload()
         }
       } catch {
-        toast.error("删除失败")
+        toast.error(t("catalog.toastDeleteFailed"))
         reload()
       }
     },
-    [reload],
+    [reload, t],
   )
 
   // 在此新建任务/工作流：乐观加入本地数组，并开子 Tab。
@@ -490,17 +492,19 @@ export function CatalogTree({
           }
           if (parentId != null) expand(parentId)
           flashHighlight([`${kind}-${(newItem as TaskDef).id}`])
-          toast.success(kind === "task" ? "已创建任务草稿" : "已创建工作流草稿")
+          toast.success(
+            kind === "task" ? t("catalog.toastTaskDraftCreated") : t("catalog.toastWorkflowDraftCreated"),
+          )
           if (kind === "task") onOpenTask?.(newItem.id, newItem.name)
           else onOpenWorkflow?.(newItem.id, newItem.name)
         } else {
-          toast.error(json.message || "创建失败")
+          toast.error(json.message || t("catalog.toastCreateFailed"))
         }
       } catch {
-        toast.error("创建失败")
+        toast.error(t("catalog.toastCreateFailed"))
       }
     },
-    [onOpenTask, onOpenWorkflow, expand, flashHighlight],
+    [onOpenTask, onOpenWorkflow, expand, flashHighlight, t],
   )
 
   // 文件夹改名：乐观更新树内名称。
@@ -518,16 +522,16 @@ export function CatalogTree({
           setTree((prev) =>
             prev ? { ...prev, roots: renameFolderInTree(prev.roots, id, name.trim()) } : prev,
           )
-          toast.success("已重命名")
+          toast.success(t("catalog.toastRenamed"))
           flashHighlight([`folder-${id}`])
         } else {
-          toast.error(json.message || "重命名失败")
+          toast.error(json.message || t("catalog.toastRenameFailed"))
         }
       } catch {
-        toast.error("重命名失败")
+        toast.error(t("catalog.toastRenameFailed"))
       }
     },
-    [flashHighlight],
+    [flashHighlight, t],
   )
 
   // 文件夹删除：乐观从树中移除（motion exit 动画先播放）。
@@ -540,17 +544,17 @@ export function CatalogTree({
           setTree((prev) =>
             prev ? { ...prev, roots: removeFolderFromTree(prev.roots, id) } : prev,
           )
-          toast.success("已删除文件夹")
+          toast.success(t("catalog.toastFolderDeleted"))
         } else {
-          toast.error(json.message || "删除失败")
+          toast.error(json.message || t("catalog.toastDeleteFailed"))
           reload()
         }
       } catch {
-        toast.error("删除失败")
+        toast.error(t("catalog.toastDeleteFailed"))
         reload()
       }
     },
-    [reload],
+    [reload, t],
   )
 
   // 统一提交：空名（建/改名/新建叶子）不关闭以引导输入，成功后关闭
@@ -615,13 +619,13 @@ export function CatalogTree({
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
-              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
+              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
             </ContextMenuItem>
             <ContextMenuItem
               variant="destructive"
               onClick={() => setDialog({ mode: "delete", kind, id, name })}
             >
-              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
+              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> {t("catalog.delete")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -674,29 +678,29 @@ export function CatalogTree({
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem onClick={() => setDialog({ mode: "folder", parentId: node.id, name: "" })}>
-              <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> 新建子文件夹
+              <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.newSubFolder")}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => setDialog({ mode: "create-task", parentId: node.id, name: "", taskType: "SQL" })}
             >
-              <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> 新建任务
+              <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> {t("catalog.newTask")}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => setDialog({ mode: "create-workflow", parentId: node.id, name: "" })}
             >
-              <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> 新建工作流
+              <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => setDialog({ mode: "folder-rename", id: node.id, name: node.name })}>
-              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> 重命名
+              <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
             </ContextMenuItem>
             <ContextMenuItem
               variant="destructive"
               disabled={nonEmpty}
-              title={nonEmpty ? "请先清空或移走子项" : undefined}
+              title={nonEmpty ? t("catalog.mustEmptyFirst") : undefined}
               onClick={() => setDialog({ mode: "folder-delete", id: node.id, name: node.name })}
             >
-              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> 删除
+              <HugeiconsIcon icon={Delete02Icon} className="size-4" /> {t("catalog.delete")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -743,7 +747,7 @@ export function CatalogTree({
             className="size-4 shrink-0 text-muted-foreground"
           />
           <HugeiconsIcon icon={InboxIcon} className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-muted-foreground">未分类</span>
+          <span className="truncate text-muted-foreground">{t("catalog.uncategorized")}</span>
           <span className="ml-auto shrink-0 text-xs text-muted-foreground">
             {childTasks.length + childWorkflows.length || ""}
           </span>
@@ -759,21 +763,21 @@ export function CatalogTree({
   }
 
   if (loading) {
-    return <p className="p-3 text-sm text-muted-foreground">加载类目…</p>
+    return <p className="p-3 text-sm text-muted-foreground">{t("catalog.loading")}</p>
   }
 
   return (
     <div className={`flex flex-col gap-2 ${className ?? ""}`}>
       {/* 顶部：标题 + 新建（同一行，标题左、操作右）*/}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">类目</span>
+        <span className="text-sm font-medium">{t("catalog.title")}</span>
         <button
           type="button"
           onClick={() => setDialog({ mode: "folder", parentId: null, name: "" })}
           className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-          title="新建根文件夹"
+          title={t("catalog.newRootFolder")}
         >
-          <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> 新建
+          <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.new")}
         </button>
       </div>
 
@@ -781,7 +785,7 @@ export function CatalogTree({
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索任务/工作流"
+        placeholder={t("catalog.searchPlaceholder")}
         className="h-8 text-xs"
       />
 
@@ -813,7 +817,7 @@ export function CatalogTree({
               onClick={clearTags}
               className="text-xs text-muted-foreground underline hover:text-foreground"
             >
-              清除
+              {t("catalog.clear")}
             </button>
           )}
         </div>
@@ -830,28 +834,28 @@ export function CatalogTree({
             tasksByNode.size === 0 &&
             workflowsByNode.size === 0 && (
               searching ? (
-                <p className="px-1 py-2 text-sm text-muted-foreground">未匹配到任务/工作流</p>
+                <p className="px-1 py-2 text-sm text-muted-foreground">{t("catalog.noMatches")}</p>
               ) : (
                 <div className="flex flex-col gap-0.5 px-1 py-2 text-sm text-muted-foreground">
-                  <span>暂无类目</span>
-                  <span className="text-xs text-muted-foreground/70">右键或点「新建」建文件夹</span>
+                  <span>{t("catalog.empty")}</span>
+                  <span className="text-xs text-muted-foreground/70">{t("catalog.emptyHint")}</span>
                 </div>
               )
             )}
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={() => setDialog({ mode: "folder", parentId: null, name: "" })}>
-            <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> 新建根文件夹
+            <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.newRootFolder")}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => setDialog({ mode: "create-task", parentId: null, name: "", taskType: "SQL" })}
           >
-            <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> 新建任务
+            <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> {t("catalog.newTask")}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => setDialog({ mode: "create-workflow", parentId: null, name: "" })}
           >
-            <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> 新建工作流
+            <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -867,24 +871,24 @@ export function CatalogTree({
           <DialogHeader>
             <DialogTitle>
               {dialog.mode === "folder" &&
-                (dialog.parentId == null ? "新建根文件夹" : "新建子文件夹")}
-              {dialog.mode === "folder-rename" && "重命名文件夹"}
-              {dialog.mode === "folder-delete" && "删除文件夹"}
-              {dialog.mode === "create-task" && "新建任务"}
-              {dialog.mode === "create-workflow" && "新建工作流"}
+                (dialog.parentId == null ? t("catalog.dialogNewRootFolder") : t("catalog.dialogNewSubFolder"))}
+              {dialog.mode === "folder-rename" && t("catalog.dialogRenameFolder")}
+              {dialog.mode === "folder-delete" && t("catalog.dialogDeleteFolder")}
+              {dialog.mode === "create-task" && t("catalog.dialogNewTask")}
+              {dialog.mode === "create-workflow" && t("catalog.dialogNewWorkflow")}
               {dialog.mode === "rename" &&
-                `重命名${dialog.kind === "task" ? "任务" : "工作流"}`}
+                (dialog.kind === "task" ? t("catalog.dialogRenameTask") : t("catalog.dialogRenameWorkflow"))}
               {dialog.mode === "delete" &&
-                `删除${dialog.kind === "task" ? "任务" : "工作流"}`}
+                (dialog.kind === "task" ? t("catalog.dialogDeleteTask") : t("catalog.dialogDeleteWorkflow"))}
             </DialogTitle>
             {dialog.mode === "delete" && (
               <DialogDescription>
-                确定删除「{dialog.name}」？此操作为软删除。
+                {t("catalog.confirmDeleteLeaf", { name: dialog.name })}
               </DialogDescription>
             )}
             {dialog.mode === "folder-delete" && (
               <DialogDescription>
-                确定删除文件夹「{dialog.name}」？
+                {t("catalog.confirmDeleteFolder", { name: dialog.name })}
               </DialogDescription>
             )}
           </DialogHeader>
@@ -895,7 +899,7 @@ export function CatalogTree({
               <Input
                 autoFocus
                 value={dialog.name}
-                placeholder="名称"
+                placeholder={t("catalog.name")}
                 onChange={(e) =>
                   setDialog((d) => (d.mode !== "closed" ? { ...d, name: e.target.value } : d))
                 }
@@ -923,14 +927,14 @@ export function CatalogTree({
             />
           )}
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <DialogClose render={<Button variant="ghost" />}>{t("catalog.cancel")}</DialogClose>
             {dialog.mode === "delete" || dialog.mode === "folder-delete" ? (
               <Button variant="destructive" onClick={submitDialog}>
-                删除
+                {t("catalog.delete")}
               </Button>
             ) : (
               <Button onClick={submitDialog}>
-                {dialog.mode === "rename" || dialog.mode === "folder-rename" ? "保存" : "创建"}
+                {dialog.mode === "rename" || dialog.mode === "folder-rename" ? t("catalog.save") : t("catalog.create")}
               </Button>
             )}
           </DialogFooter>

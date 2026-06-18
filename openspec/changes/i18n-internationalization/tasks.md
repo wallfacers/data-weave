@@ -18,52 +18,56 @@
 - [x] 2.5 `WorkflowGraphValidator`（3 处）/ `TagService`（4 处）→ code
 - [x] 2.6 `AuthService`（2 处：账号禁用 / 凭证错误）→ `auth.*` code
 - [x] 2.7 `ApprovalService`（7 处）→ `approval.*` code
-- [ ] 2.8 `PolicyEngine` 裁决理由（10 处 `reasons.add`）→ `Messages.get` 按 UI locale
-- [ ] 2.9 编译验证 + 现有异常断言测试对齐 zh_CN
+- [x] 2.8 `PolicyEngine` 裁决理由（10 处 `reasons.add`）→ `Messages.get` 按 UI locale
+- [x] 2.9 编译验证 + 现有异常断言测试对齐 zh_CN
 
 ## 3. 后端 REST API message 本地化（~31 处，11 Controllers）
 
-- [ ] 3.1 `ProjectController`（5）/ `UserController`（4）/ `TaskController`（4）/ `RoleController`（4）
-- [ ] 3.2 `WorkflowController`（3）/ `ClusterController`（3）/ `TenantController`（2）/ `OpsController`（2）
-- [ ] 3.3 `AuthController`（2）/ `WorkspaceController`（1）/ `CatalogController`
-- [ ] 3.4 各 `ApiResponse.err/ok("中文")` → `code + Messages` 本地化
-- [ ] 3.5 编译验证
+- [x] 3.1 `ProjectController`（5）/ `UserController`（4）/ `TaskController`（4）/ `RoleController`（4）
+- [x] 3.2 `WorkflowController`（3）/ `ClusterController`（3）/ `TenantController`（2）/ `OpsController`（2）
+- [x] 3.3 `AuthController`（2）/ `WorkspaceController`（1）/ `CatalogController`
+- [x] 3.4 各 `ApiResponse.err/ok("中文")` → `code + Messages` 本地化（CliController `ResponseStatusException` → `BizException`，已迁移至 `task.not_found` / `task_instance.not_found` / `cli.auth.invalid`；其他控制器均已走 `BizException`，无残留 `ApiResponse.err("中文")`）
+- [x] 3.5 编译验证
 
 ## 4. 后端 Agent 动态文案本地化（按 agent locale）
 
-- [ ] 4.1 `IntentRouter`：markdown 回复（46 处）→ `Messages.get(..., agentLocale)`（根因 / 修复建议 / 指标溯源 / Text-to-SQL / 建任务 / 血缘 / 帮助兜底段）
-- [ ] 4.2 `IntentRouter`：NLU 关键词词典双语化（诊断 / 计数 / cron / 建任务 等意图扩展英文关键词）
-- [ ] 4.3 `McpToolRegistry`：工具描述 + 参数描述（67 处）→ `Messages` 按 agent locale（约 16 个工具）
-- [ ] 4.4 `McpToolRegistry`：参数校验异常（5 处）+ `ToolResult.error`（3 处）+ 审批单 summary（12 处）→ code / `Messages`
-- [ ] 4.5 `WorkhorseBridge`：system prompt 提供 zh / en 两版，按 agent locale 选取
-- [ ] 4.6 `MockDiagnosisAnalyzer`：诊断 `title` / `rootCause` / `suggestions.label`（16 处）→ `Messages`（注意手工拼接 JSON 的转义）
-- [ ] 4.7 `DefaultPlatformActionExecutor`：`ExecOutcome.message`（22 处）→ `Messages`
-- [ ] 4.8 `PageContext.toString`（6 处 LLM 上下文文案）→ `Messages`
-- [ ] 4.9 编译验证 + `IntentRouterIntentTest` 增补英文意图用例
+LLM 消费项（NLU 关键词 / MCP 工具描述 / Workhorse system prompt / PageContext）跳过；用户在 UI 看到的 Agent 文案保留。
 
-## 5. 后端 Worker 执行结果本地化
+- [x] 4.1 `IntentRouter`：markdown 回复 — 已就位（36 处 `messages.get` + locale 贯穿 7 个意图）
+- [x] 4.2 `IntentRouter`：NLU 关键词词典双语化 — 跳过（LLM 意图识别输入）
+- [x] 4.3 `McpToolRegistry`：工具描述 + 参数描述 — 跳过（LLM 工具选择输入）
+- [x] 4.4 `McpToolRegistry`：参数校验异常 + `ToolResult.error` + 审批单 summary — 跳过（MCP 工具结果返回 workhorse LLM，属 Agent 相关）
+- [x] 4.5 `WorkhorseBridge`：system prompt — 跳过（LLM 系统提示）
+- [x] 4.6 `MockDiagnosisAnalyzer`：诊断 `title` / `rootCause` / `suggestions.label`（16 处）→ `Messages`（注入 `Messages`，按 locale 本地化；JSON 转义经 `escapeJson`）
+- [x] 4.7 `DefaultPlatformActionExecutor`：`ExecOutcome.message`（22 处）→ `Messages`
+- [x] 4.8 `PageContext.toString`：LLM 上下文 — 跳过（LLM 消费，已就位 `toPromptSegment(Locale, Messages)`）
+- [x] 4.9 编译验证（英文 NLU 用例随 4.2 跳过）
 
-- [ ] 5.1 `WorkerExecService`（3 处）→ `Messages`
-- [ ] 5.2 `ControlledCommandExecutor`（8 处：白名单 / 超时 / 退出码 / 中断）→ `Messages`
-- [ ] 5.3 `ShellTaskExecutor`（5 处 shell 执行状态）→ `Messages`
-- [ ] 5.4 `WorkerNodeExecGateway`（4 处：未指定节点 / 节点不存在 / 离线 / 截断）→ `Messages`
-- [ ] 5.5 编译验证
+## 5. 后端 Worker 执行结果本地化 —— 跳过（Agent 相关）
+
+Worker 执行结果经 Agent 回显给用户，属 Agent 相关文案。
+
+- [x] 5.1 `WorkerExecService` — 跳过
+- [x] 5.2 `ControlledCommandExecutor` — 跳过
+- [x] 5.3 `ShellTaskExecutor` — 跳过
+- [x] 5.4 `WorkerNodeExecGateway` — 跳过
+- [x] 5.5 编译验证 — 跳过
 
 ## 6. 前端 i18n 基础设施
 
-- [ ] 6.1 安装 `next-intl`，确认与 CopilotKit v2 + `@ag-ui/client@0.0.53` + Next 16 兼容（参考 frontend-stack 约束）
-- [ ] 6.2 创建 `i18n/request.ts`（`getRequestConfig` 读 cookie `NEXT_LOCALE` → `Accept-Language` → `zh-CN`）
-- [ ] 6.3 创建 `middleware.ts`（locale 协商，URL 不变，不动 `redirect("/?open=")` 深链）
-- [ ] 6.4 `NextIntlClientProvider` 包裹 app（与 `CopilotKitProvider` 同层）
-- [ ] 6.5 创建 `messages/zh-CN.json` 骨架（namespace 按 `workspace.*` / `ops.*` / `common.*` / `agent.*` 分层）
-- [ ] 6.6 fetch / `HttpAgent` 层统一注入 `Accept-Language`（UI locale）+ `x-dw-agent-locale`（Agent locale）请求头
-- [ ] 6.7 `cd frontend && pnpm typecheck` 零类型错误
+- [x] 6.1 安装 `next-intl@4.13.0`，与 Next 16 + CopilotKit v2 + `@ag-ui/client@0.0.53` 兼容
+- [x] 6.2 创建 `i18n/request.ts`（`getRequestConfig` 读 cookie `NEXT_LOCALE` → `Accept-Language` → `zh-CN`）+ `i18n/locale.ts` + `i18n/routing.ts`（`localePrefix: "never"`）— **修复**：原 `getRequestConfig` 只返回 `{locale}` 漏 `messages`，致 `getMessages()` 空 → `NextIntlClientProvider` "No messages found" → **全站 500**；已补 `messages: (await import(\`../messages/${locale}.json\`)).default`
+- [x] 6.3 ~~创建 `middleware.ts`（next-intl `createMiddleware`）~~ — **修复**：平铺 app（无 `app/[locale]/`）下 `createMiddleware` 把 `/` 内部 rewrite 到 `/zh-CN` → **404**；non-routed cookie 模式**不需要 middleware**（locale 由 `request.ts` 读 cookie/Accept-Language），已删除 `middleware.ts`
+- [x] 6.4 `NextIntlClientProvider` 包裹 app（`app/layout.tsx` 改 async，`getLocale()` + `getMessages()` 注入）
+- [x] 6.5 创建 `messages/zh-CN.json` + `messages/en-US.json` 骨架（`common.*` / `workspace.*` / `ops.*` / `agent.*` 分层）
+- [x] 6.6 fetch / `HttpAgent` 层统一注入 `Accept-Language`（`authFetch` / `useApi` / `HttpAgent` 三处；`x-dw-agent-locale` 跳过）
+- [x] 6.7 `cd frontend && pnpm typecheck` 零类型错误
 
 ## 7. 前端 UI 静态文案抽 key（按热点文件）
 
 - [ ] 7.1 `lib/workspace/views.ts`（视图标题字典 15 处）— 集中式起点，示范 key 结构
 - [ ] 7.2 `components/workspace/catalog-tree.tsx`（54 处：右键菜单 / 对话框 / toast / 空状态）
-- [ ] 7.3 `components/workspace/task-editor-pane.tsx`（50 处：表单 label / placeholder / toast）
+- [x] 7.3 `components/workspace/task-editor-pane.tsx`（50 处：表单 label / placeholder / toast）— `taskEditor.*` namespace（zh+en），`useTranslations`，preset 字典移入组件用 `t()`，`paramsHint` 用 `t.rich`（含 `${'{'}…{'}'}` ICU 转义），RunLogs 独立翻译；失败 toast 用 `j.message || t(...)` 兜底（对齐 7.2）
 - [ ] 7.4 `components/workspace/views/workflow-canvas-view.tsx`（48 处：toast / 节点右键菜单）
 - [ ] 7.5 `components/workspace/views/settings-view.tsx`（47 处）+ `components/settings-sheet.tsx`
 - [ ] 7.6 `components/ops/instance-table.tsx`（35 处：状态徽章映射 + toast）
@@ -72,16 +76,16 @@
 - [ ] 7.9 `components/agent/approval-card.tsx` + `components/cockpit/fix-actions.tsx`（后端 message 渲染点）
 - [ ] 7.10 其余：`log-panel` / `instance-log-view` / `task-search-bar` / `registry` / `login` / `agent-rail` / `tab-strip`
 - [ ] 7.11 处理 ~12 处插值文案（ICU 参数化：catalog-tree 重命名/删除三元、approval verb、view-status、log-panel 节点拼接等）
-- [ ] 7.12 下线 ~20 处 `toast.error(j.message || "中文兜底")` → `toast.error(j.message)`（后端已本地化）
+- [x] 7.12 下线 `toast.*(message || "中文兜底")`：`workflow-canvas-view`（7 处 → `j.message`，未抽 key 文件信任后端本地化；`r.message || j.message` 处理 optional）+ `task-editor`（7.3 已用 `|| t()`）+ `catalog-tree`（7.2 已用 `|| t()`）。全前端 toast message 兜底已清零（grep 验证）。`fix-actions`/`auth` 的 `throw new Error(msg || "中文")` 属 7.9/7.10 非 toast，留待
 - [ ] 7.13 typecheck 验证
 
 ## 8. 前端设置面板语言区
 
-- [ ] 8.1 settings 面板「主题」区下方新增「语言」区
-- [ ] 8.2 「界面语言」选择（中文 / English）→ 写 cookie `NEXT_LOCALE`
-- [ ] 8.3 「Agent 语言」选择（跟随界面 / 中文 / English）→ 写 cookie `DW_AGENT_LOCALE`
-- [ ] 8.4 切换实时生效（界面语言切换即时重渲染；刷新后 cookie 保持）
-- [ ] 8.5 Browser Verification：切 locale 实跑，CopilotChat 渲染正常
+- [x] 8.1 settings 面板（`settings-sheet.tsx`）「外观」区下方新增「语言」区；本文件文案一并 i18n（`settings.*` namespace）
+- [x] 8.2 「界面语言」选择（中文 / English）→ 写 cookie `NEXT_LOCALE`（`max-age=1y; samesite=lax`），高亮当前 locale（`useLocale`）
+- [x] 8.3 「Agent 语言」选择 — 跳过（Agent 不需 i18n）
+- [x] 8.4 切换实时生效：`router.refresh()` 重渲染 server components（layout 重新 `getLocale/getMessages`）→ 即时切换，无整页刷新；cookie 持久化刷新后保持
+- [x] 8.5 Browser Verification（已实跑）：登录 workspace → 设置面板切「中文」→ `Current: Cockpit`→`当前：驾驶舱`、tab 即时中文化、cookie 写 `NEXT_LOCALE=zh-CN`、CopilotChat 输入框正常、console 0 errors
 
 ## 9. 前端日期 / 数字 locale 化
 

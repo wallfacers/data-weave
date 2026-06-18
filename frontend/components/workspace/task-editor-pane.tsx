@@ -7,8 +7,9 @@
  *
  * D8：未发布（DRAFT）时「运行」禁用并提示需先发布，不提供一键发布并运行（发布是有副作用的状态变更）。
  */
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { FloppyDiskIcon, RocketIcon } from "@hugeicons/core-free-icons"
 
@@ -26,21 +27,9 @@ const TYPE_OPTIONS = [
   { value: "SHELL", label: "SHELL" },
 ]
 
-// 快捷表达式预设：点选即填入当前参数的「表达式」，免去手敲 ${...}
+// 快捷表达式预设：点选即填入当前参数的「表达式」，免去手敲 ${...}。
+// value 为表达式字面量（不翻译），label 经 i18n 在组件内生成。
 const PRESET_PLACEHOLDER = "__preset__"
-const EXPRESSION_PRESETS = [
-  { value: PRESET_PLACEHOLDER, label: "插入常用…" },
-  { value: "${yyyymmdd}", label: "业务日期 yyyymmdd" },
-  { value: "${yyyymmdd-1}", label: "前一天" },
-  { value: "${yyyymmdd-7*1}", label: "前 7 天" },
-  { value: "${yyyy-mm-dd}", label: "业务日期 yyyy-mm-dd" },
-  { value: "${yyyymm}", label: "业务月 yyyymm" },
-  { value: "${yyyymm-1}", label: "上月" },
-  { value: "${yyyy-1}", label: "去年" },
-  { value: "$bizdate", label: "$bizdate（业务日）" },
-  { value: "$bizmonth", label: "$bizmonth（业务月）" },
-  { value: "$gmtdate", label: "$gmtdate（今天）" },
-]
 
 interface ParamRow {
   name: string
@@ -89,6 +78,7 @@ export interface TaskEditorPaneProps {
 }
 
 export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
+  const t = useTranslations()
   const [name, setName] = useState("")
   const [type, setType] = useState("SQL")
   const [content, setContent] = useState("")
@@ -114,29 +104,47 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
   const published = status === "ONLINE"
   const editorLang: CodeEditorLanguage = type === "SQL" ? "sql" : "bash"
 
+  // 快捷表达式预设：value 固定，label 经 i18n。
+  const expressionPresets = useMemo(
+    () => [
+      { value: PRESET_PLACEHOLDER, label: t("taskEditor.presetInsert") },
+      { value: "${yyyymmdd}", label: t("taskEditor.presetYmd") },
+      { value: "${yyyymmdd-1}", label: t("taskEditor.presetYmdMinus1") },
+      { value: "${yyyymmdd-7*1}", label: t("taskEditor.presetYmdMinus7") },
+      { value: "${yyyy-mm-dd}", label: t("taskEditor.presetYmdDash") },
+      { value: "${yyyymm}", label: t("taskEditor.presetYm") },
+      { value: "${yyyymm-1}", label: t("taskEditor.presetYmMinus1") },
+      { value: "${yyyy-1}", label: t("taskEditor.presetYMinus1") },
+      { value: "$bizdate", label: t("taskEditor.presetBizdate") },
+      { value: "$bizmonth", label: t("taskEditor.presetBizmonth") },
+      { value: "$gmtdate", label: t("taskEditor.presetGmtdate") },
+    ],
+    [t],
+  )
+
   // 编辑模式：拉取任务数据。GET /api/tasks/{id} 返回 TaskDetail={task, versions}，取 data.task。
   const loadTask = useCallback(async () => {
     setLoading(true)
     try {
       const res = await authFetch(`${API_BASE}/api/tasks/${taskId}`)
       const json = (await res.json()) as ApiResponse<{ task: TaskDef; versions: unknown[] }>
-      const t = json.data?.task
-      if (!t) return
-      setName(t.name ?? "")
-      setType(t.type ?? "SQL")
-      setContent(t.content ?? "")
-      setDescription(t.description ?? "")
-      setPriority(t.priority ?? 5)
-      setTimeoutSec(t.timeoutSec ?? 60)
-      setRetryMax(t.retryMax ?? 0)
-      setStatus(t.status ?? "DRAFT")
-      setParamRows(parseParams(t.paramsJson))
+      const td = json.data?.task
+      if (!td) return
+      setName(td.name ?? "")
+      setType(td.type ?? "SQL")
+      setContent(td.content ?? "")
+      setDescription(td.description ?? "")
+      setPriority(td.priority ?? 5)
+      setTimeoutSec(td.timeoutSec ?? 60)
+      setRetryMax(td.retryMax ?? 0)
+      setStatus(td.status ?? "DRAFT")
+      setParamRows(parseParams(td.paramsJson))
     } catch {
-      toast.error("加载任务失败")
+      toast.error(t("taskEditor.toastLoadFailed"))
     } finally {
       setLoading(false)
     }
-  }, [taskId])
+  }, [taskId, t])
 
   useEffect(() => {
     loadTask()
@@ -158,7 +166,7 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       })
       const body = (await res.json()) as ApiResponse<{ content: string }>
       if (body.code !== 0) {
-        setPreviewError(body.message ?? "解析失败")
+        setPreviewError(body.message ?? t("taskEditor.parseFailed"))
       } else {
         setPreviewResult(body.data?.content ?? "")
       }
@@ -180,10 +188,10 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      toast.success("已保存草稿")
+      toast.success(t("taskEditor.toastSaved"))
       onSaved?.()
     } catch {
-      toast.error("保存失败")
+      toast.error(t("taskEditor.toastSaveFailed"))
     } finally {
       setSaving(false)
     }
@@ -200,13 +208,13 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       const j = (await res.json()) as ApiResponse<TaskDef>
       if (j.code === 0) {
         setStatus("ONLINE")
-        toast.success("已发布上线")
+        toast.success(t("taskEditor.toastPublished"))
         onSaved?.()
       } else {
-        toast.error(j.message || "发布失败")
+        toast.error(j.message || t("taskEditor.toastPublishFailed"))
       }
     } catch {
-      toast.error("发布失败")
+      toast.error(t("taskEditor.toastPublishFailed"))
     } finally {
       setSaving(false)
     }
@@ -222,13 +230,13 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       const j = (await res.json()) as ApiResponse<TaskDef>
       if (j.code === 0) {
         setStatus("DRAFT")
-        toast.success("已下线")
+        toast.success(t("taskEditor.toastOffline"))
         onSaved?.()
       } else {
-        toast.error(j.message || "下线失败")
+        toast.error(j.message || t("taskEditor.toastOfflineFailed"))
       }
     } catch {
-      toast.error("下线失败")
+      toast.error(t("taskEditor.toastOfflineFailed"))
     } finally {
       setSaving(false)
     }
@@ -246,20 +254,20 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       })
       const j = (await res.json()) as ApiResponse<RunResult>
       if (j.code !== 0 || !j.data) {
-        toast.error(j.message || "运行失败")
+        toast.error(j.message || t("taskEditor.toastRunFailed"))
         return
       }
       const r = j.data
       if (r.outcome === "EXECUTED" && r.resultInstanceId) {
         setRunInstanceId(r.resultInstanceId)
-        toast.success("已触发运行")
+        toast.success(t("taskEditor.toastRunTriggered"))
       } else if (r.outcome === "PENDING_APPROVAL") {
-        toast.info(`需审批：单号 ${r.actionId ?? "?"}`)
+        toast.info(t("taskEditor.toastNeedApproval", { id: r.actionId ?? "?" }))
       } else {
-        toast.error(r.message || "运行未执行")
+        toast.error(r.message || t("taskEditor.toastRunNotExecuted"))
       }
     } catch {
-      toast.error("运行失败")
+      toast.error(t("taskEditor.toastRunFailed"))
     } finally {
       setRunning(false)
     }
@@ -278,7 +286,7 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        加载中…
+        {t("common.loading")}
       </div>
     )
   }
@@ -289,35 +297,35 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
         <Button size="sm" onClick={handleRun} disabled={!published || running}>
           <HugeiconsIcon icon={RocketIcon} className="size-4" />
-          {running ? "运行中…" : "运行"}
+          {running ? t("taskEditor.running") : t("taskEditor.run")}
         </Button>
         {!published && (
           <span className="text-xs text-muted-foreground">
-            未发布不可运行，请先
+            {t("taskEditor.notPublishedHint")}
             <button
               type="button"
               className="ml-0.5 underline hover:text-foreground"
               onClick={handlePublish}
               disabled={saving}
             >
-              发布
+              {t("taskEditor.publish")}
             </button>
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           <Badge variant={published ? "success" : "outline"}>
-            {published ? "已发布" : "草稿"}
+            {published ? t("taskEditor.statusOnline") : t("taskEditor.statusDraft")}
           </Badge>
           <Button size="sm" variant="outline" onClick={handleSave} disabled={saving || !name.trim()}>
-            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> 保存草稿
+            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> {t("taskEditor.saveDraft")}
           </Button>
           {published ? (
             <Button size="sm" variant="secondary" onClick={handleOffline} disabled={saving}>
-              下线
+              {t("taskEditor.offline")}
             </Button>
           ) : (
             <Button size="sm" variant="secondary" onClick={handlePublish} disabled={saving}>
-              发布
+              {t("taskEditor.publish")}
             </Button>
           )}
         </div>
@@ -344,38 +352,40 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
         {/* 右：配置（参数行 / 预览 / 调度）—— 迁自 TaskEditPanel */}
         <DwScroll className="w-72 shrink-0 border-l border-border" innerClassName="flex flex-col gap-3 p-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">名称</label>
-            <Input className="h-8 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="任务名称" />
+            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.name")}</label>
+            <Input className="h-8 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("taskEditor.namePlaceholder")} />
           </div>
 
           <div className="flex gap-3">
             <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">类型</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.type")}</label>
               <DropdownSelect value={type} onChange={setType} options={TYPE_OPTIONS} />
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">优先级</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.priority")}</label>
               <Input className="h-8 text-sm" type="number" min={0} max={9} value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">描述</label>
-            <Input className="h-8 text-sm" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="任务描述（可选）" />
+            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.description")}</label>
+            <Input className="h-8 text-sm" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("taskEditor.descriptionPlaceholder")} />
           </div>
 
           {/* 调度参数：name → expr */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">调度参数（可选）</label>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={addParam}>+ 添加</Button>
+              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.params")}</label>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={addParam}>{t("taskEditor.addParam")}</Button>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              在内容里用 <code className="font-mono">{"${参数名}"}</code> 引用；参数值也可填表达式（如 <code className="font-mono">{"${yyyymmdd-1}"}</code>），会递归展开。留空即不启用。
+              {t.rich("taskEditor.paramsHint", {
+                code: (chunks) => <code className="font-mono">{chunks}</code>,
+              })}
             </p>
             {paramRows.length === 0 ? (
               <div className="rounded-md border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-                暂无参数，点「+ 添加」配置。
+                {t("taskEditor.noParams")}
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -386,22 +396,22 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
                         className="h-7 flex-1 text-xs font-mono"
                         value={row.name}
                         onChange={(e) => updateParam(idx, { name: e.target.value })}
-                        placeholder="参数名"
+                        placeholder={t("taskEditor.paramName")}
                       />
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => removeParam(idx)}>删除</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => removeParam(idx)}>{t("common.delete")}</Button>
                     </div>
                     <Input
                       className="h-7 flex-1 text-xs font-mono"
                       value={row.expr}
                       onChange={(e) => updateParam(idx, { expr: e.target.value })}
-                      placeholder="表达式，如 ${yyyymmdd-1}"
+                      placeholder={t("taskEditor.exprPlaceholder")}
                     />
                     <DropdownSelect
                       value={PRESET_PLACEHOLDER}
                       onChange={(v) => {
                         if (v !== PRESET_PLACEHOLDER) updateParam(idx, { expr: v })
                       }}
-                      options={EXPRESSION_PRESETS}
+                      options={expressionPresets}
                     />
                   </div>
                 ))}
@@ -411,16 +421,16 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
 
           {/* 替换预览 */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">替换预览</label>
+            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.preview")}</label>
             <div className="flex gap-1.5">
               <Input
                 className="h-7 flex-1 text-xs font-mono"
                 value={previewBizDate}
                 onChange={(e) => setPreviewBizDate(e.target.value)}
-                placeholder="业务日期 yyyy-MM-dd"
+                placeholder={t("taskEditor.bizDatePlaceholder")}
               />
               <Button size="sm" variant="secondary" className="h-7" onClick={handlePreview} disabled={previewing || !content}>
-                {previewing ? "…" : "预览"}
+                {previewing ? "…" : t("taskEditor.previewBtn")}
               </Button>
             </div>
             {previewError && <p className="text-[11px] text-destructive">{previewError}</p>}
@@ -433,11 +443,11 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
 
           <div className="flex gap-3">
             <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">超时（秒）</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.timeout")}</label>
               <Input className="h-8 text-sm" type="number" value={timeoutSec} onChange={(e) => setTimeoutSec(Number(e.target.value))} />
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">最大重试</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.retryMax")}</label>
               <Input className="h-8 text-sm" type="number" min={0} value={retryMax} onChange={(e) => setRetryMax(Number(e.target.value))} />
             </div>
           </div>
@@ -449,12 +459,19 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
 
 /** 运行日志面板：订阅某实例的 logs/stream，按 runInstanceId 重建（每次运行日志独立）。 */
 function RunLogs({ instanceId }: { instanceId: string }) {
+  const t = useTranslations()
   const { events, connected, error } = useEventSource(
     `${API_BASE}/api/ops/instances/${instanceId}/logs/stream`,
   )
   const lines = events.filter((e) => e.type === "log").map((e) => e.data)
   const ended = events.some((e) => e.type === "end")
-  const connLabel = connected ? "实时" : ended ? "已结束" : error ? "断开" : "连接中"
+  const connLabel = connected
+    ? t("taskEditor.logLive")
+    : ended
+      ? t("taskEditor.logEnded")
+      : error
+        ? t("taskEditor.logDisconnected")
+        : t("taskEditor.logConnecting")
   const connVariant = connected ? "success" : error ? "destructive" : "info"
 
   return (
@@ -468,7 +485,11 @@ function RunLogs({ instanceId }: { instanceId: string }) {
       <DwScroll className="flex-1" innerClassName="px-3 pb-2 font-mono text-xs leading-relaxed">
         {lines.length === 0 ? (
           <div className="text-muted-foreground">
-            {connected ? "等待日志输出…" : ended ? "无日志记录" : "连接中…"}
+            {connected
+              ? t("taskEditor.logWaiting")
+              : ended
+                ? t("taskEditor.logNoRecords")
+                : t("taskEditor.logConnectingShort")}
           </div>
         ) : (
           <div className="space-y-px">

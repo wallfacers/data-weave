@@ -254,7 +254,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
           setHasDraft(j.data.hasDraftChange === 1)
           setDirty(false)
         } else {
-          toast.error(j.message || "读取 DAG 失败")
+          toast.error(j.message)
         }
       })
       .catch(() => toast.error("读取 DAG 失败"))
@@ -387,7 +387,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
         } else if (j.code === 409) {
           toast.error("工作流已被他人修改，请刷新后重试")
         } else {
-          toast.error(j.message || "保存失败")
+          toast.error(j.message)
         }
       })
       .catch(() => toast.error("保存失败"))
@@ -413,7 +413,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
           toast.success(`已发布 v${j.data.currentVersionNo}`)
           onSaved?.()
         } else {
-          toast.error(j.message || "发布失败")
+          toast.error(j.message)
         }
       })
       .catch(() => toast.error("发布失败"))
@@ -432,7 +432,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
       })
       const j = (await res.json()) as ApiResponse<RunResult>
       if (j.code !== 0 || !j.data) {
-        toast.error(j.message || "运行失败")
+        toast.error(j.message)
         return
       }
       const r = j.data
@@ -440,7 +440,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
         if (r.outcome === "PENDING_APPROVAL") {
           toast.info(`需审批：单号 ${r.actionId ?? "?"}`)
         } else {
-          toast.error(r.message || "运行未执行")
+          toast.error(r.message || j.message)
         }
         return
       }
@@ -696,7 +696,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         bumpTree()
         toast.success("已创建任务草稿")
       } else {
-        toast.error(j.message || "创建失败")
+        toast.error(j.message)
       }
     } catch {
       toast.error("创建失败")
@@ -722,7 +722,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         bumpTree()
         toast.success("已创建工作流草稿")
       } else {
-        toast.error(j.message || "创建失败")
+        toast.error(j.message)
       }
     } catch {
       toast.error("创建失败")

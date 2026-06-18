@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlusSignIcon } from "@hugeicons/core-free-icons"
 
@@ -10,8 +11,8 @@ import { VIEW_META, type ViewType } from "@/lib/workspace/views"
 import { TabStrip, type TabStripItem, type TabContextAction } from "@/components/ui/tab-strip"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
-function tabLabel(tab: WorkspaceTab): string {
-  const title = VIEW_META[tab.view].title
+function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
+  const title = t(VIEW_META[tab.view].title)
   if (!tab.params) return title
   const first = Object.values(tab.params)[0]
   return first != null ? `${title} · ${String(first)}` : title
@@ -21,6 +22,7 @@ function tabLabel(tab: WorkspaceTab): string {
 function Launcher() {
   const [menuOpen, setMenuOpen] = useState(false)
   const open = useWorkspaceStore((s) => s.open)
+  const t = useTranslations()
   const btnRef = useRef<HTMLButtonElement>(null)
   const [anchor, setAnchor] = useState({ top: 0, right: 0 })
 
@@ -42,7 +44,7 @@ function Launcher() {
         type="button"
         onClick={toggleMenu}
         className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-        aria-label="打开视图"
+        aria-label={t("workspace.openView")}
         aria-expanded={menuOpen}
       >
         <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
@@ -65,7 +67,7 @@ function Launcher() {
                 className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-popover-foreground hover:bg-muted"
               >
                 <HugeiconsIcon icon={VIEW_RENDER[view].icon} className="size-4 text-muted-foreground" />
-                {VIEW_META[view].title}
+                {t(VIEW_META[view].title)}
               </button>
             ))}
           </div>
@@ -86,11 +88,12 @@ export function WorkspaceTabBar() {
   const closeAll = useWorkspaceStore((s) => s.closeAll)
   const pin = useWorkspaceStore((s) => s.pin)
   const unpin = useWorkspaceStore((s) => s.unpin)
+  const t = useTranslations()
 
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const items: TabStripItem[] = tabs.map((tab) => ({
     id: tab.id,
-    label: tabLabel(tab),
+    label: tabLabel(tab, t),
     icon: VIEW_RENDER[tab.view].icon,
     closable: !tab.pinned,
   }))
@@ -100,8 +103,8 @@ export function WorkspaceTabBar() {
     const tab = byId.get(item.id)
     if (!tab || tab.base) return []
     return tab.pinned
-      ? [{ label: "取消固定", onClick: () => unpin(tab.id) }]
-      : [{ label: "固定标签页", onClick: () => pin(tab.id) }]
+      ? [{ label: t("workspace.unpinTab"), onClick: () => unpin(tab.id) }]
+      : [{ label: t("workspace.pinTab"), onClick: () => pin(tab.id) }]
   }
 
   return (

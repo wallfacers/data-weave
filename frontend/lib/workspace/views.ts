@@ -1,6 +1,9 @@
 /**
  * Workspace 视图元数据（纯数据，无 React 依赖，可在 node 测试环境直接 import）。
  * 组件映射在 registry.tsx；store 只认这里的 viewType 集合。
+ *
+ * `title` 为 i18n key（命名空间 `views.<viewType>`）；渲染侧用 `useTranslations()` 解析，
+ * 避免本文件引入 React 依赖。
  */
 
 export type ViewType =
@@ -21,27 +24,28 @@ export type ViewType =
   | "settings"
 
 export interface ViewMeta {
+  /** i18n key（命名空间 `views.*`）；渲染侧经 `useTranslations("views")` 解析为本地化字符串 */
   title: string
   /** true = Pinned 底座视图：恒定常驻、不可关闭、不进快照 */
   defaultPinned?: boolean
 }
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
-  cockpit: { title: "驾驶舱", defaultPinned: true },
-  "workflow-canvas": { title: "数据开发" },
-  freshness: { title: "数据新鲜度", defaultPinned: true },
-  reports: { title: "业务报表", defaultPinned: true },
-  metrics: { title: "系统指标", defaultPinned: true },
-  diagnosis: { title: "失败诊断" },
-  fleet: { title: "集群机器" },
-  "instance-log": { title: "实例日志" },
-  "workflow-instance-detail": { title: "工作流实例" },
-  lineage: { title: "数据血缘" },
-  catalog: { title: "资产目录" },
-  quality: { title: "数据质量" },
-  integration: { title: "数据集成" },
-  service: { title: "数据服务" },
-  settings: { title: "系统设置" },
+  cockpit: { title: "views.cockpit", defaultPinned: true },
+  "workflow-canvas": { title: "views.workflowCanvas" },
+  freshness: { title: "views.freshness", defaultPinned: true },
+  reports: { title: "views.reports", defaultPinned: true },
+  metrics: { title: "views.metrics", defaultPinned: true },
+  diagnosis: { title: "views.diagnosis" },
+  fleet: { title: "views.fleet" },
+  "instance-log": { title: "views.instanceLog" },
+  "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
+  lineage: { title: "views.lineage" },
+  catalog: { title: "views.catalog" },
+  quality: { title: "views.quality" },
+  integration: { title: "views.integration" },
+  service: { title: "views.service" },
+  settings: { title: "views.settings" },
 }
 
 export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(
