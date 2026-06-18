@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Defines DataWeave's port allocation contract: application services follow functional hundred-segment ranges (master/api 80xx, worker 81xx, secondary master 82xx, workhorse-agent 83xx, frontend dev 4000); multi-instance deployments keep container-internal ports uniform and offset host ports; third-party infrastructure (PostgreSQL/Redis/MinIO) retains industry-standard ports; and port configuration has a single source of truth kept consistent across `application.yml`, Docker, CORS, the `dw` CLI, and docs.
+
+## Requirements
 
 ### Requirement: Application ports follow functional hundred-segment allocation
 The system SHALL assign application service ports by functional role using hundred-segment ranges: master/api services use 80xx (base 8000), worker services use 81xx (base 8100), secondary master instances use 82xx (base 8200), workhorse-agent uses 83xx (base 8300), and the frontend dev server uses 4000. No application service SHALL use a port from another segment.
