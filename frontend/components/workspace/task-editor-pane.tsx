@@ -212,6 +212,28 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
     }
   }
 
+  // 下线：ONLINE → DRAFT（与发布互逆）。后端 TaskController 直调。
+  async function handleOffline() {
+    setSaving(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/offline`, {
+        method: "POST",
+      })
+      const j = (await res.json()) as ApiResponse<TaskDef>
+      if (j.code === 0) {
+        setStatus("DRAFT")
+        toast.success("已下线")
+        onSaved?.()
+      } else {
+        toast.error(j.message || "下线失败")
+      }
+    } catch {
+      toast.error("下线失败")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // 手动触发正式实例（manual-run-trigger）：L1 直执行返回 instanceId → 接日志流；
   // 收紧规则则 PENDING_APPROVAL（审批单号），批准后才下发。
   async function handleRun() {
@@ -289,9 +311,15 @@ export function TaskEditorPane({ taskId, onSaved }: TaskEditorPaneProps) {
           <Button size="sm" variant="outline" onClick={handleSave} disabled={saving || !name.trim()}>
             <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> 保存草稿
           </Button>
-          <Button size="sm" variant="secondary" onClick={handlePublish} disabled={saving}>
-            发布
-          </Button>
+          {published ? (
+            <Button size="sm" variant="secondary" onClick={handleOffline} disabled={saving}>
+              下线
+            </Button>
+          ) : (
+            <Button size="sm" variant="secondary" onClick={handlePublish} disabled={saving}>
+              发布
+            </Button>
+          )}
         </div>
       </div>
 

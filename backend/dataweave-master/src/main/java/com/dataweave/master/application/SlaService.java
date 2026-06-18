@@ -19,7 +19,8 @@ import java.util.UUID;
  * SLA 基线服务（design D14，task 5.3）。
  *
  * <p>在工作流实例成功完成时记录就绪时刻；基于历史数据计算基线；
- * 检测破线（就绪时间显著晚于历史基线）并标记。统计排除 TEST 实例。
+ * 检测破线（就绪时间显著晚于历史基线）并标记。workflow_instance 恒为正式运行
+ *（试跑 triggerTestRun 只建孤立 task_instance、不建 workflow_instance），无需排除 TEST。
  *
  * <h3>基线算法</h3>
  * v1：近 {@code N} 次成功就绪时间的中位数（默认 N=7）。
@@ -53,25 +54,25 @@ public class SlaService {
 
     /**
      * 工作流实例成功完成时调用：记录就绪时刻，计算基线，判定破线。
-     * TEST 实例直接忽略。
      */
     public void recordCompletion(UUID workflowInstanceId) {
         try {
+            // workflow_instance 恒为正式运行：试跑 triggerTestRun 只建孤立 task_instance
+            //（workflow_instance_id=null、run_mode=TEST），不创建 workflow_instance，故 SLA 无需排除 TEST。
             var row = jdbc.queryForMap(
-                    "SELECT wi.workflow_id, wi.biz_date, wi.run_mode, wi.finished_at "
+                    "SELECT wi.workflow_id, wi.biz_date, wi.finished_at "
                             + "FROM workflow_instance wi WHERE wi.id = ? AND wi.deleted = 0",
                     workflowInstanceId);
             if (row.isEmpty()) {
                 return;
             }
-            String runMode = (String) row.get("RUN_MODE");
-            if ("TEST".equals(runMode)) {
-                return; // SLA 排除 TEST 运行
-            }
             Long workflowId = ((Number) row.get("WORKFLOW_ID")).longValue();
             String bizDate = (String) row.get("BIZ_DATE");
-            LocalDateTime finishedAt = row.get("FINISHED_AT") != null
-                    ? (LocalDateTime) row.get("FINISHED_AT") : LocalDateTime.now();
+            // JDBC 把 TIMESTAMP 列读成 java.sql.Timestamp（H2/PG 均如此），不能直接强转 LocalDateTime。
+            Object finishedAtRaw = row.get("FINISHED_AT");
+            LocalDateTime finishedAt = finishedAtRaw == null ? LocalDateTime.now()
+                    : finishedAtRaw instanceof LocalDateTime ldt ? ldt
+                    : ((java.sql.Timestamp) finishedAtRaw).toLocalDateTime();
 
             // 幂等：已存在记录则更新
             SlaBaseline baseline = repository.findByWorkflowIdAndBizDate(workflowId, bizDate)

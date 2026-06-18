@@ -82,6 +82,12 @@ public class OpsController {
         return ApiResponse.ok(opsService.instances());
     }
 
+    /** 工作流实例详情（实例 + 其下任务节点）。 */
+    @GetMapping("/workflow-instances/{id}")
+    public ApiResponse<OpsService.WorkflowInstanceDetail> workflowInstance(@PathVariable UUID id) {
+        return ApiResponse.ok(opsService.workflowInstanceDetail(id));
+    }
+
     /** 失败的正式运行实例。 */
     @GetMapping("/failed")
     public ApiResponse<List<TaskInstance>> failed() {

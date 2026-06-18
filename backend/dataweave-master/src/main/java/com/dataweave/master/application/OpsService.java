@@ -63,6 +63,33 @@ public class OpsService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 工作流实例详情：实例本身 + 其下任务节点（供实例详情视图渲染/操作）。
+     * workflow_instance 恒为正式运行（runMode=NORMAL，试跑不建 workflow_instance）。
+     */
+    public WorkflowInstanceDetail workflowInstanceDetail(UUID id) {
+        return workflowInstanceRepository.findById(id).map(wi -> {
+            List<TaskNodeView> tasks = instanceRepository.findByWorkflowInstanceId(id).stream()
+                    .map(ti -> new TaskNodeView(
+                            ti.getId(),
+                            ti.getTaskId(),
+                            ti.getTaskId() != null
+                                    ? taskDefRepository.findById(ti.getTaskId())
+                                            .map(TaskDef::getName).orElse(null)
+                                    : null,
+                            ti.getState(),
+                            ti.getWorkerNodeCode(),
+                            ti.getAttempt()))
+                    .toList();
+            return new WorkflowInstanceDetail(
+                    wi.getId(), wi.getWorkflowId(), wi.getBizDate(), wi.getState(),
+                    wi.getPriority(), "NORMAL",
+                    wi.getStartedAt() != null ? wi.getStartedAt().toString() : null,
+                    wi.getFinishedAt() != null ? wi.getFinishedAt().toString() : null,
+                    tasks);
+        }).orElse(null);
+    }
+
     /** 驾驶舱全局态势。 */
     public DashboardSummary summary() {
         List<TaskInstance> all = instances();
@@ -199,6 +226,14 @@ public class OpsService {
     }
 
     public record LogChunk(String content, int totalSize, int offset, boolean hasMore) {}
+
+    public record TaskNodeView(UUID id, Long taskDefId, String taskDefName, String state,
+            String workerNodeCode, Integer attempt) {}
+
+    /** 工作流实例详情（实例 + 任务节点视图）。runMode 恒 NORMAL（试跑不建 workflow_instance）。 */
+    public record WorkflowInstanceDetail(UUID id, Long workflowId, String bizDate, String state,
+            Integer priority, String runMode, String startedAt, String finishedAt,
+            List<TaskNodeView> tasks) {}
 
     private boolean isTerminal(String state) {
         return "SUCCESS".equals(state) || "FAILED".equals(state) || "STOPPED".equals(state);

@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Flowchart01Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
@@ -64,6 +65,26 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   const instanceId = params?.instanceId as string | undefined
   const [instance, setInstance] = useState<WorkflowInstance | null>(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+
+  // 实例操作：暂停 / 恢复 / 终止（后端 OpsController 直调，L1 直执行；成功后拉最新详情）。
+  const instanceAction = async (action: "pause" | "resume" | "kill") => {
+    if (!instanceId || busy) return
+    setBusy(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/ops/instances/${instanceId}/${action}`, {
+        method: "POST",
+      })
+      const j = (await res.json()) as ApiResponse<unknown>
+      if (j.code === 0) {
+        const dr = await authFetch(`${API_BASE}/api/ops/workflow-instances/${instanceId}`)
+        const dj = (await dr.json()) as ApiResponse<WorkflowInstance>
+        if (dj.code === 0) setInstance(dj.data)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // 订阅状态事件流
   const { events, connected } = useEventSource(
@@ -156,21 +177,42 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
         <HugeiconsIcon icon={Flowchart01Icon} className="text-primary" />
         <h1 className="text-sm font-medium">工作流实例</h1>
         <span className="font-mono text-xs text-muted-foreground">#{instance.id}</span>
-        <Badge
-          variant={
-            instance.state === "SUCCESS"
-              ? "success"
-              : instance.state === "FAILED"
-                ? "destructive"
-                : "info"
-          }
-          className="ml-auto"
-        >
-          {instance.state}
-        </Badge>
-        <Badge variant={connected ? "success" : "outline"}>
-          {connected ? "实时" : "离线"}
-        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          {instance.state === "RUNNING" && (
+            <>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("pause")}>
+                暂停
+              </Button>
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => instanceAction("kill")}>
+                终止
+              </Button>
+            </>
+          )}
+          {instance.state === "PAUSED" && (
+            <>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("resume")}>
+                恢复
+              </Button>
+              <Button size="sm" variant="destructive" disabled={busy} onClick={() => instanceAction("kill")}>
+                终止
+              </Button>
+            </>
+          )}
+          <Badge
+            variant={
+              instance.state === "SUCCESS"
+                ? "success"
+                : instance.state === "FAILED"
+                  ? "destructive"
+                  : "info"
+            }
+          >
+            {instance.state}
+          </Badge>
+          <Badge variant={connected ? "success" : "outline"}>
+            {connected ? "实时" : "离线"}
+          </Badge>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-card p-4">
