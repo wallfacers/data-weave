@@ -1,6 +1,7 @@
 package com.dataweave.api;
 
 import com.dataweave.api.interfaces.TaskController;
+import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.WorkflowTriggerService;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.TaskInstance;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * 调度参数占位符替换的端到端集成测试（H2 真库，all-in-one 进程内执行）：
@@ -108,10 +110,16 @@ class SchedulingParameterIntegrationTest {
 
     @Test
     void previewEndpoint_reportsUnresolvedAsError() {
+        // i18n 后契约：previewParams 上抛 UnresolvedPlaceholderException（BizException，携带 i18n code +
+        // 占位符名 args），由 GlobalExceptionHandler 按请求 locale 翻成 400 文案（HTTP 本地化路径已由
+        // GlobalExceptionHandlerI18nTest 覆盖）。此处验证异常携带稳定 code 与占位符名供本地化插值。
         var req = new TaskController.PreviewRequest("echo ${nope}", "2026-06-11", null);
-        var res = taskController.previewParams(req);
-        assertThat(res.code()).isEqualTo(400);
-        assertThat(res.message()).contains("nope");
+        assertThatExceptionOfType(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .isThrownBy(() -> taskController.previewParams(req))
+                .satisfies(e -> {
+                    assertThat(e.getCode()).isEqualTo("schedule.placeholder.undefined");
+                    assertThat(e.getArgs()).contains("nope");
+                });
     }
 
     private boolean isTerminal(UUID id) {

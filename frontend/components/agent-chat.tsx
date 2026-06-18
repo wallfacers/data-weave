@@ -38,7 +38,6 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
       new HttpAgent({
         url: AGENT_URL,
         threadId: getConversationId(),
-        headers: { "Accept-Language": acceptLanguageHeader() },
       }),
     [],
   )
@@ -203,6 +202,10 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
     <CopilotKitProvider
       selfManagedAgents={{ dataweave: agent }}
       properties={properties}
+      // i18n：Accept-Language 必须经 Provider 注入（CopilotKit v2 用 provider.headers 跑 agent run，
+      // HttpAgent 构造器的 headers 会被忽略）。函数形式每次请求重求值 → 跟随当前 UI locale（cookie），
+      // 无需因 locale 切换而重建 agent。后端按此头本地化 Agent 文案与错误码。
+      headers={() => ({ "Accept-Language": acceptLanguageHeader() })}
     >
       <div
         ref={containerRef}

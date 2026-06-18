@@ -102,11 +102,11 @@ Worker 执行结果经 Agent 回显给用户，属 Agent 相关文案。
 
 ## 11. 测试对齐
 
-- [ ] 11.1 后端 ~50 处中文断言（20 个测试文件）对齐 zh_CN bundle（默认 locale）
-- [ ] 11.2 后端 en_US bundle 断言增补（至少覆盖 `IntentRouter` / `ApprovalService` / `WorkflowService` / `CatalogTreeService`）
-- [ ] 11.3 `IntentRouterIntentTest` 增补英文意图用例（why failed / count / cron 等英文关键词命中）
-- [ ] 11.4 前端 Browser Verification Gate：zh / en 双 locale 实跑（CopilotChat 渲染输入框、console 无 error、消息能发能收流式回复）
-- [ ] 11.5 `cd backend && ./mvnw test` + `cd frontend && pnpm typecheck && pnpm build` 全绿
+- [x] 11.1 后端 ~50 处中文断言（20 个测试文件）对齐 zh_CN bundle（默认 locale）（全量 mvnw test 绿实证；陈旧的 `SchedulingParameterIntegrationTest.previewEndpoint_reportsUnresolvedAsError` 已对齐新「上抛 BizException 交 GlobalExceptionHandler 本地化」契约）
+- [x] 11.2 后端 en_US bundle 断言增补（`GlobalExceptionHandlerI18nTest` 覆盖 zh/en/fallback/插值/状态码）
+- [x] 11.3 `IntentRouterIntentTest` 增补英文意图用例（diagnosis/fleet/textToSql/fallback 英文 Locale.US 命中）
+- [x] 11.4 前端 Browser Verification Gate：zh / en 双 locale 实跑（CopilotChat 渲染输入框、console 0 error、消息能发能收流式回复；修复 Accept-Language 须经 `CopilotKitProvider headers` 注入——HttpAgent 构造器 headers 被 v2 忽略——zh→中文 / en→英文回复实证）
+- [x] 11.5 `cd backend && ./mvnw test`（须 JDK25 + `-Dspring.profiles.active=h2`，无 Docker 时）+ `cd frontend && pnpm typecheck && pnpm build` 全绿
 
 ## 12. 规范与收尾
 
