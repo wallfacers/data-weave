@@ -11,6 +11,7 @@
  * 运行 = 手动触发正式实例（POST /api/workflows/{id}/run），D8：未上线禁用并提示需先发布。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 import { useMotionValue, useTransform, motion } from "motion/react"
 import {
   ReactFlow,
@@ -120,6 +121,7 @@ function RunStateDot({ state }: { state?: string }) {
 }
 
 function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
+  const t = useTranslations("workflowCanvas")
   return (
     <div
       className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
@@ -128,7 +130,7 @@ function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
     >
       <Handle type="target" position={Position.Left} />
       <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
-      <span className="max-w-40 truncate font-medium">{data.label || "任务"}</span>
+      <span className="max-w-40 truncate font-medium">{data.label || t("nodeTaskFallback")}</span>
       <Handle type="source" position={Position.Right} />
       <RunStateDot state={data.runState} />
     </div>
@@ -136,6 +138,7 @@ function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
 }
 
 function VirtualNode({ data, selected }: NodeProps<CanvasNode>) {
+  const t = useTranslations("workflowCanvas")
   return (
     <div
       className={`relative flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
@@ -144,7 +147,7 @@ function VirtualNode({ data, selected }: NodeProps<CanvasNode>) {
     >
       <Handle type="target" position={Position.Left} />
       <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
-      <span className="max-w-40 truncate text-muted-foreground">{data.label || "虚拟节点"}</span>
+      <span className="max-w-40 truncate text-muted-foreground">{data.label || t("nodeVirtualFallback")}</span>
       <Handle type="source" position={Position.Right} />
       <RunStateDot state={data.runState} />
     </div>
@@ -219,6 +222,7 @@ interface InstanceTask {
 // ─── 画布子 Tab（须在 ReactFlowProvider 内）──────────────
 
 function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: string; onSaved?: () => void }) {
+  const t = useTranslations("workflowCanvas")
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
@@ -257,9 +261,9 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
           toast.error(j.message)
         }
       })
-      .catch(() => toast.error("读取 DAG 失败"))
+      .catch(() => toast.error(t("toastLoadDagFailed")))
       .finally(() => setBusy(false))
-  }, [])
+  }, [t])
 
   useEffect(() => {
     setLoading(true)
@@ -321,14 +325,14 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
       if (!conn.source || !conn.target) return
       setEdges((eds) => {
         if (wouldCreateCycle(eds, conn.source, conn.target)) {
-          toast.error("该连线会形成环路，已拒绝")
+          toast.error(t("toastCycleRejected"))
           return eds
         }
         setDirty(true)
         return addEdge(conn, eds)
       })
     },
-    [],
+    [t],
   )
 
   // ── 拖拽建 TASK 节点 ──
@@ -363,11 +367,11 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
         id,
         type: "virtual",
         position: { x: 60, y: 60 + nds.length * 20 },
-        data: { nodeType: "VIRTUAL", taskId: null, label: "虚拟节点" },
+        data: { nodeType: "VIRTUAL", taskId: null, label: t("nodeVirtualFallback") },
       },
     ])
     setDirty(true)
-  }, [])
+  }, [t])
 
   const saveDraft = useCallback(() => {
     setBusy(true)
@@ -383,20 +387,20 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
           setDagVersion(j.data.version)
           setHasDraft(j.data.hasDraftChange === 1)
           setDirty(false)
-          toast.success("草稿已保存")
+          toast.success(t("toastDraftSaved"))
         } else if (j.code === 409) {
-          toast.error("工作流已被他人修改，请刷新后重试")
+          toast.error(t("toastConflict"))
         } else {
           toast.error(j.message)
         }
       })
-      .catch(() => toast.error("保存失败"))
+      .catch(() => toast.error(t("toastSaveFailed")))
       .finally(() => setBusy(false))
-  }, [workflowId, dagVersion, dagNodes, edges])
+  }, [workflowId, dagVersion, dagNodes, edges, t])
 
   const publish = useCallback(() => {
     if (dirty) {
-      toast.error("有未保存改动，请先保存草稿")
+      toast.error(t("toastUnsavedBeforePublish"))
       return
     }
     setBusy(true)
@@ -410,15 +414,15 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
         if (j.code === 0 && j.data) {
           setStatus(j.data.status)
           setHasDraft(false)
-          toast.success(`已发布 v${j.data.currentVersionNo}`)
+          toast.success(t("toastPublished", { version: j.data.currentVersionNo }))
           onSaved?.()
         } else {
           toast.error(j.message)
         }
       })
-      .catch(() => toast.error("发布失败"))
+      .catch(() => toast.error(t("toastPublishFailed")))
       .finally(() => setBusy(false))
-  }, [workflowId, dirty, onSaved])
+  }, [workflowId, dirty, onSaved, t])
 
   // 手动触发正式实例：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
   // D8：未上线禁用。D9：只盯最近一次（新运行重置状态）。
@@ -438,7 +442,7 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
       const r = j.data
       if (r.outcome !== "EXECUTED" || !r.resultInstanceId) {
         if (r.outcome === "PENDING_APPROVAL") {
-          toast.info(`需审批：单号 ${r.actionId ?? "?"}`)
+          toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
         } else {
           toast.error(r.message || j.message)
         }
@@ -458,13 +462,13 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
       }
       setInstanceToTaskDef(idMap)
       setRunStateByTaskDef(stateMap)
-      toast.success("已触发运行")
+      toast.success(t("toastRunTriggered"))
     } catch {
-      toast.error("运行失败")
+      toast.error(t("toastRunFailed"))
     } finally {
       setBusy(false)
     }
-  }, [workflowId])
+  }, [workflowId, t])
 
   if (loading) return <ViewStatus loading />
 
@@ -475,31 +479,31 @@ function CanvasInner({ workflowId, name, onSaved }: { workflowId: number; name: 
         <HugeiconsIcon icon={Share08Icon} className="text-primary" />
         <h1 className="text-sm font-medium">{name}</h1>
         <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
-          <HugeiconsIcon icon={RocketIcon} className="size-4" /> 运行
+          <HugeiconsIcon icon={RocketIcon} className="size-4" /> {t("run")}
         </Button>
         {!online && (
           <span className="text-xs text-muted-foreground">
-            未上线不可运行，请先
+            {t("notOnlineHint")}
             <button type="button" className="ml-0.5 underline hover:text-foreground" onClick={publish} disabled={busy}>
-              发布
+              {t("publish")}
             </button>
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {online && <Badge variant="success">已上线</Badge>}
+          {online && <Badge variant="success">{t("online")}</Badge>}
           {(dirty || hasDraft) && (
             <Badge variant="outline" className="text-amber-600">
-              {dirty ? "未保存改动" : "有未发布改动"}
+              {dirty ? t("unsavedChanges") : t("unpublishedChanges")}
             </Badge>
           )}
           <Button size="sm" variant="outline" onClick={addVirtualNode} disabled={busy}>
-            <HugeiconsIcon icon={CircleIcon} className="size-4" /> 虚拟节点
+            <HugeiconsIcon icon={CircleIcon} className="size-4" /> {t("virtualNode")}
           </Button>
           <Button size="sm" variant="outline" onClick={saveDraft} disabled={busy}>
-            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> 保存草稿
+            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> {t("saveDraft")}
           </Button>
           <Button size="sm" onClick={publish} disabled={busy}>
-            <HugeiconsIcon icon={RocketIcon} className="size-4" /> 发布
+            <HugeiconsIcon icon={RocketIcon} className="size-4" /> {t("publish")}
           </Button>
         </div>
       </div>
@@ -559,6 +563,7 @@ interface SubTab {
 const tabKey = (t: SubTab) => `${t.kind}:${t.id}`
 
 function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) {
+  const t = useTranslations("workflowCanvas")
   const [tabs, setTabs] = useState<SubTab[]>([])
   const [activeKey, setActiveKey] = useState<string | null>(null)
   // closeTab 用 ref 读最新 activeKey，避免 useCallback 闭包陈旧
@@ -674,7 +679,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
 
   // 深链：初始工作流自动开画布子 Tab
   useEffect(() => {
-    if (initialWorkflowId != null) openTab({ kind: "canvas", id: initialWorkflowId, name: "工作流" })
+    if (initialWorkflowId != null) openTab({ kind: "canvas", id: initialWorkflowId, name: t("workflowFallbackName") })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -694,12 +699,12 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         setTaskDialog(false)
         setTaskName("")
         bumpTree()
-        toast.success("已创建任务草稿")
+        toast.success(t("toastTaskDraftCreated"))
       } else {
         toast.error(j.message)
       }
     } catch {
-      toast.error("创建失败")
+      toast.error(t("toastCreateFailed"))
     } finally {
       setCreating(false)
     }
@@ -720,12 +725,12 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         setWfDialog(false)
         setWfName("")
         bumpTree()
-        toast.success("已创建工作流草稿")
+        toast.success(t("toastWorkflowDraftCreated"))
       } else {
         toast.error(j.message)
       }
     } catch {
-      toast.error("创建失败")
+      toast.error(t("toastCreateFailed"))
     } finally {
       setCreating(false)
     }
@@ -761,7 +766,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
           onPointerDown={onCatalogResizeDown}
           role="separator"
           aria-orientation="vertical"
-          aria-label="拖拽调整类目面板宽度"
+          aria-label={t("resizeCatalogPanel")}
           className="group/resize absolute inset-y-3 right-0 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
         >
           <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
@@ -790,7 +795,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
         <div className="relative min-h-0 flex-1">
           {tabs.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              从左侧类目树点开任务/工作流
+              {t("emptyState")}
             </div>
           ) : (
             tabs.map((t) => (
@@ -813,12 +818,12 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
       <Dialog open={taskDialog} onOpenChange={setTaskDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>新建任务</DialogTitle>
+            <DialogTitle>{t("newTask")}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
             value={taskName}
-            placeholder="任务名称"
+            placeholder={t("taskNamePlaceholder")}
             onChange={(e) => setTaskName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -828,7 +833,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             }}
           />
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">类型</span>
+            <span className="text-xs text-muted-foreground">{t("type")}</span>
             <Button
               size="xs"
               variant={taskType === "SQL" ? "default" : "outline"}
@@ -845,9 +850,9 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             </Button>
           </div>
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
             <Button onClick={submitCreateTask} disabled={creating}>
-              创建
+              {t("create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -857,12 +862,12 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
       <Dialog open={wfDialog} onOpenChange={setWfDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>新建工作流</DialogTitle>
+            <DialogTitle>{t("newWorkflow")}</DialogTitle>
           </DialogHeader>
           <Input
             autoFocus
             value={wfName}
-            placeholder="工作流名称"
+            placeholder={t("workflowNamePlaceholder")}
             onChange={(e) => setWfName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -872,9 +877,9 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             }}
           />
           <DialogFooter>
-            <DialogClose render={<Button variant="ghost" />}>取消</DialogClose>
+            <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
             <Button onClick={submitCreateWorkflow} disabled={creating}>
-              创建
+              {t("create")}
             </Button>
           </DialogFooter>
         </DialogContent>

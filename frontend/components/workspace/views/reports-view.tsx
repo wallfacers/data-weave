@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Analytics01Icon } from "@hugeicons/core-free-icons"
 
@@ -12,6 +13,7 @@ import { DwScroll } from "@/components/ui/dw-scroll"
 
 /** 业务报表（最小版）：指标卡片网格（名称 / 口径版本 / 最新值或空态） */
 export function ReportsView() {
+  const t = useTranslations("reports")
   const { data: metrics, loading } = useApi<MetricCard[]>("/api/metrics")
 
   if (!metrics) return <ViewStatus loading={loading} />
@@ -21,17 +23,17 @@ export function ReportsView() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">业务报表</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          核心指标看板，口径版本化、不可篡改
+          {t("subtitle")}
         </p>
       </div>
 
       {metrics.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-10 text-center">
           <p className="text-muted-foreground">
-            暂无指标定义，可通过左侧 Agent 定义指标口径
+            {t("empty")}
           </p>
         </div>
       ) : (
@@ -57,7 +59,7 @@ export function ReportsView() {
                     )}
                   </span>
                 ) : (
-                  <span className="text-sm text-muted-foreground">暂无数据</span>
+                  <span className="text-sm text-muted-foreground">{t("noData")}</span>
                 )}
                 <span className="font-mono text-xs text-muted-foreground">{m.code}</span>
               </CardContent>

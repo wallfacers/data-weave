@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Bug01Icon } from "@hugeicons/core-free-icons"
 
@@ -10,6 +11,7 @@ import { ViewStatus } from "./view-status"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
 export function DiagnosisView({ params }: { params?: Record<string, unknown> }) {
+  const t = useTranslations("diagnosis")
   const { data: diagnoses, loading } = useApi<TaskDiagnosis[]>("/api/diagnosis")
   const highlightInstanceId = params?.instanceId != null ? Number(params.instanceId) : null
 
@@ -31,14 +33,14 @@ export function DiagnosisView({ params }: { params?: Record<string, unknown> }) 
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={Bug01Icon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">失败诊断</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         </div>
-        <p className="text-sm text-muted-foreground">任务失败根因分析与修复建议</p>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       {ordered.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-10 text-center">
-          <p className="text-muted-foreground">暂无诊断记录</p>
+          <p className="text-muted-foreground">{t("empty")}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

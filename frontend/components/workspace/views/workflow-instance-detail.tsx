@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Flowchart01Icon } from "@hugeicons/core-free-icons"
 
@@ -62,6 +63,7 @@ function stateColor(state: string): string {
 }
 
 export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) {
+  const t = useTranslations("workflowInstanceDetail")
   const instanceId = params?.instanceId as string | undefined
   const [instance, setInstance] = useState<WorkflowInstance | null>(null)
   const [loading, setLoading] = useState(true)
@@ -150,7 +152,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   if (!instanceId) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        未指定工作流实例 ID
+        {t("noInstanceId")}
       </div>
     )
   }
@@ -158,7 +160,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        加载中…
+        {t("loading")}
       </div>
     )
   }
@@ -166,7 +168,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   if (!instance) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        工作流实例不存在
+        {t("notFound")}
       </div>
     )
   }
@@ -175,26 +177,26 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
         <HugeiconsIcon icon={Flowchart01Icon} className="text-primary" />
-        <h1 className="text-sm font-medium">工作流实例</h1>
+        <h1 className="text-sm font-medium">{t("title")}</h1>
         <span className="font-mono text-xs text-muted-foreground">#{instance.id}</span>
         <div className="ml-auto flex items-center gap-2">
           {instance.state === "RUNNING" && (
             <>
               <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("pause")}>
-                暂停
+                {t("pause")}
               </Button>
               <Button size="sm" variant="destructive" disabled={busy} onClick={() => instanceAction("kill")}>
-                终止
+                {t("kill")}
               </Button>
             </>
           )}
           {instance.state === "PAUSED" && (
             <>
               <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("resume")}>
-                恢复
+                {t("resume")}
               </Button>
               <Button size="sm" variant="destructive" disabled={busy} onClick={() => instanceAction("kill")}>
-                终止
+                {t("kill")}
               </Button>
             </>
           )}
@@ -210,7 +212,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
             {instance.state}
           </Badge>
           <Badge variant={connected ? "success" : "outline"}>
-            {connected ? "实时" : "离线"}
+            {connected ? t("live") : t("offline")}
           </Badge>
         </div>
       </div>
@@ -218,26 +220,26 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
       <div className="rounded-lg border bg-card p-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-muted-foreground">工作流 #</span>
+            <span className="text-muted-foreground">{t("workflowNo")}</span>
             <span className="ml-2 font-mono">{instance.workflowId}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">业务日期</span>
+            <span className="text-muted-foreground">{t("bizDate")}</span>
             <span className="ml-2 font-mono">{instance.bizDate}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">优先级</span>
+            <span className="text-muted-foreground">{t("priority")}</span>
             <span className="ml-2 font-mono">{instance.priority}</span>
           </div>
           <div>
-            <span className="text-muted-foreground">运行模式</span>
+            <span className="text-muted-foreground">{t("runMode")}</span>
             <span className="ml-2 font-mono">{instance.runMode}</span>
           </div>
         </div>
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">DAG 节点</h2>
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground">{t("dagNodes")}</h2>
         <div className="space-y-2">
           {instance.tasks.map((task) => (
             <div
@@ -247,8 +249,8 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
               <div className="flex-1">
                 <div className="text-sm font-medium">{task.taskDefName}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  任务 #{task.taskDefId} · 尝试 {task.attempt}
-                  {task.workerNodeCode && ` · 节点 ${task.workerNodeCode}`}
+                  {t("taskMeta", { taskDefId: task.taskDefId, attempt: task.attempt })}
+                  {task.workerNodeCode && t("nodeMeta", { node: task.workerNodeCode })}
                 </div>
               </div>
               <Badge

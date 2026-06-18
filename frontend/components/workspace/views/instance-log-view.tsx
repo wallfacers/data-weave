@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { DocumentCodeIcon, RefreshIcon } from "@hugeicons/core-free-icons"
 
@@ -15,6 +16,7 @@ interface InstanceLogViewProps {
 }
 
 export function InstanceLogView({ params }: InstanceLogViewProps) {
+  const t = useTranslations("instanceLog")
   const instanceId = params?.instanceId as string | undefined
   const scrollRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
@@ -40,7 +42,7 @@ export function InstanceLogView({ params }: InstanceLogViewProps) {
   if (!instanceId) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        未指定实例 ID
+        {t("noInstanceId")}
       </div>
     )
   }
@@ -52,17 +54,17 @@ export function InstanceLogView({ params }: InstanceLogViewProps) {
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-2">
         <HugeiconsIcon icon={DocumentCodeIcon} className="text-primary" />
-        <h1 className="text-sm font-medium">实例日志</h1>
+        <h1 className="text-sm font-medium">{t("title")}</h1>
         <span className="font-mono text-xs text-muted-foreground">#{instanceId}</span>
         <Badge variant={connected ? "success" : error ? "destructive" : "info"} className="ml-auto">
-          {connected ? "实时" : isEnded ? "已结束" : error ? "断开" : "连接中"}
+          {connected ? t("live") : isEnded ? t("ended") : error ? t("disconnected") : t("connecting")}
         </Badge>
         <Button
           variant="ghost"
           size="sm"
           onClick={clearEvents}
           className="size-7 p-0"
-          title="清空"
+          title={t("clear")}
         >
           <HugeiconsIcon icon={RefreshIcon} className="size-4" />
         </Button>
@@ -75,7 +77,7 @@ export function InstanceLogView({ params }: InstanceLogViewProps) {
       >
         {logLines.length === 0 ? (
           <div className="text-muted-foreground">
-            {connected ? "等待日志输出…" : isEnded ? "无日志记录" : "连接中…"}
+            {connected ? t("waitingLogs") : isEnded ? t("noLogs") : t("connectingDots")}
           </div>
         ) : (
           <div className="space-y-0.5">

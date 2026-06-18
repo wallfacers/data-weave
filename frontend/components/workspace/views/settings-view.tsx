@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -109,6 +110,7 @@ function InlineForm({
   onCancel: () => void
   submitLabel: string
 }) {
+  const t = useTranslations("settingsView")
   const [vals, setVals] = useState<Record<string, string>>({})
 
   return (
@@ -135,7 +137,7 @@ function InlineForm({
           {submitLabel}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>
-          取消
+          {t("cancel")}
         </Button>
       </div>
     </div>
@@ -147,34 +149,35 @@ function InlineForm({
 /* ------------------------------------------------------------------ */
 
 function UsersTab() {
+  const t = useTranslations("settingsView")
   const { items, loading, create, update, remove } = useCrud<User>("/api/users")
   const [adding, setAdding] = useState(false)
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">加载中…</p>
+  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">用户管理</h2>
+        <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
         <Button size="sm" onClick={() => setAdding(true)}>
-          新增用户
+          {t("addUser")}
         </Button>
       </div>
 
       {adding && (
         <InlineForm
           fields={[
-            { key: "username", label: "用户名", placeholder: "username" },
-            { key: "password", label: "密码", type: "password", placeholder: "初始密码" },
-            { key: "displayName", label: "显示名", placeholder: "显示名" },
-            { key: "email", label: "邮箱", placeholder: "user@example.com" },
+            { key: "username", label: t("fieldUsername"), placeholder: "username" },
+            { key: "password", label: t("fieldPassword"), type: "password", placeholder: t("fieldPasswordPlaceholder") },
+            { key: "displayName", label: t("fieldDisplayName"), placeholder: t("fieldDisplayName") },
+            { key: "email", label: t("fieldEmail"), placeholder: "user@example.com" },
           ]}
           onSubmit={async (vals) => {
             await create(vals)
             setAdding(false)
           }}
           onCancel={() => setAdding(false)}
-          submitLabel="创建"
+          submitLabel={t("submitCreate")}
         />
       )}
 
@@ -182,11 +185,11 @@ function UsersTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">用户名</th>
-              <th className="px-3 py-2 font-medium">显示名</th>
-              <th className="px-3 py-2 font-medium">邮箱</th>
-              <th className="px-3 py-2 font-medium">状态</th>
-              <th className="px-3 py-2 font-medium text-right">操作</th>
+              <th className="px-3 py-2 font-medium">{t("colUsername")}</th>
+              <th className="px-3 py-2 font-medium">{t("colDisplayName")}</th>
+              <th className="px-3 py-2 font-medium">{t("colEmail")}</th>
+              <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
+              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -197,7 +200,7 @@ function UsersTab() {
                 <td className="px-3 py-2 text-muted-foreground">{u.email || "—"}</td>
                 <td className="px-3 py-2">
                   <Badge variant={u.status === "ACTIVE" ? "success" : "destructive"}>
-                    {u.status === "ACTIVE" ? "正常" : "禁用"}
+                    {u.status === "ACTIVE" ? t("statusActive") : t("statusDisabled")}
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -209,14 +212,14 @@ function UsersTab() {
                       await update(u.id, { status: newStatus })
                     }}
                   >
-                    {u.status === "ACTIVE" ? "禁用" : "启用"}
+                    {u.status === "ACTIVE" ? t("disable") : t("enable")}
                   </Button>
                   <Button
                     size="xs"
                     variant="ghost"
                     onClick={() => void remove(u.id)}
                   >
-                    删除
+                    {t("delete")}
                   </Button>
                 </td>
               </tr>
@@ -224,7 +227,7 @@ function UsersTab() {
             {items.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                  暂无用户
+                  {t("emptyUsers")}
                 </td>
               </tr>
             )}
@@ -240,33 +243,34 @@ function UsersTab() {
 /* ------------------------------------------------------------------ */
 
 function RolesTab() {
+  const t = useTranslations("settingsView")
   const { items, loading, create, remove } = useCrud<Role>("/api/roles")
   const [adding, setAdding] = useState(false)
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">加载中…</p>
+  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">角色管理</h2>
+        <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
         <Button size="sm" onClick={() => setAdding(true)}>
-          新增角色
+          {t("addRole")}
         </Button>
       </div>
 
       {adding && (
         <InlineForm
           fields={[
-            { key: "code", label: "角色编码", placeholder: "DEVELOPER" },
-            { key: "name", label: "角色名", placeholder: "开发" },
-            { key: "description", label: "描述", placeholder: "角色描述" },
+            { key: "code", label: t("fieldRoleCode"), placeholder: "DEVELOPER" },
+            { key: "name", label: t("fieldRoleName"), placeholder: t("fieldRoleNamePlaceholder") },
+            { key: "description", label: t("fieldDescription"), placeholder: t("fieldRoleDescPlaceholder") },
           ]}
           onSubmit={async (vals) => {
             await create(vals)
             setAdding(false)
           }}
           onCancel={() => setAdding(false)}
-          submitLabel="创建"
+          submitLabel={t("submitCreate")}
         />
       )}
 
@@ -274,10 +278,10 @@ function RolesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">编码</th>
-              <th className="px-3 py-2 font-medium">名称</th>
-              <th className="px-3 py-2 font-medium">描述</th>
-              <th className="px-3 py-2 font-medium text-right">操作</th>
+              <th className="px-3 py-2 font-medium">{t("colCode")}</th>
+              <th className="px-3 py-2 font-medium">{t("colName")}</th>
+              <th className="px-3 py-2 font-medium">{t("colDescription")}</th>
+              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -294,7 +298,7 @@ function RolesTab() {
                     variant="ghost"
                     onClick={() => void remove(r.id)}
                   >
-                    删除
+                    {t("delete")}
                   </Button>
                 </td>
               </tr>
@@ -302,7 +306,7 @@ function RolesTab() {
             {items.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                  暂无角色
+                  {t("emptyRoles")}
                 </td>
               </tr>
             )}

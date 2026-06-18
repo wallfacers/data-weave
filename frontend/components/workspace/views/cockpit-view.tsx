@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   CheckmarkCircle01Icon,
@@ -66,6 +67,7 @@ function StatCard({
 }
 
 export function CockpitView() {
+  const t = useTranslations("cockpit")
   const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
   const open = useWorkspaceStore((s) => s.open)
 
@@ -76,32 +78,32 @@ export function CockpitView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">驾驶舱</h1>
-          <p className="text-sm text-muted-foreground">调度运行全局态势一览</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => open("fleet")}>
           <HugeiconsIcon icon={ServerStack01Icon} data-icon="inline-start" />
-          集群机器
+          {t("clusterMachines")}
         </Button>
       </div>
 
       {/* Summary stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="总运行实例" value={summary.total} icon={PlaySquareIcon} />
+        <StatCard label={t("statTotal")} value={summary.total} icon={PlaySquareIcon} />
         <StatCard
-          label="成功"
+          label={t("statSuccess")}
           value={summary.success}
           icon={CheckmarkCircle01Icon}
           tone="success"
         />
         <StatCard
-          label="失败"
+          label={t("statFailed")}
           value={summary.failed}
           icon={Cancel01Icon}
           tone="destructive"
         />
         <StatCard
-          label="运行中"
+          label={t("statRunning")}
           value={summary.running}
           icon={Loading03Icon}
           tone="running"
@@ -114,7 +116,7 @@ export function CockpitView() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <HugeiconsIcon icon={Cancel01Icon} className="size-4 text-destructive" />
-              失败任务
+              {t("failedTasks")}
               <Badge variant="destructive">{summary.failedInstances.length}</Badge>
             </CardTitle>
           </div>
@@ -122,18 +124,18 @@ export function CockpitView() {
         <CardContent>
           {summary.failedInstances.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              暂无失败任务
+              {t("noFailedTasks")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-sans">实例</TableHead>
-                  <TableHead className="font-sans">任务</TableHead>
-                  <TableHead className="font-sans">节点</TableHead>
-                  <TableHead className="font-sans">状态</TableHead>
-                  <TableHead className="font-sans">结束时间</TableHead>
-                  <TableHead className="font-sans">日志摘要</TableHead>
+                  <TableHead className="font-sans">{t("colInstance")}</TableHead>
+                  <TableHead className="font-sans">{t("colTask")}</TableHead>
+                  <TableHead className="font-sans">{t("colNode")}</TableHead>
+                  <TableHead className="font-sans">{t("colState")}</TableHead>
+                  <TableHead className="font-sans">{t("colFinishedAt")}</TableHead>
+                  <TableHead className="font-sans">{t("colLogSummary")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -177,12 +179,12 @@ export function CockpitView() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
-              Agent 诊断中
+              {t("agentDiagnosing")}
               <Badge variant="secondary">{summary.diagnosing.length}</Badge>
             </CardTitle>
             {summary.diagnosing.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => open("diagnosis")}>
-                查看全部
+                {t("viewAll")}
                 <HugeiconsIcon
                   icon={ArrowRight01Icon}
                   className="size-3.5"
@@ -195,16 +197,16 @@ export function CockpitView() {
         <CardContent>
           {summary.diagnosing.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              暂无诊断事项
+              {t("noDiagnosing")}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="font-sans">诊断</TableHead>
-                  <TableHead>标题</TableHead>
-                  <TableHead className="font-sans">节点</TableHead>
-                  <TableHead className="font-sans">状态</TableHead>
+                  <TableHead className="font-sans">{t("colDiagnosis")}</TableHead>
+                  <TableHead>{t("colTitle")}</TableHead>
+                  <TableHead className="font-sans">{t("colNode")}</TableHead>
+                  <TableHead className="font-sans">{t("colState")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,7 +229,7 @@ export function CockpitView() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={d.status === "RESOLVED" ? "secondary" : "info"}>
-                        {d.status === "RESOLVED" ? "已解决" : "诊断中"}
+                        {d.status === "RESOLVED" ? t("statusResolved") : t("statusDiagnosing")}
                       </Badge>
                     </TableCell>
                   </TableRow>

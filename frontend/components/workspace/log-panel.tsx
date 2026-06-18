@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react"
+import { useTranslations } from "next-intl"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
@@ -42,12 +43,16 @@ function shortInstanceId(instanceId: string): string {
 }
 
 /** tab 标题：任务名 ·短ID（无任务名退化为「任务 #id」，再退化为纯短 ID）。 */
-function tabLabel(tab: LogTab, taskNames: Map<number, string>): string {
+function tabLabel(
+  tab: LogTab,
+  taskNames: Map<number, string>,
+  t: (k: string, v?: Record<string, string | number | Date>) => string,
+): string {
   const sid = shortInstanceId(tab.instanceId)
   const taskId = tab.meta?.taskId
   if (taskId != null) {
     const name = taskNames.get(taskId)
-    return name ? `${name} ·${sid}` : `任务 #${taskId} ·${sid}`
+    return name ? `${name} ·${sid}` : `${t("taskFallback", { id: taskId })} ·${sid}`
   }
   return sid
 }
@@ -63,6 +68,7 @@ const LOG_PANEL_HEIGHT_KEY = "dw.logPanel.height"
 export function WorkspaceLogPanel() {
   const { tabs, activeTabId, expanded, close, closeOthers, closeRight, closeLeft, closeAll, activate } =
     useLogPanelStore()
+  const t = useTranslations("logPanel")
 
   // ── 任务名映射（一次拉全量，taskId → name）─────────────────
   const { data: taskDefs } = useApi<TaskDef[]>("/api/ops/tasks")
@@ -132,7 +138,7 @@ export function WorkspaceLogPanel() {
         onPointerDown={onResizeDown}
         role="separator"
         aria-orientation="horizontal"
-        aria-label="拖拽调整日志面板高度"
+        aria-label={t("resizeHandle")}
         className="group/resize relative z-20 flex h-2 w-full shrink-0 cursor-row-resize touch-none items-center justify-center"
       >
         <div className="h-0.5 w-12 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
@@ -150,7 +156,7 @@ export function WorkspaceLogPanel() {
           surface="card"
           tabs={tabs.map<TabStripItem>((tab) => ({
             id: tab.id,
-            label: tabLabel(tab, taskNames),
+            label: tabLabel(tab, taskNames, t),
             monospace: true,
             indicator: <StatusDot status={statusMap[tab.id] ?? "connecting"} />,
           }))}

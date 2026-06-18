@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
@@ -111,6 +112,7 @@ function MetricCard({
 // ─── 主视图 ─────────────────────────────────────────────────
 
 export function MetricsView() {
+  const t = useTranslations("metrics")
   const { data: s, loading } = useApi<MetricsSnapshot>("/api/ops/metrics")
 
   if (!s) return <ViewStatus loading={loading} />
@@ -124,10 +126,10 @@ export function MetricsView() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={Activity02Icon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">系统指标</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          调度内核四层可观测指标：调度性能、资源执行、管道健康、业务 SLA
+          {t("subtitle")}
         </p>
       </div>
 
@@ -136,32 +138,32 @@ export function MetricsView() {
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={TimeManagementIcon} className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            调度性能
+            {t("sectionSchedulingPerformance")}
           </h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            label="调度延迟（均值）"
+            label={t("dispatchLatencyMean")}
             value={fmtMs(s.dispatchLatencyMean)}
-            subtitle={`${s.dispatchLatencyCount} 次`}
+            subtitle={t("countTimes", { count: s.dispatchLatencyCount })}
             icon={CheckmarkCircle01Icon}
             tone={s.dispatchLatencyMean > 1000 ? "warning" : "success"}
           />
           <MetricCard
-            label="下发延迟（均值）"
+            label={t("deliveryLatencyMean")}
             value={fmtMs(s.deliveryLatencyMean)}
-            subtitle={`${s.deliveryLatencyCount} 次`}
+            subtitle={t("countTimes", { count: s.deliveryLatencyCount })}
             icon={SignalIcon}
             tone={s.deliveryLatencyMean > 2000 ? "warning" : "success"}
           />
           <MetricCard
-            label="队列深度"
+            label={t("queueDepth")}
             value={String(s.queueDepth)}
             icon={ArrowRight01Icon}
             tone={s.queueDepth > 50 ? "warning" : "default"}
           />
           <MetricCard
-            label="最长等待"
+            label={t("oldestAge")}
             value={fmtSeconds(s.oldestAgeSeconds)}
             icon={HourglassIcon}
             tone={s.oldestAgeSeconds > 300 ? "destructive" : s.oldestAgeSeconds > 120 ? "warning" : "default"}
@@ -169,27 +171,27 @@ export function MetricsView() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            label="总派发数"
+            label={t("totalDispatches")}
             value={String(s.totalDispatches)}
             icon={SatelliteIcon}
           />
           <MetricCard
-            label="调度轮次耗时"
+            label={t("roundDuration")}
             value={fmtMs(s.roundDurationMean)}
-            subtitle={`${s.totalClaimRounds} 轮`}
+            subtitle={t("countRounds", { count: s.totalClaimRounds })}
             icon={CpuIcon}
           />
           <MetricCard
-            label="空抢率"
+            label={t("emptyClaimRate")}
             value={ratioPct(s.emptyClaimRounds, s.totalClaimRounds)}
             subtitle={`${s.emptyClaimRounds} / ${s.totalClaimRounds}`}
             icon={Alert01Icon}
             tone={emptyRate > 0.5 ? "warning" : "default"}
           />
           <MetricCard
-            label="事件 vs 轮询"
+            label={t("eventVsPoll")}
             value={`${s.wakeEvents} : ${s.wakePolls}`}
-            subtitle={`事件占比 ${ratioPct(s.wakeEvents, wakeTotal)}`}
+            subtitle={t("eventRatio", { ratio: ratioPct(s.wakeEvents, wakeTotal) })}
             icon={Activity02Icon}
             tone={s.wakePolls > s.wakeEvents ? "warning" : "info"}
           />
@@ -201,30 +203,30 @@ export function MetricsView() {
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={CpuIcon} className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            资源与执行
+            {t("sectionResourceExecution")}
           </h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            label="槽位利用率"
+            label={t("slotUtilization")}
             value={`${(s.slotUtilization * 100).toFixed(1)}%`}
             icon={SatelliteIcon}
             tone={s.slotUtilization > 0.8 ? "warning" : s.slotUtilization > 0.5 ? "info" : "default"}
           />
           <MetricCard
-            label="槽位碎片率"
+            label={t("slotFragmentation")}
             value={`${(s.slotFragmentation * 100).toFixed(1)}%`}
             icon={Alert01Icon}
             tone={s.slotFragmentation > 0.5 ? "destructive" : "default"}
           />
           <MetricCard
-            label="任务执行耗时"
+            label={t("taskDuration")}
             value={fmtMs(s.taskDurationMean)}
-            subtitle={`${s.taskCompletedCount} 次完成`}
+            subtitle={t("countCompleted", { count: s.taskCompletedCount })}
             icon={TimeManagementIcon}
           />
           <MetricCard
-            label="租约回收次数"
+            label={t("leaseReclaims")}
             value={String(s.leaseReclaims)}
             icon={CheckmarkCircle01Icon}
             tone={s.leaseReclaims > 0 ? "warning" : "success"}
@@ -237,28 +239,28 @@ export function MetricsView() {
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={SignalIcon} className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            管道健康
+            {t("sectionPipelineHealth")}
           </h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
-            label="日志流积压"
+            label={t("logStreamBacklog")}
             value={String(s.logStreamBacklog)}
-            subtitle="行"
+            subtitle={t("logStreamBacklogUnit")}
             icon={ArrowRight01Icon}
           />
           <MetricCard
-            label="SSE 连接数"
+            label={t("sseConnections")}
             value={String(s.sseConnections)}
             icon={SignalIcon}
           />
           <Card>
             <CardContent className="pt-5 flex flex-col items-center justify-center gap-1 min-h-[88px]">
-              <span className="text-xs text-muted-foreground">百分位延迟详情</span>
+              <span className="text-xs text-muted-foreground">{t("percentileLatencyTitle")}</span>
               <span className="text-[10px] text-muted-foreground/60 text-center">
-                p50/p99/p999 经 Prometheus + Grafana 查看
+                {t("percentileLatencyHintLine1")}
                 <br />
-                或访问 /actuator/metrics
+                {t("percentileLatencyHintLine2")}
               </span>
             </CardContent>
           </Card>

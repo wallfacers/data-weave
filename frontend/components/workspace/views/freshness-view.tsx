@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 
@@ -18,23 +19,23 @@ import { ViewStatus } from "./view-status"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
 /** 距今时长的人话表达 */
-function ageLabel(iso: string): string {
+function ageLabel(iso: string, t: (k: string, v?: Record<string, number>) => string): string {
   const ms = Date.now() - new Date(iso).getTime()
-  if (ms < 0) return "刚刚"
+  if (ms < 0) return t("justNow")
   const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 60) return t("minutesAgo", { minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
-  return `${Math.floor(hours / 24)} 天前`
+  if (hours < 24) return t("hoursAgo", { hours })
+  return t("daysAgo", { days: Math.floor(hours / 24) })
 }
 
 /** 时效分档：>24h 视为陈旧，>6h 提醒 */
-function freshnessBadge(iso: string | null) {
-  if (!iso) return <Badge variant="destructive">从未成功</Badge>
+function freshnessBadge(iso: string | null, t: (k: string) => string) {
+  if (!iso) return <Badge variant="destructive">{t("badgeNeverSucceeded")}</Badge>
   const hours = (Date.now() - new Date(iso).getTime()) / 3_600_000
-  if (hours > 24) return <Badge variant="destructive">陈旧</Badge>
-  if (hours > 6) return <Badge variant="warning">偏旧</Badge>
-  return <Badge variant="success">新鲜</Badge>
+  if (hours > 24) return <Badge variant="destructive">{t("badgeStale")}</Badge>
+  if (hours > 6) return <Badge variant="warning">{t("badgeAging")}</Badge>
+  return <Badge variant="success">{t("badgeFresh")}</Badge>
 }
 
 interface Row {
@@ -45,6 +46,7 @@ interface Row {
 
 /** 数据新鲜度（最小版）：按任务实例最近成功时间推各任务产出时效，时效最差居前 */
 export function FreshnessView() {
+  const t = useTranslations("freshness")
   const instances = useApi<TaskInstance[]>("/api/ops/instances")
   const tasks = useApi<TaskDef[]>("/api/ops/tasks")
 
@@ -75,27 +77,27 @@ export function FreshnessView() {
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={RefreshIcon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">数据新鲜度</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          各任务产出的更新时效，最久未更新居前
+          {t("subtitle")}
         </p>
       </div>
 
       {rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-10 text-center">
-          <p className="text-muted-foreground">暂无任务，先通过左侧 Agent 创建任务</p>
+          <p className="text-muted-foreground">{t("empty")}</p>
         </div>
       ) : (
         <div className="font-sans">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-24 font-mono">任务</TableHead>
-                <TableHead>任务名</TableHead>
-                <TableHead className="w-24">时效</TableHead>
-                <TableHead className="w-44">最近成功</TableHead>
-                <TableHead className="w-32">距今</TableHead>
+                <TableHead className="w-24 font-mono">{t("colTask")}</TableHead>
+                <TableHead>{t("colTaskName")}</TableHead>
+                <TableHead className="w-24">{t("colFreshness")}</TableHead>
+                <TableHead className="w-44">{t("colLastSuccess")}</TableHead>
+                <TableHead className="w-32">{t("colAge")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,12 +105,12 @@ export function FreshnessView() {
                 <TableRow key={row.taskId}>
                   <TableCell className="font-mono tabular-nums">{row.taskId}</TableCell>
                   <TableCell>{row.name}</TableCell>
-                  <TableCell>{freshnessBadge(row.lastSuccess)}</TableCell>
+                  <TableCell>{freshnessBadge(row.lastSuccess, t)}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
                     {formatDateTime(row.lastSuccess)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {row.lastSuccess ? ageLabel(row.lastSuccess) : "—"}
+                    {row.lastSuccess ? ageLabel(row.lastSuccess, t) : "—"}
                   </TableCell>
                 </TableRow>
               ))}
