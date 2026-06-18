@@ -396,5 +396,14 @@
     "waiting": "Waiting for log output…",
     "noRecords": "No log records",
     "connectingShort": "Connecting…"
+  },
+  "login": {
+    "tagline": "AI Data Platform · Please sign in",
+    "username": "Username",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "loginFailed": "Login failed",
+    "defaultAccount": "Default account: admin / admin"
   }
 }

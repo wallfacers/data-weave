@@ -396,5 +396,14 @@
     "waiting": "等待日志输出…",
     "noRecords": "无日志记录",
     "connectingShort": "连接中…"
+  },
+  "login": {
+    "tagline": "AI 数据中台 · 请登录",
+    "username": "用户名",
+    "password": "密码",
+    "signIn": "登录",
+    "signingIn": "登录中…",
+    "loginFailed": "登录失败",
+    "defaultAccount": "默认账号：admin / admin"
   }
 }

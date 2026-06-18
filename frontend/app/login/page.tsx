@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button"
  */
 export default function LoginPage() {
   const router = useRouter()
+  const t = useTranslations("login")
   const { login } = useAuth()
 
   const [username, setUsername] = useState("")
@@ -35,7 +37,7 @@ export default function LoginPage() {
       await login(username, password)
       router.push("/")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登录失败")
+      setError(err instanceof Error ? err.message : t("loginFailed"))
     } finally {
       setLoading(false)
     }
@@ -56,7 +58,7 @@ export default function LoginPage() {
             DataWeave
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            AI 数据中台 · 请登录
+            {t("tagline")}
           </CardDescription>
         </CardHeader>
 
@@ -65,7 +67,7 @@ export default function LoginPage() {
             {/* 用户名 */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="username" className="text-sm font-medium text-foreground">
-                用户名
+                {t("username")}
               </label>
               <Input
                 id="username"
@@ -82,7 +84,7 @@ export default function LoginPage() {
             {/* 密码 */}
             <div className="flex flex-col gap-1.5">
               <label htmlFor="password" className="text-sm font-medium text-foreground">
-                密码
+                {t("password")}
               </label>
               <Input
                 id="password"
@@ -105,12 +107,12 @@ export default function LoginPage() {
 
             {/* 登录按钮 */}
             <Button type="submit" disabled={loading} className="w-full font-serif">
-              {loading ? "登录中…" : "登录"}
+              {loading ? t("signingIn") : t("signIn")}
             </Button>
 
             {/* 提示 */}
             <p className="text-center text-xs text-muted-foreground">
-              默认账号：admin / admin
+              {t("defaultAccount")}
             </p>
           </form>
         </CardContent>

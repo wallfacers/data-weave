@@ -35,7 +35,7 @@
 - [x] 4.3 `@google/design.md` 装为 devDep + `design:lint`/`design:export` 脚本；globals.css 由 preset 生成（取值与 DESIGN.md 一致）
 - [x] 4.4 `next-themes` 亮/暗切换（preset 自带，按 `D` 键切换）
 - [x] 4.5 安装 CopilotKit v2（1.59.5）+ `@ag-ui/client`（对齐 0.0.53），`/agent` 页 `CopilotKitProvider` + `CopilotChat` 直连 `NEXT_PUBLIC_AGENT_URL`
-- [ ] 4.6 表格富渲染：CUSTOM 事件（dataweave.result/fleet…，凡含 columns+rows）→ shadcn `Table` 富渲染。**代码已就位并提交**：`components/agent/result-table.tsx` + `agent-chat.tsx` onCustomEvent 接线（最近 N 条、可关闭）；`pnpm typecheck` 零错误；后端契约实证（mock+h2 对 Text-to-SQL 真发 `dataweave.result{kind:table,columns:["?column?"],rows:[{"?column?":7}]}`）。阻塞已解除（i18n next-intl 修复后 app 恢复，chat 正常加载）。**剩 Browser Gate**：发一条 Text-to-SQL 实跑确认 ResultTable 卡片渲染（快速可补）
+- [x] 4.6 表格富渲染：CUSTOM 事件（dataweave.result/fleet…，凡含 columns+rows）→ shadcn `Table` 富渲染。`components/agent/result-table.tsx` + `agent-chat.tsx` onCustomEvent 接线（最近 N 条、可关闭）；`pnpm typecheck` 零错误；后端契约实证（mock+h2 对 Text-to-SQL 真发 `dataweave.result{kind:table,columns:["?column?"],rows:[{"?column?":7}]}`）。Browser Gate 已实跑（2026-06-18）：发 Text-to-SQL → ResultTable 卡片渲染「查询结果/1 行/关闭结果」+ SQL + shadcn Table（`?column?`/`7`），console 0 error。
 - [x] 4.7 基础布局：sidebar 应用外壳 + 导航（概览/Agent/任务/指标/血缘）+ 概览页 + 占位页
 
 ## 5. 端到端验证
