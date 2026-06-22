@@ -10,8 +10,8 @@
  * 画布子 Tab 订阅所属工作流实例的 events/stream，按运行态给节点叠加状态点（不掩盖类型/选中态）。
  * 运行 = 手动触发正式实例（POST /api/workflows/{id}/run），D8：未上线禁用并提示需先发布。
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useTranslations } from "next-intl"
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import { useMotionValue, useTransform, motion } from "motion/react"
 import {
   ReactFlow,
@@ -51,11 +51,19 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu"
 import {
   API_BASE,
   authFetch,
@@ -70,8 +78,10 @@ import {
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
+import { RunLogsTabs, useRunLogTabs, type RunTab } from "@/components/workspace/run-logs-tabs"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
 
 // ─── 节点数据类型 ──────────────────────────────────────────
 
@@ -83,6 +93,25 @@ interface CanvasNodeData extends Record<string, unknown> {
   runState?: string
 }
 type CanvasNode = Node<CanvasNodeData>
+
+/**
+ * 节点右键菜单动作（由 CanvasInner 注入，节点组件经 context 消费）。
+ * 用 context 而非把回调塞进 node.data，避免污染草稿 payload 与触发多余重渲染。
+ */
+interface NodeActions {
+  /** 查看该 TASK 节点对应实例日志（需已有运行实例，否则 canViewLog=false）。 */
+  onViewLog: (taskDefId: number, label: string) => void
+  /** 单独运行该 TASK 节点（脱离工作流，复用 /api/tasks/{id}/run）。 */
+  onRunNode: (taskId: number, label: string) => void
+  /** 删除节点（及其关联边）。 */
+  onDeleteNode: (id: string) => void
+  /** 该 TASK 节点是否已有可看日志的运行实例。 */
+  canViewLog: (taskDefId: number) => boolean
+}
+const NodeActionsContext = createContext<NodeActions | null>(null)
+
+// 画布运行日志区高度持久化键（高度逻辑在 useRunLogTabs 内）
+const CANVAS_LOG_HEIGHT_KEY = "dw.workflowCanvas.logHeight"
 
 const shortId = () =>
   (typeof crypto !== "undefined" && crypto.randomUUID
@@ -121,37 +150,70 @@ function RunStateDot({ state }: { state?: string }) {
   )
 }
 
-function TaskNode({ data, selected }: NodeProps<CanvasNode>) {
+function TaskNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const t = useTranslations("workflowCanvas")
+  const actions = useContext(NodeActionsContext)
+  const label = data.label || t("nodeTaskFallback")
+  const taskId = data.taskId
+  const canLog = taskId != null && (actions?.canViewLog(taskId) ?? false)
   return (
-    <div
-      className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
-        selected ? "border-primary ring-1 ring-primary" : "border-border"
-      }`}
-    >
-      <Handle type="target" position={Position.Left} />
-      <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
-      <span className="max-w-40 truncate font-medium">{data.label || t("nodeTaskFallback")}</span>
-      <Handle type="source" position={Position.Right} />
-      <RunStateDot state={data.runState} />
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger
+        className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
+          selected ? "border-primary ring-1 ring-primary" : "border-border"
+        }`}
+      >
+        <Handle type="target" position={Position.Left} />
+        <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
+        <span className="max-w-40 truncate font-medium">{label}</span>
+        <Handle type="source" position={Position.Right} />
+        <RunStateDot state={data.runState} />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          disabled={!canLog}
+          onClick={() => taskId != null && actions?.onViewLog(taskId, label)}
+        >
+          {t("nodeMenuViewLog")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={taskId == null}
+          onClick={() => taskId != null && actions?.onRunNode(taskId, label)}
+        >
+          {t("nodeMenuRunNode")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onClick={() => actions?.onDeleteNode(id)}>
+          {t("nodeMenuDelete")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 
-function VirtualNode({ data, selected }: NodeProps<CanvasNode>) {
+function VirtualNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const t = useTranslations("workflowCanvas")
+  const actions = useContext(NodeActionsContext)
   return (
-    <div
-      className={`relative flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
-        selected ? "border-primary ring-1 ring-primary" : "border-muted-foreground/40"
-      }`}
-    >
-      <Handle type="target" position={Position.Left} />
-      <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
-      <span className="max-w-40 truncate text-muted-foreground">{data.label || t("nodeVirtualFallback")}</span>
-      <Handle type="source" position={Position.Right} />
-      <RunStateDot state={data.runState} />
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger
+        className={`relative flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
+          selected ? "border-primary ring-1 ring-primary" : "border-muted-foreground/40"
+        }`}
+      >
+        <Handle type="target" position={Position.Left} />
+        <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
+        <span className="max-w-40 truncate text-muted-foreground">{data.label || t("nodeVirtualFallback")}</span>
+        <Handle type="source" position={Position.Right} />
+        <RunStateDot state={data.runState} />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {/* VIRTUAL 节点无任务：仅保留删除 */}
+        <ContextMenuItem variant="destructive" onClick={() => actions?.onDeleteNode(id)}>
+          {t("nodeMenuDelete")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 
@@ -224,6 +286,7 @@ interface InstanceTask {
 
 function CanvasInner({ workflowId, name }: { workflowId: number; name: string }) {
   const t = useTranslations("workflowCanvas")
+  const locale = useLocale()
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
@@ -237,8 +300,27 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const [runWfId, setRunWfId] = useState<string | null>(null)
   const [instanceToTaskDef, setInstanceToTaskDef] = useState<Map<string, number>>(new Map())
   const [runStateByTaskDef, setRunStateByTaskDef] = useState<Map<number, string>>(new Map())
+  // 节点取日志用：taskDefId → 实例 UUID（与着色同源，按 taskDefId 键）
+  const [taskDefToInstance, setTaskDefToInstance] = useState<Map<number, string>>(new Map())
 
-  const { screenToFlowPosition } = useReactFlow()
+  // 运行日志 Tabs（每节点一条实例日志流，复用任务编辑器同一套零件）
+  const {
+    runTabs,
+    activeRunTab,
+    setActiveRunTab,
+    logHeight,
+    onLogResizeDown,
+    openRunTab,
+    closeRunTab,
+    closeOtherRunTabs,
+    closeRunTabsRight,
+    closeRunTabsLeft,
+    closeAllRunTabs,
+  } = useRunLogTabs(CANVAS_LOG_HEIGHT_KEY)
+  // 自动顶日志去重：已自动开过的实例不再抢焦（用户切看其它节点不被打断）
+  const autoOpenedRef = useRef<Set<string>>(new Set())
+
+  const { screenToFlowPosition, deleteElements } = useReactFlow()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const nodeTypes = useMemo(() => ({ task: TaskNode, virtual: VirtualNode }), [])
 
@@ -456,16 +538,20 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       const wiId = r.resultInstanceId
       setRunWfId(wiId)
       setRunStateByTaskDef(new Map())
-      // 拉实例详情建立 实例UUID→task_def id 映射 + 初始节点状态
+      autoOpenedRef.current = new Set() // 新运行重置自动顶日志去重
+      // 拉实例详情建立 实例UUID↔task_def id 映射 + 初始节点状态
       const detail = await authFetch(`${API_BASE}/api/ops/workflow-instances/${wiId}`, { cache: "no-store" })
         .then((d) => d.json() as Promise<ApiResponse<{ tasks: InstanceTask[] }>>)
       const idMap = new Map<string, number>()
+      const defMap = new Map<number, string>()
       const stateMap = new Map<number, string>()
-      for (const t of detail.data?.tasks ?? []) {
-        idMap.set(t.id, t.taskDefId)
-        stateMap.set(t.taskDefId, t.state)
+      for (const it of detail.data?.tasks ?? []) {
+        idMap.set(it.id, it.taskDefId)
+        defMap.set(it.taskDefId, it.id)
+        stateMap.set(it.taskDefId, it.state)
       }
       setInstanceToTaskDef(idMap)
+      setTaskDefToInstance(defMap)
       setRunStateByTaskDef(stateMap)
       toast.success(t("toastRunTriggered"))
     } catch {
@@ -474,6 +560,80 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       setBusy(false)
     }
   }, [workflowId, t])
+
+  // 节点 taskDefId → 节点显示名（自动顶日志/查看日志的 tab 标题用）
+  const labelByTaskDef = useCallback(
+    (taskDefId: number) => dagNodes.find((n) => n.data.taskId === taskDefId)?.data.label || `#${taskDefId}`,
+    [dagNodes],
+  )
+
+  // 运行时自动顶「当前运行节点」日志：仅首次出现该实例时开 Tab 并抢焦，已开过不打断用户。
+  useEffect(() => {
+    const statusEvents = events.filter((e) => e.type === "status")
+    if (statusEvents.length === 0) return
+    for (const ev of statusEvents) {
+      try {
+        const u = JSON.parse(ev.data) as { taskId?: string; taskState?: string }
+        if (!u.taskId || !u.taskState) continue
+        if (u.taskState !== "RUNNING" && u.taskState !== "DISPATCHED") continue
+        if (autoOpenedRef.current.has(u.taskId)) continue
+        autoOpenedRef.current.add(u.taskId)
+        const td = instanceToTaskDef.get(u.taskId)
+        openRunTab({
+          instanceId: u.taskId,
+          taskName: td != null ? labelByTaskDef(td) : name,
+          startedAt: new Date().toISOString(),
+          kind: "log",
+        })
+      } catch {
+        /* ignore malformed event */
+      }
+    }
+  }, [events, instanceToTaskDef, labelByTaskDef, name, openRunTab])
+
+  // 右键菜单动作（经 context 下发给节点组件）
+  const nodeActions = useMemo<NodeActions>(
+    () => ({
+      canViewLog: (taskDefId) => taskDefToInstance.has(taskDefId),
+      onViewLog: (taskDefId, label) => {
+        const instanceId = taskDefToInstance.get(taskDefId)
+        if (!instanceId) {
+          toast.info(t("toastNodeNoRun"))
+          return
+        }
+        openRunTab({ instanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
+      },
+      onRunNode: async (taskId, label) => {
+        try {
+          const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          })
+          const j = (await res.json()) as ApiResponse<RunResult>
+          if (j.code !== 0 || !j.data) {
+            toast.error(j.message || t("toastNodeRunFailed"))
+            return
+          }
+          const r = j.data
+          if (r.outcome === "EXECUTED" && r.resultInstanceId) {
+            openRunTab({ instanceId: r.resultInstanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
+            toast.success(t("toastNodeRunTriggered"))
+          } else if (r.outcome === "PENDING_APPROVAL") {
+            toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
+          } else {
+            toast.error(r.message || t("toastNodeRunNotExecuted"))
+          }
+        } catch {
+          toast.error(t("toastNodeRunFailed"))
+        }
+      },
+      onDeleteNode: (id) => {
+        deleteElements({ nodes: [{ id }] })
+      },
+    }),
+    [taskDefToInstance, openRunTab, deleteElements, t],
+  )
 
   if (loading) return <ViewStatus loading />
 
@@ -573,6 +733,9 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
   const activeKeyRef = useRef<string | null>(null)
   activeKeyRef.current = activeKey
 
+  // 从 workspace store 读取任务 dirty 状态（供子 Tab 显示黄点 + 关闭拦截）
+  const taskDirtyState = useWorkspaceStore((s) => s.taskDirtyState)
+
   // ── 类目树面板宽度（右缘分割线拖拽，localStorage 持久化）────────
   // 与 AgentRail 同模式：motion value 驱动渲染，拖拽过程零 React 提交
   const [, setCatalogWidth] = useState(CATALOG_DEFAULT_WIDTH)
@@ -646,6 +809,27 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
       return next
     })
   }, [])
+
+  // 关闭拦截：任务编辑子 Tab 有未保存改动时弹框确认
+  const [closeConfirm, setCloseConfirm] = useState<{ key: string; label: string } | null>(null)
+
+  const handleClose = useCallback((key: string) => {
+    const tab = tabs.find((t) => tabKey(t) === key)
+    if (!tab) return
+    const isDirty = tab.kind === "editor" && !!taskDirtyState[tab.id]
+    if (isDirty) {
+      setCloseConfirm({ key, label: tab.name })
+    } else {
+      closeTab(key)
+    }
+  }, [tabs, taskDirtyState, closeTab])
+
+  const confirmClose = useCallback(() => {
+    if (closeConfirm) {
+      closeTab(closeConfirm.key)
+      setCloseConfirm(null)
+    }
+  }, [closeConfirm, closeTab])
 
   // 标准批量关闭 —— 与驾驶舱 Tab 行为一致（TabStrip 条件渲染：传了才显示菜单项）
   const closeOthers = useCallback((key: string) => {
@@ -737,11 +921,21 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
     }
   }
 
-  const stripTabs: TabStripItem[] = tabs.map((t) => ({
-    id: tabKey(t),
-    label: t.name,
-    icon: t.kind === "canvas" ? Share08Icon : Task01Icon,
-  }))
+  const stripTabs: TabStripItem[] = tabs.map((tab) => {
+    const isDirty = tab.kind === "editor" && !!taskDirtyState[tab.id]
+    return {
+      id: tabKey(tab),
+      label: tab.name,
+      icon: tab.kind === "canvas" ? Share08Icon : Task01Icon,
+      suffix: isDirty ? (
+        <span
+          className="ml-1 size-1.5 shrink-0 rounded-full bg-warning"
+          aria-label={t("catalog.statusDirty")}
+          title={t("catalog.statusDirty")}
+        />
+      ) : undefined,
+    }
+  })
 
   return (
     <div className="flex h-full gap-3 p-3">
@@ -782,7 +976,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             tabs={stripTabs}
             activeId={activeKey}
             onActivate={setActiveKey}
-            onClose={closeTab}
+            onClose={handleClose}
             onCloseOthers={closeOthers}
             onCloseRight={closeRight}
             onCloseLeft={closeLeft}
@@ -880,6 +1074,29 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
             <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
             <Button onClick={submitCreateWorkflow} disabled={creating}>
               {t("create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 关闭拦截确认弹框 */}
+      <Dialog
+        open={!!closeConfirm}
+        onOpenChange={(open) => {
+          if (!open) setCloseConfirm(null)
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("confirmCloseTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("confirmCloseDesc", { label: closeConfirm?.label ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
+            <Button variant="destructive" onClick={confirmClose}>
+              {t("discardChanges")}
             </Button>
           </DialogFooter>
         </DialogContent>

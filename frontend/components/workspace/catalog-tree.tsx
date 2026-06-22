@@ -47,6 +47,7 @@ import {
   type WorkflowDef,
 } from "@/lib/types"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
 import {
   Dialog,
   DialogClose,
@@ -214,6 +215,9 @@ export function CatalogTree({
     setData, upsertTask, upsertWorkflow, updateTask, updateWorkflow,
     removeTask, removeWorkflow, insertFolder, removeFolder, renameFolder: renameFolderInStore,
   } = useCatalogTreeStore()
+
+  // 从 workspace store 读取任务 dirty 状态（供叶子节点显示黄点）
+  const taskDirtyState = useWorkspaceStore((s) => s.taskDirtyState)
 
   const [tags, setTags] = useState<Tag[]>([])
   const [visibleTaskIds, setVisibleTaskIds] = useState<Set<number> | null>(null)
@@ -627,7 +631,15 @@ export function CatalogTree({
 
   // ── 渲染叶子（任务/工作流）──
   // 行包 ContextMenuTrigger：右键弹「重命名/删除」菜单，与 onClick(开 Tab)、draggable(移动/上画布) 正交。
-  const renderLeaf = (kind: "task" | "workflow", id: number, name: string, depth: number) => {
+  // 右侧小圆点：dirty=黄点（warning）> ONLINE=绿点（success）> DRAFT=灰点（muted）。
+  const renderLeaf = (
+    kind: "task" | "workflow",
+    id: number,
+    name: string,
+    depth: number,
+    status: "ONLINE" | "DRAFT",
+    dirty: boolean,
+  ) => {
     const key = `${kind}-${id}`
     return (
       <motion.div
@@ -656,6 +668,13 @@ export function CatalogTree({
               className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
             />
             <span className="truncate">{name}</span>
+            <span
+              className={`ml-auto size-1.5 shrink-0 rounded-full ${
+                dirty ? "bg-warning" : status === "ONLINE" ? "bg-success" : "bg-muted-foreground/50"
+              }`}
+              aria-label={dirty ? t("catalog.statusDirty") : status === "ONLINE" ? t("catalog.statusOnline") : t("catalog.statusDraft")}
+              title={dirty ? t("catalog.statusDirty") : status === "ONLINE" ? t("catalog.statusOnline") : t("catalog.statusDraft")}
+            />
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem
@@ -765,8 +784,8 @@ export function CatalogTree({
               className="overflow-hidden"
             >
               {(node.children ?? []).map((c) => renderFolder(c, depth + 1))}
-              {childTasks.map((t) => renderLeaf("task", t.id, t.name, depth + 1))}
-              {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, depth + 1))}
+              {childTasks.map((t) => renderLeaf("task", t.id, t.name, depth + 1, t.status, !!taskDirtyState[t.id]))}
+              {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, depth + 1, w.status, false))}
             </motion.div>
           )}
         </AnimatePresence>
@@ -804,8 +823,8 @@ export function CatalogTree({
         </div>
         {open && (
           <div>
-            {childTasks.map((t) => renderLeaf("task", t.id, t.name, 1))}
-            {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, 1))}
+            {childTasks.map((t) => renderLeaf("task", t.id, t.name, 1, t.status, !!taskDirtyState[t.id]))}
+            {childWorkflows.map((w) => renderLeaf("workflow", w.id, w.name, 1, w.status, false))}
           </div>
         )}
       </div>

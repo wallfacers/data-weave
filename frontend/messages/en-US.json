@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "DataWeave",
-    "loading": "Loading…",
+    "loading": "Loading",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -33,7 +33,10 @@
     "closeAllTabs": "Close all",
     "openView": "Open view",
     "pinTab": "Pin tab",
-    "unpinTab": "Unpin"
+    "unpinTab": "Unpin",
+    "confirmCloseTitle": "Confirm close",
+    "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
+    "discardChanges": "Discard changes"
   },
   "ops": {
     "title": "Ops",
@@ -61,7 +64,7 @@
   "catalog": {
     "title": "Catalog",
     "uncategorized": "Uncategorized",
-    "loading": "Loading catalog…",
+    "loading": "Loading catalog",
     "searchPlaceholder": "Search tasks / workflows",
     "clear": "Clear",
     "noMatches": "No tasks / workflows matched",
@@ -102,13 +105,16 @@
     "toastTaskDraftCreated": "Task draft created",
     "toastWorkflowDraftCreated": "Workflow draft created",
     "toastFolderDeleted": "Folder deleted",
-    "moveTo": "Move to…",
+    "moveTo": "Move to",
     "dialogMoveTo": "Move \"{name}\"",
-    "moveAction": "Move"
+    "moveAction": "Move",
+    "statusOnline": "Online",
+    "statusDraft": "Draft",
+    "statusDirty": "Unsaved changes"
   },
   "agent": {
-    "placeholder": "Ask DataWeave Agent…",
-    "thinking": "Thinking…"
+    "placeholder": "Ask DataWeave Agent",
+    "thinking": "Thinking"
   },
   "agentRail": {
     "current": "Current: ",
@@ -117,7 +123,7 @@
   },
   "taskEditor": {
     "run": "Run",
-    "running": "Running…",
+    "running": "Running",
     "notPublishedHint": "Not published — publish first: ",
     "publish": "Publish",
     "statusOnline": "Published",
@@ -153,7 +159,7 @@
     "toastRunNotExecuted": "Run not executed",
     "toastRunFailed": "Run failed",
     "parseFailed": "Parse failed",
-    "presetInsert": "Insert common…",
+    "presetInsert": "Insert common",
     "presetYmd": "Business date yyyymmdd",
     "presetYmdMinus1": "Previous day",
     "presetYmdMinus7": "7 days ago",
@@ -168,9 +174,9 @@
     "logEnded": "Ended",
     "logDisconnected": "Disconnected",
     "logConnecting": "Connecting",
-    "logWaiting": "Waiting for log output…",
+    "logWaiting": "Waiting for log output",
     "logNoRecords": "No log records",
-    "logConnectingShort": "Connecting…",
+    "logConnectingShort": "Connecting",
     "pendingSave": "● Unsaved",
     "runTest": "Test run",
     "logTabEmpty": "Click Run to view run logs",
@@ -302,11 +308,14 @@
     "toastRunFailed": "Run failed",
     "toastTaskDraftCreated": "Task draft created",
     "toastWorkflowDraftCreated": "Workflow draft created",
-    "toastCreateFailed": "Creation failed"
+    "toastCreateFailed": "Creation failed",
+    "confirmCloseTitle": "Confirm close",
+    "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
+    "discardChanges": "Discard changes"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "No workflow instance ID specified",
-    "loading": "Loading…",
+    "loading": "Loading",
     "notFound": "Workflow instance not found",
     "title": "Workflow Instance",
     "pause": "Pause",
@@ -330,9 +339,9 @@
     "disconnected": "Disconnected",
     "connecting": "Connecting",
     "clear": "Clear",
-    "waitingLogs": "Waiting for log output…",
+    "waitingLogs": "Waiting for log output",
     "noLogs": "No log records",
-    "connectingDots": "Connecting…"
+    "connectingDots": "Connecting"
   },
   "diagnosis": {
     "title": "Failure Diagnosis",
@@ -345,7 +354,7 @@
     "empty": "No registered Worker nodes yet"
   },
   "viewStatus": {
-    "loading": "Loading…",
+    "loading": "Loading",
     "connectError": "Unable to connect to backend ({apiBase}). Please make sure the backend is running."
   },
   "placeholderView": {
@@ -358,7 +367,7 @@
   },
   "settingsView": {
     "cancel": "Cancel",
-    "loading": "Loading…",
+    "loading": "Loading",
     "submitCreate": "Create",
     "delete": "Delete",
     "colActions": "Actions",
@@ -420,16 +429,16 @@
     "statusDisconnected": "Disconnected",
     "statusConnecting": "Connecting",
     "clear": "Clear",
-    "waiting": "Waiting for log output…",
+    "waiting": "Waiting for log output",
     "noRecords": "No log records",
-    "connectingShort": "Connecting…"
+    "connectingShort": "Connecting"
   },
   "login": {
     "tagline": "AI Data Platform · Please sign in",
     "username": "Username",
     "password": "Password",
     "signIn": "Sign in",
-    "signingIn": "Signing in…",
+    "signingIn": "Signing in",
     "loginFailed": "Login failed",
     "defaultAccount": "Default account: admin / admin"
   },
@@ -491,7 +500,7 @@
     "allStatus": "All status",
     "statusDraft": "Draft",
     "statusOnline": "Online",
-    "searchPlaceholder": "Search task name…",
+    "searchPlaceholder": "Search task name",
     "newTask": "New Task"
   },
   "diagnosisCard": {
@@ -524,7 +533,7 @@
     "taskLabel": "Task #{id}",
     "startedLabel": "Started: {time}",
     "finishedLabel": "Finished: {time}",
-    "loading": "Loading…",
+    "loading": "Loading",
     "emptyLog": "(no logs)",
     "loadMore": "Load more",
     "download": "Download"
@@ -555,7 +564,7 @@
     "spec": "Spec"
   },
   "codeEditor": {
-    "loading": "Loading editor…",
+    "loading": "Loading editor",
     "clearTitle": "Clear editor content",
     "clearDesc": "This action cannot be undone.",
     "cancel": "Cancel",

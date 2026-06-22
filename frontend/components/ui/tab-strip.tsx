@@ -22,6 +22,8 @@ export interface TabStripItem {
   icon?: IconSvgElement
   /** 标签最前的状态指示器（如日志面板连接状态圆点），置于 icon/label 之前 */
   indicator?: ReactNode
+  /** 标签末尾的状态指示器（如未保存改动黄点），置于 label 之后、关闭按钮之前 */
+  suffix?: ReactNode
   /** 默认 true；false = 不可关闭（如工作区固定底座），无 × 且 close 系列跳过 */
   closable?: boolean
   /** 标签文字用等宽字体（如日志面板实例 ID） */
@@ -206,6 +208,9 @@ export function TabStrip({
                 <span className={cn("min-w-0 flex-1 truncate", tab.monospace && "font-mono")}>
                   {tab.label}
                 </span>
+                {tab.suffix && (
+                  <span className="flex shrink-0 items-center">{tab.suffix}</span>
+                )}
                 {closable ? (
                   <button
                     type="button"

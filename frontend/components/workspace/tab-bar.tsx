@@ -90,14 +90,6 @@ export function WorkspaceTabBar() {
   const unpin = useWorkspaceStore((s) => s.unpin)
   const t = useTranslations()
 
-  const byId = new Map(tabs.map((t) => [t.id, t]))
-  const items: TabStripItem[] = tabs.map((tab) => ({
-    id: tab.id,
-    label: tabLabel(tab, t),
-    icon: VIEW_RENDER[tab.view].icon,
-    closable: !tab.pinned,
-  }))
-
   // 固定/取消固定进右键菜单（底座 base tab 不可固定切换）
   const extraActions = (item: TabStripItem): TabContextAction[] => {
     const tab = byId.get(item.id)
@@ -106,6 +98,14 @@ export function WorkspaceTabBar() {
       ? [{ label: t("workspace.unpinTab"), onClick: () => unpin(tab.id) }]
       : [{ label: t("workspace.pinTab"), onClick: () => pin(tab.id) }]
   }
+
+  const byId = new Map(tabs.map((t) => [t.id, t]))
+  const items: TabStripItem[] = tabs.map((tab) => ({
+    id: tab.id,
+    label: tabLabel(tab, t),
+    icon: VIEW_RENDER[tab.view].icon,
+    closable: !tab.pinned,
+  }))
 
   return (
     <TabStrip

@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "DataWeave",
-    "loading": "加载中…",
+    "loading": "加载中",
     "save": "保存",
     "cancel": "取消",
     "delete": "删除",
@@ -33,7 +33,10 @@
     "closeAllTabs": "关闭全部",
     "openView": "打开视图",
     "pinTab": "固定标签页",
-    "unpinTab": "取消固定"
+    "unpinTab": "取消固定",
+    "confirmCloseTitle": "确认关闭",
+    "confirmCloseDesc": "「{label}」有未保存的改动，关闭后改动将丢失。",
+    "discardChanges": "丢弃改动"
   },
   "ops": {
     "title": "调度运维",
@@ -61,7 +64,7 @@
   "catalog": {
     "title": "类目",
     "uncategorized": "未分类",
-    "loading": "加载类目…",
+    "loading": "加载类目",
     "searchPlaceholder": "搜索任务/工作流",
     "clear": "清除",
     "noMatches": "未匹配到任务/工作流",
@@ -102,13 +105,16 @@
     "toastTaskDraftCreated": "已创建任务草稿",
     "toastWorkflowDraftCreated": "已创建工作流草稿",
     "toastFolderDeleted": "已删除文件夹",
-    "moveTo": "移动到目录…",
+    "moveTo": "移动到目录",
     "dialogMoveTo": "移动「{name}」",
-    "moveAction": "移动"
+    "moveAction": "移动",
+    "statusOnline": "在线",
+    "statusDraft": "草稿",
+    "statusDirty": "有未保存改动"
   },
   "agent": {
     "placeholder": "向 DataWeave Agent 提问…",
-    "thinking": "思考中…"
+    "thinking": "思考中"
   },
   "agentRail": {
     "current": "当前：",
@@ -117,7 +123,7 @@
   },
   "taskEditor": {
     "run": "运行",
-    "running": "运行中…",
+    "running": "运行中",
     "notPublishedHint": "未发布不可运行，请先",
     "publish": "发布",
     "statusOnline": "已发布",
@@ -153,7 +159,7 @@
     "toastRunNotExecuted": "运行未执行",
     "toastRunFailed": "运行失败",
     "parseFailed": "解析失败",
-    "presetInsert": "插入常用…",
+    "presetInsert": "插入常用",
     "presetYmd": "业务日期 yyyymmdd",
     "presetYmdMinus1": "前一天",
     "presetYmdMinus7": "前 7 天",
@@ -168,9 +174,9 @@
     "logEnded": "已结束",
     "logDisconnected": "断开",
     "logConnecting": "连接中",
-    "logWaiting": "等待日志输出…",
+    "logWaiting": "等待日志输出",
     "logNoRecords": "无日志记录",
-    "logConnectingShort": "连接中…",
+    "logConnectingShort": "连接中",
     "pendingSave": "● 待保存",
     "runTest": "测试运行",
     "logTabEmpty": "点击「运行」查看运行日志",
@@ -302,11 +308,14 @@
     "toastRunFailed": "运行失败",
     "toastTaskDraftCreated": "已创建任务草稿",
     "toastWorkflowDraftCreated": "已创建工作流草稿",
-    "toastCreateFailed": "创建失败"
+    "toastCreateFailed": "创建失败",
+    "confirmCloseTitle": "确认关闭",
+    "confirmCloseDesc": "「{label}」有未保存的改动，关闭后改动将丢失。",
+    "discardChanges": "丢弃改动"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "未指定工作流实例 ID",
-    "loading": "加载中…",
+    "loading": "加载中",
     "notFound": "工作流实例不存在",
     "title": "工作流实例",
     "pause": "暂停",
@@ -330,9 +339,9 @@
     "disconnected": "断开",
     "connecting": "连接中",
     "clear": "清空",
-    "waitingLogs": "等待日志输出…",
+    "waitingLogs": "等待日志输出",
     "noLogs": "无日志记录",
-    "connectingDots": "连接中…"
+    "connectingDots": "连接中"
   },
   "diagnosis": {
     "title": "失败诊断",
@@ -345,7 +354,7 @@
     "empty": "暂无注册的 Worker 节点"
   },
   "viewStatus": {
-    "loading": "加载中…",
+    "loading": "加载中",
     "connectError": "无法连接后端（{apiBase}），请确认后端已启动。"
   },
   "placeholderView": {
@@ -358,7 +367,7 @@
   },
   "settingsView": {
     "cancel": "取消",
-    "loading": "加载中…",
+    "loading": "加载中",
     "submitCreate": "创建",
     "delete": "删除",
     "colActions": "操作",
@@ -420,16 +429,16 @@
     "statusDisconnected": "断开",
     "statusConnecting": "连接中",
     "clear": "清空",
-    "waiting": "等待日志输出…",
+    "waiting": "等待日志输出",
     "noRecords": "无日志记录",
-    "connectingShort": "连接中…"
+    "connectingShort": "连接中"
   },
   "login": {
     "tagline": "AI 数据中台 · 请登录",
     "username": "用户名",
     "password": "密码",
     "signIn": "登录",
-    "signingIn": "登录中…",
+    "signingIn": "登录中",
     "loginFailed": "登录失败",
     "defaultAccount": "默认账号：admin / admin"
   },
@@ -491,7 +500,7 @@
     "allStatus": "全部状态",
     "statusDraft": "草稿",
     "statusOnline": "在线",
-    "searchPlaceholder": "搜索任务名称…",
+    "searchPlaceholder": "搜索任务名称",
     "newTask": "新建任务"
   },
   "diagnosisCard": {
@@ -524,7 +533,7 @@
     "taskLabel": "任务 #{id}",
     "startedLabel": "开始：{time}",
     "finishedLabel": "结束：{time}",
-    "loading": "加载中…",
+    "loading": "加载中",
     "emptyLog": "（无日志）",
     "loadMore": "加载更多",
     "download": "下载"
@@ -555,7 +564,7 @@
     "spec": "规格"
   },
   "codeEditor": {
-    "loading": "加载编辑器…",
+    "loading": "加载编辑器",
     "clearTitle": "清空编辑器内容",
     "clearDesc": "此操作不可撤销。",
     "cancel": "取消",

@@ -9,24 +9,22 @@
  * 编辑器维护 dirty 脏态（保存草稿→「● 待保存」），发布按钮按 `hasDraftChange` 启用且与保存按钮同风格。
  * 运行日志为 Tabs 容器：每次运行一个日志 tab（命名=任务名+运行时间），DataWorks 风滚屏，预留结果集 tab 位。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { FloppyDiskIcon, RocketIcon, DocumentCodeIcon } from "@hugeicons/core-free-icons"
+import { FloppyDiskIcon, RocketIcon } from "@hugeicons/core-free-icons"
 
-import { API_BASE, authFetch, formatDateTime, type ApiResponse, type TaskDef } from "@/lib/types"
+import { API_BASE, authFetch, type ApiResponse, type TaskDef } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
-import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
-import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
-import "overlayscrollbars/overlayscrollbars.css"
 import { CodeEditor, type CodeEditorLanguage } from "@/components/code-editor"
-import { useEventSource } from "@/lib/workspace/use-event-source"
+import { RunLogsTabs, useRunLogTabs, type RunTab } from "@/components/workspace/run-logs-tabs"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
 import { cn } from "@/lib/utils"
 
 const TYPE_OPTIONS = [
@@ -38,11 +36,8 @@ const TYPE_OPTIONS = [
 // value 为表达式字面量（不翻译），label 经 i18n 在组件内生成。
 const PRESET_PLACEHOLDER = "__preset__"
 
-// 运行日志区高度（可拖拽分割，持久化）
+// 运行日志区高度持久化键（高度逻辑在 useRunLogTabs 内）
 const LOG_HEIGHT_KEY = "dw.taskEditor.logHeight"
-const LOG_HEIGHT_DEFAULT = 224
-const LOG_HEIGHT_MIN = 80
-const LOG_HEIGHT_MAX = 700
 
 interface ParamRow {
   name: string
@@ -84,14 +79,6 @@ interface RunResult {
   message?: string
 }
 
-/** 一次运行的日志 tab（kind=result 为结果集占位，本期不渲染行数据）。 */
-interface RunTab {
-  instanceId: string
-  taskName: string
-  startedAt: string
-  kind: "log" | "result"
-}
-
 export interface TaskEditorPaneProps {
   taskId: number
 }
@@ -119,42 +106,21 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState(false)
 
-  // 手动运行 + 日志 Tabs
+  // 手动运行 + 日志 Tabs（状态/关闭族/拖拽高度收口到公共 hook）
   const [running, setRunning] = useState(false)
-  const [runTabs, setRunTabs] = useState<RunTab[]>([])
-  const [activeRunTab, setActiveRunTab] = useState<string | null>(null)
-  const [logHeight, setLogHeight] = useState(LOG_HEIGHT_DEFAULT)
-
-  useEffect(() => {
-    const saved = Number(localStorage.getItem(LOG_HEIGHT_KEY))
-    if (saved >= LOG_HEIGHT_MIN && saved <= LOG_HEIGHT_MAX) setLogHeight(saved)
-  }, [])
-
-  // 运行日志区拖拽分割：分割条在日志区上沿，上拖增高（逻辑同类目树宽度拖拽）。
-  const onLogResizeDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault()
-      const startY = e.clientY
-      const startH = logHeight
-      let current = startH
-      const onMove = (ev: PointerEvent) => {
-        current = Math.min(LOG_HEIGHT_MAX, Math.max(LOG_HEIGHT_MIN, startH - (ev.clientY - startY)))
-        setLogHeight(current)
-      }
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove)
-        window.removeEventListener("pointerup", onUp)
-        document.body.style.cursor = ""
-        document.body.style.userSelect = ""
-        localStorage.setItem(LOG_HEIGHT_KEY, String(Math.round(current)))
-      }
-      document.body.style.cursor = "row-resize"
-      document.body.style.userSelect = "none"
-      window.addEventListener("pointermove", onMove)
-      window.addEventListener("pointerup", onUp)
-    },
-    [logHeight],
-  )
+  const {
+    runTabs,
+    activeRunTab,
+    setActiveRunTab,
+    logHeight,
+    onLogResizeDown,
+    openRunTab,
+    closeRunTab,
+    closeOtherRunTabs,
+    closeRunTabsRight,
+    closeRunTabsLeft,
+    closeAllRunTabs,
+  } = useRunLogTabs(LOG_HEIGHT_KEY)
 
   const published = status === "ONLINE"
   const editorLang: CodeEditorLanguage = type === "SQL" ? "sql" : "bash"
@@ -206,6 +172,15 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   useEffect(() => {
     loadTask()
   }, [loadTask])
+
+  // 同步 dirty 状态到 workspace store（供类目树/Tab 栏显示黄点 + 关闭拦截）
+  useEffect(() => {
+    useWorkspaceStore.getState().setTaskDirty(taskId, dirty)
+    return () => {
+      // 组件卸载时清理
+      useWorkspaceStore.getState().setTaskDirty(taskId, false)
+    }
+  }, [taskId, dirty])
 
   async function handlePreview() {
     setPreviewing(true)
@@ -338,8 +313,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           startedAt: new Date().toISOString(),
           kind: "log",
         }
-        setRunTabs((prev) => [...prev, tab])
-        setActiveRunTab(r.resultInstanceId)
+        openRunTab(tab)
         toast.success(t("taskEditor.toastRunTriggered"))
       } else if (r.outcome === "PENDING_APPROVAL") {
         toast.info(t("taskEditor.toastNeedApproval", { id: r.actionId ?? "?" }))
@@ -352,35 +326,6 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       setRunning(false)
     }
   }
-
-  // 运行日志 Tabs 关闭操作（关闭 / 关闭其他 / 关闭右侧 / 关闭左侧 / 关闭全部）。
-  // 统一收口：算出新列表后，若当前激活页已被关掉则改激活末页（空则 null，整个日志区随 runTabs 清空而隐藏）。
-  function applyRunTabs(compute: (prev: RunTab[]) => RunTab[]) {
-    setRunTabs((prev) => {
-      const next = compute(prev)
-      setActiveRunTab((cur) =>
-        cur && next.some((tb) => tb.instanceId === cur)
-          ? cur
-          : next.length
-            ? next[next.length - 1].instanceId
-            : null,
-      )
-      return next
-    })
-  }
-  const closeRunTab = (id: string) => applyRunTabs((prev) => prev.filter((tb) => tb.instanceId !== id))
-  const closeOtherRunTabs = (id: string) => applyRunTabs((prev) => prev.filter((tb) => tb.instanceId === id))
-  const closeRunTabsRight = (id: string) =>
-    applyRunTabs((prev) => {
-      const i = prev.findIndex((tb) => tb.instanceId === id)
-      return i < 0 ? prev : prev.slice(0, i + 1)
-    })
-  const closeRunTabsLeft = (id: string) =>
-    applyRunTabs((prev) => {
-      const i = prev.findIndex((tb) => tb.instanceId === id)
-      return i < 0 ? prev : prev.slice(i)
-    })
-  const closeAllRunTabs = () => applyRunTabs(() => [])
 
   function addParam() {
     setParamRows((rs) => [...rs, { name: "", expr: "" }])
@@ -564,7 +509,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
                 placeholder={t("taskEditor.bizDatePlaceholder")}
               />
               <Button size="sm" variant="secondary" className="h-7" onClick={handlePreview} disabled={previewing || !content}>
-                {previewing ? "…" : t("taskEditor.previewBtn")}
+                {t("taskEditor.previewBtn")}
               </Button>
             </div>
             {previewError && <p className="text-[11px] text-destructive">{previewError}</p>}
@@ -588,157 +533,5 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
         </DwScroll>
       </div>
     </div>
-  )
-}
-
-type ConnState = "live" | "ended" | "error" | "connecting"
-
-/**
- * 运行日志 Tabs 容器：每次运行一个日志 tab（命名=任务名+运行时间）。
- * 所有 tab 内容常驻挂载（隐藏非激活），保持各自 SSE 连接不因切换而断；预留结果集 tab 占位。
- */
-function RunLogsTabs({
-  tabs,
-  activeId,
-  onActivate,
-  onClose,
-  onCloseOthers,
-  onCloseRight,
-  onCloseLeft,
-  onCloseAll,
-  locale,
-}: {
-  tabs: RunTab[]
-  activeId: string | null
-  onActivate: (id: string) => void
-  onClose: (id: string) => void
-  onCloseOthers: (id: string) => void
-  onCloseRight: (id: string) => void
-  onCloseLeft: (id: string) => void
-  onCloseAll: () => void
-  locale: string
-}) {
-  const t = useTranslations("taskEditor")
-  const [conn, setConn] = useState<Record<string, ConnState>>({})
-  const active = activeId ?? (tabs.length ? tabs[tabs.length - 1].instanceId : null)
-
-  const dotColor: Record<ConnState, string> = {
-    live: "bg-emerald-500 animate-pulse",
-    ended: "bg-muted-foreground",
-    error: "bg-destructive",
-    connecting: "bg-amber-500 animate-pulse",
-  }
-
-  const stripTabs: TabStripItem[] = tabs.map((tb) => ({
-    id: tb.instanceId,
-    label: `${tb.taskName} · ${formatDateTime(tb.startedAt, locale)}`,
-    icon: DocumentCodeIcon,
-    indicator: (
-      <span className={cn("mr-1 size-1.5 rounded-full", dotColor[conn[tb.instanceId] ?? "connecting"])} />
-    ),
-  }))
-
-  return (
-    <div className="flex h-full flex-col">
-      <TabStrip
-        tabs={stripTabs}
-        activeId={active}
-        onActivate={onActivate}
-        onClose={onClose}
-        onCloseOthers={onCloseOthers}
-        onCloseRight={onCloseRight}
-        onCloseLeft={onCloseLeft}
-        onCloseAll={onCloseAll}
-        size="sm"
-        surface="background"
-      />
-      <div className="relative min-h-0 flex-1">
-        {tabs.map((tb) => (
-          <div
-            key={tb.instanceId}
-            className={cn("absolute inset-0", tb.instanceId === active ? "block" : "hidden")}
-          >
-            {tb.kind === "result" ? (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                {t("logResultPending")}
-              </div>
-            ) : (
-              <LogTab
-                instanceId={tb.instanceId}
-                onConn={(s) => setConn((m) => (m[tb.instanceId] === s ? m : { ...m, [tb.instanceId]: s }))}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** 单实例日志：订阅 logs/stream，DataWorks 风滚屏（自动滚底，banner 行弱化着色）。滚动条用项目规范的 OverlayScrollbars。 */
-function LogTab({ instanceId, onConn }: { instanceId: string; onConn: (s: ConnState) => void }) {
-  const t = useTranslations("taskEditor")
-  const osRef = useRef<OverlayScrollbarsComponentRef>(null)
-  const autoScroll = useRef(true)
-  const { events, connected, error } = useEventSource(
-    `${API_BASE}/api/ops/instances/${instanceId}/logs/stream`,
-  )
-  const lines = events.filter((e) => e.type === "log").map((e) => e.data)
-  const ended = events.some((e) => e.type === "end")
-
-  const state: ConnState = connected ? "live" : ended ? "ended" : error ? "error" : "connecting"
-  // onConn 每次渲染都是新内联函数；用 ref 持有，effect 只依赖 state，避免「effect→setState→重渲染→新 onConn→effect」死循环。
-  const onConnRef = useRef(onConn)
-  onConnRef.current = onConn
-  useEffect(() => {
-    onConnRef.current(state)
-  }, [state])
-
-  // 自动滚动到底部（用户上滚则暂停）——经 OverlayScrollbars viewport。
-  useEffect(() => {
-    if (!autoScroll.current) return
-    const vp = osRef.current?.osInstance()?.elements().viewport
-    if (vp) vp.scrollTop = vp.scrollHeight
-  }, [events])
-
-  const handleScroll = () => {
-    const vp = osRef.current?.osInstance()?.elements().viewport
-    if (!vp) return
-    autoScroll.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 50
-  }
-
-  return (
-    <OverlayScrollbarsComponent
-      ref={osRef}
-      element="div"
-      className="h-full bg-muted/20"
-      options={{
-        scrollbars: { theme: "os-theme-dark", autoHide: "never" },
-        overflow: { x: "hidden", y: "scroll" },
-      }}
-      events={{ scroll: handleScroll }}
-    >
-      <div className="px-3 py-2 font-mono text-xs leading-relaxed">
-        {lines.length === 0 ? (
-          <div className="text-muted-foreground">
-            {connected ? t("logWaiting") : ended ? t("logNoRecords") : t("logConnectingShort")}
-          </div>
-        ) : (
-          <div className="space-y-px">
-            {lines.map((line, i) => {
-              const banner = line.startsWith("===")
-              return (
-                <div
-                  key={i}
-                  className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
-                >
-                  {line}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </OverlayScrollbarsComponent>
   )
 }

@@ -60,6 +60,8 @@ function baseTabs(): WorkspaceTab[] {
 interface WorkspaceState {
   tabs: WorkspaceTab[]
   activeTabId: string
+  /** 任务编辑器的未保存改动状态（taskId → dirty） */
+  taskDirtyState: Record<number, boolean>
   open: (
     view: string,
     params?: Record<string, unknown>,
@@ -79,6 +81,10 @@ interface WorkspaceState {
   activate: (id: string) => void
   pin: (id: string) => void
   unpin: (id: string) => void
+  /** 设置任务的未保存改动状态 */
+  setTaskDirty: (taskId: number, dirty: boolean) => void
+  /** 查询任务是否有未保存改动 */
+  isTaskDirty: (taskId: number) => boolean
   /** 仅 Ephemeral（含 pin 升级者）+ 激活态进快照 */
   snapshot: () => WorkspaceSnapshot
   /** 恢复快照：损坏/未知视图静默丢弃，至少回到 Pinned 底座 */
@@ -89,6 +95,7 @@ interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   tabs: baseTabs(),
   activeTabId: baseTabs()[0]?.id ?? "",
+  taskDirtyState: {},
 
   open: (view, params, opts) => {
     if (!isKnownView(view)) {
@@ -183,6 +190,16 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
         t.id === id && !t.base ? { ...t, pinned: false } : t,
       ),
     })
+  },
+
+  setTaskDirty: (taskId, dirty) => {
+    const { taskDirtyState } = get()
+    if (taskDirtyState[taskId] === dirty) return
+    set({ taskDirtyState: { ...taskDirtyState, [taskId]: dirty } })
+  },
+
+  isTaskDirty: (taskId) => {
+    return !!get().taskDirtyState[taskId]
   },
 
   snapshot: () => {
