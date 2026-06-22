@@ -11,6 +11,7 @@ import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.application.SchedulerMetrics.MetricsSnapshot;
 import com.dataweave.master.application.SlaService;
 import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.LogArchiveStorage;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskDef;
@@ -26,6 +27,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -192,25 +194,31 @@ public class OpsController {
             return streamEndedLogs(id, inst);
         }
 
-        // 实时流：定时轮询 LogBus
+        // 实时流：每 200ms 轮询 LogBus 推日志；每 ~2s 顺带查实例状态，终态则 emit 带 outcome 的 end 并关流。
+        // 终态检出当 tick 会先读日志再查状态，故无尾日志丢失；end 事件由外层 takeUntil 触发流完成，避免悬挂。
         final String[] afterId = {lastEventId};
+        final long stateCheckEvery = 10; // 10 × 200ms = 2s
         return Flux.interval(Duration.ofMillis(200))
-                .flatMap(tick -> {
-                    List<LogBus.Entry> entries = logBus.read(id, afterId[0], 100);
-                    if (entries.isEmpty()) {
-                        return Flux.empty();
+                .concatMap(tick -> {
+                    List<ServerSentEvent<String>> out = new ArrayList<>();
+                    for (LogBus.Entry entry : logBus.read(id, afterId[0], 100)) {
+                        afterId[0] = entry.id();
+                        out.add(ServerSentEvent.<String>builder()
+                                .id(entry.id())
+                                .event("log")
+                                .data(entry.line())
+                                .build());
                     }
-                    Flux<ServerSentEvent<String>> events = Flux.fromIterable(entries)
-                            .map(entry -> {
-                                afterId[0] = entry.id();
-                                return ServerSentEvent.<String>builder()
-                                        .id(entry.id())
-                                        .event("log")
-                                        .data(entry.line())
-                                        .build();
-                            });
-                    return events;
-                });
+                    if (tick % stateCheckEvery == 0) {
+                        String state = opsService.findInstance(id).map(TaskInstance::getState).orElse(null);
+                        if (state != null && InstanceStates.isTerminal(state)) {
+                            out.add(endSse(state));
+                        }
+                    }
+                    return Flux.fromIterable(out);
+                })
+                // emit end 后立即完成，关闭 SSE，杜绝 live 路径任务结束后流悬挂
+                .takeUntil(sse -> "end".equals(sse.event()));
     }
 
     /**
@@ -229,7 +237,7 @@ public class OpsController {
             return Flux.fromIterable(busEntries)
                     .map(e -> ServerSentEvent.<String>builder()
                             .id(e.id()).event("log").data(e.line()).build())
-                    .concatWith(endEvent());
+                    .concatWith(endEvent(inst.getState()));
         }
 
         // ② 归档存储
@@ -243,7 +251,7 @@ public class OpsController {
             full = inst.getLog();
         }
         if (full == null || full.isEmpty()) {
-            return endEvent();
+            return endEvent(inst.getState());
         }
 
         String[] lines = full.split("\n");
@@ -254,11 +262,19 @@ public class OpsController {
                         .event("log")
                         .data(tuple.getT2())
                         .build())
-                .concatWith(endEvent());
+                .concatWith(endEvent(inst.getState()));
     }
 
-    private Flux<ServerSentEvent<String>> endEvent() {
-        return Flux.just(ServerSentEvent.<String>builder().event("end").data("").build());
+    /** 终态关闭事件：data 丰化为 JSON state 对象（event 名保持 "end"，对只按事件名判定结束的客户端非破坏）。 */
+    private ServerSentEvent<String> endSse(String state) {
+        return ServerSentEvent.<String>builder()
+                .event("end")
+                .data("{\"state\":\"" + state + "\"}")
+                .build();
+    }
+
+    private Flux<ServerSentEvent<String>> endEvent(String state) {
+        return Flux.just(endSse(state));
     }
 
     /**
