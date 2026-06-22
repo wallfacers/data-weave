@@ -398,7 +398,19 @@
     "emptyProjects": "暂无项目",
     "tabUsers": "用户",
     "tabRoles": "角色",
-    "tabProjects": "项目"
+    "tabProjects": "项目",
+    "edit": "编辑",
+    "submitUpdate": "保存",
+    "editUser": "编辑用户",
+    "editRole": "编辑角色",
+    "editProject": "编辑项目",
+    "dialogCreateUser": "新增用户",
+    "dialogEditUser": "编辑用户",
+    "dialogCreateRole": "新增角色",
+    "dialogEditRole": "编辑角色",
+    "dialogCreateProject": "新增项目",
+    "dialogEditProject": "编辑项目",
+    "fieldPasswordEditHint": "留空则不修改密码"
   },
   "logPanel": {
     "taskFallback": "任务 #{id}",

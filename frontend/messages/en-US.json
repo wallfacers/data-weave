@@ -398,7 +398,19 @@
     "emptyProjects": "No projects",
     "tabUsers": "Users",
     "tabRoles": "Roles",
-    "tabProjects": "Projects"
+    "tabProjects": "Projects",
+    "edit": "Edit",
+    "submitUpdate": "Save",
+    "editUser": "Edit User",
+    "editRole": "Edit Role",
+    "editProject": "Edit Project",
+    "dialogCreateUser": "Add User",
+    "dialogEditUser": "Edit User",
+    "dialogCreateRole": "Add Role",
+    "dialogEditRole": "Edit Role",
+    "dialogCreateProject": "Add Project",
+    "dialogEditProject": "Edit Project",
+    "fieldPasswordEditHint": "Leave blank to keep current password"
   },
   "logPanel": {
     "taskFallback": "Task #{id}",

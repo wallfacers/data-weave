@@ -4,10 +4,17 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -40,6 +47,25 @@ interface Project {
 }
 
 type Tab = "users" | "roles" | "projects"
+
+/* ------------------------------------------------------------------ */
+/*  Dialog state machines                                              */
+/* ------------------------------------------------------------------ */
+
+type UserDialogState =
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; id: number }
+
+type RoleDialogState =
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; id: number }
+
+type ProjectDialogState =
+  | { mode: "closed" }
+  | { mode: "create" }
+  | { mode: "edit"; id: number }
 
 /* ------------------------------------------------------------------ */
 /*  Generic fetch + CRUD helpers                                       */
@@ -96,50 +122,20 @@ function useCrud<T extends { id: number }>(basePath: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Simple inline form for create                                      */
+/*  Shared form-field helper                                           */
 /* ------------------------------------------------------------------ */
 
-function InlineForm({
-  fields,
-  onSubmit,
-  onCancel,
-  submitLabel,
+function FormField({
+  label,
+  children,
 }: {
-  fields: { key: string; label: string; type?: string; placeholder?: string }[]
-  onSubmit: (vals: Record<string, string>) => void
-  onCancel: () => void
-  submitLabel: string
+  label: string
+  children: React.ReactNode
 }) {
-  const t = useTranslations("settingsView")
-  const [vals, setVals] = useState<Record<string, string>>({})
-
   return (
-    <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-lg)] bg-muted/50 p-3">
-      {fields.map((f) => (
-        <div key={f.key} className="flex min-w-[140px] flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{f.label}</label>
-          <Input
-            type={f.type ?? "text"}
-            placeholder={f.placeholder ?? f.label}
-            value={vals[f.key] ?? ""}
-            onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))}
-            className="h-8 bg-background text-sm"
-          />
-        </div>
-      ))}
-      <div className="flex gap-1.5">
-        <Button
-          size="sm"
-          onClick={() => {
-            if (fields.every((f) => vals[f.key]?.trim())) onSubmit(vals)
-          }}
-        >
-          {submitLabel}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
-          {t("cancel")}
-        </Button>
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      {children}
     </div>
   )
 }
@@ -151,35 +147,56 @@ function InlineForm({
 function UsersTab() {
   const t = useTranslations("settingsView")
   const { items, loading, create, update, remove } = useCrud<User>("/api/users")
-  const [adding, setAdding] = useState(false)
+  const [dialog, setDialog] = useState<UserDialogState>({ mode: "closed" })
+
+  /* form fields — separate from dialog state so edits survive re-renders */
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [displayName, setDisplayName] = useState("")
+  const [email, setEmail] = useState("")
+
+  const closeDialog = useCallback(() => {
+    setDialog({ mode: "closed" })
+    setUsername(""); setPassword(""); setDisplayName(""); setEmail("")
+  }, [])
+
+  const openCreate = () => {
+    setUsername(""); setPassword(""); setDisplayName(""); setEmail("")
+    setDialog({ mode: "create" })
+  }
+
+  const openEdit = (u: User) => {
+    setUsername(u.username)
+    setPassword("")
+    setDisplayName(u.displayName)
+    setEmail(u.email ?? "")
+    setDialog({ mode: "edit", id: u.id })
+  }
+
+  const submit = async () => {
+    if (dialog.mode === "create") {
+      if (!username.trim() || !password.trim()) return
+      await create({ username, password, displayName, email })
+    } else if (dialog.mode === "edit") {
+      const body: Record<string, string> = { username, displayName, email }
+      if (password.trim()) body.password = password
+      await update(dialog.id, body)
+    }
+    closeDialog()
+  }
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+
+  const isOpen = dialog.mode !== "closed"
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
-        <Button size="sm" onClick={() => setAdding(true)}>
+        <Button size="sm" onClick={openCreate}>
           {t("addUser")}
         </Button>
       </div>
-
-      {adding && (
-        <InlineForm
-          fields={[
-            { key: "username", label: t("fieldUsername"), placeholder: "username" },
-            { key: "password", label: t("fieldPassword"), type: "password", placeholder: t("fieldPasswordPlaceholder") },
-            { key: "displayName", label: t("fieldDisplayName"), placeholder: t("fieldDisplayName") },
-            { key: "email", label: t("fieldEmail"), placeholder: "user@example.com" },
-          ]}
-          onSubmit={async (vals) => {
-            await create(vals)
-            setAdding(false)
-          }}
-          onCancel={() => setAdding(false)}
-          submitLabel={t("submitCreate")}
-        />
-      )}
 
       <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
@@ -204,6 +221,13 @@ function UsersTab() {
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right">
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => openEdit(u)}
+                  >
+                    {t("edit")}
+                  </Button>
                   <Button
                     size="xs"
                     variant="ghost"
@@ -234,6 +258,64 @@ function UsersTab() {
           </tbody>
         </table>
       </div>
+
+      {/* ---- Dialog ---- */}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {dialog.mode === "create" ? t("dialogCreateUser") : t("dialogEditUser")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <FormField label={t("fieldUsername")}>
+              <Input
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="username"
+                readOnly={dialog.mode === "edit"}
+              />
+            </FormField>
+
+            <FormField label={t("fieldPassword")}>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={dialog.mode === "create" ? t("fieldPasswordPlaceholder") : ""}
+              />
+              {dialog.mode === "edit" && (
+                <p className="text-xs text-muted-foreground">{t("fieldPasswordEditHint")}</p>
+              )}
+            </FormField>
+
+            <FormField label={t("fieldDisplayName")}>
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder={t("fieldDisplayName")}
+              />
+            </FormField>
+
+            <FormField label={t("fieldEmail")}>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={closeDialog}>{t("cancel")}</Button>
+            <Button onClick={submit}>
+              {dialog.mode === "create" ? t("submitCreate") : t("submitUpdate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -244,35 +326,52 @@ function UsersTab() {
 
 function RolesTab() {
   const t = useTranslations("settingsView")
-  const { items, loading, create, remove } = useCrud<Role>("/api/roles")
-  const [adding, setAdding] = useState(false)
+  const { items, loading, create, update, remove } = useCrud<Role>("/api/roles")
+  const [dialog, setDialog] = useState<RoleDialogState>({ mode: "closed" })
+
+  const [code, setCode] = useState("")
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+
+  const closeDialog = useCallback(() => {
+    setDialog({ mode: "closed" })
+    setCode(""); setName(""); setDescription("")
+  }, [])
+
+  const openCreate = () => {
+    setCode(""); setName(""); setDescription("")
+    setDialog({ mode: "create" })
+  }
+
+  const openEdit = (r: Role) => {
+    setCode(r.code)
+    setName(r.name)
+    setDescription(r.description ?? "")
+    setDialog({ mode: "edit", id: r.id })
+  }
+
+  const submit = async () => {
+    if (dialog.mode === "create") {
+      if (!code.trim() || !name.trim()) return
+      await create({ code, name, description })
+    } else if (dialog.mode === "edit") {
+      await update(dialog.id, { name, description })
+    }
+    closeDialog()
+  }
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+
+  const isOpen = dialog.mode !== "closed"
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
-        <Button size="sm" onClick={() => setAdding(true)}>
+        <Button size="sm" onClick={openCreate}>
           {t("addRole")}
         </Button>
       </div>
-
-      {adding && (
-        <InlineForm
-          fields={[
-            { key: "code", label: t("fieldRoleCode"), placeholder: "DEVELOPER" },
-            { key: "name", label: t("fieldRoleName"), placeholder: t("fieldRoleNamePlaceholder") },
-            { key: "description", label: t("fieldDescription"), placeholder: t("fieldRoleDescPlaceholder") },
-          ]}
-          onSubmit={async (vals) => {
-            await create(vals)
-            setAdding(false)
-          }}
-          onCancel={() => setAdding(false)}
-          submitLabel={t("submitCreate")}
-        />
-      )}
 
       <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
@@ -296,6 +395,13 @@ function RolesTab() {
                   <Button
                     size="xs"
                     variant="ghost"
+                    onClick={() => openEdit(r)}
+                  >
+                    {t("edit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
                     onClick={() => void remove(r.id)}
                   >
                     {t("delete")}
@@ -313,6 +419,52 @@ function RolesTab() {
           </tbody>
         </table>
       </div>
+
+      {/* ---- Dialog ---- */}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {dialog.mode === "create" ? t("dialogCreateRole") : t("dialogEditRole")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <FormField label={t("fieldRoleCode")}>
+              <Input
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="DEVELOPER"
+                readOnly={dialog.mode === "edit"}
+              />
+            </FormField>
+
+            <FormField label={t("fieldRoleName")}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("fieldRoleNamePlaceholder")}
+              />
+            </FormField>
+
+            <FormField label={t("fieldDescription")}>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("fieldRoleDescPlaceholder")}
+              />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={closeDialog}>{t("cancel")}</Button>
+            <Button onClick={submit}>
+              {dialog.mode === "create" ? t("submitCreate") : t("submitUpdate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -323,34 +475,50 @@ function RolesTab() {
 
 function ProjectsTab() {
   const t = useTranslations("settingsView")
-  const { items, loading, create, remove } = useCrud<Project>("/api/projects")
-  const [adding, setAdding] = useState(false)
+  const { items, loading, create, update, remove } = useCrud<Project>("/api/projects")
+  const [dialog, setDialog] = useState<ProjectDialogState>({ mode: "closed" })
+
+  const [code, setCode] = useState("")
+  const [name, setName] = useState("")
+
+  const closeDialog = useCallback(() => {
+    setDialog({ mode: "closed" })
+    setCode(""); setName("")
+  }, [])
+
+  const openCreate = () => {
+    setCode(""); setName("")
+    setDialog({ mode: "create" })
+  }
+
+  const openEdit = (p: Project) => {
+    setCode(p.code)
+    setName(p.name)
+    setDialog({ mode: "edit", id: p.id })
+  }
+
+  const submit = async () => {
+    if (dialog.mode === "create") {
+      if (!code.trim() || !name.trim()) return
+      await create({ code, name })
+    } else if (dialog.mode === "edit") {
+      await update(dialog.id, { name })
+    }
+    closeDialog()
+  }
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+
+  const isOpen = dialog.mode !== "closed"
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
-        <Button size="sm" onClick={() => setAdding(true)}>
+        <Button size="sm" onClick={openCreate}>
           {t("addProject")}
         </Button>
       </div>
-
-      {adding && (
-        <InlineForm
-          fields={[
-            { key: "code", label: t("fieldProjectCode"), placeholder: "my-project" },
-            { key: "name", label: t("fieldProjectName"), placeholder: t("fieldProjectNamePlaceholder") },
-          ]}
-          onSubmit={async (vals) => {
-            await create(vals)
-            setAdding(false)
-          }}
-          onCancel={() => setAdding(false)}
-          submitLabel={t("submitCreate")}
-        />
-      )}
 
       <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
@@ -376,6 +544,13 @@ function ProjectsTab() {
                   <Button
                     size="xs"
                     variant="ghost"
+                    onClick={() => openEdit(p)}
+                  >
+                    {t("edit")}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
                     onClick={() => void remove(p.id)}
                   >
                     {t("delete")}
@@ -393,6 +568,44 @@ function ProjectsTab() {
           </tbody>
         </table>
       </div>
+
+      {/* ---- Dialog ---- */}
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {dialog.mode === "create" ? t("dialogCreateProject") : t("dialogEditProject")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <FormField label={t("fieldProjectCode")}>
+              <Input
+                autoFocus
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="my-project"
+                readOnly={dialog.mode === "edit"}
+              />
+            </FormField>
+
+            <FormField label={t("fieldProjectName")}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("fieldProjectNamePlaceholder")}
+              />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={closeDialog}>{t("cancel")}</Button>
+            <Button onClick={submit}>
+              {dialog.mode === "create" ? t("submitCreate") : t("submitUpdate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
