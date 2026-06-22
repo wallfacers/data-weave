@@ -148,9 +148,9 @@ function MoveFolderPicker({
           tabIndex={0}
           onClick={() => onSelect(node.id)}
           className={`flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent ${
-            selected ? "bg-primary/10 ring-1 ring-primary" : ""
+            selected ? "bg-accent" : ""
           }`}
-          style={{ paddingLeft: depth * 18 + 4 }}
+          style={{ paddingLeft: depth * 22 + 4 }}
         >
           <button
             type="button"
@@ -162,14 +162,17 @@ function MoveFolderPicker({
             className="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
           >
             {hasChildren ? (
-              <HugeiconsIcon icon={isOpen ? ArrowDown01Icon : ArrowRight01Icon} className="size-3.5" />
+              <HugeiconsIcon icon={isOpen ? ArrowDown01Icon : ArrowRight01Icon} className="size-4" />
             ) : null}
           </button>
           <HugeiconsIcon
             icon={isOpen ? FolderOpenIcon : Folder01Icon}
             className="size-4 shrink-0 text-amber-500"
           />
-          <span className="truncate">{node.name}</span>
+          <span className="truncate font-medium">{node.name}</span>
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+            {node.taskCount + node.workflowCount || ""}
+          </span>
         </div>
         {isOpen && children.map((c) => renderRow(c, depth + 1))}
       </div>
@@ -177,18 +180,18 @@ function MoveFolderPicker({
   }
 
   return (
-    <div className="max-h-64 overflow-auto rounded-md border p-1">
+    <div className="max-h-64 overflow-auto">
       <div
         role="button"
         tabIndex={0}
         onClick={() => onSelect(null)}
-        className={`flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 pr-2 text-sm hover:bg-accent ${
-          selectedId === null ? "bg-primary/10 ring-1 ring-primary" : ""
+        className={`flex cursor-pointer items-center gap-1.5 rounded-md px-1 py-1.5 pr-2 text-sm hover:bg-accent ${
+          selectedId === null ? "bg-accent" : ""
         }`}
       >
         <span className="size-4 shrink-0" aria-hidden />
         <HugeiconsIcon icon={InboxIcon} className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-muted-foreground">{t("catalog.uncategorized")}</span>
+        <span className="truncate font-medium text-muted-foreground">{t("catalog.uncategorized")}</span>
       </div>
       {(tree?.roots ?? []).map((r) => renderRow(r, 0))}
     </div>
