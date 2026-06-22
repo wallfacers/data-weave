@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -105,10 +106,25 @@ public class WorkerReportService {
         }
         workflowStateService.computeAndUpdate(workflowInstanceId).ifPresent(state -> {
             if (InstanceStates.FAILED.equals(state)) {
+                // 级联取消下游：先取受影响实例 id，批量置 STOPPED，再逐条补发事件供画布重染
+                // （此处批量 UPDATE 绕过 InstanceStateMachine，故事件需在本方法补发）。
+                List<UUID> toStop = jdbc.query(
+                        "SELECT id FROM task_instance WHERE workflow_instance_id=? "
+                                + "AND state IN ('WAITING','NOT_RUN','PAUSED') AND deleted=0",
+                        (rs, n) -> {
+                            Object o = rs.getObject(1);
+                            return o == null ? null : (o instanceof UUID u ? u : UUID.fromString(o.toString()));
+                        },
+                        workflowInstanceId);
                 jdbc.update(
                         "UPDATE task_instance SET state='STOPPED', finished_at=?, updated_at=? "
                                 + "WHERE workflow_instance_id=? AND state IN ('WAITING','NOT_RUN','PAUSED') AND deleted=0",
                         LocalDateTime.now(), LocalDateTime.now(), workflowInstanceId);
+                for (UUID id : toStop) {
+                    if (id == null) continue;
+                    eventBus.publish("dw:evt:" + workflowInstanceId,
+                            "{\"taskId\":\"" + id + "\",\"taskState\":\"STOPPED\"}");
+                }
             } else if (InstanceStates.SUCCESS.equals(state)) {
                 slaService.recordCompletion(workflowInstanceId);
             }

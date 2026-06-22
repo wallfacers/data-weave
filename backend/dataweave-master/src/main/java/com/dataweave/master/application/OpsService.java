@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskDiagnosis;
@@ -27,15 +28,27 @@ public class OpsService {
     private final TaskInstanceRepository instanceRepository;
     private final WorkflowInstanceRepository workflowInstanceRepository;
     private final DiagnosisService diagnosisService;
+    private final InstanceStateMachine stateMachine;
+    private final LogBus logBus;
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
                       WorkflowInstanceRepository workflowInstanceRepository,
-                      DiagnosisService diagnosisService) {
+                      DiagnosisService diagnosisService,
+                      InstanceStateMachine stateMachine,
+                      LogBus logBus) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
         this.diagnosisService = diagnosisService;
+        this.stateMachine = stateMachine;
+        this.logBus = logBus;
+    }
+
+    /** 手动停止时向实例日志流插入的横幅（以 === 开头，前端 LogTab 会弱化着色，与执行 banner 一致）。 */
+    private void appendManualStopLog(UUID taskInstanceId) {
+        logBus.append(taskInstanceId, "=========== 手动停止 ===========");
+        logBus.append(taskInstanceId, "状态: 已停止 | 操作: 用户手动停止运行");
     }
 
     /** 所有任务定义，按 id 升序。 */
@@ -158,7 +171,7 @@ public class OpsService {
         return workflowInstanceRepository.save(wi);
     }
 
-    /** 终止工作流实例：→ STOPPED，所有非终态 TaskInstance → STOPPED。 */
+    /** 终止工作流实例：→ STOPPED，所有非终态 TaskInstance → STOPPED（经状态机 CAS 发状态事件→画布实时变色，并往各节点日志插手动停止行）。 */
     public WorkflowInstance killWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
@@ -166,17 +179,19 @@ public class OpsService {
             throw new IllegalStateException("Cannot kill a terminal instance");
         }
         LocalDateTime now = LocalDateTime.now();
+        instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
+            if (!isTerminal(ti.getState())) {
+                // 经状态机 CAS 置 STOPPED：发布 dw:evt 状态事件（画布节点实时变红），并记 finished_at/归因
+                if (stateMachine.casTaskTerminal(ti.getId(), ti.getState(), "STOPPED", "MANUAL_STOP")) {
+                    appendManualStopLog(ti.getId());
+                }
+            }
+        });
+        // 工作流整体置 STOPPED（CAS 发布 workflowState 事件供实例详情视图）
+        stateMachine.casWorkflowState(instanceId, wi.getState(), "STOPPED");
         wi.setState("STOPPED");
         wi.setFinishedAt(now);
         wi.setUpdatedAt(now);
-        instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
-            if (!isTerminal(ti.getState())) {
-                ti.setState("STOPPED");
-                ti.setFinishedAt(now);
-                ti.setUpdatedAt(now);
-                instanceRepository.save(ti);
-            }
-        });
         return workflowInstanceRepository.save(wi);
     }
 
@@ -204,18 +219,18 @@ public class OpsService {
         return instanceRepository.save(ti);
     }
 
-    /** 终止单个任务实例。 */
+    /** 终止单个任务实例：经状态机 CAS 置 STOPPED（发状态事件），并往其日志流插手动停止行。 */
     public TaskInstance killTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
         if (isTerminal(ti.getState())) {
             throw new IllegalStateException("Cannot kill a terminal task instance");
         }
-        LocalDateTime now = LocalDateTime.now();
-        ti.setState("STOPPED");
-        ti.setFinishedAt(now);
-        ti.setUpdatedAt(now);
-        return instanceRepository.save(ti);
+        if (stateMachine.casTaskTerminal(instanceId, ti.getState(), "STOPPED", "MANUAL_STOP")) {
+            appendManualStopLog(instanceId);
+        }
+        // 返回最新态（CAS 已落库）。
+        return instanceRepository.findById(instanceId).orElse(ti);
     }
 
     /** 获取日志分块。 */
