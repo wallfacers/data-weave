@@ -201,7 +201,7 @@ public class SchedulerKernel {
                     }
                     int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
                     out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, content, timeout, r.taskType));
+                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId));
                 }
             });
         }
@@ -234,20 +234,24 @@ public class SchedulerKernel {
         String sql;
         if (test) {
             sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
+                    + "ti.content_override, ti.params_override, "
                     + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
                     + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
-                    + "(SELECT td.type FROM task_def td WHERE td.id=ti.task_id) AS task_type "
+                    + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
+                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
                     + "ORDER BY ti.updated_at ASC "
                     + "LIMIT " + claimBatchSize + " FOR UPDATE SKIP LOCKED";
         } else {
             sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
+                    + "ti.content_override, ti.params_override, "
                     + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
                     + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
-                    + "(SELECT td.type FROM task_def td WHERE td.id=ti.task_id) AS task_type "
+                    + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
+                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='NORMAL' AND ti.deleted=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
@@ -266,6 +270,8 @@ public class SchedulerKernel {
             r.workflowNodeId = (Long) rs.getObject("workflow_node_id");
             r.taskId = (Long) rs.getObject("task_id");
             r.taskVersionNo = (Integer) rs.getObject("task_version_no");
+            r.contentOverride = rs.getString("content_override");
+            r.paramsOverride = rs.getString("params_override");
             r.attempt = (Integer) rs.getObject("attempt");
             r.runMode = rs.getString("run_mode");
             r.bizDate = rs.getString("biz_date");
@@ -273,12 +279,17 @@ public class SchedulerKernel {
             r.priority = (Integer) rs.getObject("wpriority");
             r.timeoutSec = (Integer) rs.getObject("timeout_sec");
             r.taskType = rs.getString("task_type");
+            r.datasourceId = (Long) rs.getObject("datasource_id");
             return r;
         });
     }
 
     /** 取下发内容：NORMAL 用已发布版本快照；TEST/无版本用任务草稿内容。 */
     private String contentOf(Row r) {
+        // 最高优先：TEST 携带的编辑器临时内容（实例级 override），不读 task_def——「跑编辑器最新内容」。
+        if (r.contentOverride != null && !r.contentOverride.isBlank()) {
+            return r.contentOverride;
+        }
         if (r.taskId == null) {
             return null;
         }
@@ -297,6 +308,10 @@ public class SchedulerKernel {
 
     /** 取自定义参数 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。 */
     private String paramsJsonOf(Row r) {
+        // 与 contentOf 同源：TEST 携带的临时参数优先，保证 ${自定义} 占位符按编辑器解析。
+        if (r.paramsOverride != null && !r.paramsOverride.isBlank()) {
+            return r.paramsOverride;
+        }
         if (r.taskId == null) {
             return null;
         }
@@ -350,6 +365,8 @@ public class SchedulerKernel {
         Long workflowNodeId;
         Long taskId;
         Integer taskVersionNo;
+        String contentOverride;
+        String paramsOverride;
         Integer attempt;
         String runMode;
         String bizDate;
@@ -357,6 +374,7 @@ public class SchedulerKernel {
         Integer priority;
         Integer timeoutSec;
         String taskType;
+        Long datasourceId;
 
         boolean test() {
             return "TEST".equals(runMode);

@@ -422,6 +422,9 @@ CREATE TABLE task_instance (
     workflow_node_id     BIGINT,
     task_id              BIGINT,                 -- 普通节点必填；VIRTUAL（zero-load）节点实例为空
     task_version_no      INTEGER,            -- 本次运行所跑的 task 已发布版本（NULL=试跑草稿）
+    content_override     TEXT,                 -- TEST 试跑携带的编辑器临时内容（含未保存改动）；非空则覆盖 task_def 草稿，不写 task_def
+    params_override      TEXT,                 -- TEST 试跑携带的编辑器临时调度参数 JSON；与 content_override 同源（占位符按编辑器解析）
+    type_override        VARCHAR(32),          -- TEST 试跑携带的编辑器临时任务类型（SQL/SHELL/ECHO）；非空则覆盖 task_def.type 选执行器
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试
     biz_date             VARCHAR(32),          -- 业务日期（注入任务执行环境，幂等钥匙之一）
     state                VARCHAR(32) DEFAULT 'NOT_RUN',  -- NOT_RUN/WAITING/DISPATCHED/RUNNING/SUCCESS/FAILED/STOPPED/PREEMPTED/PAUSED

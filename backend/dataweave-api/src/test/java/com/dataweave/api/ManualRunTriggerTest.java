@@ -103,15 +103,18 @@ class ManualRunTriggerTest {
     }
 
     @Test
-    void runTask_draft_rejectedBeforeGate() throws Exception {
-        long draftId = createDraftTask("草稿任务-不可跑");
+    void runTask_draft_runsAsTestInstance_notRejected() throws Exception {
+        // task-run-decouple：解绑「发布」与「运行」——草稿任务运行不再 409 拒绝，而是起 TEST 测试实例。
+        long draftId = createDraftTask("草稿任务-可测试运行");
         client.post().uri("/api/tasks/{id}/run", draftId)
                 .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"content\":\"echo hi\",\"type\":\"ECHO\"}")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(409)
-                .jsonPath("$.message").value(containsString("发布"));
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.outcome").isEqualTo("EXECUTED")
+                .jsonPath("$.data.resultInstanceId").isNotEmpty();
     }
 
     @Test

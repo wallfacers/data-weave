@@ -180,13 +180,16 @@ public class TaskService {
 
     // ─── Update（仅 DRAFT 可改）──────────────────────────
 
-    /** 更新任务（仅 DRAFT 状态允许）。 */
+    /**
+     * 更新任务（DRAFT 或 ONLINE 均可，支持多次发布）。
+     *
+     * <p>ONLINE 任务编辑只改 {@code task_def}（草稿态），置 {@code hasDraftChange=1}，**不触动已发布版本快照**
+     * （{@code task_def_version}）——正式调度/手动 NORMAL 运行仍跑已发布版本；TEST 试跑用草稿内容。
+     * 改动经 {@link #publish} 才生成新版本上线（再发布）。
+     */
     public TaskDef update(Long id, TaskDef patch) {
         TaskDef task = taskDefRepository.findById(id)
                 .orElseThrow(() -> new IllegalStateException("Task not found: " + id));
-        if (!"DRAFT".equals(task.getStatus())) {
-            throw new IllegalStateException("Task must be offline before editing");
-        }
         if (patch.getName() != null) task.setName(patch.getName());
         if (patch.getType() != null) task.setType(patch.getType());
         if (patch.getContent() != null) task.setContent(patch.getContent());

@@ -15,6 +15,9 @@ public class TaskInstance {
     private Long workflowNodeId;
     private Long taskId;
     private Integer taskVersionNo;
+    private String contentOverride;
+    private String paramsOverride;
+    private String typeOverride;
     private String runMode;
     private String bizDate;
     private String state;
@@ -56,6 +59,15 @@ public class TaskInstance {
 
     public Integer getTaskVersionNo() { return taskVersionNo; }
     public void setTaskVersionNo(Integer taskVersionNo) { this.taskVersionNo = taskVersionNo; }
+
+    public String getContentOverride() { return contentOverride; }
+    public void setContentOverride(String contentOverride) { this.contentOverride = contentOverride; }
+
+    public String getParamsOverride() { return paramsOverride; }
+    public void setParamsOverride(String paramsOverride) { this.paramsOverride = paramsOverride; }
+
+    public String getTypeOverride() { return typeOverride; }
+    public void setTypeOverride(String typeOverride) { this.typeOverride = typeOverride; }
 
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }

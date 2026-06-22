@@ -2,6 +2,8 @@ package com.dataweave.api.infrastructure;
 
 import com.dataweave.master.application.TaskExecutionGateway;
 import com.dataweave.master.application.WorkerReportService;
+import com.dataweave.master.domain.Datasource;
+import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
@@ -11,7 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,8 +34,11 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
 
     private static final Logger log = LoggerFactory.getLogger(InProcessTaskExecutionGateway.class);
 
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final WorkerReportService reportService;
     private final LogBus logBus;
+    private final DatasourceRepository datasourceRepository;
     /** 按任务 type() 索引的执行器（注入的 Map 以 bean 名为键，这里改建按 type 的映射）。 */
     private final Map<String, TaskExecutor> byType;
     private final ExecutorService pool = Executors.newFixedThreadPool(
@@ -45,9 +51,11 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
 
     public InProcessTaskExecutionGateway(WorkerReportService reportService,
                                          LogBus logBus,
+                                         DatasourceRepository datasourceRepository,
                                          Map<String, TaskExecutor> executors) {
         this.reportService = reportService;
         this.logBus = logBus;
+        this.datasourceRepository = datasourceRepository;
         Map<String, TaskExecutor> m = new java.util.HashMap<>();
         for (TaskExecutor e : executors.values()) {
             if (e.type() != null) {
@@ -73,11 +81,17 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             String type = cmd.taskType() != null ? cmd.taskType().toUpperCase() : "SHELL";
             TaskExecutor executor = byType.get(type);
 
-            // all-in-one 零依赖模式：无对应执行器的类型（如 SQL，需外部数据源）模拟成功，闭合调度闭环。
-            // 真实执行（如 SHELL）由对应执行器承载，分布式模式由 worker 进程按 type 选执行器执行。
+            // 数据源解析（SQL 用；解析不到则传 null → SqlTaskExecutor 方案 A 回退模拟）
+            ExecutionContext.DataSourceRef dsRef = resolveDatasource(cmd.datasourceId());
+
+            // DataWorks 风启动 banner（中文执行日志，沿用既有「内部审计日志」约定，非 i18n）
+            emitStartBanner(lineConsumer, cmd, type, dsRef);
+
+            // 防御：注册类型外的未知 type 无执行器时模拟成功，闭合调度闭环（SQL/ECHO/SHELL 已各有执行器）。
             if (executor == null) {
-                String msg = "[all-in-one] type=" + type + " 无内置执行器，模拟执行成功（接真实数据源走 distributed 模式）";
+                String msg = "type=" + type + " 无内置执行器，模拟执行成功";
                 lineConsumer.accept(msg);
+                emitEndBanner(lineConsumer, true, 0, false);
                 reportService.reportFinished(cmd.taskInstanceId(), 0, msg);
                 return;
             }
@@ -86,10 +100,15 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     cmd.content(),
                     cmd.bizDate(),
                     cmd.attempt(),
-                    cmd.timeoutSeconds()
+                    cmd.timeoutSeconds(),
+                    cmd.runMode(),
+                    type,
+                    dsRef
             );
 
             TaskExecutor.ExecutionResult result = executor.execute(ctx, lineConsumer);
+
+            emitEndBanner(lineConsumer, result.success(), result.exitCode(), result.timedOut());
 
             // 尾部摘要（最后 4000 字符）写 task_instance.log
             String stdout = result.stdout();
@@ -108,6 +127,39 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             log.warn("[InProcExec] 实例 {} 执行异常：{}", cmd.taskInstanceId(), e.getMessage());
             reportService.reportFailed(cmd.taskInstanceId(), "EXEC_ERROR", "执行异常：" + e.getMessage());
         }
+    }
+
+    /** 解析任务绑定的业务数据源为连接引用；id 为空或行不存在/已删返回 null（SQL 执行端回退模拟）。 */
+    private ExecutionContext.DataSourceRef resolveDatasource(Long datasourceId) {
+        if (datasourceId == null) {
+            return null;
+        }
+        Datasource ds = datasourceRepository.findById(datasourceId).orElse(null);
+        if (ds == null || (ds.getDeleted() != null && ds.getDeleted() != 0)) {
+            return null;
+        }
+        return new ExecutionContext.DataSourceRef(
+                ds.getName(), ds.getTypeCode(), ds.getJdbcUrl(), ds.getUsername(), ds.getPasswordEnc());
+    }
+
+    /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间。 */
+    private void emitStartBanner(Consumer<String> onLine, DispatchCommand cmd, String type,
+                                 ExecutionContext.DataSourceRef ds) {
+        onLine.accept("=========== DataWeave 任务运行 ===========");
+        String dsLabel = ds != null ? (ds.name() + "（" + ds.typeCode() + "）") : "-";
+        onLine.accept("运行模式: " + (cmd.runMode() != null ? cmd.runMode() : "NORMAL")
+                + " | 类型: " + type + " | 数据源: " + dsLabel);
+        onLine.accept("开始时间: " + LocalDateTime.now().format(TS));
+        onLine.accept("=========================================");
+    }
+
+    /** DataWorks 风收尾 banner：状态 / 退出码 / 结束时间。 */
+    private void emitEndBanner(Consumer<String> onLine, boolean success, int exitCode, boolean timedOut) {
+        onLine.accept("=========== 执行结束 ===========");
+        String status = timedOut ? "超时终止" : (success ? "成功" : "失败");
+        onLine.accept("状态: " + status + " | 退出码: " + exitCode);
+        onLine.accept("结束时间: " + LocalDateTime.now().format(TS));
+        onLine.accept("===============================");
     }
 
     @PreDestroy

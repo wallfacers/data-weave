@@ -27,9 +27,10 @@ public interface TaskExecutionGateway {
      * @param content        执行内容（已发布版本快照或草稿）
      * @param timeoutSeconds 超时秒数（≤ 0 表示不限时）
      * @param taskType       任务类型（SQL / SHELL / …），执行端按此选执行器
+     * @param datasourceId   任务绑定的业务数据源 id（SQL 执行连库用；null=未绑定，执行端回退模拟）
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
                            Integer taskVersionNo, String runMode, String bizDate, String content,
-                           int timeoutSeconds, String taskType) {
+                           int timeoutSeconds, String taskType, Long datasourceId) {
     }
 }

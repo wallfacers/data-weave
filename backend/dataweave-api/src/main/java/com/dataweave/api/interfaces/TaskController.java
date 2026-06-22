@@ -9,6 +9,7 @@ import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.TaskService;
+import com.dataweave.master.application.TestRunCommand;
 import com.dataweave.master.application.TaskService.PageResult;
 import com.dataweave.master.application.TaskService.TaskDetail;
 import com.dataweave.master.domain.TaskDef;
@@ -128,13 +129,15 @@ public class TaskController {
     }
 
     /**
-     * 手动触发正式运行（manual-run-trigger）：对**已发布**任务经闸门起一个 run_mode=NORMAL 的
-     * 正式 task_instance，计入运维统计。返回 {@link GateResult}：
+     * 手动运行任务（task-run-decouple）：按发布态分流，不再对未发布任务拒绝（解绑「发布」与「运行」）。
      * <ul>
-     *   <li>{@code EXECUTED} —— {@code data.resultInstanceId} 为新实例 id，前端接日志流；</li>
-     *   <li>{@code PENDING_APPROVAL} —— {@code data.actionId} 为审批单号，批准后才下发。</li>
+     *   <li>**已发布（ONLINE）** → {@code TASK_RUN}：起 run_mode=NORMAL 正式实例，跑已发布版本快照，计入统计；</li>
+     *   <li>**未发布（DRAFT）** → {@code TEST_RUN}：起 run_mode=TEST 测试实例，跑请求体携带的**编辑器当前内容**
+     *       （含未保存改动，经 content_override 不落 task_def），不计统计。</li>
      * </ul>
-     * 仅草稿/未发布任务在闸门前即拒（409）；触发不触碰 cron 计划。
+     * 两路均经闸门（默认 L1 直执行 + agent_action 留痕）。返回 {@link GateResult}：
+     * {@code EXECUTED}→{@code data.resultInstanceId}（前端接日志流）；{@code PENDING_APPROVAL}→{@code data.actionId}。
+     * 触发不触碰 cron 计划。
      */
     @PostMapping("/{id}/run")
     public ApiResponse<GateResult> run(@PathVariable Long id,
@@ -144,17 +147,28 @@ public class TaskController {
         if (detail == null) {
             throw new BizException("task.not_found", id).withHttpStatus(404);
         }
-        if (!"ONLINE".equals(detail.task().getStatus())) {
-            throw new BizException("task.not_published").withHttpStatus(409);
-        }
-        ActionRequest req = ActionRequest.builder()
-                .toolName("run_task").actionType("TASK_RUN")
+        boolean published = "ONLINE".equals(detail.task().getStatus());
+        String bizDate = body != null ? body.bizDate() : null;
+        ActionRequest.Builder b = ActionRequest.builder()
                 .targetType("TASK").targetId(String.valueOf(id))
-                .command(body != null ? body.bizDate() : null)
-                .actor("ui").actorSource("UI")
-                .summary("手动运行任务 #" + id + "「" + detail.task().getName() + "」")
-                .build();
-        return ApiResponse.ok(gatedActionService.submit(req, Locales.uiLocale(exchange.getRequest().getHeaders())));
+                .actor("ui").actorSource("UI");
+        if (published) {
+            // 正式运行：跑已发布版本快照，忽略编辑器临时内容；command 仅 bizDate。
+            b.toolName("run_task").actionType("TASK_RUN")
+                    .command(bizDate)
+                    .summary("手动运行任务 #" + id + "「" + detail.task().getName() + "」");
+        } else {
+            // 测试运行：跑编辑器当前内容（不管存没存），经 TestRunCommand 编码携带；不落 task_def。
+            String encoded = TestRunCommand.encode(bizDate,
+                    body != null ? body.content() : null,
+                    body != null ? body.paramsJson() : null,
+                    body != null ? body.type() : null);
+            b.toolName("test_run").actionType("TEST_RUN")
+                    .command(encoded)
+                    .summary("测试运行任务 #" + id + "「" + detail.task().getName() + "」");
+        }
+        return ApiResponse.ok(gatedActionService.submit(b.build(),
+                Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
     /**
@@ -182,8 +196,11 @@ public class TaskController {
     public record PreviewRequest(String content, String bizDate, String paramsJson) {
     }
 
-    /** 手动运行请求体（bizDate 可空）。 */
-    public record RunRequest(String bizDate) {
+    /**
+     * 手动运行请求体（全部字段可空）。{@code content}/{@code type}/{@code paramsJson} 为测试运行携带的
+     * 编辑器当前内容（含未保存改动），仅未发布任务的 TEST 路径消费；已发布任务忽略，跑发布版本快照。
+     */
+    public record RunRequest(String bizDate, String content, String type, String paramsJson) {
     }
 
     private LocalDateTime parseDateTime(String s) {

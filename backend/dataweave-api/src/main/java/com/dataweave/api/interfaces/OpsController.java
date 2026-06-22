@@ -184,15 +184,12 @@ public class OpsController {
     @GetMapping(value = "/instances/{id}/logs/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> logStream(@PathVariable UUID id,
                                                      @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
-        // 检查实例是否已结束，若结束则从归档读取
-        TaskInstance inst = opsService.instances().stream()
-                .filter(i -> i.getId().equals(id))
-                .findFirst()
-                .orElse(null);
+        // 检查实例是否已结束（含 TEST 试跑——不能用 opsService.instances()，其排除 TEST），若结束则读历史日志
+        TaskInstance inst = opsService.findInstance(id).orElse(null);
 
-        if (inst != null && ("SUCCESS".equals(inst.getState()) || "FAILED".equals(inst.getState()))) {
-            // 从归档读取历史日志
-            return streamArchivedLogs(id, inst);
+        if (inst != null && ("SUCCESS".equals(inst.getState()) || "FAILED".equals(inst.getState())
+                || "STOPPED".equals(inst.getState()) || "KILLED".equals(inst.getState()))) {
+            return streamEndedLogs(id, inst);
         }
 
         // 实时流：定时轮询 LogBus
@@ -216,19 +213,40 @@ public class OpsController {
                 });
     }
 
-    private Flux<ServerSentEvent<String>> streamArchivedLogs(UUID id, TaskInstance inst) {
-        // 尝试从归档读取（键格式：logs/{biz_date}/{instance_id}/{attempt}.log）
+    /**
+     * 已结束实例的历史日志：按优先级回退取全量——
+     * ① 内存/Redis 日志总线（all-in-one 下 InMemoryLogBus 仍保有全量行，且 distributed 下 Redis Stream 亦在）；
+     * ② 归档存储（logs/{biz_date}/{instance_id}/{attempt}.log，MinIO/文件）；
+     * ③ 持久化的 {@code task_instance.log}（尾部摘要兜底）。
+     * 任一命中即逐行回放 + {@code end}；全空则仅 {@code end}（前端显示「无日志记录」）。
+     *
+     * <p>修复：原实现只读归档，但 all-in-one 模式归档从不写入 → 试跑/手动运行（秒级结束）的日志恒为空。
+     */
+    private Flux<ServerSentEvent<String>> streamEndedLogs(UUID id, TaskInstance inst) {
+        // ① 日志总线（保有全量逐行）
+        List<LogBus.Entry> busEntries = logBus.read(id, null, 5000);
+        if (!busEntries.isEmpty()) {
+            return Flux.fromIterable(busEntries)
+                    .map(e -> ServerSentEvent.<String>builder()
+                            .id(e.id()).event("log").data(e.line()).build())
+                    .concatWith(endEvent());
+        }
+
+        // ② 归档存储
         String bizDate = inst.getBizDate() != null ? inst.getBizDate().toString() : "unknown";
         String key = String.format("logs/%s/%s/%d.log", bizDate, id, inst.getAttempt());
         var content = logArchive.get(key);
-        if (content.isEmpty()) {
-            return Flux.just(ServerSentEvent.<String>builder()
-                    .event("end")
-                    .data("")
-                    .build());
+        String full = content.orElse(null);
+
+        // ③ 持久化尾部兜底
+        if ((full == null || full.isEmpty()) && inst.getLog() != null && !inst.getLog().isEmpty()) {
+            full = inst.getLog();
+        }
+        if (full == null || full.isEmpty()) {
+            return endEvent();
         }
 
-        String[] lines = content.get().split("\n");
+        String[] lines = full.split("\n");
         return Flux.fromArray(lines)
                 .index()
                 .map(tuple -> ServerSentEvent.<String>builder()
@@ -236,10 +254,11 @@ public class OpsController {
                         .event("log")
                         .data(tuple.getT2())
                         .build())
-                .concatWith(Flux.just(ServerSentEvent.<String>builder()
-                        .event("end")
-                        .data("")
-                        .build()));
+                .concatWith(endEvent());
+    }
+
+    private Flux<ServerSentEvent<String>> endEvent() {
+        return Flux.just(ServerSentEvent.<String>builder().event("end").data("").build());
     }
 
     /**

@@ -170,7 +170,12 @@
     "logConnecting": "连接中",
     "logWaiting": "等待日志输出…",
     "logNoRecords": "无日志记录",
-    "logConnectingShort": "连接中…"
+    "logConnectingShort": "连接中…",
+    "pendingSave": "● 待保存",
+    "runTest": "测试运行",
+    "logTabEmpty": "点击「运行」查看运行日志",
+    "logResultPending": "结果集（后续支持）",
+    "resizeLogPanel": "调整运行日志区高度"
   },
   "settings": {
     "open": "项目设置",

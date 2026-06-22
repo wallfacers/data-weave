@@ -185,7 +185,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
 
     // ---- 调度类动作（distributed-scheduler-m1）----
 
-    /** 单任务测试运行：targetId=taskId，command=bizDate（可空）。 */
+    /**
+     * 单任务测试运行：targetId=taskId，command 经 {@link TestRunCommand} 编码
+     * （纯 bizDate 或 bizDate+编辑器临时内容）。携带临时内容时跑「编辑器最新内容」，不落 task_def。
+     */
     private ExecOutcome testRun(AgentAction action, Locale locale) {
         Long taskId = parseLong(action.getTargetId());
         if (taskId == null) {
@@ -193,8 +196,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     messages.get("executor.test_run.missing_task_id", locale),
                     json(Map.of("error", "missing_task_id")), null);
         }
-        String bizDate = action.getCommand();
-        UUID instanceId = triggerService.triggerTestRun(taskId, bizDate);
+        TestRunCommand.Decoded cmd = TestRunCommand.decode(action.getCommand());
+        UUID instanceId = triggerService.triggerTestRun(
+                taskId, cmd.bizDate(), cmd.content(), cmd.paramsJson(), cmd.type());
         return new ExecOutcome(true,
                 messages.get("executor.test_run.success", locale, taskId),
                 json(Map.of("testInstanceId", instanceId.toString(), "taskId", taskId)), instanceId);

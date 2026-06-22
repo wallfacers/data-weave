@@ -1,27 +1,33 @@
 "use client"
 
 /**
- * 任务编辑子 Tab（data-development-ide D2）：把原侧栏 TaskEditPanel 的配置/参数/替换预览/保存发布
- * 能力迁入主区，脚本区由 <textarea> 升级为 Monaco（CodeEditor，按类型高亮 SQL→sql / SHELL→bash），
- * 并新增「运行」入口——手动触发正式实例（POST /api/tasks/{id}/run）+ 就地流式日志。
+ * 任务编辑子 Tab（data-development-ide D2 + task-run-decouple）：配置/参数/替换预览/保存发布 + 运行。
+ * 脚本区为 Monaco（CodeEditor，按类型高亮 SQL→sql / SHELL→bash）。
  *
- * D8：未发布（DRAFT）时「运行」禁用并提示需先发布，不提供一键发布并运行（发布是有副作用的状态变更）。
+ * 运行（task-run-decouple）：不再要求先发布——已发布起 NORMAL 正式实例、未发布起 TEST 测试实例，
+ * 测试运行携带编辑器**当前内容（含未保存改动）**经 `/run` 下发（不落 task_def）。
+ * 编辑器维护 dirty 脏态（保存草稿→「● 待保存」），发布按钮按 `hasDraftChange` 启用且与保存按钮同风格。
+ * 运行日志为 Tabs 容器：每次运行一个日志 tab（命名=任务名+运行时间），DataWorks 风滚屏，预留结果集 tab 位。
  */
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { FloppyDiskIcon, RocketIcon } from "@hugeicons/core-free-icons"
+import { FloppyDiskIcon, RocketIcon, DocumentCodeIcon } from "@hugeicons/core-free-icons"
 
-import { API_BASE, authFetch, type ApiResponse, type TaskDef } from "@/lib/types"
+import { API_BASE, authFetch, formatDateTime, type ApiResponse, type TaskDef } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
+import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
+import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
+import "overlayscrollbars/overlayscrollbars.css"
 import { CodeEditor, type CodeEditorLanguage } from "@/components/code-editor"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
+import { cn } from "@/lib/utils"
 
 const TYPE_OPTIONS = [
   { value: "SQL", label: "SQL" },
@@ -31,6 +37,12 @@ const TYPE_OPTIONS = [
 // 快捷表达式预设：点选即填入当前参数的「表达式」，免去手敲 ${...}。
 // value 为表达式字面量（不翻译），label 经 i18n 在组件内生成。
 const PRESET_PLACEHOLDER = "__preset__"
+
+// 运行日志区高度（可拖拽分割，持久化）
+const LOG_HEIGHT_KEY = "dw.taskEditor.logHeight"
+const LOG_HEIGHT_DEFAULT = 224
+const LOG_HEIGHT_MIN = 80
+const LOG_HEIGHT_MAX = 700
 
 interface ParamRow {
   name: string
@@ -72,12 +84,21 @@ interface RunResult {
   message?: string
 }
 
+/** 一次运行的日志 tab（kind=result 为结果集占位，本期不渲染行数据）。 */
+interface RunTab {
+  instanceId: string
+  taskName: string
+  startedAt: string
+  kind: "log" | "result"
+}
+
 export interface TaskEditorPaneProps {
   taskId: number
 }
 
 export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const t = useTranslations()
+  const locale = useLocale()
   const [name, setName] = useState("")
   const [type, setType] = useState("SQL")
   const [content, setContent] = useState("")
@@ -86,6 +107,8 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const [timeoutSec, setTimeoutSec] = useState(60)
   const [retryMax, setRetryMax] = useState(0)
   const [status, setStatus] = useState<string>("DRAFT")
+  const [hasDraft, setHasDraft] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const [paramRows, setParamRows] = useState<ParamRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -96,9 +119,42 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState(false)
 
-  // 手动运行
+  // 手动运行 + 日志 Tabs
   const [running, setRunning] = useState(false)
-  const [runInstanceId, setRunInstanceId] = useState<string | null>(null)
+  const [runTabs, setRunTabs] = useState<RunTab[]>([])
+  const [activeRunTab, setActiveRunTab] = useState<string | null>(null)
+  const [logHeight, setLogHeight] = useState(LOG_HEIGHT_DEFAULT)
+
+  useEffect(() => {
+    const saved = Number(localStorage.getItem(LOG_HEIGHT_KEY))
+    if (saved >= LOG_HEIGHT_MIN && saved <= LOG_HEIGHT_MAX) setLogHeight(saved)
+  }, [])
+
+  // 运行日志区拖拽分割：分割条在日志区上沿，上拖增高（逻辑同类目树宽度拖拽）。
+  const onLogResizeDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      const startY = e.clientY
+      const startH = logHeight
+      let current = startH
+      const onMove = (ev: PointerEvent) => {
+        current = Math.min(LOG_HEIGHT_MAX, Math.max(LOG_HEIGHT_MIN, startH - (ev.clientY - startY)))
+        setLogHeight(current)
+      }
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        document.body.style.cursor = ""
+        document.body.style.userSelect = ""
+        localStorage.setItem(LOG_HEIGHT_KEY, String(Math.round(current)))
+      }
+      document.body.style.cursor = "row-resize"
+      document.body.style.userSelect = "none"
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+    },
+    [logHeight],
+  )
 
   const published = status === "ONLINE"
   const editorLang: CodeEditorLanguage = type === "SQL" ? "sql" : "bash"
@@ -137,7 +193,9 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       setTimeoutSec(td.timeoutSec ?? 60)
       setRetryMax(td.retryMax ?? 0)
       setStatus(td.status ?? "DRAFT")
+      setHasDraft((td.hasDraftChange ?? 0) > 0)
       setParamRows(parseParams(td.paramsJson))
+      setDirty(false) // 加载完成即干净态——后续用户编辑才置脏
     } catch {
       toast.error(t("taskEditor.toastLoadFailed"))
     } finally {
@@ -188,6 +246,8 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
         body: JSON.stringify(body),
       })
       toast.success(t("taskEditor.toastSaved"))
+      setDirty(false)
+      setHasDraft(true) // 保存后即有「未发布改动」，发布按钮可用
       useCatalogTreeStore.getState().updateTask(taskId, {
         name, type, content, description, priority, timeoutSec, retryMax,
         paramsJson: paramsJson || null,
@@ -210,6 +270,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       const j = (await res.json()) as ApiResponse<TaskDef>
       if (j.code === 0 && j.data) {
         setStatus("ONLINE")
+        setHasDraft(false) // 发布后无未发布改动
         toast.success(t("taskEditor.toastPublished"))
         useCatalogTreeStore.getState().updateTask(taskId, {
           status: "ONLINE",
@@ -235,6 +296,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       const j = (await res.json()) as ApiResponse<TaskDef>
       if (j.code === 0) {
         setStatus("DRAFT")
+        setHasDraft(false) // 下线后无未发布改动（后端置 has_draft_change=0）
         toast.success(t("taskEditor.toastOffline"))
         useCatalogTreeStore.getState().updateTask(taskId, { status: "DRAFT" })
       } else {
@@ -247,15 +309,21 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     }
   }
 
-  // 手动触发正式实例（manual-run-trigger）：L1 直执行返回 instanceId → 接日志流；
-  // 收紧规则则 PENDING_APPROVAL（审批单号），批准后才下发。
+  // 手动运行（task-run-decouple）：携带编辑器当前内容（含未保存）。已发布→NORMAL 正式实例；未发布→TEST 测试实例。
+  // EXECUTED 返回 instanceId → 新开日志 tab 接流；PENDING_APPROVAL 返回审批单号。
   async function handleRun() {
     setRunning(true)
     try {
       const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          content,
+          type,
+          paramsJson: serializeParams(paramRows) || null,
+          // 带上业务日期，使 ${yyyymmdd} 等日期占位符可解析（复用编辑器预览用的业务日期，默认昨天）
+          bizDate: previewBizDate || null,
+        }),
       })
       const j = (await res.json()) as ApiResponse<RunResult>
       if (j.code !== 0 || !j.data) {
@@ -264,7 +332,14 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       }
       const r = j.data
       if (r.outcome === "EXECUTED" && r.resultInstanceId) {
-        setRunInstanceId(r.resultInstanceId)
+        const tab: RunTab = {
+          instanceId: r.resultInstanceId,
+          taskName: name.trim() || `#${taskId}`,
+          startedAt: new Date().toISOString(),
+          kind: "log",
+        }
+        setRunTabs((prev) => [...prev, tab])
+        setActiveRunTab(r.resultInstanceId)
         toast.success(t("taskEditor.toastRunTriggered"))
       } else if (r.outcome === "PENDING_APPROVAL") {
         toast.info(t("taskEditor.toastNeedApproval", { id: r.actionId ?? "?" }))
@@ -278,14 +353,46 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     }
   }
 
+  // 运行日志 Tabs 关闭操作（关闭 / 关闭其他 / 关闭右侧 / 关闭左侧 / 关闭全部）。
+  // 统一收口：算出新列表后，若当前激活页已被关掉则改激活末页（空则 null，整个日志区随 runTabs 清空而隐藏）。
+  function applyRunTabs(compute: (prev: RunTab[]) => RunTab[]) {
+    setRunTabs((prev) => {
+      const next = compute(prev)
+      setActiveRunTab((cur) =>
+        cur && next.some((tb) => tb.instanceId === cur)
+          ? cur
+          : next.length
+            ? next[next.length - 1].instanceId
+            : null,
+      )
+      return next
+    })
+  }
+  const closeRunTab = (id: string) => applyRunTabs((prev) => prev.filter((tb) => tb.instanceId !== id))
+  const closeOtherRunTabs = (id: string) => applyRunTabs((prev) => prev.filter((tb) => tb.instanceId === id))
+  const closeRunTabsRight = (id: string) =>
+    applyRunTabs((prev) => {
+      const i = prev.findIndex((tb) => tb.instanceId === id)
+      return i < 0 ? prev : prev.slice(0, i + 1)
+    })
+  const closeRunTabsLeft = (id: string) =>
+    applyRunTabs((prev) => {
+      const i = prev.findIndex((tb) => tb.instanceId === id)
+      return i < 0 ? prev : prev.slice(i)
+    })
+  const closeAllRunTabs = () => applyRunTabs(() => [])
+
   function addParam() {
     setParamRows((rs) => [...rs, { name: "", expr: "" }])
+    setDirty(true)
   }
   function updateParam(idx: number, patch: Partial<ParamRow>) {
     setParamRows((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+    setDirty(true)
   }
   function removeParam(idx: number) {
     setParamRows((rs) => rs.filter((_, i) => i !== idx))
+    setDirty(true)
   }
 
   if (loading) {
@@ -296,61 +403,83 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     )
   }
 
+  // 可发布：草稿态随时可发布；已发布态需有未发布改动（hasDraft）才可「再发布」。均要求已保存（非脏）。
+  const canPublish = !saving && !dirty && (!published || hasDraft)
+
   return (
     <div className="flex h-full flex-col">
       {/* 工具栏：运行 / 保存 / 发布 + 状态 */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
-        <Button size="sm" onClick={handleRun} disabled={!published || running}>
+        <Button size="sm" onClick={handleRun} disabled={running}>
           <HugeiconsIcon icon={RocketIcon} className="size-4" />
-          {running ? t("taskEditor.running") : t("taskEditor.run")}
+          {running ? t("taskEditor.running") : published ? t("taskEditor.run") : t("taskEditor.runTest")}
         </Button>
-        {!published && (
-          <span className="text-xs text-muted-foreground">
-            {t("taskEditor.notPublishedHint")}
-            <button
-              type="button"
-              className="ml-0.5 underline hover:text-foreground"
-              onClick={handlePublish}
-              disabled={saving}
-            >
-              {t("taskEditor.publish")}
-            </button>
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
           <Badge variant={published ? "success" : "outline"}>
             {published ? t("taskEditor.statusOnline") : t("taskEditor.statusDraft")}
           </Badge>
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving || !name.trim()}>
-            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" /> {t("taskEditor.saveDraft")}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className={cn(dirty && "text-primary border-primary/50")}
+          >
+            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />{" "}
+            {dirty ? t("taskEditor.pendingSave") : t("taskEditor.saveDraft")}
           </Button>
-          {published ? (
-            <Button size="sm" variant="secondary" onClick={handleOffline} disabled={saving}>
+          {/* 发布/再发布：草稿首发或已发布态发布最新改动；与「下线」同 outline 风格统一 */}
+          <Button size="sm" variant="outline" onClick={handlePublish} disabled={!canPublish}>
+            {t("taskEditor.publish")}
+          </Button>
+          {published && (
+            <Button size="sm" variant="outline" onClick={handleOffline} disabled={saving}>
               {t("taskEditor.offline")}
-            </Button>
-          ) : (
-            <Button size="sm" variant="secondary" onClick={handlePublish} disabled={saving}>
-              {t("taskEditor.publish")}
             </Button>
           )}
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* 左：代码编辑器（Monaco）+ 运行日志 */}
+        {/* 左：代码编辑器（Monaco）+ 运行日志 Tabs */}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 p-2">
             <CodeEditor
               value={content}
-              onChange={setContent}
+              onChange={(v) => {
+                setContent(v)
+                setDirty(true)
+              }}
               language={editorLang}
               className="h-full"
             />
           </div>
-          {runInstanceId && (
-            <div className="h-48 shrink-0 border-t border-border">
-              <RunLogs instanceId={runInstanceId} />
-            </div>
+          {runTabs.length > 0 && (
+            <>
+              {/* 拖拽分割条：样式与类目树分割线一致（hover 显高亮短条），上沿持久细线分隔 */}
+              <div
+                onPointerDown={onLogResizeDown}
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label={t("taskEditor.resizeLogPanel")}
+                className="group/logresize relative flex h-2 shrink-0 cursor-row-resize touch-none items-center justify-center border-t border-border"
+              >
+                <div className="h-0.5 w-12 rounded-full bg-border/0 transition-colors group-hover/logresize:bg-border" />
+              </div>
+              <div className="shrink-0" style={{ height: logHeight }}>
+                <RunLogsTabs
+                  tabs={runTabs}
+                  activeId={activeRunTab}
+                  onActivate={setActiveRunTab}
+                  onClose={closeRunTab}
+                  onCloseOthers={closeOtherRunTabs}
+                  onCloseRight={closeRunTabsRight}
+                  onCloseLeft={closeRunTabsLeft}
+                  onCloseAll={closeAllRunTabs}
+                  locale={locale}
+                />
+              </div>
+            </>
           )}
         </div>
 
@@ -358,23 +487,23 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
         <DwScroll className="w-72 shrink-0 border-l border-border" innerClassName="flex flex-col gap-3 p-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.name")}</label>
-            <Input className="h-8 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("taskEditor.namePlaceholder")} />
+            <Input className="h-8 text-sm" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} placeholder={t("taskEditor.namePlaceholder")} />
           </div>
 
           <div className="flex gap-3">
             <div className="flex flex-1 flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.type")}</label>
-              <DropdownSelect value={type} onChange={setType} options={TYPE_OPTIONS} />
+              <DropdownSelect value={type} onChange={(v) => { setType(v); setDirty(true) }} options={TYPE_OPTIONS} />
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.priority")}</label>
-              <Input className="h-8 text-sm" type="number" min={0} max={9} value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
+              <Input className="h-8 text-sm" type="number" min={0} max={9} value={priority} onChange={(e) => { setPriority(Number(e.target.value)); setDirty(true) }} />
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.description")}</label>
-            <Input className="h-8 text-sm" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("taskEditor.descriptionPlaceholder")} />
+            <Input className="h-8 text-sm" value={description} onChange={(e) => { setDescription(e.target.value); setDirty(true) }} placeholder={t("taskEditor.descriptionPlaceholder")} />
           </div>
 
           {/* 调度参数：name → expr */}
@@ -449,11 +578,11 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           <div className="flex gap-3">
             <div className="flex flex-1 flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.timeout")}</label>
-              <Input className="h-8 text-sm" type="number" value={timeoutSec} onChange={(e) => setTimeoutSec(Number(e.target.value))} />
+              <Input className="h-8 text-sm" type="number" value={timeoutSec} onChange={(e) => { setTimeoutSec(Number(e.target.value)); setDirty(true) }} />
             </div>
             <div className="flex flex-1 flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.retryMax")}</label>
-              <Input className="h-8 text-sm" type="number" min={0} value={retryMax} onChange={(e) => setRetryMax(Number(e.target.value))} />
+              <Input className="h-8 text-sm" type="number" min={0} value={retryMax} onChange={(e) => { setRetryMax(Number(e.target.value)); setDirty(true) }} />
             </div>
           </div>
         </DwScroll>
@@ -462,50 +591,154 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   )
 }
 
-/** 运行日志面板：订阅某实例的 logs/stream，按 runInstanceId 重建（每次运行日志独立）。 */
-function RunLogs({ instanceId }: { instanceId: string }) {
-  const t = useTranslations()
+type ConnState = "live" | "ended" | "error" | "connecting"
+
+/**
+ * 运行日志 Tabs 容器：每次运行一个日志 tab（命名=任务名+运行时间）。
+ * 所有 tab 内容常驻挂载（隐藏非激活），保持各自 SSE 连接不因切换而断；预留结果集 tab 占位。
+ */
+function RunLogsTabs({
+  tabs,
+  activeId,
+  onActivate,
+  onClose,
+  onCloseOthers,
+  onCloseRight,
+  onCloseLeft,
+  onCloseAll,
+  locale,
+}: {
+  tabs: RunTab[]
+  activeId: string | null
+  onActivate: (id: string) => void
+  onClose: (id: string) => void
+  onCloseOthers: (id: string) => void
+  onCloseRight: (id: string) => void
+  onCloseLeft: (id: string) => void
+  onCloseAll: () => void
+  locale: string
+}) {
+  const t = useTranslations("taskEditor")
+  const [conn, setConn] = useState<Record<string, ConnState>>({})
+  const active = activeId ?? (tabs.length ? tabs[tabs.length - 1].instanceId : null)
+
+  const dotColor: Record<ConnState, string> = {
+    live: "bg-emerald-500 animate-pulse",
+    ended: "bg-muted-foreground",
+    error: "bg-destructive",
+    connecting: "bg-amber-500 animate-pulse",
+  }
+
+  const stripTabs: TabStripItem[] = tabs.map((tb) => ({
+    id: tb.instanceId,
+    label: `${tb.taskName} · ${formatDateTime(tb.startedAt, locale)}`,
+    icon: DocumentCodeIcon,
+    indicator: (
+      <span className={cn("mr-1 size-1.5 rounded-full", dotColor[conn[tb.instanceId] ?? "connecting"])} />
+    ),
+  }))
+
+  return (
+    <div className="flex h-full flex-col">
+      <TabStrip
+        tabs={stripTabs}
+        activeId={active}
+        onActivate={onActivate}
+        onClose={onClose}
+        onCloseOthers={onCloseOthers}
+        onCloseRight={onCloseRight}
+        onCloseLeft={onCloseLeft}
+        onCloseAll={onCloseAll}
+        size="sm"
+        surface="background"
+      />
+      <div className="relative min-h-0 flex-1">
+        {tabs.map((tb) => (
+          <div
+            key={tb.instanceId}
+            className={cn("absolute inset-0", tb.instanceId === active ? "block" : "hidden")}
+          >
+            {tb.kind === "result" ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                {t("logResultPending")}
+              </div>
+            ) : (
+              <LogTab
+                instanceId={tb.instanceId}
+                onConn={(s) => setConn((m) => (m[tb.instanceId] === s ? m : { ...m, [tb.instanceId]: s }))}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 单实例日志：订阅 logs/stream，DataWorks 风滚屏（自动滚底，banner 行弱化着色）。滚动条用项目规范的 OverlayScrollbars。 */
+function LogTab({ instanceId, onConn }: { instanceId: string; onConn: (s: ConnState) => void }) {
+  const t = useTranslations("taskEditor")
+  const osRef = useRef<OverlayScrollbarsComponentRef>(null)
+  const autoScroll = useRef(true)
   const { events, connected, error } = useEventSource(
     `${API_BASE}/api/ops/instances/${instanceId}/logs/stream`,
   )
   const lines = events.filter((e) => e.type === "log").map((e) => e.data)
   const ended = events.some((e) => e.type === "end")
-  const connLabel = connected
-    ? t("taskEditor.logLive")
-    : ended
-      ? t("taskEditor.logEnded")
-      : error
-        ? t("taskEditor.logDisconnected")
-        : t("taskEditor.logConnecting")
-  const connVariant = connected ? "success" : error ? "destructive" : "info"
+
+  const state: ConnState = connected ? "live" : ended ? "ended" : error ? "error" : "connecting"
+  // onConn 每次渲染都是新内联函数；用 ref 持有，effect 只依赖 state，避免「effect→setState→重渲染→新 onConn→effect」死循环。
+  const onConnRef = useRef(onConn)
+  onConnRef.current = onConn
+  useEffect(() => {
+    onConnRef.current(state)
+  }, [state])
+
+  // 自动滚动到底部（用户上滚则暂停）——经 OverlayScrollbars viewport。
+  useEffect(() => {
+    if (!autoScroll.current) return
+    const vp = osRef.current?.osInstance()?.elements().viewport
+    if (vp) vp.scrollTop = vp.scrollHeight
+  }, [events])
+
+  const handleScroll = () => {
+    const vp = osRef.current?.osInstance()?.elements().viewport
+    if (!vp) return
+    autoScroll.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 50
+  }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-6 shrink-0 items-center gap-2 px-3 text-[10px] text-muted-foreground">
-        <span className="font-mono">{instanceId.slice(0, 13)}…</span>
-        <Badge variant={connVariant as "success" | "destructive" | "info"} className="h-3.5 px-1 text-[9px]">
-          {connLabel}
-        </Badge>
-      </div>
-      <DwScroll className="flex-1" innerClassName="px-3 pb-2 font-mono text-xs leading-relaxed">
+    <OverlayScrollbarsComponent
+      ref={osRef}
+      element="div"
+      className="h-full bg-muted/20"
+      options={{
+        scrollbars: { theme: "os-theme-dark", autoHide: "never" },
+        overflow: { x: "hidden", y: "scroll" },
+      }}
+      events={{ scroll: handleScroll }}
+    >
+      <div className="px-3 py-2 font-mono text-xs leading-relaxed">
         {lines.length === 0 ? (
           <div className="text-muted-foreground">
-            {connected
-              ? t("taskEditor.logWaiting")
-              : ended
-                ? t("taskEditor.logNoRecords")
-                : t("taskEditor.logConnectingShort")}
+            {connected ? t("logWaiting") : ended ? t("logNoRecords") : t("logConnectingShort")}
           </div>
         ) : (
           <div className="space-y-px">
-            {lines.map((line, i) => (
-              <div key={i} className="whitespace-pre-wrap break-all">
-                {line}
-              </div>
-            ))}
+            {lines.map((line, i) => {
+              const banner = line.startsWith("===")
+              return (
+                <div
+                  key={i}
+                  className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
+                >
+                  {line}
+                </div>
+              )
+            })}
           </div>
         )}
-      </DwScroll>
-    </div>
+      </div>
+    </OverlayScrollbarsComponent>
   )
 }

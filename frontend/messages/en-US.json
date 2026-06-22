@@ -170,7 +170,12 @@
     "logConnecting": "Connecting",
     "logWaiting": "Waiting for log output…",
     "logNoRecords": "No log records",
-    "logConnectingShort": "Connecting…"
+    "logConnectingShort": "Connecting…",
+    "pendingSave": "● Unsaved",
+    "runTest": "Test run",
+    "logTabEmpty": "Click Run to view run logs",
+    "logResultPending": "Result set (coming soon)",
+    "resizeLogPanel": "Resize run log panel"
   },
   "settings": {
     "open": "Settings",

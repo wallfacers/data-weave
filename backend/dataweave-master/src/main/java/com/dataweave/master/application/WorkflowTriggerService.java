@@ -119,6 +119,22 @@ public class WorkflowTriggerService {
      * 不入正式统计。返回 task_instance id。
      */
     public UUID triggerTestRun(Long taskId, String bizDate) {
+        return triggerTestRun(taskId, bizDate, null, null, null);
+    }
+
+    /**
+     * 单任务测试运行（task-run-decouple）：可携带编辑器临时内容（含未保存改动）。
+     *
+     * <p>{@code contentOverride} 非空时写入 {@code task_instance.content_override}，调度认领时优先于
+     * task_def 草稿被取用（见 {@code SchedulerKernel.contentOf}），**不写 task_def**——满足「不管存没存，
+     * 跑编辑器最新内容」。为空则回退当前 DB 草稿（如从实例列表 rerun 历史 TEST）。
+     *
+     * @param contentOverride 编辑器临时脚本内容（可空）
+     * @param paramsOverride  编辑器临时调度参数 JSON（可空，与 content 同源用于占位符解析）
+     * @param typeOverride    编辑器临时任务类型（可空，非空则覆盖 task_def.type 选执行器）
+     */
+    public UUID triggerTestRun(Long taskId, String bizDate, String contentOverride,
+                               String paramsOverride, String typeOverride) {
         TaskDef task = taskDefRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
         LocalDateTime now = LocalDateTime.now();
@@ -127,6 +143,9 @@ public class WorkflowTriggerService {
         ti.setWorkflowNodeId(null);
         ti.setTaskId(taskId);
         ti.setTaskVersionNo(null);          // 草稿
+        ti.setContentOverride(contentOverride != null && !contentOverride.isBlank() ? contentOverride : null);
+        ti.setParamsOverride(paramsOverride != null && !paramsOverride.isBlank() ? paramsOverride : null);
+        ti.setTypeOverride(typeOverride != null && !typeOverride.isBlank() ? typeOverride : null);
         ti.setRunMode("TEST");
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);

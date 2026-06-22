@@ -47,6 +47,13 @@ public class OpsService {
     }
 
     /**
+     * 按 id 查单个任务实例（含 TEST 试跑）——日志流判定是否已结束用，不能用 {@link #instances()}（其排除 TEST）。
+     */
+    public java.util.Optional<TaskInstance> findInstance(UUID id) {
+        return instanceRepository.findById(id);
+    }
+
+    /**
      * 正式运行实例（runMode=="NORMAL"，排除 TEST 试跑），按 id 降序。
      */
     public List<TaskInstance> instances() {

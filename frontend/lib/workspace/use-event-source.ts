@@ -73,7 +73,15 @@ export function useEventSource(url: string): EventSourceState {
 
     addEventListener("log")
     addEventListener("status")
-    addEventListener("end")
+    // end：流已结束，主动关闭——否则服务端发完 end 即关连接，浏览器 EventSource 会自动重连并重发全量日志（重复刷屏）。
+    es.addEventListener("end", (event: MessageEvent) => {
+      setState((s) => ({
+        ...s,
+        connected: false,
+        events: [...s.events, { type: "end", data: event.data, id: event.lastEventId }],
+      }))
+      es.close()
+    })
 
     return () => {
       es.close()
