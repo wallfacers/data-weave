@@ -129,7 +129,7 @@ class WorkflowServiceTest {
                 List.of(new DagEdgeDto("v0", "t1"))));
         WorkflowDef published = workflowService.publish(wf.getId(), "首发");
 
-        UUID wiId = triggerService.trigger(published, "MANUAL", "2026-06-15", null);
+        UUID wiId = triggerService.trigger(published, "MANUAL", "2026-06-15", null, java.util.Locale.SIMPLIFIED_CHINESE);
         List<TaskInstance> tis = taskInstanceRepository.findByWorkflowInstanceId(wiId);
         assertThat(tis).hasSize(2);
 

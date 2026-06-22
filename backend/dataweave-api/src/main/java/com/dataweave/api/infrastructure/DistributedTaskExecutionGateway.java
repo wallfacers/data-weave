@@ -70,7 +70,8 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
                 "bizDate", cmd.bizDate() != null ? cmd.bizDate() : "",
                 "content", cmd.content() != null ? cmd.content() : "",
                 "timeoutSeconds", cmd.timeoutSeconds(),
-                "taskType", cmd.taskType() != null ? cmd.taskType() : "SHELL"
+                "taskType", cmd.taskType() != null ? cmd.taskType() : "SHELL",
+                "locale", cmd.locale() != null ? cmd.locale() : ""
         );
 
         log.debug("[DistDispatch] → {} instance={}", workerUrl, cmd.taskInstanceId());

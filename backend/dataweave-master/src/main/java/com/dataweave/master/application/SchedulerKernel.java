@@ -201,7 +201,7 @@ public class SchedulerKernel {
                     }
                     int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
                     out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId));
+                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale));
                 }
             });
         }
@@ -239,7 +239,8 @@ public class SchedulerKernel {
                     + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
-                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id "
+                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
+                    + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
                     + "ORDER BY ti.updated_at ASC "
@@ -251,7 +252,8 @@ public class SchedulerKernel {
                     + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
-                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id "
+                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
+                    + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='NORMAL' AND ti.deleted=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
@@ -280,6 +282,7 @@ public class SchedulerKernel {
             r.timeoutSec = (Integer) rs.getObject("timeout_sec");
             r.taskType = rs.getString("task_type");
             r.datasourceId = (Long) rs.getObject("datasource_id");
+            r.locale = rs.getString("locale");
             return r;
         });
     }
@@ -375,6 +378,7 @@ public class SchedulerKernel {
         Integer timeoutSec;
         String taskType;
         Long datasourceId;
+        String locale;
 
         boolean test() {
             return "TEST".equals(runMode);

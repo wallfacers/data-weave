@@ -4,6 +4,7 @@ import com.dataweave.master.domain.CronFire;
 import com.dataweave.master.domain.CronFireRepository;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.i18n.Messages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -116,7 +117,7 @@ public class CronScheduler {
             return false;  // 别的 master 已触发本点
         }
 
-        UUID wiId = triggerService.trigger(wf, "CRON", due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority());
+        UUID wiId = triggerService.trigger(wf, "CRON", due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE);
         guard.setWorkflowInstanceId(wiId);
         guard.setFiredAt(LocalDateTime.now());
         cronFireRepository.save(guard);

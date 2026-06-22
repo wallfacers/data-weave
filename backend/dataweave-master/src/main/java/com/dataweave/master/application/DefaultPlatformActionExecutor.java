@@ -198,7 +198,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         }
         TestRunCommand.Decoded cmd = TestRunCommand.decode(action.getCommand());
         UUID instanceId = triggerService.triggerTestRun(
-                taskId, cmd.bizDate(), cmd.content(), cmd.paramsJson(), cmd.type());
+                taskId, cmd.bizDate(), cmd.content(), cmd.paramsJson(), cmd.type(), locale);
         return new ExecOutcome(true,
                 messages.get("executor.test_run.success", locale, taskId),
                 json(Map.of("testInstanceId", instanceId.toString(), "taskId", taskId)), instanceId);
@@ -213,7 +213,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     json(Map.of("error", "missing_task_id")), null);
         }
         String bizDate = action.getCommand();
-        UUID instanceId = triggerService.triggerManualTaskRun(taskId, bizDate);
+        UUID instanceId = triggerService.triggerManualTaskRun(taskId, bizDate, locale);
         return new ExecOutcome(true,
                 messages.get("executor.task_run.success", locale, taskId),
                 json(Map.of("instanceId", instanceId.toString(), "taskId", taskId, "runMode", "NORMAL")), instanceId);
@@ -228,7 +228,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     messages.get("workflow.not_found", locale, action.getTargetId()),
                     json(Map.of("error", "workflow_not_found")), null);
         }
-        UUID wiId = triggerService.trigger(wf, "MANUAL", action.getCommand(), wf.getPriority());
+        UUID wiId = triggerService.trigger(wf, "MANUAL", action.getCommand(), wf.getPriority(), locale);
         return new ExecOutcome(true,
                 messages.get("executor.trigger_workflow.success", locale, wf.getName()),
                 json(Map.of("workflowInstanceId", wiId.toString(), "workflowId", workflowId)), wiId);

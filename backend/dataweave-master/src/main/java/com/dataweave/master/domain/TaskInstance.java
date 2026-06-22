@@ -35,6 +35,7 @@ public class TaskInstance {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer deleted;
+    private String locale;
     private Long version;
 
     public TaskInstance() {}
@@ -119,6 +120,9 @@ public class TaskInstance {
 
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
+
+    public String getLocale() { return locale; }
+    public void setLocale(String locale) { this.locale = locale; }
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }

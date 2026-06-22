@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -22,6 +23,9 @@ import java.util.UUID;
  *
  * <p>创建实例时所有节点统一置 WAITING——「等待不占资源」：上游未就绪的节点由调度内核的可运行门
  * （上游 SUCCESS 才认领）自然挡住，不必显式 NOT_RUN→WAITING 解锁过渡。创建后发布唤醒触发即时调度。
+ *
+ * <p>每个实例落 {@code locale}（触发者 BCP-47 tag）——供任务运行日志 banner 按触发者 locale 渲染
+ * （i18n 规则②）。cron 触发由调用方传 {@link com.dataweave.master.i18n.Messages#DEFAULT_LOCALE}。
  */
 @Service
 public class WorkflowTriggerService {
@@ -47,9 +51,11 @@ public class WorkflowTriggerService {
     /**
      * 触发一个工作流：建 workflow_instance + 各节点 task_instance（全 WAITING），发布唤醒。
      *
+     * @param locale 触发者 locale（agent 触发传 agent locale；cron 触发传默认中文）
      * @return 新建 workflow_instance 的 id；工作流无节点抛 {@link IllegalStateException}
      */
-    public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride) {
+    public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
+                        Locale locale) {
         List<WorkflowNode> nodes = nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0);
         if (nodes.isEmpty()) {
             throw new IllegalStateException("工作流无节点，无法触发：" + wf.getId());
@@ -81,7 +87,7 @@ public class WorkflowTriggerService {
         WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
 
         for (WorkflowNode node : nodes) {
-            TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now);
+            TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now, locale);
             ti.setWorkflowInstanceId(savedWi.getId());
             ti.setWorkflowNodeId(node.getId());
             ti.setRunMode("NORMAL");
@@ -118,8 +124,8 @@ public class WorkflowTriggerService {
      * 单任务测试运行（design D9）：脱离工作流、跑草稿内容（task_version_no=null）、run_mode=TEST，
      * 不入正式统计。返回 task_instance id。
      */
-    public UUID triggerTestRun(Long taskId, String bizDate) {
-        return triggerTestRun(taskId, bizDate, null, null, null);
+    public UUID triggerTestRun(Long taskId, String bizDate, Locale locale) {
+        return triggerTestRun(taskId, bizDate, null, null, null, locale);
     }
 
     /**
@@ -132,13 +138,14 @@ public class WorkflowTriggerService {
      * @param contentOverride 编辑器临时脚本内容（可空）
      * @param paramsOverride  编辑器临时调度参数 JSON（可空，与 content 同源用于占位符解析）
      * @param typeOverride    编辑器临时任务类型（可空，非空则覆盖 task_def.type 选执行器）
+     * @param locale          触发者 locale（banner 按此渲染）
      */
     public UUID triggerTestRun(Long taskId, String bizDate, String contentOverride,
-                               String paramsOverride, String typeOverride) {
+                               String paramsOverride, String typeOverride, Locale locale) {
         TaskDef task = taskDefRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
         LocalDateTime now = LocalDateTime.now();
-        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now);
+        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now, locale);
         ti.setWorkflowInstanceId(null);
         ti.setWorkflowNodeId(null);
         ti.setTaskId(taskId);
@@ -162,12 +169,12 @@ public class WorkflowTriggerService {
      * 本方法跑已发布版本、计统计，是「正式实例」语义。草稿/未发布的拦截在闸门之前（controller），
      * 此处兜底：current_version_no 缺失则按未发布处理（version 落 null）。
      */
-    public UUID triggerManualTaskRun(Long taskId, String bizDate) {
+    public UUID triggerManualTaskRun(Long taskId, String bizDate, Locale locale) {
         TaskDef task = taskDefRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
         Integer versionNo = task.getCurrentVersionNo();
         LocalDateTime now = LocalDateTime.now();
-        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now);
+        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now, locale);
         ti.setWorkflowInstanceId(null);
         ti.setWorkflowNodeId(null);
         ti.setTaskId(taskId);
@@ -180,11 +187,12 @@ public class WorkflowTriggerService {
         return saved.getId();
     }
 
-    private TaskInstance newTaskInstance(Long tenantId, Long projectId, LocalDateTime now) {
+    private TaskInstance newTaskInstance(Long tenantId, Long projectId, LocalDateTime now, Locale locale) {
         TaskInstance ti = new TaskInstance();
         ti.setTenantId(tenantId);
         ti.setProjectId(projectId);
         ti.setAttempt(0);
+        ti.setLocale(locale != null ? locale.toLanguageTag() : null);
         ti.setCreatedAt(now);
         ti.setUpdatedAt(now);
         ti.setDeleted(0);

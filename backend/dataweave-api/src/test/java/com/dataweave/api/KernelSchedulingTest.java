@@ -48,7 +48,7 @@ class KernelSchedulingTest {
     void triggeredWorkflow_runsAllNodes_andAggregatesSuccess() throws Exception {
         WorkflowDef wf = workflowDefRepository.findById(1L).orElseThrow();
 
-        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null);
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null, java.util.Locale.SIMPLIFIED_CHINESE);
 
         boolean done = await(Duration.ofSeconds(20), () ->
                 InstanceStates.SUCCESS.equals(

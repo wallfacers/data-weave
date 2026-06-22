@@ -442,6 +442,7 @@ CREATE TABLE task_instance (
     created_at           TIMESTAMP,
     updated_at           TIMESTAMP,
     deleted              SMALLINT DEFAULT 0,
+    locale               VARCHAR(16),          -- 触发者 locale（BCP-47 tag，如 en-US/zh-CN）；NULL=老数据/占位实例，消费端兜底 zh-CN
     version              INTEGER DEFAULT 0
 );
 

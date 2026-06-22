@@ -4,6 +4,7 @@ import com.dataweave.api.interfaces.TaskController;
 import com.dataweave.master.application.ScheduleParamResolver;
 import com.dataweave.master.application.WorkflowTriggerService;
 import com.dataweave.master.domain.InstanceStates;
+import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ class SchedulingParameterIntegrationTest {
     @Autowired
     TaskInstanceRepository taskInstanceRepository;
     @Autowired
+    LogBus logBus;
+    @Autowired
     TaskController taskController;
     @Autowired
     JdbcTemplate jdbc;
@@ -68,7 +71,7 @@ class SchedulingParameterIntegrationTest {
     void placeholder_substitutedAndExecuted() throws Exception {
         ensureTestWorker();
         Long taskId = seedTask(900100L, "echo dt=${yyyymmdd}", null);
-        UUID instId = triggerService.triggerTestRun(taskId, "2026-06-11");
+        UUID instId = triggerService.triggerTestRun(taskId, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
 
         boolean done = await(Duration.ofSeconds(20), () -> isTerminal(instId));
         assertThat(done).as("实例应在超时内到达终态").isTrue();
@@ -84,8 +87,8 @@ class SchedulingParameterIntegrationTest {
         Long badTask = seedTask(900200L, "echo ${nope}", null);
         Long goodTask = seedTask(900201L, "echo ok", null);
 
-        UUID badInst = triggerService.triggerTestRun(badTask, "2026-06-11");
-        UUID goodInst = triggerService.triggerTestRun(goodTask, "2026-06-11");
+        UUID badInst = triggerService.triggerTestRun(badTask, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
+        UUID goodInst = triggerService.triggerTestRun(goodTask, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
 
         boolean done = await(Duration.ofSeconds(20), () -> isTerminal(badInst) && isTerminal(goodInst));
         assertThat(done).as("两个实例都应在超时内到达终态").isTrue();
@@ -97,6 +100,34 @@ class SchedulingParameterIntegrationTest {
         // 坏实例被隔离（resolveContentSafely catch 不抛穿认领事务），不连坐正常实例
         TaskInstance good = taskInstanceRepository.findById(goodInst).orElseThrow();
         assertThat(good.getState()).isEqualTo(InstanceStates.SUCCESS);
+    }
+
+    @Test
+    void banner_renderedByTriggerLocale() throws Exception {
+        // task-run-decouple design.md:60 / tasks.md 2.6：banner 按触发者 locale 渲染（i18n 规则②）。
+        // 端到端验证 locale 全链路：triggerService → task_instance.locale → scheduler 认领读出 →
+        // DispatchCommand.locale → InProcessTaskExecutionGateway 按 locale 渲染 banner。
+        // 注意：banner 经 logBus 实时流输出（task_instance.log 字段只存 executor stdout tail，不含 banner）。
+        ensureTestWorker();
+
+        // 英文 locale 触发 → banner 渲染英文（半角括号 / 冒号后带空格）
+        Long enTask = seedTask(900300L, "echo hello-en", null);
+        UUID enInst = triggerService.triggerTestRun(enTask, "2026-06-11", java.util.Locale.US);
+        assertThat(await(Duration.ofSeconds(20), () -> isTerminal(enInst)))
+                .as("英文 locale 实例应在超时内到达终态").isTrue();
+        String enBanner = logBus.read(enInst, null, 200).stream()
+                .map(LogBus.Entry::line).reduce("", (a, b) -> a + "\n" + b);
+        assertThat(enBanner).contains("DataWeave Task Run", "Run mode:", "Execution Finished", "Datasource: -", "Duration:");
+        assertThat(enBanner).doesNotContain("任务运行");  // 未误走中文兜底
+
+        // 中文 locale 触发 → banner 渲染中文
+        Long zhTask = seedTask(900301L, "echo hello-zh", null);
+        UUID zhInst = triggerService.triggerTestRun(zhTask, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
+        assertThat(await(Duration.ofSeconds(20), () -> isTerminal(zhInst)))
+                .as("中文 locale 实例应在超时内到达终态").isTrue();
+        String zhBanner = logBus.read(zhInst, null, 200).stream()
+                .map(LogBus.Entry::line).reduce("", (a, b) -> a + "\n" + b);
+        assertThat(zhBanner).contains("DataWeave 任务运行", "运行模式:", "执行结束", "执行耗时:");
     }
 
     @Test
