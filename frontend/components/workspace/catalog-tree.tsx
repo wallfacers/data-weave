@@ -30,9 +30,9 @@ import {
   MoveToIcon,
   PencilEdit01Icon,
   RefreshIcon,
+  Share08Icon,
   Tag01Icon,
   Task01Icon,
-  WorkflowSquare01Icon,
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -652,7 +652,7 @@ export function CatalogTree({
           >
             <span className="size-4 shrink-0" aria-hidden />
             <HugeiconsIcon
-              icon={kind === "task" ? Task01Icon : WorkflowSquare01Icon}
+              icon={kind === "task" ? Task01Icon : Share08Icon}
               className={`size-4 shrink-0 ${kind === "task" ? "text-primary" : "text-chart-2"}`}
             />
             <span className="truncate">{name}</span>
@@ -738,7 +738,7 @@ export function CatalogTree({
             <ContextMenuItem
               onClick={() => setDialog({ mode: "create-workflow", parentId: node.id, name: "" })}
             >
-              <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
+              <HugeiconsIcon icon={Share08Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => setDialog({ mode: "folder-rename", id: node.id, name: node.name })}>
@@ -916,7 +916,7 @@ export function CatalogTree({
           <ContextMenuItem
             onClick={() => setDialog({ mode: "create-workflow", parentId: null, name: "" })}
           >
-            <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
+            <HugeiconsIcon icon={Share08Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
