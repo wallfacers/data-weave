@@ -16,7 +16,7 @@
  * 交互式输入/确认统一走 base 风格 Dialog（建文件夹 / 重命名 / 删除），不使用原生 window.prompt。
  */
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -27,6 +27,7 @@ import {
   FolderAddIcon,
   FolderOpenIcon,
   InboxIcon,
+  MoveToIcon,
   PencilEdit01Icon,
   RefreshIcon,
   Tag01Icon,
@@ -102,6 +103,7 @@ type DialogState =
   | { mode: "create-workflow"; parentId: number | null; name: string }
   | { mode: "rename"; kind: "task" | "workflow"; id: number; name: string }
   | { mode: "delete"; kind: "task" | "workflow"; id: number; name: string }
+  | { mode: "move"; kind: "task" | "workflow"; id: number; name: string; selectedId: number | null }
 
 export interface CatalogTreeProps {
   /** 项目 ID（默认 1）。 */
@@ -117,6 +119,80 @@ export interface CatalogTreeProps {
   /** 点击工作流叶子（id + 名称）—— IDE 壳据此开画布子 Tab。 */
   onOpenWorkflow?: (id: number, name: string) => void
   className?: string
+}
+
+/**
+ * 移动归属目录选择器（move dialog 内容）：缩进文件夹树 + 顶部「未分类」项，单选高亮。
+ * 展开态用局部 state（不污染主树 store.expanded），数据复用 store.tree。
+ */
+function MoveFolderPicker({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: number | null
+  onSelect: (id: number | null) => void
+}) {
+  const t = useTranslations()
+  const tree = useCatalogTreeStore((s) => s.tree)
+  const [open, setOpen] = useState<Record<number, boolean>>({})
+
+  const renderRow = (node: CatalogTreeNode, depth: number): ReactNode => {
+    const children = node.children ?? []
+    const hasChildren = children.length > 0
+    const isOpen = !!open[node.id]
+    const selected = selectedId === node.id
+    return (
+      <div key={node.id}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(node.id)}
+          className={`flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent ${
+            selected ? "bg-primary/10 ring-1 ring-primary" : ""
+          }`}
+          style={{ paddingLeft: depth * 18 + 4 }}
+        >
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (hasChildren) setOpen((o) => ({ ...o, [node.id]: !o[node.id] }))
+            }}
+            className="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+          >
+            {hasChildren ? (
+              <HugeiconsIcon icon={isOpen ? ArrowDown01Icon : ArrowRight01Icon} className="size-3.5" />
+            ) : null}
+          </button>
+          <HugeiconsIcon
+            icon={isOpen ? FolderOpenIcon : Folder01Icon}
+            className="size-4 shrink-0 text-amber-500"
+          />
+          <span className="truncate">{node.name}</span>
+        </div>
+        {isOpen && children.map((c) => renderRow(c, depth + 1))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-h-64 overflow-auto rounded-md border p-1">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onSelect(null)}
+        className={`flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 pr-2 text-sm hover:bg-accent ${
+          selectedId === null ? "bg-primary/10 ring-1 ring-primary" : ""
+        }`}
+      >
+        <span className="size-4 shrink-0" aria-hidden />
+        <HugeiconsIcon icon={InboxIcon} className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate text-muted-foreground">{t("catalog.uncategorized")}</span>
+      </div>
+      {(tree?.roots ?? []).map((r) => renderRow(r, 0))}
+    </div>
+  )
 }
 
 export function CatalogTree({
@@ -538,6 +614,8 @@ export function CatalogTree({
       await renameLeaf(d.kind, d.id, d.name)
     } else if (d.mode === "delete") {
       await deleteLeaf(d.kind, d.id)
+    } else if (d.mode === "move") {
+      await move({ kind: d.kind, id: d.id }, d.selectedId)
     } else {
       return
     }
@@ -577,6 +655,16 @@ export function CatalogTree({
             <span className="truncate">{name}</span>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => {
+                const st = useCatalogTreeStore.getState()
+                const cur =
+                  (kind === "task" ? st.tasks : st.workflows).find((x) => x.id === id)?.catalogNodeId ?? null
+                setDialog({ mode: "move", kind, id, name, selectedId: cur })
+              }}
+            >
+              <HugeiconsIcon icon={MoveToIcon} className="size-4" /> {t("catalog.moveTo")}
+            </ContextMenuItem>
             <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
               <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
             </ContextMenuItem>
@@ -846,6 +934,7 @@ export function CatalogTree({
               {dialog.mode === "folder-delete" && t("catalog.dialogDeleteFolder")}
               {dialog.mode === "create-task" && t("catalog.dialogNewTask")}
               {dialog.mode === "create-workflow" && t("catalog.dialogNewWorkflow")}
+              {dialog.mode === "move" && t("catalog.dialogMoveTo", { name: dialog.name })}
               {dialog.mode === "rename" &&
                 (dialog.kind === "task" ? t("catalog.dialogRenameTask") : t("catalog.dialogRenameWorkflow"))}
               {dialog.mode === "delete" &&
@@ -865,6 +954,7 @@ export function CatalogTree({
           {/* 名称输入：除删除态外均需 */}
           {dialog.mode !== "delete" &&
             dialog.mode !== "folder-delete" &&
+            dialog.mode !== "move" &&
             dialog.mode !== "closed" && (
               <Input
                 autoFocus
@@ -881,6 +971,13 @@ export function CatalogTree({
                 }}
               />
             )}
+          {/* 移动归属：文件夹选择器 */}
+          {dialog.mode === "move" && (
+            <MoveFolderPicker
+              selectedId={dialog.selectedId}
+              onSelect={(id) => setDialog((d) => (d.mode === "move" ? { ...d, selectedId: id } : d))}
+            />
+          )}
           {/* 新建任务额外选类型 */}
           {dialog.mode === "create-task" && (
             <DropdownSelect
@@ -904,7 +1001,11 @@ export function CatalogTree({
               </Button>
             ) : (
               <Button onClick={submitDialog}>
-                {dialog.mode === "rename" || dialog.mode === "folder-rename" ? t("catalog.save") : t("catalog.create")}
+                {dialog.mode === "rename" || dialog.mode === "folder-rename"
+                  ? t("catalog.save")
+                  : dialog.mode === "move"
+                    ? t("catalog.moveAction")
+                    : t("catalog.create")}
               </Button>
             )}
           </DialogFooter>

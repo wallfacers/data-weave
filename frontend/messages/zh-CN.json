@@ -101,7 +101,10 @@
     "toastDeleteFailed": "删除失败",
     "toastTaskDraftCreated": "已创建任务草稿",
     "toastWorkflowDraftCreated": "已创建工作流草稿",
-    "toastFolderDeleted": "已删除文件夹"
+    "toastFolderDeleted": "已删除文件夹",
+    "moveTo": "移动到目录…",
+    "dialogMoveTo": "移动「{name}」",
+    "moveAction": "移动"
   },
   "agent": {
     "placeholder": "向 DataWeave Agent 提问…",
@@ -129,7 +132,7 @@
     "descriptionPlaceholder": "任务描述（可选）",
     "params": "调度参数（可选）",
     "addParam": "+ 添加",
-    "paramsHint": "在内容里用 <code>$'{'参数名'}'</code> 引用；参数值也可填表达式（如 <code>$'{'yyyymmdd-1'}'</code>），会递归展开。留空即不启用。",
+    "paramsHint": "内容用 <code>$'{'参数名'}'</code> 引用（支持 <code>$'{'yyyymmdd-1'}'</code> 等表达式递归展开），留空不启用。",
     "noParams": "暂无参数，点「+ 添加」配置。",
     "paramName": "参数名",
     "exprPlaceholder": "表达式，如 $'{'yyyymmdd-1'}'",

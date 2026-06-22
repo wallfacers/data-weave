@@ -101,7 +101,10 @@
     "toastDeleteFailed": "Delete failed",
     "toastTaskDraftCreated": "Task draft created",
     "toastWorkflowDraftCreated": "Workflow draft created",
-    "toastFolderDeleted": "Folder deleted"
+    "toastFolderDeleted": "Folder deleted",
+    "moveTo": "Move to…",
+    "dialogMoveTo": "Move \"{name}\"",
+    "moveAction": "Move"
   },
   "agent": {
     "placeholder": "Ask DataWeave Agent…",
@@ -129,7 +132,7 @@
     "descriptionPlaceholder": "Task description (optional)",
     "params": "Schedule params (optional)",
     "addParam": "+ Add",
-    "paramsHint": "Reference with <code>$'{'name'}'</code> in content; values can also be expressions (e.g. <code>$'{'yyyymmdd-1'}'</code>), expanded recursively. Leave empty to disable.",
+    "paramsHint": "Reference with <code>$'{'name'}'</code> in content (supports expressions like <code>$'{'yyyymmdd-1'}'</code>, expanded recursively). Leave empty to disable.",
     "noParams": "No params yet. Click \"+ Add\" to configure.",
     "paramName": "Param name",
     "exprPlaceholder": "Expression, e.g. $'{'yyyymmdd-1'}'",
