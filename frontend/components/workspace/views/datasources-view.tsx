@@ -12,6 +12,7 @@ import {
   CheckmarkCircle01Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -50,6 +51,7 @@ export function DatasourcesView() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingDs, setEditingDs] = useState<DatasourceVO | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DatasourceVO | null>(null)
+  const [testingId, setTestingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -100,6 +102,23 @@ export function DatasourcesView() {
   const handleEdit = (ds: DatasourceVO) => {
     setEditingDs(ds)
     setDialogOpen(true)
+  }
+  const handleTestConnection = async (ds: DatasourceVO) => {
+    setTestingId(ds.id)
+    try {
+      const result = await testDatasource(ds.id)
+      if (result.success) {
+        const detail = result.latencyMs > 0 ? `${result.latencyMs}ms` : ""
+        const version = result.serverVersion ? ` · ${result.serverVersion}` : ""
+        toast.success(`${result.message}${detail ? ` (${detail})` : ""}${version}`)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test failed")
+    } finally {
+      setTestingId(null)
+    }
   }
   const handleDelete = async () => {
     if (!deleteConfirm) return
@@ -211,6 +230,19 @@ export function DatasourcesView() {
                   <td className="px-3 py-2 text-right">
                     <Button variant="ghost" size="icon" className="size-7" onClick={() => handleEdit(ds)}>
                       <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      title={t("actions.testConnection")}
+                      disabled={testingId !== null}
+                      onClick={() => handleTestConnection(ds)}
+                    >
+                      <HugeiconsIcon
+                        icon={ConnectIcon}
+                        className={`size-3.5 ${testingId === ds.id ? "animate-spin" : ""}`}
+                      />
                     </Button>
                     <Button variant="ghost" size="icon" className="size-7" onClick={() => setDeleteConfirm(ds)}>
                       <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />

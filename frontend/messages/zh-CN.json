@@ -674,6 +674,9 @@
       "actions": "操作"
     },
     "cancel": "取消",
+    "actions": {
+      "testConnection": "测试连通性"
+    },
     "delete": {
       "title": "删除数据源",
       "confirm": "确定删除数据源「{name}」？",

@@ -674,6 +674,9 @@
       "actions": "Actions"
     },
     "cancel": "Cancel",
+    "actions": {
+      "testConnection": "Test Connection"
+    },
     "delete": {
       "title": "Delete Datasource",
       "confirm": "Delete datasource \"{name}\"?",
