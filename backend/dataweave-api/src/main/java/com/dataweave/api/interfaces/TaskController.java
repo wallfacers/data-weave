@@ -128,6 +128,30 @@ public class TaskController {
         return ApiResponse.ok(taskService.offline(id));
     }
 
+    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。 */
+    @PostMapping("/{id}/rollback")
+    public ApiResponse<GateResult> rollback(@PathVariable Long id,
+                                            @RequestBody Map<String, Object> body,
+                                            ServerWebExchange exchange) {
+        TaskDetail detail = taskService.getById(id).orElse(null);
+        if (detail == null) {
+            throw new BizException("task.not_found", id).withHttpStatus(404);
+        }
+        Object vno = body.get("versionNo");
+        if (vno == null) {
+            throw new BizException("task.rollback.missing_version_no").withHttpStatus(400);
+        }
+        ActionRequest req = ActionRequest.builder()
+                .toolName("rollback_task").actionType("ROLLBACK_TASK")
+                .targetType("TASK").targetId(String.valueOf(id))
+                .command(String.valueOf(vno))
+                .actor("ui").actorSource("UI")
+                .summary("回滚任务 #" + id + "「" + detail.task().getName() + "」到 v" + vno)
+                .build();
+        return ApiResponse.ok(gatedActionService.submit(req,
+                Locales.uiLocale(exchange.getRequest().getHeaders())));
+    }
+
     /**
      * 手动运行任务（task-run-decouple）：按发布态分流，不再对未发布任务拒绝（解绑「发布」与「运行」）。
      * <ul>

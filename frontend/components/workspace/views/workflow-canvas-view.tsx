@@ -41,6 +41,7 @@ import {
   FloppyDiskIcon,
   RocketIcon,
   Share08Icon,
+  StopIcon,
   Task01Icon,
 } from "@hugeicons/core-free-icons"
 
@@ -74,10 +75,19 @@ import {
   type DagEdge,
   type TaskDef,
   type WorkflowDef,
+  type WorkflowDefVersion,
+  type WorkflowDetail,
 } from "@/lib/types"
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
+import { WorkflowConfigPanel } from "@/components/workspace/workflow-config-panel"
+import { VersionHistoryPanel, type VersionInfo } from "@/components/workspace/version-history-panel"
+import { RollbackConfirmDialog } from "@/components/workspace/rollback-confirm-dialog"
+import { WorkflowVersionDetailDialog } from "@/components/workspace/workflow-version-detail-dialog"
+import { VersionDiffDialog, type VersionDiffInput } from "@/components/workspace/version-diff-dialog"
+import { DwScroll } from "@/components/ui/dw-scroll"
+import { cn } from "@/lib/utils"
 import { RunLogsTabs, useRunLogTabs, type RunTab } from "@/components/workspace/run-logs-tabs"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
@@ -290,14 +300,29 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
+
+  // 右侧栏
+  const [sidebarTab, setSidebarTab] = useState<"config" | "versions">("config")
+  const [wfName, setWfName] = useState(name)
+  const [wfDesc, setWfDesc] = useState("")
+  const [wfScheduleType, setWfScheduleType] = useState("MANUAL")
+  const [wfCron, setWfCron] = useState("")
+  const [wfPriority, setWfPriority] = useState(5)
+  const [wfVersions, setWfVersions] = useState<WorkflowDefVersion[]>([])
+  const [rollbackTarget, setRollbackTarget] = useState<WorkflowDefVersion | null>(null)
+  const [viewingVersion, setViewingVersion] = useState<WorkflowDefVersion | null>(null)
+  const [diffVersions, setDiffVersions] = useState<[WorkflowDefVersion, WorkflowDefVersion] | null>(null)
+  const [rolling, setRolling] = useState(false)
   const [dagNodes, setDagNodes] = useState<CanvasNode[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
-  // 运行态叠加：runWfId 触发订阅；runStateByTaskDef 驱动节点状态点
+  // 运行态叠加：runWfId 触发订阅；runStateByTaskDef 驱动节点状态点；runStatus 驱动工作流整体运行徽标
   const [runWfId, setRunWfId] = useState<string | null>(null)
+  const [runStatus, setRunStatus] = useState<string | null>(null)
+  const [stopping, setStopping] = useState(false)
   const [instanceToTaskDef, setInstanceToTaskDef] = useState<Map<string, number>>(new Map())
   const [runStateByTaskDef, setRunStateByTaskDef] = useState<Map<number, string>>(new Map())
   // 节点取日志用：taskDefId → 实例 UUID（与着色同源，按 taskDefId 键）
@@ -319,6 +344,8 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   } = useRunLogTabs(CANVAS_LOG_HEIGHT_KEY)
   // 自动顶日志去重：已自动开过的实例不再抢焦（用户切看其它节点不被打断）
   const autoOpenedRef = useRef<Set<string>>(new Set())
+  // 边右键菜单（边是 SVG path，不便套 ContextMenu 包裹，用轻量浮层）
+  const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; id: string } | null>(null)
 
   const { screenToFlowPosition, deleteElements } = useReactFlow()
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -348,11 +375,30 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       .finally(() => setBusy(false))
   }, [t])
 
+  // 加载工作流详情（含版本历史 + 配置字段）
+  const loadWfDetail = useCallback(() => {
+    authFetch(`${API_BASE}/api/workflows/${workflowId}`)
+      .then((r) => r.json() as Promise<ApiResponse<WorkflowDetail>>)
+      .then((j) => {
+        if (j.code === 0 && j.data) {
+          const wf = j.data.workflow
+          setWfName(wf.name ?? "")
+          setWfDesc(wf.description ?? "")
+          setWfScheduleType(wf.scheduleType ?? "MANUAL")
+          setWfCron(wf.cron ?? "")
+          setWfPriority(wf.priority ?? 5)
+          setWfVersions(j.data.versions ?? [])
+        }
+      })
+      .catch(() => { /* 静默失败，不影响 DAG 加载 */ })
+  }, [workflowId])
+
   useEffect(() => {
     setLoading(true)
     loadDag(workflowId)
+    loadWfDetail()
     setLoading(false)
-  }, [workflowId, loadDag])
+  }, [workflowId, loadDag, loadWfDetail])
 
   // 运行态叠加到展示节点（不入草稿 dagNodes，仅派生）
   const displayNodes = useMemo(
@@ -369,7 +415,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
     runWfId ? `${API_BASE}/api/ops/workflow-instances/${runWfId}/events/stream` : "",
   )
 
-  // 状态事件 → 经实例 UUID→task_def id 桥接，更新节点运行态
+  // 状态事件 → 经实例 UUID→task_def id 桥接，更新节点运行态；workflowState 更新整体运行徽标
   useEffect(() => {
     const statusEvents = events.filter((e) => e.type === "status")
     if (statusEvents.length === 0) return
@@ -377,11 +423,12 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       const next = new Map(prev)
       for (const ev of statusEvents) {
         try {
-          const u = JSON.parse(ev.data) as { taskId?: string; taskState?: string }
+          const u = JSON.parse(ev.data) as { taskId?: string; taskState?: string; workflowState?: string }
           if (u.taskId && u.taskState) {
             const td = instanceToTaskDef.get(u.taskId)
             if (td != null) next.set(td, u.taskState)
           }
+          if (u.workflowState) setRunStatus(u.workflowState)
         } catch {
           /* ignore malformed event */
         }
@@ -459,27 +506,40 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const saveDraft = useCallback(() => {
     setBusy(true)
     const payload = toPayload(dagVersion, dagNodes, edges)
-    authFetch(`${API_BASE}/api/workflows/${workflowId}/dag`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then((r) => r.json() as Promise<ApiResponse<DagView>>)
-      .then((j) => {
-        if (j.code === 0 && j.data) {
-          setDagVersion(j.data.version)
-          setHasDraft(j.data.hasDraftChange === 1)
+    // 并行保存 DAG + 配置
+    Promise.all([
+      authFetch(`${API_BASE}/api/workflows/${workflowId}/dag`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then((r) => r.json() as Promise<ApiResponse<DagView>>),
+      authFetch(`${API_BASE}/api/workflows/${workflowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: wfName,
+          description: wfDesc || null,
+          scheduleType: wfScheduleType,
+          cron: wfScheduleType === "CRON" ? wfCron : null,
+          priority: wfPriority,
+        }),
+      }).then((r) => r.json() as Promise<ApiResponse<WorkflowDef>>),
+    ])
+      .then(([dagJ, _]) => {
+        if (dagJ.code === 0 && dagJ.data) {
+          setDagVersion(dagJ.data.version)
+          setHasDraft(dagJ.data.hasDraftChange === 1)
           setDirty(false)
           toast.success(t("toastDraftSaved"))
-        } else if (j.code === 409) {
+        } else if (dagJ.code === 409) {
           toast.error(t("toastConflict"))
         } else {
-          toast.error(j.message)
+          toast.error(dagJ.message)
         }
       })
       .catch(() => toast.error(t("toastSaveFailed")))
       .finally(() => setBusy(false))
-  }, [workflowId, dagVersion, dagNodes, edges, t])
+  }, [workflowId, dagVersion, dagNodes, edges, wfName, wfDesc, wfScheduleType, wfCron, wfPriority, t])
 
   const publish = useCallback(() => {
     if (dirty) {
@@ -537,6 +597,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       }
       const wiId = r.resultInstanceId
       setRunWfId(wiId)
+      setRunStatus("RUNNING")
       setRunStateByTaskDef(new Map())
       autoOpenedRef.current = new Set() // 新运行重置自动顶日志去重
       // 拉实例详情建立 实例UUID↔task_def id 映射 + 初始节点状态
@@ -549,6 +610,12 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         idMap.set(it.id, it.taskDefId)
         defMap.set(it.taskDefId, it.id)
         stateMap.set(it.taskDefId, it.state)
+        // 拉详情时已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态）
+        if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id)) {
+          autoOpenedRef.current.add(it.id)
+          const nm = dagNodes.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
+          openRunTab({ instanceId: it.id, taskName: nm, startedAt: new Date().toISOString(), kind: "log" })
+        }
       }
       setInstanceToTaskDef(idMap)
       setTaskDefToInstance(defMap)
@@ -559,7 +626,43 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
     } finally {
       setBusy(false)
     }
-  }, [workflowId, t])
+  }, [workflowId, t, dagNodes, name, openRunTab])
+
+  // 停止当前工作流运行实例：→ STOPPED（后端各运行中节点置 STOPPED 发事件→节点实时变红 + 插手动停止日志）。
+  const stopWorkflow = useCallback(async () => {
+    if (!runWfId) return
+    setStopping(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/ops/instances/${runWfId}/kill`, { method: "POST" })
+      const j = (await res.json()) as ApiResponse<unknown>
+      if (j.code === 0) {
+        setRunStatus("STOPPED")
+        toast.success(t("toastStopped"))
+      } else {
+        toast.error(j.message || t("toastStopFailed"))
+      }
+    } catch {
+      toast.error(t("toastStopFailed"))
+    } finally {
+      setStopping(false)
+    }
+  }, [runWfId, t])
+
+  // 工作流整体运行徽标：运行中/成功/失败/已停止
+  const runStatusBadge = useMemo(() => {
+    if (!runStatus) return null
+    const map: Record<string, { variant: "success" | "destructive" | "outline"; key: string }> = {
+      RUNNING: { variant: "outline", key: "runStateRunning" },
+      SUCCESS: { variant: "success", key: "runStateSuccess" },
+      FAILED: { variant: "destructive", key: "runStateFailed" },
+      STOPPED: { variant: "destructive", key: "runStateStopped" },
+    }
+    const m = map[runStatus]
+    return m ? <Badge variant={m.variant}>{t(m.key)}</Badge> : null
+  }, [runStatus, t])
+
+  // 是否可停止：有运行实例且整体态未到终态
+  const canStop = !!runWfId && runStatus !== "SUCCESS" && runStatus !== "FAILED" && runStatus !== "STOPPED"
 
   // 节点 taskDefId → 节点显示名（自动顶日志/查看日志的 tab 标题用）
   const labelByTaskDef = useCallback(
@@ -635,6 +738,53 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
     [taskDefToInstance, openRunTab, deleteElements, t],
   )
 
+  // ─── 版本操作 ───────────────────────────────────────
+  function toVersionInfo(v: WorkflowDefVersion): VersionInfo {
+    return { versionNo: v.versionNo, publishedAt: v.publishedAt, publishedBy: v.publishedBy, remark: v.remark }
+  }
+
+  /** DAG 快照 JSON pretty-print，让 Monaco DiffEditor 的逐行 diff 可读。 */
+  function prettyJson(s: string | null): string {
+    if (!s) return ""
+    try {
+      return JSON.stringify(JSON.parse(s), null, 2)
+    } catch {
+      return s ?? ""
+    }
+  }
+
+  function toDiffInput(v: WorkflowDefVersion): VersionDiffInput {
+    return { versionNo: v.versionNo, text: prettyJson(v.dagSnapshotJson), language: "json" }
+  }
+  async function confirmRollback() {
+    if (!rollbackTarget) return
+    setRolling(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/workflows/${workflowId}/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionNo: rollbackTarget.versionNo }),
+      })
+      const j = (await res.json()) as ApiResponse<RunResult>
+      if (j.code !== 0 || !j.data) throw new Error(String(j.message ?? ""))
+      const r = j.data
+      if (r.outcome === "EXECUTED") {
+        toast.success(t("rollbackSuccess", { vno: rollbackTarget.versionNo }))
+        setRollbackTarget(null)
+        loadDag(workflowId)
+        loadWfDetail()
+      } else if (r.outcome === "PENDING_APPROVAL") {
+        toast.info(t("rollbackPendingApproval", { id: r.actionId ?? "?" }))
+        setRollbackTarget(null)
+      } else {
+        toast.error(r.message || t("rollbackFailed", { error: "" }))
+        setRollbackTarget(null)
+      }
+    } catch (e: unknown) {
+      toast.error(t("rollbackFailed", { error: e instanceof Error ? e.message : String(e) }))
+    } finally { setRolling(false) }
+  }
+
   if (loading) return <ViewStatus loading />
 
   return (
@@ -646,6 +796,12 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
           <HugeiconsIcon icon={RocketIcon} className="size-4" /> {t("run")}
         </Button>
+        {canStop && (
+          <Button size="sm" variant="outline" onClick={stopWorkflow} disabled={stopping}>
+            <HugeiconsIcon icon={StopIcon} className="size-4" /> {stopping ? t("stopping") : t("stop")}
+          </Button>
+        )}
+        {runStatusBadge}
         {!online && (
           <span className="text-xs text-muted-foreground">
             {t("notOnlineHint")}
@@ -673,23 +829,183 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         </div>
       </div>
 
-      <div className="min-h-0 flex-1" ref={wrapperRef} onDrop={onDrop} onDragOver={onDragOver}>
-        <ReactFlow
-          id={`canvas-${workflowId}`}
-          nodes={displayNodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background />
-          <Controls />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
+      <div className="flex min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" ref={wrapperRef} onDrop={onDrop} onDragOver={onDragOver}>
+        <NodeActionsContext.Provider value={nodeActions}>
+          <ReactFlow
+            id={`canvas-${workflowId}`}
+            nodes={displayNodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onEdgeContextMenu={(e, edge) => {
+              e.preventDefault()
+              setEdgeMenu({ x: e.clientX, y: e.clientY, id: edge.id })
+            }}
+            onPaneClick={() => setEdgeMenu(null)}
+            onNodeClick={() => setEdgeMenu(null)}
+            onMoveStart={() => setEdgeMenu(null)}
+            deleteKeyCode={["Backspace", "Delete"]}
+            fitView
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background />
+            <Controls />
+            <MiniMap pannable zoomable />
+          </ReactFlow>
+        </NodeActionsContext.Provider>
+
+        {/* 边右键菜单浮层（click-away 关闭） */}
+        {edgeMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setEdgeMenu(null)} onContextMenu={(e) => { e.preventDefault(); setEdgeMenu(null) }} />
+            <div
+              className="fixed z-50 min-w-32 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+              style={{ left: edgeMenu.x, top: edgeMenu.y }}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
+                onClick={() => {
+                  deleteElements({ edges: [{ id: edgeMenu.id }] })
+                  setEdgeMenu(null)
+                }}
+              >
+                {t("edgeMenuDelete")}
+              </button>
+            </div>
+          </>
+        )}
       </div>
+
+        {/* 右：配置 / 版本历史 tab 栏 */}
+        <div className="w-72 shrink-0 border-l border-border flex flex-col">
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setSidebarTab("config")}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                sidebarTab === "config" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t("configTab")}
+            </button>
+            <button
+              onClick={() => setSidebarTab("versions")}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                sidebarTab === "versions" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t("versionsTab")}
+            </button>
+          </div>
+          <DwScroll className="flex-1" innerClassName="overflow-y-auto">
+            <div style={{ display: sidebarTab === "config" ? "block" : "none" }}>
+              <WorkflowConfigPanel
+                name={wfName}
+                setName={(v) => setWfName(v)}
+                description={wfDesc}
+                setDescription={(v) => setWfDesc(v)}
+                scheduleType={wfScheduleType}
+                setScheduleType={(v) => setWfScheduleType(v)}
+                cron={wfCron}
+                setCron={(v) => setWfCron(v)}
+                priority={wfPriority}
+                setPriority={(v) => setWfPriority(v)}
+                onDirty={() => setDirty(true)}
+              />
+            </div>
+            <div style={{ display: sidebarTab === "versions" ? "block" : "none" }}>
+              <VersionHistoryPanel
+                versions={wfVersions.map(toVersionInfo)}
+                currentVersionNo={wfVersions.length > 0 ? wfVersions[0]?.versionNo ?? 0 : 0}
+                onView={(v) => {
+                  const ver = wfVersions.find((x) => x.versionNo === v.versionNo)
+                  if (ver) setViewingVersion(ver)
+                }}
+                onRollback={(v) => {
+                  const ver = wfVersions.find((x) => x.versionNo === v.versionNo)
+                  if (ver) setRollbackTarget(ver)
+                }}
+                onDiff={(a, b) => {
+                  const va = wfVersions.find((x) => x.versionNo === a.versionNo)
+                  const vb = wfVersions.find((x) => x.versionNo === b.versionNo)
+                  if (va && vb) setDiffVersions([va, vb])
+                }}
+              />
+            </div>
+          </DwScroll>
+        </div>
+      </div>
+
+      {/* 运行日志 Tabs 区（每节点一条实例日志流，与任务编辑器同一套零件） */}
+      {runTabs.length > 0 && (
+        <>
+          <div
+            onPointerDown={onLogResizeDown}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t("resizeLogPanel")}
+            className="group/logresize relative flex h-2 shrink-0 cursor-row-resize touch-none items-center justify-center border-t border-border"
+          >
+            <div className="h-0.5 w-12 rounded-full bg-border/0 transition-colors group-hover/logresize:bg-border" />
+          </div>
+          <div className="shrink-0" style={{ height: logHeight }}>
+            <RunLogsTabs
+              tabs={runTabs}
+              activeId={activeRunTab}
+              onActivate={setActiveRunTab}
+              onClose={closeRunTab}
+              onCloseOthers={closeOtherRunTabs}
+              onCloseRight={closeRunTabsRight}
+              onCloseLeft={closeRunTabsLeft}
+              onCloseAll={closeAllRunTabs}
+              locale={locale}
+            />
+          </div>
+        </>
+      )}
+
+      {/* 版本弹窗 */}
+      <WorkflowVersionDetailDialog
+        open={viewingVersion !== null}
+        onClose={() => setViewingVersion(null)}
+        version={viewingVersion}
+      />
+      <VersionDiffDialog
+        open={diffVersions !== null}
+        onClose={() => setDiffVersions(null)}
+        v1={diffVersions ? toDiffInput(diffVersions[0]) : null}
+        v2={diffVersions ? toDiffInput(diffVersions[1]) : null}
+      />
+      <RollbackConfirmDialog
+        open={rollbackTarget !== null}
+        onClose={() => setRollbackTarget(null)}
+        onConfirm={confirmRollback}
+        version={rollbackTarget ? {
+          id: rollbackTarget.id,
+          taskId: rollbackTarget.workflowId,
+          versionNo: rollbackTarget.versionNo,
+          name: rollbackTarget.name,
+          type: "",
+          content: rollbackTarget.dagSnapshotJson ?? "",
+          datasourceId: null,
+          targetDatasourceId: null,
+          paramsJson: null,
+          timeoutSec: null,
+          retryMax: null,
+          priority: 0,
+          description: rollbackTarget.description,
+          remark: rollbackTarget.remark,
+          publishedBy: rollbackTarget.publishedBy,
+          publishedAt: rollbackTarget.publishedAt,
+        } : null}
+        hasDraft={hasDraft}
+        rolling={rolling}
+      />
     </div>
   )
 }
@@ -727,6 +1043,7 @@ const tabKey = (t: SubTab) => `${t.kind}:${t.id}`
 
 function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) {
   const t = useTranslations("workflowCanvas")
+  const tc = useTranslations("catalog")
   const [tabs, setTabs] = useState<SubTab[]>([])
   const [activeKey, setActiveKey] = useState<string | null>(null)
   // closeTab 用 ref 读最新 activeKey，避免 useCallback 闭包陈旧
@@ -930,8 +1247,8 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
       suffix: isDirty ? (
         <span
           className="ml-1 size-1.5 shrink-0 rounded-full bg-warning"
-          aria-label={t("catalog.statusDirty")}
-          title={t("catalog.statusDirty")}
+          aria-label={tc("statusDirty")}
+          title={tc("statusDirty")}
         />
       ) : undefined,
     }

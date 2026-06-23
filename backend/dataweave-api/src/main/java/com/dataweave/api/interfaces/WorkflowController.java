@@ -75,14 +75,14 @@ public class WorkflowController {
         return ApiResponse.ok();
     }
 
-    /** 工作流详情。 */
+    /** 工作流详情（含版本历史）。 */
     @GetMapping("/{id}")
-    public ApiResponse<WorkflowDef> getById(@PathVariable Long id) {
-        WorkflowDef wf = workflowService.getById(id).orElse(null);
-        if (wf == null) {
+    public ApiResponse<WorkflowService.WorkflowDetail> getById(@PathVariable Long id) {
+        WorkflowService.WorkflowDetail detail = workflowService.getById(id).orElse(null);
+        if (detail == null) {
             throw new BizException("workflow.not_found", id).withHttpStatus(404);
         }
-        return ApiResponse.ok(wf);
+        return ApiResponse.ok(detail);
     }
 
     /** 编辑工作流（调度配置等）。 */
@@ -102,6 +102,30 @@ public class WorkflowController {
     @PostMapping("/{id}/offline")
     public ApiResponse<WorkflowDef> offline(@PathVariable Long id) {
         return ApiResponse.ok(workflowService.offline(id));
+    }
+
+    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。 */
+    @PostMapping("/{id}/rollback")
+    public ApiResponse<GateResult> rollback(@PathVariable Long id,
+                                            @RequestBody Map<String, Object> body,
+                                            ServerWebExchange exchange) {
+        WorkflowService.WorkflowDetail detail = workflowService.getById(id).orElse(null);
+        if (detail == null) {
+            throw new BizException("workflow.not_found", id).withHttpStatus(404);
+        }
+        Object vno = body.get("versionNo");
+        if (vno == null) {
+            throw new BizException("workflow.rollback.missing_version_no").withHttpStatus(400);
+        }
+        ActionRequest req = ActionRequest.builder()
+                .toolName("rollback_workflow").actionType("ROLLBACK_WORKFLOW")
+                .targetType("WORKFLOW").targetId(String.valueOf(id))
+                .command(String.valueOf(vno))
+                .actor("ui").actorSource("UI")
+                .summary("回滚工作流 #" + id + "「" + detail.workflow().getName() + "」到 v" + vno)
+                .build();
+        return ApiResponse.ok(gatedActionService.submit(req,
+                Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
     /** 读取 DAG（节点 + 边，含乐观锁 version）。 */
@@ -138,7 +162,7 @@ public class WorkflowController {
     public ApiResponse<GateResult> run(@PathVariable Long id,
                                        @RequestBody(required = false) RunRequest body,
                                        ServerWebExchange exchange) {
-        WorkflowDef wf = workflowService.getById(id).orElse(null);
+        WorkflowDef wf = workflowService.getById(id).map(WorkflowService.WorkflowDetail::workflow).orElse(null);
         if (wf == null) {
             throw new BizException("workflow.not_found", id).withHttpStatus(404);
         }

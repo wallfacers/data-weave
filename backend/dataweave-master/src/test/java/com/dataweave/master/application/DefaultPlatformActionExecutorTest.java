@@ -41,6 +41,8 @@ class DefaultPlatformActionExecutorTest {
     @Mock
     private TaskService taskService;
     @Mock
+    private WorkflowService workflowService;
+    @Mock
     private ObjectProvider<NodeExecGateway> nodeExecGateway;
     @Mock
     private WorkflowTriggerService triggerService;
@@ -67,7 +69,7 @@ class DefaultPlatformActionExecutorTest {
     void setUp() {
         when(opsServiceProvider.getObject()).thenReturn(opsService);
         executor = new DefaultPlatformActionExecutor(instanceRepository, diagnosisRepository,
-                fleetService, taskService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
+                fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
                 opsServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);

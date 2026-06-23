@@ -59,7 +59,8 @@
     "quality": "数据质量",
     "integration": "数据集成",
     "service": "数据服务",
-    "settings": "系统设置"
+    "settings": "系统设置",
+    "datasources": "数据源管理"
   },
   "catalog": {
     "title": "类目",
@@ -124,6 +125,10 @@
   "taskEditor": {
     "run": "运行",
     "running": "运行中",
+    "stop": "停止",
+    "stopping": "停止中",
+    "toastStopped": "已发送停止",
+    "toastStopFailed": "停止失败",
     "notPublishedHint": "未发布不可运行，请先",
     "publish": "发布",
     "statusOnline": "已发布",
@@ -181,7 +186,40 @@
     "runTest": "测试运行",
     "logTabEmpty": "点击「运行」查看运行日志",
     "logResultPending": "结果集（后续支持）",
-    "resizeLogPanel": "调整运行日志区高度"
+    "resizeLogPanel": "调整运行日志区高度",
+    "configTab": "配置",
+    "versionsTab": "版本历史",
+    "content": "代码"
+  },
+  "versionHistory": {
+    "empty": "暂无发布版本",
+    "current": "当前",
+    "view": "查看",
+    "rollback": "回滚",
+    "diff": "对比",
+    "remark": "备注",
+    "selectedCount": "已选 {count} 个",
+    "detailTitle": "版本 v{vno} 快照",
+    "diffTitle": "版本对比：v{v1} → v{v2}",
+    "rollbackConfirmTitle": "确认回滚",
+    "rollbackConfirm": "将把 v{vno}（\"{remark}\"）的内容恢复为当前草稿。确认回滚？",
+    "rollbackConfirmWithDraft": "将把 v{vno}（\"{remark}\"）的内容恢复为当前草稿。当前未发布改动将被覆盖。确认继续？",
+    "confirmRollback": "确认回滚",
+    "rolling": "回滚中",
+    "rollbackSuccess": "已回滚到 v{vno} 草稿，请检查后发布",
+    "rollbackPendingApproval": "回滚需审批，已提交审批单 #{id}，批准后生效",
+    "rollbackFailed": "回滚失败：{error}",
+    "publishedBy": "发布人"
+  },
+  "workflowConfig": {
+    "name": "名称",
+    "namePlaceholder": "工作流名称",
+    "description": "描述",
+    "descriptionPlaceholder": "工作流描述（可选）",
+    "scheduleType": "调度类型",
+    "cron": "Cron",
+    "cronPlaceholder": "0 30 2 * * ?",
+    "priority": "优先级"
   },
   "settings": {
     "open": "项目设置",
@@ -277,6 +315,23 @@
   "workflowCanvas": {
     "nodeTaskFallback": "任务",
     "nodeVirtualFallback": "虚拟节点",
+    "nodeMenuViewLog": "查看日志",
+    "nodeMenuRunNode": "单独运行",
+    "nodeMenuDelete": "删除节点",
+    "edgeMenuDelete": "删除连线",
+    "resizeLogPanel": "拖拽调整日志区高度",
+    "toastNodeNoRun": "该节点暂无运行实例，先运行工作流或单独运行该节点",
+    "toastNodeRunTriggered": "已触发节点单独运行",
+    "toastNodeRunNotExecuted": "节点运行未执行",
+    "toastNodeRunFailed": "节点运行失败",
+    "stop": "停止",
+    "stopping": "停止中",
+    "toastStopped": "已发送停止",
+    "toastStopFailed": "停止失败",
+    "runStateRunning": "运行中",
+    "runStateSuccess": "运行成功",
+    "runStateFailed": "运行失败",
+    "runStateStopped": "已停止",
     "run": "运行",
     "publish": "发布",
     "online": "已上线",
@@ -311,7 +366,12 @@
     "toastCreateFailed": "创建失败",
     "confirmCloseTitle": "确认关闭",
     "confirmCloseDesc": "「{label}」有未保存的改动，关闭后改动将丢失。",
-    "discardChanges": "丢弃改动"
+    "discardChanges": "丢弃改动",
+    "configTab": "配置",
+    "versionsTab": "版本历史",
+    "rollbackSuccess": "已回滚到 v{vno} 草稿，请检查后发布",
+    "rollbackPendingApproval": "回滚需审批，已提交审批单 #{id}，批准后生效",
+    "rollbackFailed": "回滚失败：{error}"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "未指定工作流实例 ID",
@@ -591,5 +651,61 @@
     "loginFailed": "登录失败",
     "sessionExpired": "登录已过期",
     "sessionExpiredToast": "登录已过期，请重新登录"
+  },
+  "datasources": {
+    "searchPlaceholder": "搜索名称/类型/主机",
+    "all": "全部",
+    "newDatasource": "新增数据源",
+    "loading": "加载中",
+    "empty": "暂无数据源，点击右上角新增",
+    "category": {
+      "RDB": "关系型数据库",
+      "MPP": "分析型数据库",
+      "NOSQL": "NoSQL",
+      "STORAGE": "文件/对象存储"
+    },
+    "col": {
+      "name": "名称",
+      "type": "类型",
+      "host": "主机",
+      "database": "数据库",
+      "status": "状态",
+      "createdAt": "创建时间",
+      "actions": "操作"
+    },
+    "cancel": "取消",
+    "delete": {
+      "title": "删除数据源",
+      "confirm": "确定删除数据源「{name}」？",
+      "confirmBtn": "删除"
+    },
+    "dialog": {
+      "editTitle": "编辑数据源",
+      "newTitle": "新增数据源"
+    },
+    "form": {
+      "name": "数据源名称",
+      "namePh": "请输入数据源名称",
+      "type": "数据源类型",
+      "typePh": "请选择数据源类型",
+      "description": "描述",
+      "descPh": "可选，数据源描述",
+      "host": "主机地址",
+      "port": "端口",
+      "database": "数据库",
+      "sid": "SID",
+      "username": "用户名",
+      "password": "密码",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "accessKey": "Access Key",
+      "secretKey": "Secret Key",
+      "zkQuorum": "ZooKeeper Quorum",
+      "namenode": "NameNode 地址",
+      "testConnection": "测试连通性",
+      "testing": "测试中",
+      "save": "保存",
+      "saving": "保存中"
+    }
   }
 }

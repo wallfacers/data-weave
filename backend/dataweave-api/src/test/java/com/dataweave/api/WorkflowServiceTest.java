@@ -117,7 +117,7 @@ class WorkflowServiceTest {
         assertThatThrownBy(() -> workflowService.publish(wf.getId(), "应失败"))
                 .isInstanceOf(BizException.class);
         // 版本号不变（仍是 1）
-        assertThat(workflowService.getById(wf.getId()).orElseThrow().getCurrentVersionNo()).isEqualTo(1);
+        assertThat(workflowService.getById(wf.getId()).orElseThrow().workflow().getCurrentVersionNo()).isEqualTo(1);
     }
 
     @Test
@@ -142,5 +142,36 @@ class WorkflowServiceTest {
         TaskInstance task = tis.stream().filter(t -> t.getTaskId() != null).findFirst().orElseThrow();
         assertThat(task.getTaskId()).isEqualTo(1L);
         assertThat(task.getState()).isNotNull();
+    }
+
+    @Test
+    void rollback_restoresDagAndConfigToSnapshot() {
+        WorkflowDef wf = newDraft("回滚测试");
+        // v1: 只有一个节点 t1
+        workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
+                List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0)),
+                List.of()));
+        WorkflowDef v1 = workflowService.publish(wf.getId(), "初始版本");
+        assertThat(v1.getCurrentVersionNo()).isEqualTo(1);
+
+        // v2: 添加节点 t2
+        WorkflowDef afterEdit = workflowService.update(wf.getId(), new WorkflowDef() {{ setName("改名了"); }});
+        workflowService.saveDag(wf.getId(), new DagPayload(afterEdit.getVersion(),
+                List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0),
+                        new DagNodeDto("t2", "TASK", 2L, "任务2", 100, 0)),
+                List.of(new DagEdgeDto("t1", "t2"))));
+        WorkflowDef v2 = workflowService.publish(wf.getId(), "新增节点");
+        assertThat(v2.getCurrentVersionNo()).isEqualTo(2);
+
+        // 回滚到 v1：节点应只剩 t1，名称应恢复
+        WorkflowDef rolled = workflowService.rollback(wf.getId(), 1);
+        assertThat(rolled.getHasDraftChange()).isEqualTo(1);
+        assertThat(rolled.getCurrentVersionNo()).isEqualTo(2); // 版本号不变
+        assertThat(rolled.getName()).isEqualTo("回滚测试"); // 名称恢复为 v1 快照
+
+        DagView dag = workflowService.readDag(wf.getId());
+        assertThat(dag.nodes()).hasSize(1);
+        assertThat(dag.nodes().get(0).nodeKey()).isEqualTo("t1");
+        assertThat(dag.edges()).isEmpty();
     }
 }

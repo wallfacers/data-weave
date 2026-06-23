@@ -33,6 +33,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final TaskDiagnosisRepository diagnosisRepository;
     private final FleetService fleetService;
     private final TaskService taskService;
+    private final WorkflowService workflowService;
     private final ObjectProvider<NodeExecGateway> nodeExecGateway;
     private final WorkflowTriggerService triggerService;
     private final RecoveryService recoveryService;
@@ -45,6 +46,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          TaskDiagnosisRepository diagnosisRepository,
                                          FleetService fleetService,
                                          TaskService taskService,
+                                         WorkflowService workflowService,
                                          ObjectProvider<NodeExecGateway> nodeExecGateway,
                                          WorkflowTriggerService triggerService,
                                          RecoveryService recoveryService,
@@ -55,6 +57,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.diagnosisRepository = diagnosisRepository;
         this.fleetService = fleetService;
         this.taskService = taskService;
+        this.workflowService = workflowService;
         this.nodeExecGateway = nodeExecGateway;
         this.triggerService = triggerService;
         this.recoveryService = recoveryService;
@@ -83,6 +86,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "KILL_INSTANCE" -> instanceOp(action, "kill", locale);
             case "PAUSE_INSTANCE" -> instanceOp(action, "pause", locale);
             case "RESUME_INSTANCE" -> instanceOp(action, "resume", locale);
+            case "ROLLBACK_TASK" -> rollbackTask(action, locale);
+            case "ROLLBACK_WORKFLOW" -> rollbackWorkflow(action, locale);
             default -> new ExecOutcome(false,
                     messages.get("executor.unsupported_action", locale, action.getActionType()),
                     json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
@@ -234,6 +239,46 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 json(Map.of("workflowInstanceId", wiId.toString(), "workflowId", workflowId)), wiId);
     }
 
+    /** 回滚任务到历史版本：targetId=taskId，command=versionNo。 */
+    private ExecOutcome rollbackTask(AgentAction action, Locale locale) {
+        Long taskId = parseLong(action.getTargetId());
+        Integer versionNo = parseInt(action.getCommand());
+        if (taskId == null || versionNo == null) {
+            return new ExecOutcome(false,
+                    messages.get("executor.rollback_task.missing_params", locale),
+                    json(Map.of("error", "missing_task_id_or_version_no")), null);
+        }
+        try {
+            taskService.rollback(taskId, versionNo);
+            return new ExecOutcome(true,
+                    messages.get("executor.rollback_task.success", locale, taskId, versionNo),
+                    json(Map.of("taskId", taskId, "versionNo", versionNo)), null);
+        } catch (Exception e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getClass().getSimpleName())), null);
+        }
+    }
+
+    /** 回滚工作流到历史版本：targetId=workflowId，command=versionNo。 */
+    private ExecOutcome rollbackWorkflow(AgentAction action, Locale locale) {
+        Long workflowId = parseLong(action.getTargetId());
+        Integer versionNo = parseInt(action.getCommand());
+        if (workflowId == null || versionNo == null) {
+            return new ExecOutcome(false,
+                    messages.get("executor.rollback_workflow.missing_params", locale),
+                    json(Map.of("error", "missing_workflow_id_or_version_no")), null);
+        }
+        try {
+            workflowService.rollback(workflowId, versionNo);
+            return new ExecOutcome(true,
+                    messages.get("executor.rollback_workflow.success", locale, workflowId, versionNo),
+                    json(Map.of("workflowId", workflowId, "versionNo", versionNo)), null);
+        } catch (Exception e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getClass().getSimpleName())), null);
+        }
+    }
+
     /** 断点恢复：targetId=workflowInstanceId(UUID)。 */
     private ExecOutcome resumeWorkflow(AgentAction action, Locale locale) {
         UUID wiId = parseUuid(action.getTargetId());
@@ -329,6 +374,17 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         }
         try {
             return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private Integer parseInt(String s) {
+        if (s == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(s.trim());
         } catch (NumberFormatException e) {
             return null;
         }

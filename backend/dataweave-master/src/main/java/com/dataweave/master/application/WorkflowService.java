@@ -82,6 +82,9 @@ public class WorkflowService {
     /** 整图保存载荷：version 为客户端读到的乐观锁版本（可空=不校验）。 */
     public record DagPayload(Long version, List<DagNodeDto> nodes, List<DagEdgeDto> edges) {}
 
+    /** 工作流详情（含版本历史），与 TaskService.TaskDetail 对称。 */
+    public record WorkflowDetail(WorkflowDef workflow, List<WorkflowDefVersion> versions) {}
+
     // ─── 快照结构（发布冻结，序列化进 dag_snapshot_json）───
 
     private record SnapshotNode(String nodeKey, String nodeType, Long taskId, Integer taskVersionNo,
@@ -191,8 +194,14 @@ public class WorkflowService {
 
     // ─── GetById ───────────────────────────────────────────
 
-    public Optional<WorkflowDef> getById(Long id) {
-        return workflowDefRepository.findById(id).filter(w -> w.getDeleted() == null || w.getDeleted() == 0);
+    public Optional<WorkflowDetail> getById(Long id) {
+        return workflowDefRepository.findById(id)
+                .filter(w -> w.getDeleted() == null || w.getDeleted() == 0)
+                .map(wf -> {
+                    List<WorkflowDefVersion> versions =
+                            workflowDefVersionRepository.findByWorkflowIdOrderByVersionNoDesc(id);
+                    return new WorkflowDetail(wf, versions);
+                });
     }
 
     // ─── Update（编辑调度配置）─────────────────────────────
@@ -460,5 +469,43 @@ public class WorkflowService {
         return workflowDefRepository.findById(id)
                 .filter(w -> w.getDeleted() == null || w.getDeleted() == 0)
                 .orElseThrow(() -> new BizException("workflow.not_found", id).withHttpStatus(404));
+    }
+
+    // ─── Rollback（恢复历史版本为草稿）────────────────────
+
+    /**
+     * 回滚到指定历史版本：把该版本 DAG 快照写回 nodes/edges，配置字段写回 {@code workflow_def}，
+     * 置 {@code hasDraftChange=1}。不改变 {@code currentVersionNo} 和 {@code status}。
+     */
+    public WorkflowDef rollback(Long workflowId, Integer versionNo) {
+        WorkflowDef wf = requireWorkflow(workflowId);
+        WorkflowDefVersion ver = workflowDefVersionRepository.findByWorkflowIdAndVersionNo(workflowId, versionNo)
+                .orElseThrow(() -> new BizException("workflow.version_not_found", workflowId, versionNo).withHttpStatus(404));
+
+        // 解析快照 → DagPayload 复用 saveDag 对账逻辑
+        DagPayload payload;
+        try {
+            Snapshot snap = objectMapper.readValue(ver.getDagSnapshotJson(), Snapshot.class);
+            List<DagNodeDto> nodes = snap.nodes().stream()
+                    .map(sn -> new DagNodeDto(sn.nodeKey(), sn.nodeType(), sn.taskId(),
+                            sn.name(), sn.posX(), sn.posY()))
+                    .toList();
+            List<DagEdgeDto> edges = snap.edges().stream()
+                    .map(se -> new DagEdgeDto(se.fromNodeKey(), se.toNodeKey()))
+                    .toList();
+            payload = new DagPayload(wf.getVersion(), nodes, edges);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse dag_snapshot_json for version " + versionNo, e);
+        }
+        saveDag(workflowId, payload);
+
+        // 写回配置字段
+        wf.setName(ver.getName());
+        wf.setDescription(ver.getDescription());
+        wf.setScheduleType(ver.getScheduleType());
+        wf.setCron(ver.getCron());
+        wf.setHasDraftChange(1);
+        wf.setUpdatedAt(LocalDateTime.now());
+        return workflowDefRepository.save(wf);
     }
 }

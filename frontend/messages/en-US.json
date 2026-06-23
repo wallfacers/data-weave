@@ -59,7 +59,8 @@
     "quality": "Data Quality",
     "integration": "Data Integration",
     "service": "Data Service",
-    "settings": "Settings"
+    "settings": "Settings",
+    "datasources": "Datasources"
   },
   "catalog": {
     "title": "Catalog",
@@ -124,6 +125,10 @@
   "taskEditor": {
     "run": "Run",
     "running": "Running",
+    "stop": "Stop",
+    "stopping": "Stopping",
+    "toastStopped": "Stop requested",
+    "toastStopFailed": "Stop failed",
     "notPublishedHint": "Not published — publish first: ",
     "publish": "Publish",
     "statusOnline": "Published",
@@ -181,7 +186,40 @@
     "runTest": "Test run",
     "logTabEmpty": "Click Run to view run logs",
     "logResultPending": "Result set (coming soon)",
-    "resizeLogPanel": "Resize run log panel"
+    "resizeLogPanel": "Resize run log panel",
+    "configTab": "Config",
+    "versionsTab": "Versions",
+    "content": "Code"
+  },
+  "versionHistory": {
+    "empty": "No published versions",
+    "current": "Current",
+    "view": "View",
+    "rollback": "Rollback",
+    "diff": "Diff",
+    "remark": "Note",
+    "selectedCount": "{count} selected",
+    "detailTitle": "Version v{vno} Snapshot",
+    "diffTitle": "Version Diff: v{v1} → v{v2}",
+    "rollbackConfirmTitle": "Confirm Rollback",
+    "rollbackConfirm": "Restore v{vno} (\"{remark}\") content as the current draft. Confirm rollback?",
+    "rollbackConfirmWithDraft": "Restore v{vno} (\"{remark}\") content as the current draft. Unsaved draft changes will be overwritten. Continue?",
+    "confirmRollback": "Confirm Rollback",
+    "rolling": "Rolling back",
+    "rollbackSuccess": "Rolled back to v{vno} draft. Please review and publish.",
+    "rollbackPendingApproval": "Rollback requires approval. Submitted approval #{id}; effective once approved.",
+    "rollbackFailed": "Rollback failed: {error}",
+    "publishedBy": "Published by"
+  },
+  "workflowConfig": {
+    "name": "Name",
+    "namePlaceholder": "Workflow name",
+    "description": "Description",
+    "descriptionPlaceholder": "Workflow description (optional)",
+    "scheduleType": "Schedule Type",
+    "cron": "Cron",
+    "cronPlaceholder": "0 30 2 * * ?",
+    "priority": "Priority"
   },
   "settings": {
     "open": "Settings",
@@ -277,6 +315,23 @@
   "workflowCanvas": {
     "nodeTaskFallback": "Task",
     "nodeVirtualFallback": "Virtual node",
+    "nodeMenuViewLog": "View logs",
+    "nodeMenuRunNode": "Run node",
+    "nodeMenuDelete": "Delete node",
+    "edgeMenuDelete": "Delete edge",
+    "resizeLogPanel": "Drag to resize the log panel",
+    "toastNodeNoRun": "This node has no run instance yet; run the workflow or run this node first",
+    "toastNodeRunTriggered": "Node run triggered",
+    "toastNodeRunNotExecuted": "Node run was not executed",
+    "toastNodeRunFailed": "Node run failed",
+    "stop": "Stop",
+    "stopping": "Stopping",
+    "toastStopped": "Stop requested",
+    "toastStopFailed": "Stop failed",
+    "runStateRunning": "Running",
+    "runStateSuccess": "Succeeded",
+    "runStateFailed": "Failed",
+    "runStateStopped": "Stopped",
     "run": "Run",
     "publish": "Publish",
     "online": "Online",
@@ -311,7 +366,12 @@
     "toastCreateFailed": "Creation failed",
     "confirmCloseTitle": "Confirm close",
     "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
-    "discardChanges": "Discard changes"
+    "discardChanges": "Discard changes",
+    "configTab": "Config",
+    "versionsTab": "Versions",
+    "rollbackSuccess": "Rolled back to v{vno} draft. Please review and publish.",
+    "rollbackPendingApproval": "Rollback requires approval. Submitted approval #{id}; effective once approved.",
+    "rollbackFailed": "Rollback failed: {error}"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "No workflow instance ID specified",
@@ -591,5 +651,61 @@
     "loginFailed": "Login failed",
     "sessionExpired": "Session expired",
     "sessionExpiredToast": "Session expired, please sign in again"
+  },
+  "datasources": {
+    "searchPlaceholder": "Search name / type / host",
+    "all": "All",
+    "newDatasource": "New Datasource",
+    "loading": "Loading",
+    "empty": "No datasources yet. Click New to create one.",
+    "category": {
+      "RDB": "Relational DB",
+      "MPP": "Analytical DB",
+      "NOSQL": "NoSQL",
+      "STORAGE": "File / Object Storage"
+    },
+    "col": {
+      "name": "Name",
+      "type": "Type",
+      "host": "Host",
+      "database": "Database",
+      "status": "Status",
+      "createdAt": "Created",
+      "actions": "Actions"
+    },
+    "cancel": "Cancel",
+    "delete": {
+      "title": "Delete Datasource",
+      "confirm": "Delete datasource \"{name}\"?",
+      "confirmBtn": "Delete"
+    },
+    "dialog": {
+      "editTitle": "Edit Datasource",
+      "newTitle": "New Datasource"
+    },
+    "form": {
+      "name": "Datasource Name",
+      "namePh": "Enter datasource name",
+      "type": "Datasource Type",
+      "typePh": "Select datasource type",
+      "description": "Description",
+      "descPh": "Optional description",
+      "host": "Host",
+      "port": "Port",
+      "database": "Database",
+      "sid": "SID",
+      "username": "Username",
+      "password": "Password",
+      "endpoint": "Endpoint",
+      "bucket": "Bucket",
+      "accessKey": "Access Key",
+      "secretKey": "Secret Key",
+      "zkQuorum": "ZooKeeper Quorum",
+      "namenode": "NameNode URL",
+      "testConnection": "Test Connection",
+      "testing": "Testing",
+      "save": "Save",
+      "saving": "Saving"
+    }
   }
 }

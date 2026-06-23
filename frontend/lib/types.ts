@@ -150,6 +150,32 @@ export interface TaskDef {
   updatedAt: string | null
 }
 
+/** 任务发布版本快照（task_def_version，不可变历史）。 */
+export interface TaskDefVersion {
+  id: number
+  taskId: number
+  versionNo: number
+  name: string
+  type: string
+  content: string
+  datasourceId: number | null
+  targetDatasourceId: number | null
+  paramsJson: string | null
+  timeoutSec: number | null
+  retryMax: number | null
+  priority: number
+  description: string | null
+  remark: string | null
+  publishedBy: number | null
+  publishedAt: string
+}
+
+/** 任务详情（GET /api/tasks/{id} 返回，含版本历史）。 */
+export interface TaskDetail {
+  task: TaskDef
+  versions: TaskDefVersion[]
+}
+
 // ─── Catalog 类目树 + 标签 ───────────────────────────────
 
 /** 类目树节点（GET /api/catalog/tree → data.roots[]）。 */
@@ -197,6 +223,27 @@ export interface WorkflowDef {
   version: number
   createdAt: string
   updatedAt: string | null
+}
+
+/** 工作流发布版本快照（workflow_def_version，不可变历史）。 */
+export interface WorkflowDefVersion {
+  id: number
+  workflowId: number
+  versionNo: number
+  name: string
+  description: string | null
+  scheduleType: string
+  cron: string | null
+  dagSnapshotJson: string | null
+  remark: string | null
+  publishedBy: number | null
+  publishedAt: string
+}
+
+/** 工作流详情（GET /api/workflows/{id} 返回，含版本历史）。 */
+export interface WorkflowDetail {
+  workflow: WorkflowDef
+  versions: WorkflowDefVersion[]
 }
 
 export type DagNodeType = "TASK" | "VIRTUAL"
@@ -299,4 +346,81 @@ export function formatDateTime(
 export function truncate(s: string | null | undefined, maxLen = 60): string {
   if (!s) return "—";
   return s.length > maxLen ? s.slice(0, maxLen) + "…" : s;
+}
+
+// ─── Datasource ──────────────────────────────────────────
+
+/** 数据源类型元数据（GET /api/datasource-types）。 */
+export interface DatasourceType {
+  id: number
+  code: string
+  name: string
+  category: string  // RDB | MPP | NOSQL | STORAGE
+  driver: string | null
+  defaultPort: number | null
+}
+
+/** 数据源实体（GET /api/datasources）。密码字段始终脱敏为 "******"。 */
+export interface DatasourceVO {
+  id: number
+  tenantId: number
+  projectId: number
+  name: string
+  typeCode: string
+  host: string | null
+  port: number | null
+  databaseName: string | null
+  jdbcUrl: string | null
+  username: string | null
+  passwordEnc: string  // always "******"
+  propsJson: string | null
+  description: string | null
+  status: string
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** 连通性测试结果（POST /api/datasources/{id}/test）。 */
+export interface ConnectionTestResult {
+  success: boolean
+  message: string
+  latencyMs: number
+  serverVersion: string | null
+}
+
+/** 删除结果（DELETE /api/datasources/{id}）。 */
+export interface DatasourceDeleteResult {
+  deleted: boolean
+  referencedTaskCount: number
+  warning: string | null
+}
+
+/** 创建数据源请求体。 */
+export interface DatasourceCreateRequest {
+  name: string
+  typeCode: string
+  projectId?: number
+  host?: string | null
+  port?: number | null
+  databaseName?: string | null
+  jdbcUrl?: string | null
+  username?: string | null
+  password?: string | null
+  propsJson?: string | null
+  description?: string | null
+}
+
+/** 更新数据源请求体（所有字段可选）。 */
+export interface DatasourceUpdateRequest {
+  name?: string | null
+  typeCode?: string | null
+  host?: string | null
+  port?: number | null
+  databaseName?: string | null
+  jdbcUrl?: string | null
+  username?: string | null
+  password?: string | null
+  propsJson?: string | null
+  description?: string | null
+  status?: string | null
 }

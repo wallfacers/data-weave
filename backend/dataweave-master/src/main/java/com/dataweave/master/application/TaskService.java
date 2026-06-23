@@ -7,6 +7,7 @@ import com.dataweave.master.domain.TaskDefVersionRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -270,6 +271,32 @@ public class TaskService {
             throw new IllegalStateException("Task is already offline");
         }
         task.setStatus("DRAFT");
+        task.setUpdatedAt(LocalDateTime.now());
+        return taskDefRepository.save(task);
+    }
+
+    // ─── Rollback（恢复历史版本为草稿）────────────────────
+
+    /**
+     * 回滚到指定历史版本：把该版本快照内容写回 {@code task_def}，置 {@code hasDraftChange=1}。
+     * 不改变 {@code currentVersionNo} 和 {@code status}——用户需手动再发布。
+     */
+    public TaskDef rollback(Long taskId, Integer versionNo) {
+        TaskDef task = taskDefRepository.findById(taskId)
+                .orElseThrow(() -> new BizException("task.not_found", taskId));
+        TaskDefVersion ver = taskDefVersionRepository.findByTaskIdAndVersionNo(taskId, versionNo)
+                .orElseThrow(() -> new BizException("task.version_not_found", taskId, versionNo).withHttpStatus(404));
+        task.setName(ver.getName());
+        task.setType(ver.getType());
+        task.setContent(ver.getContent());
+        task.setDatasourceId(ver.getDatasourceId());
+        task.setTargetDatasourceId(ver.getTargetDatasourceId());
+        task.setParamsJson(ver.getParamsJson());
+        task.setTimeoutSec(ver.getTimeoutSec());
+        task.setRetryMax(ver.getRetryMax());
+        task.setPriority(ver.getPriority());
+        task.setDescription(ver.getDescription());
+        task.setHasDraftChange(1);
         task.setUpdatedAt(LocalDateTime.now());
         return taskDefRepository.save(task);
     }

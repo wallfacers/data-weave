@@ -13,9 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { FloppyDiskIcon, RocketIcon } from "@hugeicons/core-free-icons"
+import { FloppyDiskIcon, RocketIcon, StopIcon } from "@hugeicons/core-free-icons"
 
-import { API_BASE, authFetch, type ApiResponse, type TaskDef } from "@/lib/types"
+import { API_BASE, authFetch, type ApiResponse, type TaskDef, type TaskDefVersion, type TaskDetail } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,11 @@ import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { CodeEditor, type CodeEditorLanguage } from "@/components/code-editor"
 import { RunLogsTabs, useRunLogTabs, type RunTab } from "@/components/workspace/run-logs-tabs"
+import { TaskConfigPanel } from "@/components/workspace/task-config-panel"
+import { VersionHistoryPanel, type VersionInfo } from "@/components/workspace/version-history-panel"
+import { VersionDetailDialog } from "@/components/workspace/version-detail-dialog"
+import { VersionDiffDialog, type VersionDiffInput } from "@/components/workspace/version-diff-dialog"
+import { RollbackConfirmDialog } from "@/components/workspace/rollback-confirm-dialog"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { cn } from "@/lib/utils"
@@ -99,6 +104,8 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const [paramRows, setParamRows] = useState<ParamRow[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [versions, setVersions] = useState<TaskDefVersion[]>([])
+  const [sidebarTab, setSidebarTab] = useState<"config" | "versions">("config")
 
   // 替换预览
   const [previewBizDate, setPreviewBizDate] = useState(yesterday())
@@ -148,9 +155,11 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     setLoading(true)
     try {
       const res = await authFetch(`${API_BASE}/api/tasks/${taskId}`)
-      const json = (await res.json()) as ApiResponse<{ task: TaskDef; versions: unknown[] }>
-      const td = json.data?.task
-      if (!td) return
+      const json = (await res.json()) as ApiResponse<TaskDetail>
+      const detail = json.data
+      if (!detail?.task) return
+      const td = detail.task
+      setVersions(detail.versions ?? [])
       setName(td.name ?? "")
       setType(td.type ?? "SQL")
       setContent(td.content ?? "")
@@ -327,6 +336,23 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     }
   }
 
+  // 停止：终止当前激活日志 Tab 对应的运行实例（后端置 STOPPED 并往日志插「手动停止」行）。
+  const [stopping, setStopping] = useState(false)
+  async function handleStop() {
+    if (!activeRunTab) return
+    setStopping(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/ops/task-instances/${activeRunTab}/kill`, { method: "POST" })
+      const j = (await res.json()) as ApiResponse<unknown>
+      if (j.code === 0) toast.success(t("taskEditor.toastStopped"))
+      else toast.error(j.message || t("taskEditor.toastStopFailed"))
+    } catch {
+      toast.error(t("taskEditor.toastStopFailed"))
+    } finally {
+      setStopping(false)
+    }
+  }
+
   function addParam() {
     setParamRows((rs) => [...rs, { name: "", expr: "" }])
     setDirty(true)
@@ -338,6 +364,77 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   function removeParam(idx: number) {
     setParamRows((rs) => rs.filter((_, i) => i !== idx))
     setDirty(true)
+  }
+
+  // ─── 版本历史操作 ──────────────────────────────────────
+  const [viewingVersion, setViewingVersion] = useState<TaskDefVersion | null>(null)
+  const [diffVersions, setDiffVersions] = useState<[TaskDefVersion, TaskDefVersion] | null>(null)
+  const [rollbackTarget, setRollbackTarget] = useState<TaskDefVersion | null>(null)
+
+  function handleViewVersion(v: VersionInfo) {
+    const ver = versions.find((x) => x.versionNo === v.versionNo)
+    if (ver) setViewingVersion(ver)
+  }
+
+  function handleDiffVersions(v1: VersionInfo, v2: VersionInfo) {
+    const a = versions.find((x) => x.versionNo === v1.versionNo)
+    const b = versions.find((x) => x.versionNo === v2.versionNo)
+    if (a && b) setDiffVersions([a, b])
+  }
+
+  function handleRollbackVersion(v: VersionInfo) {
+    const ver = versions.find((x) => x.versionNo === v.versionNo)
+    if (ver) setRollbackTarget(ver)
+  }
+
+  const [rolling, setRolling] = useState(false)
+
+  async function confirmRollback() {
+    if (!rollbackTarget) return
+    setRolling(true)
+    try {
+      const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ versionNo: rollbackTarget.versionNo }),
+      })
+      const json = (await res.json()) as ApiResponse<RunResult>
+      if (json.code !== 0 || !json.data) throw new Error(String(json.message ?? "Unknown error"))
+      const r = json.data
+      if (r.outcome === "EXECUTED") {
+        toast.success(t("versionHistory.rollbackSuccess", { vno: rollbackTarget.versionNo }))
+        setRollbackTarget(null)
+        // 重新加载任务数据（包括草稿内容和版本列表）
+        await loadTask()
+      } else if (r.outcome === "PENDING_APPROVAL") {
+        toast.info(t("versionHistory.rollbackPendingApproval", { id: r.actionId ?? "?" }))
+        setRollbackTarget(null)
+      } else {
+        toast.error(r.message || t("versionHistory.rollbackFailed", { error: "" }))
+        setRollbackTarget(null)
+      }
+    } catch (e: unknown) {
+      toast.error(t("versionHistory.rollbackFailed", { error: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setRolling(false)
+    }
+  }
+
+  function toVersionInfo(v: TaskDefVersion): VersionInfo {
+    return {
+      versionNo: v.versionNo,
+      publishedAt: v.publishedAt,
+      publishedBy: v.publishedBy,
+      remark: v.remark,
+    }
+  }
+
+  function toDiffInput(v: TaskDefVersion): VersionDiffInput {
+    return {
+      versionNo: v.versionNo,
+      text: v.content,
+      language: v.type === "SQL" ? "sql" : "bash",
+    }
   }
 
   if (loading) {
@@ -359,6 +456,12 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           <HugeiconsIcon icon={RocketIcon} className="size-4" />
           {running ? t("taskEditor.running") : published ? t("taskEditor.run") : t("taskEditor.runTest")}
         </Button>
+        {activeRunTab && (
+          <Button size="sm" variant="outline" onClick={handleStop} disabled={stopping}>
+            <HugeiconsIcon icon={StopIcon} className="size-4" />
+            {stopping ? t("taskEditor.stopping") : t("taskEditor.stop")}
+          </Button>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <Badge variant={published ? "success" : "outline"}>
             {published ? t("taskEditor.statusOnline") : t("taskEditor.statusDraft")}
@@ -428,110 +531,92 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           )}
         </div>
 
-        {/* 右：配置（参数行 / 预览 / 调度）—— 迁自 TaskEditPanel */}
-        <DwScroll className="w-72 shrink-0 border-l border-border" innerClassName="flex flex-col gap-3 p-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.name")}</label>
-            <Input className="h-8 text-sm" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} placeholder={t("taskEditor.namePlaceholder")} />
+        {/* 右：配置 / 版本历史 tab 栏 */}
+        <div className="w-72 shrink-0 border-l border-border flex flex-col">
+          {/* Tab 切换条 */}
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setSidebarTab("config")}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                sidebarTab === "config"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t("taskEditor.configTab")}
+            </button>
+            <button
+              onClick={() => setSidebarTab("versions")}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium border-b-2 transition-colors",
+                sidebarTab === "versions"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t("taskEditor.versionsTab")}
+            </button>
           </div>
-
-          <div className="flex gap-3">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.type")}</label>
-              <DropdownSelect value={type} onChange={(v) => { setType(v); setDirty(true) }} options={TYPE_OPTIONS} />
-            </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.priority")}</label>
-              <Input className="h-8 text-sm" type="number" min={0} max={9} value={priority} onChange={(e) => { setPriority(Number(e.target.value)); setDirty(true) }} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.description")}</label>
-            <Input className="h-8 text-sm" value={description} onChange={(e) => { setDescription(e.target.value); setDirty(true) }} placeholder={t("taskEditor.descriptionPlaceholder")} />
-          </div>
-
-          {/* 调度参数：name → expr */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.params")}</label>
-              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={addParam}>{t("taskEditor.addParam")}</Button>
-            </div>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              {t.rich("taskEditor.paramsHint", {
-                code: (chunks) => <code className="font-mono">{chunks}</code>,
-              })}
-            </p>
-            {paramRows.length === 0 ? (
-              <div className="rounded-md border border-dashed border-input px-3 py-2 text-xs text-muted-foreground">
-                {t("taskEditor.noParams")}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {paramRows.map((row, idx) => (
-                  <div key={idx} className="flex flex-col gap-1.5 rounded-md border border-input p-2">
-                    <div className="flex gap-1.5">
-                      <Input
-                        className="h-7 flex-1 text-xs font-mono"
-                        value={row.name}
-                        onChange={(e) => updateParam(idx, { name: e.target.value })}
-                        placeholder={t("taskEditor.paramName")}
-                      />
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => removeParam(idx)}>{t("common.delete")}</Button>
-                    </div>
-                    <Input
-                      className="h-7 flex-1 text-xs font-mono"
-                      value={row.expr}
-                      onChange={(e) => updateParam(idx, { expr: e.target.value })}
-                      placeholder={t("taskEditor.exprPlaceholder")}
-                    />
-                    <DropdownSelect
-                      value={PRESET_PLACEHOLDER}
-                      onChange={(v) => {
-                        if (v !== PRESET_PLACEHOLDER) updateParam(idx, { expr: v })
-                      }}
-                      options={expressionPresets}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 替换预览 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.preview")}</label>
-            <div className="flex gap-1.5">
-              <Input
-                className="h-7 flex-1 text-xs font-mono"
-                value={previewBizDate}
-                onChange={(e) => setPreviewBizDate(e.target.value)}
-                placeholder={t("taskEditor.bizDatePlaceholder")}
+          {/* Tab 内容 */}
+          <DwScroll className="flex-1" innerClassName="overflow-y-auto">
+            <div style={{ display: sidebarTab === "config" ? "block" : "none" }}>
+              <TaskConfigPanel
+                name={name} setName={(v) => { setName(v); setDirty(true); }}
+                type={type} setType={(v) => { setType(v); setDirty(true); }}
+                priority={priority} setPriority={(v) => { setPriority(v); setDirty(true); }}
+                description={description} setDescription={(v) => { setDescription(v); setDirty(true); }}
+                paramRows={paramRows}
+                addParam={addParam}
+                updateParam={updateParam}
+                removeParam={removeParam}
+                previewBizDate={previewBizDate}
+                setPreviewBizDate={setPreviewBizDate}
+                previewResult={previewResult}
+                previewError={previewError}
+                previewing={previewing}
+                handlePreview={handlePreview}
+                content={content}
+                timeoutSec={timeoutSec}
+                setTimeoutSec={(v) => { setTimeoutSec(v); setDirty(true); }}
+                retryMax={retryMax}
+                setRetryMax={(v) => { setRetryMax(v); setDirty(true); }}
+                onDirty={() => setDirty(true)}
               />
-              <Button size="sm" variant="secondary" className="h-7" onClick={handlePreview} disabled={previewing || !content}>
-                {t("taskEditor.previewBtn")}
-              </Button>
             </div>
-            {previewError && <p className="text-[11px] text-destructive">{previewError}</p>}
-            {previewResult !== null && (
-              <pre className="max-h-[140px] overflow-auto rounded-md border border-input bg-muted/30 p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
-                {previewResult}
-              </pre>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.timeout")}</label>
-              <Input className="h-8 text-sm" type="number" value={timeoutSec} onChange={(e) => { setTimeoutSec(Number(e.target.value)); setDirty(true) }} />
+            <div style={{ display: sidebarTab === "versions" ? "block" : "none" }}>
+              <VersionHistoryPanel
+                versions={versions.map(toVersionInfo)}
+                currentVersionNo={versions.length > 0 ? versions[0]?.versionNo ?? 0 : 0}
+                onView={handleViewVersion}
+                onRollback={handleRollbackVersion}
+                onDiff={handleDiffVersions}
+              />
             </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.retryMax")}</label>
-              <Input className="h-8 text-sm" type="number" min={0} value={retryMax} onChange={(e) => { setRetryMax(Number(e.target.value)); setDirty(true) }} />
-            </div>
-          </div>
-        </DwScroll>
+          </DwScroll>
+        </div>
       </div>
+
+      {/* 版本操作弹窗 */}
+      <VersionDetailDialog
+        open={viewingVersion !== null}
+        onClose={() => setViewingVersion(null)}
+        version={viewingVersion}
+      />
+      <VersionDiffDialog
+        open={diffVersions !== null}
+        onClose={() => setDiffVersions(null)}
+        v1={diffVersions ? toDiffInput(diffVersions[0]) : null}
+        v2={diffVersions ? toDiffInput(diffVersions[1]) : null}
+      />
+      <RollbackConfirmDialog
+        open={rollbackTarget !== null}
+        onClose={() => setRollbackTarget(null)}
+        onConfirm={confirmRollback}
+        version={rollbackTarget}
+        hasDraft={hasDraft}
+        rolling={rolling}
+      />
     </div>
   )
 }
