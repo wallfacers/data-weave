@@ -137,6 +137,45 @@ class ScheduleParamResolverTest {
     }
 
     @Test
+    void bashCommandSubstitutionNotTreatedAsPlaceholder() {
+        // bash 的 $(...)、$HOME、$$、$1 等不含平台占位符；即便 bizDate 为 null/空也不解析、不报错（回归用例）
+        String shell = "echo \"[$(date '+%H:%M:%S')] step\"\nvar=$HOME\npid=$$\narg=$1";
+        assertThat(r.resolve(shell, null, null, ctx())).isEqualTo(shell);
+        assertThat(r.resolve(shell, "", null, ctx())).isEqualTo(shell);
+        assertThat(r.resolve(shell, "   ", null, ctx())).isEqualTo(shell);
+    }
+
+    @Test
+    void hasPlatformPlaceholderDetection() {
+        // 平台占位符：${...} 与裸内置词
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("${yyyymmdd}")).isTrue();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$bizdate")).isTrue();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("now=$gmtdate")).isTrue();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("a${b}c")).isTrue();
+        // bash 构造 / 普通文本：非平台占位符
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$(date)")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$HOME")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$$")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$1")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("SELECT 1")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("")).isFalse();
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder(null)).isFalse();
+        // 词边界：$bizdatex 不是 $bizdate
+        assertThat(ScheduleParamResolver.hasPlatformPlaceholder("$bizdatex")).isFalse();
+    }
+
+    @Test
+    void emptyBizDateStillFailsForRealPlaceholder() {
+        // 真正含平台占位符时，bizDate 空仍应报错（修复不应放过这条）
+        assertThatThrownBy(() -> r.resolve("${yyyymmdd}", null, null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.bizdate.empty");
+        assertThatThrownBy(() -> r.resolve("$bizdate", "  ", null, ctx()))
+                .isInstanceOf(ScheduleParamResolver.UnresolvedPlaceholderException.class)
+                .hasMessage("schedule.bizdate.empty");
+    }
+
+    @Test
     void multiplePlaceholdersInContent() {
         assertThat(r.resolve("${yyyymmdd} and ${yyyy-mm-dd}", "2025-03-14", null, ctx()))
                 .isEqualTo("20250314 and 2025-03-14");

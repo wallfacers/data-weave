@@ -337,8 +337,8 @@ public class SchedulerKernel {
      */
     private String resolveContentSafely(Row r, LocalDateTime now) {
         String raw = contentOf(r);
-        if (raw == null || raw.indexOf('$') < 0) {
-            return raw;  // 无占位符原样返回
+        if (!ScheduleParamResolver.hasPlatformPlaceholder(raw)) {
+            return raw;  // 无平台占位符原样返回（放过 bash $(...) 等；hasPlatformPlaceholder 已处理 null）
         }
         try {
             return paramResolver.resolve(raw, r.bizDate, paramsJsonOf(r), builtInContext(r, now));

@@ -65,6 +65,19 @@ public final class ScheduleParamResolver {
     private static final Pattern OFFSET = Pattern.compile("^([-+])(\\d+)(?:\\*(\\d+))?$");
 
     /**
+     * 平台调度占位符：{@code ${...}} 或裸内置词（{@code $bizdate/$bizmonth/$gmtdate/$jobid/$nodeid/$taskid}，带词边界）。
+     * 用于快速判定 content 是否需要解析——bash 的 {@code $(...)}、{@code $HOME}、{@code $$} 等不算平台占位符，
+     * 不应触发 {@link #parseBizDate}（否则 bizDate 为空时整实例被误判 FAILED）。
+     */
+    private static final Pattern PLATFORM_PLACEHOLDER =
+            Pattern.compile("\\$\\{|\\$(bizdate|bizmonth|gmtdate|jobid|nodeid|taskid)(?![A-Za-z0-9_])");
+
+    /** content 是否含平台调度占位符；不含（含 null/空）则无需解析，放过 bash 的 {@code $(...)} 等构造。 */
+    public static boolean hasPlatformPlaceholder(String content) {
+        return content != null && !content.isEmpty() && PLATFORM_PLACEHOLDER.matcher(content).find();
+    }
+
+    /**
      * 解析 {@code content} 里的所有占位符。无占位符或入参为空时原样返回。
      *
      * @param content    任务内容模板（SQL / Shell）
@@ -78,8 +91,8 @@ public final class ScheduleParamResolver {
         if (content == null || content.isEmpty()) {
             return content;
         }
-        if (content.indexOf('$') < 0) {
-            return content;  // 快速路径：无 $ 不解析
+        if (!hasPlatformPlaceholder(content)) {
+            return content;  // 快速路径：无平台占位符原样返回（放过 bash $(...)、$HOME 等）
         }
         LocalDate biz = parseBizDate(bizDate);
         Map<String, String> params = parseParams(paramsJson);
