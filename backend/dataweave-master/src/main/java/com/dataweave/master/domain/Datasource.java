@@ -20,6 +20,7 @@ public class Datasource {
     private String username;
     private String passwordEnc;
     private String propsJson;
+    private String description;
     private String status;
     private Long createdBy;
     private Long updatedBy;
@@ -65,6 +66,9 @@ public class Datasource {
 
     public String getPropsJson() { return propsJson; }
     public void setPropsJson(String propsJson) { this.propsJson = propsJson; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

@@ -42,9 +42,28 @@ INSERT INTO project_member (id, tenant_id, project_id, user_id, role_id, created
 
 -- ===== 域 B · 数据源 =====
 INSERT INTO datasource_types (id, code, name, category, driver, default_port, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 'MYSQL',    'MySQL',      'RDB', 'com.mysql.cj.jdbc.Driver', 3306, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(2, 'POSTGRES', 'PostgreSQL', 'RDB', 'org.postgresql.Driver',    5432, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(3, 'HIVE',     'Hive',       'MPP', 'org.apache.hive.jdbc.HiveDriver', 10000, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+-- RDB（关系型数据库）
+(1,  'MYSQL',        'MySQL',         'RDB',     'com.mysql.cj.jdbc.Driver',             3306,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(2,  'POSTGRES',     'PostgreSQL',    'RDB',     'org.postgresql.Driver',                5432,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(3,  'ORACLE',       'Oracle',        'RDB',     'oracle.jdbc.OracleDriver',             1521,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(4,  'SQLSERVER',    'SQL Server',    'RDB',     'com.microsoft.sqlserver.jdbc.SQLServerDriver', 1433, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(5,  'MARIADB',      'MariaDB',       'RDB',     'org.mariadb.jdbc.Driver',              3306,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(6,  'DB2',          'DB2',           'RDB',     'com.ibm.db2.jcc.DB2Driver',            50000, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- MPP / OLAP（分析型数据库）
+(7,  'HIVE',         'Hive',          'MPP',     'org.apache.hive.jdbc.HiveDriver',      10000, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(8,  'IMPALA',       'Impala',        'MPP',     'com.cloudera.impala.jdbc.Driver',      21050, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(9,  'CLICKHOUSE',   'ClickHouse',    'MPP',     'com.clickhouse.jdbc.ClickHouseDriver', 8123,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(10, 'STARROCKS',    'StarRocks',     'MPP',     'com.mysql.cj.jdbc.Driver',             9030,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(11, 'DORIS',        'Doris',         'MPP',     'com.mysql.cj.jdbc.Driver',             9030,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- NoSQL
+(12, 'MONGODB',      'MongoDB',       'NOSQL',   NULL,                                   27017, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(13, 'REDIS',        'Redis',         'NOSQL',   NULL,                                   6379,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(14, 'ELASTICSEARCH','Elasticsearch', 'NOSQL',   NULL,                                   9200,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(15, 'HBASE',        'HBase',         'NOSQL',   NULL,                                   16000, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- Storage（文件 / 对象存储）
+(16, 'S3',           'S3/MinIO',      'STORAGE', NULL,                                   9000,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(17, 'HDFS',         'HDFS',          'STORAGE', NULL,                                   8020,  1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(18, 'FTP',          'FTP',           'STORAGE', NULL,                                   21,    1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO datasources (id, tenant_id, project_id, name, type_code, host, port, database_name, jdbc_url, username, password_enc, props_json, status, created_by, updated_by, created_at, updated_at, deleted, version)
 VALUES (1, 1, 1, 'orders_mysql', 'MYSQL', '10.0.0.20', 3306, 'shop', 'jdbc:mysql://10.0.0.20:3306/shop', 'app', '***', NULL, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
@@ -196,6 +215,8 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (34, 'TOOL', 'test_run',                NULL, 'L1', '单任务测试运行（草稿上 worker，留痕）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (35, 'TOOL', 'trigger_workflow',        NULL, 'L1', '手动触发工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (38, 'TOOL', 'run_task',                NULL, 'L1', '手动正式运行任务（NORMAL 实例，进统计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(42, 'TOOL', 'rollback_task',           NULL, 'L1', '回滚任务到历史版本（可逆，恢复草稿）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(43, 'TOOL', 'rollback_workflow',       NULL, 'L1', '回滚工作流到历史版本（可逆，恢复草稿）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (36, 'TOOL', 'resume_workflow',         NULL, 'L1', '断点恢复工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (37, 'TOOL', 'rerun_workflow',          NULL, 'L1', '整流重跑工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）

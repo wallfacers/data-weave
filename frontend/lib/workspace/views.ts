@@ -20,6 +20,7 @@ export type ViewType =
   | "catalog"
   | "quality"
   | "integration"
+  | "datasources"
   | "service"
   | "settings"
 
@@ -44,6 +45,7 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   catalog: { title: "views.catalog" },
   quality: { title: "views.quality" },
   integration: { title: "views.integration" },
+  datasources: { title: "views.datasources" },
   service: { title: "views.service" },
   settings: { title: "views.settings" },
 }

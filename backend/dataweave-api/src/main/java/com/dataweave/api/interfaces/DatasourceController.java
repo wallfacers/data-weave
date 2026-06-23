@@ -1,0 +1,107 @@
+package com.dataweave.api.interfaces;
+
+import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.TenantContext;
+import com.dataweave.master.application.ConnectionTesterFactory;
+import com.dataweave.master.application.DatasourceDtos.*;
+import com.dataweave.master.application.DatasourceService;
+import com.dataweave.master.domain.Datasource;
+import com.dataweave.master.domain.DatasourceType;
+import com.dataweave.master.domain.DatasourceTypeRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * 数据源管理 REST 端点：CRUD + 连通性测试 + 类型查询。
+ */
+@RestController
+@RequestMapping("/api")
+public class DatasourceController {
+
+    private final DatasourceService datasourceService;
+    private final DatasourceTypeRepository datasourceTypeRepository;
+    private final ConnectionTesterFactory connectionTesterFactory;
+
+    public DatasourceController(DatasourceService datasourceService,
+                                 DatasourceTypeRepository datasourceTypeRepository,
+                                 ConnectionTesterFactory connectionTesterFactory) {
+        this.datasourceService = datasourceService;
+        this.datasourceTypeRepository = datasourceTypeRepository;
+        this.connectionTesterFactory = connectionTesterFactory;
+    }
+
+    // ===== Datasource Types =====
+
+    @GetMapping("/datasource-types")
+    public ApiResponse<List<DatasourceType>> listTypes(
+            @RequestParam(required = false) String category) {
+        List<DatasourceType> types;
+        if (category != null && !category.isBlank()) {
+            types = datasourceTypeRepository.findByCategoryAndDeletedOrderByCodeAsc(category, 0);
+        } else {
+            types = datasourceTypeRepository.findByDeletedOrderByCategoryAscCodeAsc(0);
+        }
+        return ApiResponse.ok(types);
+    }
+
+    // ===== Datasource CRUD =====
+
+    @GetMapping("/datasources")
+    public ApiResponse<List<DatasourceVO>> list(@RequestParam(defaultValue = "1") Long projectId) {
+        Long tenantId = currentTenantId();
+        return ApiResponse.ok(datasourceService.listByProject(tenantId, projectId));
+    }
+
+    @GetMapping("/datasources/{id}")
+    public ApiResponse<DatasourceVO> get(@PathVariable Long id) {
+        return ApiResponse.ok(datasourceService.getById(id));
+    }
+
+    @PostMapping("/datasources")
+    public ApiResponse<DatasourceVO> create(@RequestBody DatasourceCreateRequest req) {
+        Long tenantId = currentTenantId();
+        return ApiResponse.ok(datasourceService.create(req, tenantId));
+    }
+
+    @PutMapping("/datasources/{id}")
+    public ApiResponse<DatasourceVO> update(@PathVariable Long id,
+                                             @RequestBody DatasourceUpdateRequest req) {
+        return ApiResponse.ok(datasourceService.update(id, req));
+    }
+
+    @DeleteMapping("/datasources/{id}")
+    public ApiResponse<DeleteResult> delete(@PathVariable Long id) {
+        return ApiResponse.ok(datasourceService.delete(id));
+    }
+
+    // ===== Connection Test =====
+
+    @PostMapping("/datasources/{id}/test")
+    public ApiResponse<ConnectionTestResult> testSaved(@PathVariable Long id) {
+        Datasource ds = datasourceService.getEntityById(id);
+        String decryptedPw = datasourceService.decryptPassword(ds);
+        return ApiResponse.ok(connectionTesterFactory.test(ds, decryptedPw));
+    }
+
+    @PostMapping("/datasources/test")
+    public ApiResponse<ConnectionTestResult> testConfig(@RequestBody DatasourceCreateRequest req) {
+        // Build a transient Datasource from request (not saved to DB)
+        Datasource ds = new Datasource();
+        ds.setName(req.name());
+        ds.setTypeCode(req.typeCode());
+        ds.setHost(req.host());
+        ds.setPort(req.port());
+        ds.setDatabaseName(req.databaseName());
+        ds.setJdbcUrl(req.jdbcUrl());
+        ds.setUsername(req.username());
+        ds.setPropsJson(req.propsJson());
+        // Password is plaintext in the test request — pass directly
+        return ApiResponse.ok(connectionTesterFactory.test(ds, req.password()));
+    }
+
+    private static Long currentTenantId() {
+        Long tenantId = TenantContext.tenantId();
+        return tenantId != null ? tenantId : 1L;
+    }
+}

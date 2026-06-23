@@ -52,6 +52,14 @@ public class ShellTaskExecutor extends AbstractTaskExecutor {
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
         }
+        // 注入数据源环境变量（DW_DS_* 系列）
+        if (ctx.shellEnvVars() != null) {
+            pb.environment().putAll(ctx.shellEnvVars());
+        }
+        // 注入 Python 数据源配置路径（如果存在）
+        if (ctx.pythonConfigPath() != null) {
+            pb.environment().put("DW_DATASOURCE_CONFIG", ctx.pythonConfigPath());
+        }
         pb.redirectErrorStream(true); // stdout + stderr 合并采集
 
         Process process;

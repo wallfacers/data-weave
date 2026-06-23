@@ -14,6 +14,7 @@ import {
   BugIcon,
   CatalogueIcon,
   DashboardSquare01Icon,
+  Database01Icon,
   DatabaseSyncIcon,
   DocumentCodeIcon,
   Flowchart01Icon,
@@ -36,6 +37,7 @@ import { SettingsView } from "@/components/workspace/views/settings-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { MetricsView } from "@/components/workspace/views/metrics-view"
+import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { type ViewType } from "./views"
 
@@ -84,6 +86,10 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   integration: {
     icon: DatabaseSyncIcon,
     component: placeholder("integration", "descIntegration"),
+  },
+  datasources: {
+    icon: Database01Icon,
+    component: DatasourcesView,
   },
   service: {
     icon: ServiceIcon,

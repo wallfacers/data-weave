@@ -197,6 +197,7 @@ CREATE TABLE datasources (
     username      VARCHAR(128),
     password_enc  VARCHAR(512),
     props_json    VARCHAR(2000),
+    description   VARCHAR(500),
     status        VARCHAR(32) DEFAULT 'ACTIVE',
     created_by    BIGINT,
     updated_by    BIGINT,

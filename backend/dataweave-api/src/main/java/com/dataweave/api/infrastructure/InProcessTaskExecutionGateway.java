@@ -1,5 +1,7 @@
 package com.dataweave.api.infrastructure;
 
+import com.dataweave.master.application.DatasourceResolver;
+import com.dataweave.master.application.DatasourceResolver.ResolvedConnection;
 import com.dataweave.master.application.TaskExecutionGateway;
 import com.dataweave.master.application.WorkerReportService;
 import com.dataweave.master.domain.Datasource;
@@ -47,6 +49,7 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
     private final WorkerReportService reportService;
     private final LogBus logBus;
     private final DatasourceRepository datasourceRepository;
+    private final DatasourceResolver datasourceResolver;
     private final Messages messages;
     /** 按任务 type() 索引的执行器（注入的 Map 以 bean 名为键，这里改建按 type 的映射）。 */
     private final Map<String, TaskExecutor> byType;
@@ -61,11 +64,13 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
     public InProcessTaskExecutionGateway(WorkerReportService reportService,
                                          LogBus logBus,
                                          DatasourceRepository datasourceRepository,
+                                         DatasourceResolver datasourceResolver,
                                          Messages messages,
                                          Map<String, TaskExecutor> executors) {
         this.reportService = reportService;
         this.logBus = logBus;
         this.datasourceRepository = datasourceRepository;
+        this.datasourceResolver = datasourceResolver;
         this.messages = messages;
         Map<String, TaskExecutor> m = new java.util.HashMap<>();
         for (TaskExecutor e : executors.values()) {
@@ -94,8 +99,13 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             String type = cmd.taskType() != null ? cmd.taskType().toUpperCase() : "SHELL";
             TaskExecutor executor = byType.get(type);
 
-            // 数据源解析（SQL 用；解析不到则传 null → SqlTaskExecutor 方案 A 回退模拟）
-            ExecutionContext.DataSourceRef dsRef = resolveDatasource(cmd.datasourceId());
+            // 数据源解析（通过 DatasourceResolver 按 taskType 输出不同格式）
+            ResolvedConnection resolved = resolveDatasource(cmd.datasourceId(), type);
+            ExecutionContext.DataSourceRef dsRef = resolved != null
+                    ? new ExecutionContext.DataSourceRef(
+                            resolved.name(), resolved.typeCode(), resolved.jdbcUrl(),
+                            resolved.username(), resolved.password())
+                    : null;
 
             // DataWorks 风启动 banner（按触发者 locale 渲染，i18n 规则②）
             emitStartBanner(lineConsumer, locale, cmd, type, dsRef);
@@ -109,6 +119,10 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 return;
             }
 
+            // 构建 ExecutionContext（含 Shell 环境变量 / Python 配置路径）
+            Map<String, String> envVarMap = resolved != null ? resolved.shellEnvVars() : null;
+            String pythonConfigPath = resolved != null ? resolved.pythonConfigPath() : null;
+
             ExecutionContext ctx = new ExecutionContext(
                     cmd.content(),
                     cmd.bizDate(),
@@ -116,26 +130,35 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     cmd.timeoutSeconds(),
                     cmd.runMode(),
                     type,
-                    dsRef
+                    dsRef,
+                    envVarMap,
+                    pythonConfigPath
             );
 
-            TaskExecutor.ExecutionResult result = executor.execute(ctx, lineConsumer);
+            try {
+                TaskExecutor.ExecutionResult result = executor.execute(ctx, lineConsumer);
 
-            emitEndBanner(lineConsumer, locale, result.success(), result.exitCode(), result.timedOut(),
-                    Duration.between(startInstant, Instant.now()));
+                emitEndBanner(lineConsumer, locale, result.success(), result.exitCode(), result.timedOut(),
+                        Duration.between(startInstant, Instant.now()));
 
-            // 尾部摘要（最后 4000 字符）写 task_instance.log
-            String stdout = result.stdout();
-            String tail = stdout.length() > 4000 ? stdout.substring(stdout.length() - 4000) : stdout;
-            if (!result.stderr().isEmpty()) {
-                tail = tail + "\n[stderr] " + result.stderr();
-            }
+                // 尾部摘要（最后 4000 字符）写 task_instance.log
+                String stdout = result.stdout();
+                String tail = stdout.length() > 4000 ? stdout.substring(stdout.length() - 4000) : stdout;
+                if (!result.stderr().isEmpty()) {
+                    tail = tail + "\n[stderr] " + result.stderr();
+                }
 
-            if (result.success()) {
-                reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail);
-            } else {
-                String reason = result.timedOut() ? "TIMEOUT" : "EXIT_CODE_" + result.exitCode();
-                reportService.reportFailed(cmd.taskInstanceId(), reason, tail);
+                if (result.success()) {
+                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail);
+                } else {
+                    String reason = result.timedOut() ? "TIMEOUT" : "EXIT_CODE_" + result.exitCode();
+                    reportService.reportFailed(cmd.taskInstanceId(), reason, tail);
+                }
+            } finally {
+                // 清理 Python 临时配置文件
+                if (pythonConfigPath != null && datasourceResolver != null) {
+                    datasourceResolver.cleanup(pythonConfigPath);
+                }
             }
         } catch (Exception e) {
             log.warn("[InProcExec] 实例 {} 执行异常：{}", cmd.taskInstanceId(), e.getMessage());
@@ -143,17 +166,17 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
         }
     }
 
-    /** 解析任务绑定的业务数据源为连接引用；id 为空或行不存在/已删返回 null（SQL 执行端回退模拟）。 */
-    private ExecutionContext.DataSourceRef resolveDatasource(Long datasourceId) {
-        if (datasourceId == null) {
+    /** 通过 DatasourceResolver 解析数据源连接配置；id 为空返回 null。 */
+    private ResolvedConnection resolveDatasource(Long datasourceId, String taskType) {
+        if (datasourceId == null || datasourceResolver == null) {
             return null;
         }
-        Datasource ds = datasourceRepository.findById(datasourceId).orElse(null);
-        if (ds == null || (ds.getDeleted() != null && ds.getDeleted() != 0)) {
+        try {
+            return datasourceResolver.resolve(datasourceId, taskType);
+        } catch (Exception e) {
+            log.warn("[InProcExec] 数据源解析失败 (id={}): {}", datasourceId, e.getMessage());
             return null;
         }
-        return new ExecutionContext.DataSourceRef(
-                ds.getName(), ds.getTypeCode(), ds.getJdbcUrl(), ds.getUsername(), ds.getPasswordEnc());
     }
 
     /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间（按触发者 locale 渲染）。 */
