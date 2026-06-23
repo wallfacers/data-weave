@@ -13,6 +13,16 @@
 
 export const API_BASE = "";
 
+/**
+ * SSE/EventSource 专用基址：**必须直连后端**，不能走相对路径经 Next.js rewrite 代理。
+ *
+ * Next dev（Turbopack）的 rewrite 代理会**缓冲流式响应**——把逐行 SSE 攒到上游关闭流
+ * 才一次性下发，导致实时日志「一把输出」而非滚屏。普通 REST 走相对路径（被代理）没问题，
+ * 但 SSE 必须绕过代理直连 `:8000`（CORS 已放行 `localhost:4000` 源）。
+ * 生产部署需将 `NEXT_PUBLIC_BACKEND_URL` 指向浏览器可达的后端地址，并在后端 CORS 放行该源。
+ */
+export const SSE_BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+
 const AUTH_TOKEN_KEY = "dw.auth.token"
 
 /**

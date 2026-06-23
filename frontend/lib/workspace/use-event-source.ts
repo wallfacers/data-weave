@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { SSE_BASE } from "@/lib/types"
+
 /**
  * EventSource 订阅 hook：支持 Last-Event-ID 断线续传、自动重连。
  * 用于实时日志流和状态事件流。
@@ -26,7 +28,9 @@ export function useEventSource(url: string): EventSourceState {
 
     // 拼接 JWT token（EventSource 不支持自定义 header，走 query param 兜底）
     const token = typeof window !== "undefined" ? localStorage.getItem("dw.auth.token") : null
-    let fullUrl = url
+    // SSE 直连后端，绕过 Next rewrite 代理对流式响应的缓冲（见 SSE_BASE 注释）。
+    // 相对 /api 路径 → 加后端基址；已是绝对 URL 则原样使用。
+    let fullUrl = /^https?:\/\//.test(url) ? url : `${SSE_BASE}${url}`
     if (token) {
       fullUrl += `${fullUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
     }
