@@ -43,22 +43,23 @@ TBD - created by archiving change data-development-ide. Update Purpose after arc
 
 ### Requirement: 任务编辑子 Tab 与按类型语法高亮
 
-编辑子 Tab SHALL 在主区内提供任务的完整编辑能力：名称、类型（SQL/SHELL）、调度配置（优先级/超时/重试）、调度参数（name→表达式）与替换预览。脚本编辑区 MUST 使用 Monaco（`CodeEditor`），并按任务 `type` 切换语法高亮（SQL→`sql`，SHELL→`shell`）。保存 MUST 经任务写接口（草稿）并支持发布。编辑能力来源为并入既有 `TaskEditPanel` 的配置/参数/预览逻辑，但承载形态由侧栏改为主区子 Tab。
+编辑子 Tab SHALL 在主区内提供任务的完整编辑能力，布局为左侧 Monaco 代码编辑器（按 `type` 切换语法高亮：SQL→`sql`，SHELL→`shell`）+ 右侧栏。右侧栏 MUST 拆分为 [配置 | 版本历史] 两个 tab：配置 tab 包含名称、类型、优先级、描述、调度参数（name→表达式）与替换预览、超时、重试等字段；版本历史 tab 展示发布版本列表及操作（详见 `specs/version-history/spec.md`）。保存 MUST 经任务写接口（草稿）并支持发布。
 
 #### Scenario: SQL 任务高亮
-
 - **WHEN** 用户打开一个 `type=SQL` 的任务编辑子 Tab
 - **THEN** 脚本区以 SQL 语法高亮渲染内容
 
 #### Scenario: SHELL 任务高亮
-
 - **WHEN** 用户打开一个 `type=SHELL` 的任务编辑子 Tab
 - **THEN** 脚本区以 shell 语法高亮渲染内容
 
 #### Scenario: 编辑后保存草稿
-
 - **WHEN** 用户在编辑子 Tab 修改脚本/配置后点击保存
 - **THEN** 系统经任务写接口保存草稿，成功后清除脏标记
+
+#### Scenario: 右侧栏 tab 切换
+- **WHEN** 用户在编辑子 Tab 点击右侧栏"版本历史"tab
+- **THEN** 右侧栏内容切换为版本历史列表，配置 tab 隐藏但状态保留
 
 ### Requirement: 新建即进编辑态
 
@@ -71,17 +72,22 @@ TBD - created by archiving change data-development-ide. Update Purpose after arc
 
 ### Requirement: 跑后即观测（日志与 DAG 运行态）
 
-数据开发 IDE SHALL 在"跑"之后提供就地观测。编辑子 Tab MUST 能内嵌该任务最近一次手动运行实例的日志流（复用 `/api/ops/instances/{id}/logs/stream`）。画布子 Tab MUST 能订阅所属工作流实例的事件流（`/api/ops/workflow-instances/{id}/events/stream`）并把节点运行态**实时叠加变色**到对应 DAG 节点。
+数据开发 IDE SHALL 在"跑"之后提供就地观测。编辑子 Tab MUST 能内嵌运行实例的日志流（复用 `/api/ops/instances/{id}/logs/stream`），且日志承载形态 MUST 为 **Tabs 容器**：每次运行新开一个日志 tab，tab 命名 MUST 为「任务名 + 运行时间」；多次运行的日志 tab 并存可切换，不互相覆盖。日志 tab 内为实时滚屏（逐行追加自动滚底，体验同 AI token 流），视觉风格对齐 DataWorks 运行日志。Tabs 容器 MUST 预留「结果集 tab」契约位，供后续 SQL 结果集展示落入（本期不实现结果集渲染）。画布子 Tab MUST 能订阅所属工作流实例的事件流（`/api/ops/workflow-instances/{id}/events/stream`）并把节点运行态**实时叠加变色**到对应 DAG 节点。
 
-#### Scenario: 跑任务后看日志
+#### Scenario: 跑任务后看日志 tab
 
-- **WHEN** 用户在编辑子 Tab 点击"运行"并拿到 `instanceId`
-- **THEN** 编辑子 Tab 内嵌区域开始流式追加该实例日志
+- **WHEN** 用户在编辑子 Tab 点击「运行」并拿到 `instanceId`
+- **THEN** 下方 Tabs 容器新开一个命名为「任务名 + 运行时间」的日志 tab 并激活，开始流式追加该实例日志
 
-#### Scenario: 跑工作流后节点变色
+#### Scenario: 多次运行日志并存
 
-- **WHEN** 用户在画布子 Tab 点击"运行"，工作流实例开始执行
-- **THEN** 画布订阅该实例事件流，节点按运行态（运行中/成功/失败/等待）实时变色
+- **WHEN** 用户对同一任务先后运行两次
+- **THEN** Tabs 容器中并存两个日志 tab（各带各自运行时间），可自由切换查看，互不覆盖
+
+#### Scenario: 结果集 tab 位预留
+
+- **WHEN** 用户运行一个 SQL 任务（本期）
+- **THEN** Tabs 容器结构支持承载结果集 tab，但本期仅呈现日志 tab，不渲染结果集
 
 ### Requirement: 运行入口的发布前置
 
