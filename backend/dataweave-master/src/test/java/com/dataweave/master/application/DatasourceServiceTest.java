@@ -2,6 +2,8 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.i18n.BizException;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,13 +27,14 @@ class DatasourceServiceTest {
 
     @Mock DatasourceRepository datasourceRepository;
     @Mock TaskDefRepository taskDefRepository;
+    @Mock DriverJarRepository driverJarRepository;
     @Mock DatasourceEncryptor encryptor;
 
     DatasourceService service;
 
     @BeforeEach
     void setUp() {
-        service = new DatasourceService(datasourceRepository, taskDefRepository, encryptor);
+        service = new DatasourceService(datasourceRepository, taskDefRepository, driverJarRepository, encryptor);
     }
 
     @Test
@@ -81,7 +84,7 @@ class DatasourceServiceTest {
 
         DatasourceCreateRequest req = new DatasourceCreateRequest(
                 "new_ds", "MYSQL", 1L, "10.0.0.1", 3306, "mydb",
-                null, "admin", "***", null, "test desc");
+                null, "admin", "***", null, "test desc", null);
 
         DatasourceVO vo = service.create(req, 1L);
 
@@ -100,7 +103,7 @@ class DatasourceServiceTest {
                 .thenReturn(true);
 
         DatasourceCreateRequest req = new DatasourceCreateRequest(
-                "dup_ds", "MYSQL", 1L, null, null, null, null, null, null, null, null);
+                "dup_ds", "MYSQL", 1L, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service.create(req, 1L))
                 .isInstanceOf(BizException.class)
@@ -116,7 +119,7 @@ class DatasourceServiceTest {
         when(datasourceRepository.save(any(Datasource.class))).thenReturn(ds);
 
         DatasourceUpdateRequest req = new DatasourceUpdateRequest(
-                null, null, null, null, null, null, null, "new_pw", null, null, null);
+                null, null, null, null, null, null, null, "new_pw", null, null, null, null);
 
         service.update(1L, req);
 
@@ -133,7 +136,7 @@ class DatasourceServiceTest {
         when(datasourceRepository.save(any(Datasource.class))).thenReturn(ds);
 
         DatasourceUpdateRequest req = new DatasourceUpdateRequest(
-                null, null, "10.0.0.2", null, null, null, null, null, null, null, null);
+                null, null, "10.0.0.2", null, null, null, null, null, null, null, null, null);
 
         service.update(1L, req);
 
@@ -171,6 +174,44 @@ class DatasourceServiceTest {
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo("datasource.not_found");
+    }
+
+    @Test
+    void create_withDriverJarId_active_setsIt() {
+        DriverJar jar = new DriverJar();
+        jar.setId(5L);
+        jar.setStatus("ACTIVE");
+        jar.setDeleted(0);
+        when(driverJarRepository.findById(5L)).thenReturn(Optional.of(jar));
+        when(datasourceRepository.existsByProjectIdAndNameAndDeleted(1L, "ds_jar", 0)).thenReturn(false);
+        when(datasourceRepository.save(any(Datasource.class))).thenAnswer(inv -> {
+            Datasource d = inv.getArgument(0);
+            d.setId(20L);
+            return d;
+        });
+
+        DatasourceCreateRequest req = new DatasourceCreateRequest(
+                "ds_jar", "MYSQL", 1L, null, null, null, null, null, null, null, null, 5L);
+        DatasourceVO vo = service.create(req, 1L);
+
+        assertThat(vo.driverJarId()).isEqualTo(5L);
+        assertThat(vo.driverSource()).isEqualTo("uploaded");
+    }
+
+    @Test
+    void create_withDriverJarId_pending_rejected409() {
+        DriverJar jar = new DriverJar();
+        jar.setId(5L);
+        jar.setStatus("PENDING");
+        jar.setDeleted(0);
+        when(datasourceRepository.existsByProjectIdAndNameAndDeleted(1L, "ds_jar", 0)).thenReturn(false);
+        when(driverJarRepository.findById(5L)).thenReturn(Optional.of(jar));
+
+        DatasourceCreateRequest req = new DatasourceCreateRequest(
+                "ds_jar", "MYSQL", 1L, null, null, null, null, null, null, null, null, 5L);
+        assertThatThrownBy(() -> service.create(req, 1L))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getHttpStatus()).isEqualTo(409));
     }
 
     private static Datasource sampleDatasource(Long id, String name, String typeCode) {

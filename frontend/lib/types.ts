@@ -97,6 +97,17 @@ export interface TaskInstance {
   log: string | null;
 }
 
+/**
+ * 最近活跃实例视图（run-state-resume）：后端 `/api/ops/tasks/{id}/latest-instance`
+ * 与 `/api/ops/workflows/{id}/latest-instance` 返回。无实例时整个 data 为 null。
+ * id 为实例 UUID（字符串）；state 为后端实例状态;runMode 任务区分 NORMAL/TEST,工作流恒 NORMAL。
+ */
+export interface LatestInstanceView {
+  id: string;
+  state: string;
+  runMode: string;
+}
+
 // ─── TaskDiagnosis ───────────────────────────────────────
 
 export interface DiagnosisSuggestion {
@@ -386,6 +397,8 @@ export interface DatasourceVO {
   propsJson: string | null
   description: string | null
   status: string
+  driverJarId: number | null
+  driverSource: string  // "builtin" | "uploaded"
   createdAt: string | null
   updatedAt: string | null
 }
@@ -418,6 +431,7 @@ export interface DatasourceCreateRequest {
   password?: string | null
   propsJson?: string | null
   description?: string | null
+  driverJarId?: number | null
 }
 
 /** 更新数据源请求体（所有字段可选）。 */
@@ -433,4 +447,17 @@ export interface DatasourceUpdateRequest {
   propsJson?: string | null
   description?: string | null
   status?: string | null
+  driverJarId?: number | null
+}
+
+/** 驱动 jar 资产（GET/POST /api/driver-jars）。sha256 仅展示短摘要。 */
+export interface DriverJarVO {
+  id: number
+  typeCode: string
+  driverClass: string | null
+  originalName: string | null
+  sha256Short: string | null
+  storageType: string | null
+  sizeBytes: number | null
+  status: string
 }

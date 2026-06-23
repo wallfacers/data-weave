@@ -1,5 +1,7 @@
 package com.dataweave.worker.infrastructure;
 
+import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.AbstractTaskExecutor;
 import com.dataweave.worker.domain.ExecutionContext;
 import org.springframework.stereotype.Component;
@@ -10,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.function.Consumer;
 
 /**
@@ -18,11 +21,21 @@ import java.util.function.Consumer;
  * <p>按任务绑定的业务数据源连接执行 SQL，逐行回调诊断日志（连接、开始、每条语句影响/返回行数摘要、耗时）。
  * **本期不打印结果集**（{@code SELECT} 的行数据）——结果集展示对齐 open-db-studio 留作后续变更。
  *
- * <p>**方案 A 回退**：未绑定数据源 / 数据源不可用 / 无 JDBC 驱动 / 连接失败时，回退「模拟成功 + 日志显式标注」，
- * 绝不抛错中断调度——保住 all-in-one / H2 克隆即跑、CI 零外部依赖底线。
+ * <p>**方案 A 回退**：未绑定数据源 / 数据源不可用 / 无 JDBC 騼动 / 连接失败 / 隔离加载失败时，
+ * 回退「模拟成功 + 日志显式标注」，绝不抛错中断调度——保住 all-in-one / H2 克隆即跑、CI 零外部依赖底线。
+ *
+ * <p>datasource-driver-isolation：数据源绑定上传 jar（driverJarId/storageKey/driverClass 齐全）时，
+ * 走隔离 ClassLoader 加载（{@link IsolatedDriverLoader#connect}，绕过 DriverManager 的 ClassLoader 校验）；
+ * 否则维持内置默认驱动经 {@link DriverManager}。
  */
 @Component
 public class SqlTaskExecutor extends AbstractTaskExecutor {
+
+    private final IsolatedDriverLoader isolatedLoader;
+
+    public SqlTaskExecutor(IsolatedDriverLoader isolatedLoader) {
+        this.isolatedLoader = isolatedLoader;
+    }
 
     @Override
     public String type() {
@@ -47,7 +60,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
 
         emit(onLine, "连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + ds.jdbcUrl());
         long t0 = System.currentTimeMillis();
-        try (Connection conn = DriverManager.getConnection(ds.jdbcUrl(), ds.username(), ds.password())) {
+        try (Connection conn = openConnection(ds)) {
             emit(onLine, "连接成功，开始执行");
             List<String> statements = splitStatements(content);
             int idx = 0;
@@ -71,11 +84,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             emit(onLine, "全部语句执行完成，共 " + statements.size() + " 条，总耗时 " + total + "ms");
             return new ExecutionResult(true, 0, "", "", false, false, "执行完成");
         } catch (SQLException e) {
-            // 区分：连接期失败 → 方案 A 回退模拟；执行期失败 → 如实置失败。
-            // 以「是否已连上」粗分：getConnection 抛错（连接失败）这里统一按连接失败回退；
-            // 语句执行错误同样落 SQLException，但语义应失败——用 errorCode/SQLState 难精确区分，
-            // 故按「连接是否建立」判断：连接失败的 message 通常含驱动/网络线索，这里保守地：
-            // 若驱动缺失或无法连接（典型 message）回退，否则置失败。
+            // 连接期失败（无驱动 / 无法建连）→ 方案 A 回退模拟；语句级 SQL 错误 → 如实置失败。
             if (isConnectionFailure(e)) {
                 emit(onLine, "数据源连接失败，模拟执行：" + e.getMessage());
                 return new ExecutionResult(true, 0, "[simulated] 连接失败", "", false, false,
@@ -83,7 +92,26 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             }
             emit(onLine, "SQL 执行失败：" + e.getMessage());
             return new ExecutionResult(false, -1, "", e.getMessage(), false, false, "SQL 执行失败");
+        } catch (Exception e) {
+            // 隔离加载失败（上传 jar 损坏 / 驱动类缺失等 RuntimeException）→ 降级方案 A 模拟执行，不中断调度闭环
+            emit(onLine, "驱动隔离加载/执行失败，模拟执行：" + e.getMessage());
+            return new ExecutionResult(true, 0, "[simulated] 驱动加载失败", "", false, false,
+                    "模拟执行成功（驱动加载失败回退）");
         }
+    }
+
+    /** 建连：绑定了上传 jar（元数据齐全）→ 隔离加载 driver.connect；否则内置 DriverManager。 */
+    private Connection openConnection(ExecutionContext.DataSourceRef ds) throws Exception {
+        if (ds.driverJarId() != null && ds.storageKey() != null && ds.driverClass() != null) {
+            DriverJar jar = new DriverJar();
+            jar.setStorageKey(ds.storageKey());
+            jar.setDriverClass(ds.driverClass());
+            Properties props = new Properties();
+            if (ds.username() != null) props.setProperty("user", ds.username());
+            if (ds.password() != null) props.setProperty("password", ds.password());
+            return isolatedLoader.connect(jar, ds.jdbcUrl(), props);
+        }
+        return DriverManager.getConnection(ds.jdbcUrl(), ds.username(), ds.password());
     }
 
     /** 连接期失败判定：无驱动 / 无法建连 → 方案 A 回退（非语句级 SQL 错误）。 */

@@ -2,6 +2,8 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
@@ -9,7 +11,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 import static com.dataweave.master.application.DatasourceDtos.*;
 
@@ -24,13 +25,16 @@ public class DatasourceService {
 
     private final DatasourceRepository datasourceRepository;
     private final TaskDefRepository taskDefRepository;
+    private final DriverJarRepository driverJarRepository;
     private final DatasourceEncryptor encryptor;
 
     public DatasourceService(DatasourceRepository datasourceRepository,
                              TaskDefRepository taskDefRepository,
+                             DriverJarRepository driverJarRepository,
                              DatasourceEncryptor encryptor) {
         this.datasourceRepository = datasourceRepository;
         this.taskDefRepository = taskDefRepository;
+        this.driverJarRepository = driverJarRepository;
         this.encryptor = encryptor;
     }
 
@@ -90,6 +94,7 @@ public class DatasourceService {
         ds.setDescription(req.description());
         ds.setPropsJson(req.propsJson());
         ds.setStatus("ACTIVE");
+        ds.setDriverJarId(resolveActiveDriverJar(req.driverJarId()));
         ds.setDeleted(0);
         ds.setVersion(0);
 
@@ -127,12 +132,27 @@ public class DatasourceService {
         if (req.description() != null) ds.setDescription(req.description());
         if (req.propsJson() != null) ds.setPropsJson(req.propsJson());
         if (req.status() != null) ds.setStatus(req.status());
+        // driverJarId：非 null 则校验 ACTIVE 并设置（PATCH 语义：null=不改，解绑走 unbindDriverJar）
+        if (req.driverJarId() != null) {
+            ds.setDriverJarId(resolveActiveDriverJar(req.driverJarId()));
+        }
 
         // Password: only update if non-empty
         if (req.password() != null && !req.password().isEmpty()) {
             ds.setPasswordEnc(encryptor.encrypt(req.password()));
         }
 
+        Datasource saved = datasourceRepository.save(ds);
+        return toVO(saved);
+    }
+
+    /** 解绑数据源的驱动 jar（driver_jar_id 置 NULL，回退内置默认驱动）。 */
+    public DatasourceVO unbindDriverJar(Long id) {
+        Datasource ds = datasourceRepository.findById(id)
+                .filter(d -> d.getDeleted() == null || d.getDeleted() == 0)
+                .orElseThrow(() ->
+                        new BizException("datasource.not_found", id).withHttpStatus(404));
+        ds.setDriverJarId(null);
         Datasource saved = datasourceRepository.save(ds);
         return toVO(saved);
     }
@@ -170,7 +190,22 @@ public class DatasourceService {
 
     // --- private helpers ---
 
+    /** 校验 driverJarId 指向 ACTIVE 资产；null 返回 null（走内置默认）。 */
+    private Long resolveActiveDriverJar(Long driverJarId) {
+        if (driverJarId == null) {
+            return null;
+        }
+        DriverJar jar = driverJarRepository.findById(driverJarId)
+                .filter(j -> j.getDeleted() == null || j.getDeleted() == 0)
+                .orElseThrow(() -> new BizException("datasource.driver_jar_not_found", driverJarId).withHttpStatus(404));
+        if (!"ACTIVE".equals(jar.getStatus())) {
+            throw new BizException("datasource.driver_jar_not_active", driverJarId).withHttpStatus(409);
+        }
+        return driverJarId;
+    }
+
     private DatasourceVO toVO(Datasource ds) {
+        String driverSource = ds.getDriverJarId() != null ? "uploaded" : "builtin";
         return new DatasourceVO(
                 ds.getId(),
                 ds.getTenantId(),
@@ -186,6 +221,8 @@ public class DatasourceService {
                 ds.getPropsJson(),
                 ds.getDescription(),
                 ds.getStatus(),
+                ds.getDriverJarId(),
+                driverSource,
                 ds.getCreatedAt() != null ? ds.getCreatedAt().format(DT_FMT) : null,
                 ds.getUpdatedAt() != null ? ds.getUpdatedAt().format(DT_FMT) : null
         );

@@ -708,7 +708,15 @@
       "testConnection": "测试连通性",
       "testing": "测试中",
       "save": "保存",
-      "saving": "保存中"
+      "saving": "保存中",
+      "driverJar": "驱动 jar",
+      "driverSourceBuiltin": "内置驱动",
+      "driverSourceUploaded": "上传驱动",
+      "upload": "上传驱动 jar",
+      "uploading": "上传中",
+      "unbind": "解绑",
+      "driverUploaded": "驱动 jar 上传成功",
+      "uploadFailed": "驱动 jar 上传失败"
     }
   }
 }

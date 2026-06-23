@@ -1,5 +1,6 @@
 package com.dataweave.worker.infrastructure;
 
+import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.ExecutionContext.DataSourceRef;
 import com.dataweave.worker.domain.TaskExecutor;
@@ -9,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * SqlTaskExecutor 方案 A：无数据源/连接失败回退「模拟成功 + 标注」，绝不抛错中断调度；
@@ -16,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SqlTaskExecutorTest {
 
-    private final SqlTaskExecutor executor = new SqlTaskExecutor();
+    private final SqlTaskExecutor executor = new SqlTaskExecutor(mock(IsolatedDriverLoader.class));
 
     private ExecutionContext sqlCtx(String content, DataSourceRef ds) {
         return new ExecutionContext(content, "2026-06-20", 1, 30, "TEST", "SQL", ds);

@@ -3,6 +3,7 @@ package com.dataweave.master.application;
 import com.dataweave.master.application.DatasourceResolver.ResolvedConnection;
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DriverJarRepository;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,13 +23,14 @@ import static org.mockito.Mockito.when;
 class DatasourceResolverTest {
 
     @Mock DatasourceRepository datasourceRepository;
+    @Mock DriverJarRepository driverJarRepository;
     @Mock DatasourceEncryptor encryptor;
 
     DatasourceResolver resolver;
 
     @BeforeEach
     void setUp() {
-        resolver = new DatasourceResolver(datasourceRepository, encryptor, new ObjectMapper());
+        resolver = new DatasourceResolver(datasourceRepository, driverJarRepository, encryptor, new ObjectMapper());
     }
 
     @Test

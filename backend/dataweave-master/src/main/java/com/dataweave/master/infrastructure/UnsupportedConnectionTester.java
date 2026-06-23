@@ -3,14 +3,23 @@ package com.dataweave.master.infrastructure;
 import com.dataweave.master.application.ConnectionTester;
 import com.dataweave.master.application.DatasourceDtos.ConnectionTestResult;
 import com.dataweave.master.domain.Datasource;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Component;
+
+import java.util.Locale;
 
 /**
  * Placeholder connection tester for non-JDBC datasource types (MongoDB, Redis, ES, etc.).
- * Returns a "not yet supported" message.
+ * Returns a "not yet supported" message, localized by locale (i18n 规则②).
  */
 @Component
 public class UnsupportedConnectionTester implements ConnectionTester {
+
+    private final Messages messages;
+
+    public UnsupportedConnectionTester(Messages messages) {
+        this.messages = messages;
+    }
 
     @Override
     public boolean supports(String typeCode) {
@@ -18,11 +27,10 @@ public class UnsupportedConnectionTester implements ConnectionTester {
     }
 
     @Override
-    public ConnectionTestResult test(Datasource ds, String decryptedPassword) {
-        String typeName = ds.getTypeCode();
+    public ConnectionTestResult test(Datasource ds, String decryptedPassword, Locale locale) {
         return new ConnectionTestResult(
                 false,
-                typeName + " 连通性测试暂未实现，请手动确认连接参数",
+                messages.get("datasource.test.unsupported", locale, ds.getTypeCode()),
                 0,
                 null
         );

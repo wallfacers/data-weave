@@ -104,7 +104,8 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             ExecutionContext.DataSourceRef dsRef = resolved != null
                     ? new ExecutionContext.DataSourceRef(
                             resolved.name(), resolved.typeCode(), resolved.jdbcUrl(),
-                            resolved.username(), resolved.password())
+                            resolved.username(), resolved.password(),
+                            resolved.driverJarId(), resolved.driverClass(), resolved.storageKey())
                     : null;
 
             // DataWorks 风启动 banner（按触发者 locale 渲染，i18n 规则②）

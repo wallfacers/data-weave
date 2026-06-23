@@ -2,6 +2,8 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.i18n.BizException;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -12,29 +14,34 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-
-import static com.dataweave.master.application.DatasourceDtos.ConnectionTestResult;
 
 /**
  * Resolves datasource connections for different task types.
  * <ul>
- *   <li>SQL → DataSourceRef (jdbcUrl, username, password)</li>
+ *   <li>SQL → DataSourceRef (jdbcUrl, username, password, + driverJar 元数据供隔离加载)</li>
  *   <li>SHELL → environment variables (DW_DS_*)</li>
  *   <li>PYTHON → temp JSON file path (DW_DATASOURCE_CONFIG)</li>
  * </ul>
+ *
+ * <p>datasource-driver-isolation：SQL 解析时若数据源绑定了上传 jar（driver_jar_id），
+ * 查 driver_jars 填充 driverClass/storageKey，供 worker 隔离加载（绕过内置 DriverManager）。
  */
 @Service
 public class DatasourceResolver {
 
     private final DatasourceRepository datasourceRepository;
+    private final DriverJarRepository driverJarRepository;
     private final DatasourceEncryptor encryptor;
     private final ObjectMapper objectMapper;
 
     public DatasourceResolver(DatasourceRepository datasourceRepository,
+                              DriverJarRepository driverJarRepository,
                               DatasourceEncryptor encryptor,
                               ObjectMapper objectMapper) {
         this.datasourceRepository = datasourceRepository;
+        this.driverJarRepository = driverJarRepository;
         this.encryptor = encryptor;
         this.objectMapper = objectMapper;
     }
@@ -95,8 +102,19 @@ public class DatasourceResolver {
         if (jdbcUrl == null || jdbcUrl.isBlank()) {
             jdbcUrl = buildJdbcUrl(ds);
         }
-        return ResolvedConnection.sql(
-                ds.getName(), ds.getTypeCode(), jdbcUrl, ds.getUsername(), password);
+        // datasource-driver-isolation：绑定了上传 jar → 填 driverClass/storageKey 供 worker 隔离加载
+        Long jarId = ds.getDriverJarId();
+        String driverClass = null;
+        String storageKey = null;
+        if (jarId != null) {
+            Optional<DriverJar> jar = driverJarRepository.findById(jarId)
+                    .filter(j -> "ACTIVE".equals(j.getStatus()))
+                    .filter(j -> j.getDeleted() == null || j.getDeleted() == 0);
+            driverClass = jar.map(DriverJar::getDriverClass).orElse(null);
+            storageKey = jar.map(DriverJar::getStorageKey).orElse(null);
+        }
+        return ResolvedConnection.sql(ds.getName(), ds.getTypeCode(), jdbcUrl, ds.getUsername(), password,
+                jarId, driverClass, storageKey);
     }
 
     private ResolvedConnection buildShellEnvVars(Datasource ds, String password) {
@@ -172,22 +190,26 @@ public class DatasourceResolver {
     public record ResolvedConnection(
             // SQL
             String name, String typeCode, String jdbcUrl, String username, String password,
+            // datasource-driver-isolation（SQL 隔离加载用）
+            Long driverJarId, String driverClass, String storageKey,
             // Shell
             Map<String, String> shellEnvVars,
             // Python
             String pythonConfigPath
     ) {
         public static ResolvedConnection sql(String name, String typeCode, String jdbcUrl,
-                                              String username, String password) {
-            return new ResolvedConnection(name, typeCode, jdbcUrl, username, password, null, null);
+                                              String username, String password,
+                                              Long driverJarId, String driverClass, String storageKey) {
+            return new ResolvedConnection(name, typeCode, jdbcUrl, username, password,
+                    driverJarId, driverClass, storageKey, null, null);
         }
 
         public static ResolvedConnection shell(Map<String, String> envVars) {
-            return new ResolvedConnection(null, null, null, null, null, envVars, null);
+            return new ResolvedConnection(null, null, null, null, null, null, null, null, envVars, null);
         }
 
         public static ResolvedConnection python(String configPath) {
-            return new ResolvedConnection(null, null, null, null, null, null, configPath);
+            return new ResolvedConnection(null, null, null, null, null, null, null, null, null, configPath);
         }
     }
 }

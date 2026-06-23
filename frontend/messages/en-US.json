@@ -708,7 +708,15 @@
       "testConnection": "Test Connection",
       "testing": "Testing",
       "save": "Save",
-      "saving": "Saving"
+      "saving": "Saving",
+      "driverJar": "Driver JAR",
+      "driverSourceBuiltin": "Built-in driver",
+      "driverSourceUploaded": "Uploaded driver",
+      "upload": "Upload driver jar",
+      "uploading": "Uploading",
+      "unbind": "Unbind",
+      "driverUploaded": "Driver jar uploaded",
+      "uploadFailed": "Driver jar upload failed"
     }
   }
 }
