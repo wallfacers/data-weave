@@ -8,7 +8,7 @@
 - [x] 2.1 新建 `frontend/components/workspace/run-logs-tabs.tsx`：迁出 `RunTab` 类型、`LogTab`、`RunLogsTabs`，并抽出状态 hook `useRunLogTabs`（关闭族 + 拖拽高度 + openRunTab 去重激活）
 - [x] 2.2 `task-editor-pane.tsx` 改为 import 公共组件/hook，删除内联实现，对外行为不变
 - [x] 2.3 `cd frontend && pnpm typecheck` 通过
-- [ ] 2.4 浏览器实跑任务编辑器运行一次，确认日志 Tab 渲染/滚屏/续传/关闭零回归（并入 7.2 一次性验证）
+- [x] 2.4 浏览器实跑任务编辑器运行一次，确认日志 Tab 渲染/滚屏/续传/关闭零回归（2026-06-23 实证：DRAFT SHELL 任务 Test run → 日志 Tab 实时流入 25 行 + === banner 着色 + DONE/执行结束，Tab 状态 Running→Succeeded，运行中显示 Stop 按钮，Close 移除 Tab 并收起日志区；共享组件 0 报错。注：页面另存在与本 change 无关的 i18n 缺键 console error `workflowCanvas.catalog.statusDirty`，来自 8bc8468 catalog 脏标记，非日志 Tab 回归）
 
 ## 3. 画布接入日志 Tabs 区
 
