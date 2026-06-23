@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { DropdownSelect } from "@/components/ui/select"
 import {
   listDatasources,
   listDatasourceTypes,
@@ -370,28 +371,27 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
             {editing ? (
               <Input value={selectedType} disabled />
             ) : (
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              <DropdownSelect
                 value={selectedType}
-                onChange={(e) => {
-                  setSelectedType(e.target.value)
+                onChange={(v) => {
+                  setSelectedType(v)
                   setFields({})
                   setTestResult(null)
                 }}
-              >
-                <option value="">{t("form.typePh")}</option>
-                {CATEGORY_ORDER.map((cat) =>
-                  typesByCategory[cat]?.length ? (
-                    <optgroup key={cat} label={t(`category.${cat}`)}>
-                      {typesByCategory[cat].map((dt) => (
-                        <option key={dt.code} value={dt.code}>
-                          {dt.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null,
+                placeholder={t("form.typePh")}
+                triggerClassName="h-9"
+                groups={CATEGORY_ORDER.map((cat) => ({
+                  value: cat,
+                  label: t(`category.${cat}`),
+                }))}
+                options={CATEGORY_ORDER.flatMap((cat) =>
+                  (typesByCategory[cat] ?? []).map((dt) => ({
+                    value: dt.code,
+                    label: dt.name,
+                    group: cat,
+                  })),
                 )}
-              </select>
+              />
             )}
           </div>
 
