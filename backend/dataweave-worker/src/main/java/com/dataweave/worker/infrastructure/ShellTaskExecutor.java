@@ -47,7 +47,11 @@ public class ShellTaskExecutor extends AbstractTaskExecutor {
 
         int timeout = ctx.timeoutSeconds() > 0 ? ctx.timeoutSeconds() : DEFAULT_TIMEOUT_SECONDS;
 
-        ProcessBuilder pb = new ProcessBuilder("bash", "-c", ctx.content());
+        // 规范化行尾：脚本可能来自 Windows 编辑器（CRLF）。若残留 \r，bash 会把它
+        // 当作每行命令的一部分，例如 `sleep 2\r` 报 "invalid time interval '2\r'"。
+        String script = ctx.content().replace("\r\n", "\n").replace('\r', '\n');
+
+        ProcessBuilder pb = new ProcessBuilder("bash", "-c", script);
         pb.environment().put("DW_ATTEMPT", String.valueOf(ctx.attempt()));
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());

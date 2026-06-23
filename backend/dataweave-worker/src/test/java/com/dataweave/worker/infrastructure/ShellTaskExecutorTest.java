@@ -100,6 +100,22 @@ class ShellTaskExecutorTest {
     }
 
     @Test
+    void normalizesCrlfLineEndings() {
+        // 脚本来自 Windows 编辑器，行尾为 \r\n。若不规范化，bash -c 下
+        // 每行末尾残留 \r，导致 `sleep 2\r` 报 "invalid time interval '2\r'"。
+        String script = "echo start\r\nsleep 0.2\r\necho done\r\n";
+        ExecutionContext ctx = new ExecutionContext(script, null, 1, 10);
+        List<String> lines = new ArrayList<>();
+        TaskExecutor.ExecutionResult result = executor.execute(ctx, lines::add);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.exitCode()).isEqualTo(0);
+        assertThat(result.stdout()).doesNotContain("invalid time interval");
+        // 输出行不应残留回车符
+        assertThat(lines).contains("start", "done");
+    }
+
+    @Test
     void stderrMergedIntoStdout() {
         // redirectErrorStream=true → stderr 合并到 stdout
         ExecutionContext ctx = new ExecutionContext("echo stdout && echo stderr >&2", null, 1, 10);

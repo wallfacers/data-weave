@@ -62,6 +62,15 @@ function parseParams(json: string | null): ParamRow[] {
   return []
 }
 
+/**
+ * 行尾归一化：CRLF / 单独 CR → LF。脚本可能来自 Windows 编辑器或粘贴，残留的 `\r`
+ * 会被 bash 当作命令的一部分（如 `sleep 2\r` 报 "invalid time interval '2\r'"）。
+ * 提交内容前统一清洗，让存库内容本身就干净（后端执行器另有同样的兜底归一化）。
+ */
+function normalizeNewlines(s: string): string {
+  return s.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+}
+
 function serializeParams(rows: ParamRow[]): string {
   const obj: Record<string, string> = {}
   for (const r of rows) {
@@ -200,7 +209,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content,
+          content: normalizeNewlines(content),
           bizDate: previewBizDate,
           paramsJson: serializeParams(paramRows) || null,
         }),
@@ -223,7 +232,8 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     setSaving(true)
     try {
       const paramsJson = serializeParams(paramRows)
-      const body = { name, type, content, description, priority, timeoutSec, retryMax, paramsJson: paramsJson || null }
+      const normalizedContent = normalizeNewlines(content)
+      const body = { name, type, content: normalizedContent, description, priority, timeoutSec, retryMax, paramsJson: paramsJson || null }
       await authFetch(`${API_BASE}/api/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +243,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       setDirty(false)
       setHasDraft(true) // 保存后即有「未发布改动」，发布按钮可用
       useCatalogTreeStore.getState().updateTask(taskId, {
-        name, type, content, description, priority, timeoutSec, retryMax,
+        name, type, content: normalizedContent, description, priority, timeoutSec, retryMax,
         paramsJson: paramsJson || null,
       })
     } catch {
@@ -302,7 +312,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content,
+          content: normalizeNewlines(content),
           type,
           paramsJson: serializeParams(paramRows) || null,
           // 带上业务日期，使 ${yyyymmdd} 等日期占位符可解析（复用编辑器预览用的业务日期，默认昨天）
