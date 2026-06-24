@@ -18,15 +18,15 @@
 
 ### Requirement: 补数据依赖编排与并发度
 
-系统 SHALL 在 `includeDownstream=true` 时,使同一 bizDate 内的下游补数据实例依赖同日期上游实例的就绪;`parallelism` 控制跨 bizDate 的并发提交上限。
+工作流目标补数据 SHALL 物化整张 DAG（每 bizDate 一个 workflow_instance），同一 bizDate 内的上下游就绪由既有调度就绪门（上游 SUCCESS 才认领）自然串行,无需额外编排。`parallelism` M1 记录于 `backfill_run`,跨 bizDate 的运行并发由全局调度/worker 容量自然约束;硬节流(同时最多 N 个 bizDate)推迟 M2(见 design 开放问题③)。
 
-#### Scenario: 同日期上下游串行
-- **WHEN** includeDownstream=true 且目标含上下游链
-- **THEN** 同一 bizDate 内下游实例在上游同日期实例成功后才就绪(复用既有就绪判定)
+#### Scenario: 同日期上下游串行(工作流目标)
+- **WHEN** 对含上下游链的工作流发起补数据
+- **THEN** 每个 bizDate 物化整张 DAG,同 bizDate 内下游节点在上游同日期节点 SUCCESS 后才被认领(复用既有就绪门)
 
-#### Scenario: 跨日期受并发度限制
-- **WHEN** parallelism=2 且区间 5 天
-- **THEN** 同时最多 2 个 bizDate 的链在跑,其余排队
+#### Scenario: 并发度记录于批次
+- **WHEN** 以 parallelism=2 发起补数据
+- **THEN** `backfill_run.parallelism` 记为 2(供展示与 M2 节流),M1 不硬约束跨 bizDate 并发
 
 ### Requirement: 补数据 run 进度查询
 

@@ -12,9 +12,9 @@
 - **WHEN** 对已冻结任务调用 freeze `{ frozen: false }`
 - **THEN** 后续周期恢复正常生成与认领
 
-#### Scenario: 冻结不影响在途实例
-- **WHEN** 任务被冻结时其已有 RUNNING/WAITING 实例存在
-- **THEN** 这些在途实例继续按既有逻辑运行,不被冻结中断
+#### Scenario: 冻结不影响已认领的在途实例
+- **WHEN** 任务被冻结时其已有 RUNNING/DISPATCHED（已认领）实例存在
+- **THEN** 这些已认领的在途实例继续运行至完成,不被冻结中断；尚未认领的 WAITING 实例随冻结门一并暂缓认领（解冻后恢复）
 
 #### Scenario: 冻结操作经闸门
 - **WHEN** 提交 freeze 写操作
