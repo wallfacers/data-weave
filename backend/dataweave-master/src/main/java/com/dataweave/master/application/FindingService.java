@@ -28,14 +28,16 @@ public class FindingService {
     }
 
     /**
-     * 去重落库：若已存在同 (source,targetType,targetId) 且仍活跃（OPEN/ANNOUNCED）的发现，直接返回它，
-     * 不重复创建；否则补默认值后保存为 OPEN。
+     * 去重落库：若已存在同 (source,targetType,targetId) 且仍活跃（OPEN/ANNOUNCED）的发现，返回 {@code empty}
+     * （命中去重，不重复创建）；否则补默认值后保存为 OPEN 并返回新建的发现。
+     *
+     * <p>返回 present 即「本轮新建」——调度器据此判断需主动推送/播报哪些发现。
      */
-    public Finding recordIfNew(Finding finding) {
+    public Optional<Finding> recordIfNew(Finding finding) {
         Optional<Finding> dup = repository.findFirstBySourceAndTargetTypeAndTargetIdAndStatusInOrderByIdDesc(
                 finding.getSource(), finding.getTargetType(), finding.getTargetId(), ACTIVE);
         if (dup.isPresent()) {
-            return dup.get();
+            return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.now();
         if (finding.getTenantId() == null) {
@@ -57,7 +59,7 @@ public class FindingService {
         finding.setUpdatedAt(now);
         finding.setDeleted(0);
         finding.setVersion(0);
-        return repository.save(finding);
+        return Optional.of(repository.save(finding));
     }
 
     /** 举手台列表：OPEN/ANNOUNCED，id 降序。 */

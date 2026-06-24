@@ -27,9 +27,9 @@
 
 ## 3. 🅰 巡检调度
 
-- [ ] 3.1 `InspectorScheduler`：`@Scheduled(fixedDelay)` 遍历所有 `Inspector` Bean 执行巡检并落库
-- [ ] 3.2 失败事件加速触发（`InstanceStateMachine` CAS→FAILED 后发布事件，调度器监听加速；定时兜底仍保底）
-- [ ] 3.3 单测：定时周期内 FAILED→Finding；新增第二个 Inspector Bean 自动纳入（验证可插拔，可用测试桩）
+- [x] 3.1 `InspectorScheduler`：`@Scheduled(fixedDelay)` 遍历所有 `Inspector` Bean 执行巡检并落库；runOnce 返回本轮新建（供 Group 4 推送）
+- [x] 3.2 失败事件加速触发：`InstanceStateMachine` casTaskTerminal→FAILED 发 `TaskInstanceFailedEvent`，`@Async @EventListener` 加速；定时兜底保底（异步竞态下轮补）；api 加 `@EnableAsync`
+- [x] 3.3 单测：遍历所有 Inspector + 新增第二个 Inspector(DATA_QUALITY)自动纳入 + 单个巡检器抛错隔离 — InspectorSchedulerTest 2 通过
 
 ## 4. 🅰 真推通道与 Findings/会话 API
 

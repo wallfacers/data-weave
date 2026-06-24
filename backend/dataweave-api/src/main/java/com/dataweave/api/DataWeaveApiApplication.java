@@ -4,6 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jdbc.repository.config.EnableJdbcRepositories;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -16,6 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ComponentScan(basePackages = "com.dataweave")
 @EnableJdbcRepositories(basePackages = {"com.dataweave.master.domain", "com.dataweave.alert.domain"})
 @EnableScheduling
+@EnableAsync
 public class DataWeaveApiApplication {
 
     public static void main(String[] args) {

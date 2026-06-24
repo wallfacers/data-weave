@@ -52,7 +52,7 @@ class FindingServiceTest {
                 .thenReturn(Optional.empty());
         when(repository.save(any(Finding.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Finding saved = service.recordIfNew(taskFailure("inst-1"));
+        Finding saved = service.recordIfNew(taskFailure("inst-1")).orElseThrow();
 
         ArgumentCaptor<Finding> cap = ArgumentCaptor.forClass(Finding.class);
         verify(repository).save(cap.capture());
@@ -75,9 +75,9 @@ class FindingServiceTest {
                 eq("TASK_FAILURE"), eq("TASK_INSTANCE"), eq("inst-1"), anyList()))
                 .thenReturn(Optional.of(existing));
 
-        Finding result = service.recordIfNew(taskFailure("inst-1"));
+        Optional<Finding> result = service.recordIfNew(taskFailure("inst-1"));
 
-        assertThat(result).isSameAs(existing);
+        assertThat(result).isEmpty();
         verify(repository, never()).save(any());
     }
 
