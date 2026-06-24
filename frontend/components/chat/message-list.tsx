@@ -5,8 +5,10 @@ import { useEffect, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SparklesIcon } from "@hugeicons/core-free-icons"
+import { type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
 
 import { useChatStore } from "@/lib/chat/store"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import { MessagePartView } from "./message-part"
 import { AttachmentChip } from "./attachment-chip"
 import type { ChatMessage } from "@/lib/chat/types"
@@ -17,17 +19,17 @@ export function MessageList() {
   const runtime = useChatStore((s) =>
     activeId ? s.runtimes[activeId] : undefined,
   )
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const osRef = useRef<OverlayScrollbarsComponentRef>(null)
   const messages = runtime?.messages ?? []
 
-  // 新消息 / 流式增量 → 滚到底
+  // 新消息 / 流式增量 → 滚到底（经 OverlayScrollbars viewport 控制滚动位置）
   useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    const viewport = osRef.current?.osInstance()?.elements().viewport
+    if (viewport) viewport.scrollTop = viewport.scrollHeight
   }, [messages])
 
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+    <DwScroll ref={osRef} direction="vertical" className="min-h-0 flex-1">
       {messages.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
           <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -49,7 +51,7 @@ export function MessageList() {
           ))}
         </div>
       )}
-    </div>
+    </DwScroll>
   )
 }
 
