@@ -93,9 +93,11 @@ interface RunResult {
 
 export interface TaskEditorPaneProps {
   taskId: number
+  /** 任务名变更（保存时）—— IDE 壳据此更新子 Tab 标题。 */
+  onNameChange?: (name: string) => void
 }
 
-export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
+export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   const t = useTranslations()
   const locale = useLocale()
   const [name, setName] = useState("")
@@ -291,6 +293,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       toast.success(t("taskEditor.toastSaved"))
       setDirty(false)
       setHasDraft(true) // 保存后即有「未发布改动」，发布按钮可用
+      onNameChange?.(name)
       useCatalogTreeStore.getState().updateTask(taskId, {
         name, type, content: normalizedContent, description, priority, timeoutSec, retryMax,
         paramsJson: paramsJson || null,

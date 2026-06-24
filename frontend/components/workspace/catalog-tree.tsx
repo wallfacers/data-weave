@@ -120,6 +120,14 @@ export interface CatalogTreeProps {
   onOpenTask?: (id: number, name: string) => void
   /** 点击工作流叶子（id + 名称）—— IDE 壳据此开画布子 Tab。 */
   onOpenWorkflow?: (id: number, name: string) => void
+  /** 类目树中删除任务后 —— IDE 壳据此关闭对应编辑子 Tab。 */
+  onDeleteTask?: (id: number) => void
+  /** 类目树中删除工作流后 —— IDE 壳据此关闭对应画布子 Tab。 */
+  onDeleteWorkflow?: (id: number) => void
+  /** 类目树中重命名 —— IDE 壳据此更新子 Tab 标题。 */
+  onRenameTask?: (id: number, name: string) => void
+  /** 类目树中重命名工作流 —— IDE 壳据此更新子 Tab 标题。 */
+  onRenameWorkflow?: (id: number, name: string) => void
   className?: string
 }
 
@@ -207,6 +215,10 @@ export function CatalogTree({
   showTagFilter = true,
   onOpenTask,
   onOpenWorkflow,
+  onDeleteTask,
+  onDeleteWorkflow,
+  onRenameTask,
+  onRenameWorkflow,
   className,
 }: CatalogTreeProps) {
   const t = useTranslations()
@@ -457,8 +469,10 @@ export function CatalogTree({
       // 乐观更新
       if (kind === "task") {
         updateTask(id, { name: name.trim() })
+        onRenameTask?.(id, name.trim())
       } else {
         updateWorkflow(id, { name: name.trim() })
+        onRenameWorkflow?.(id, name.trim())
       }
       flashHighlight([`${kind}-${id}`])
       try {
@@ -488,8 +502,10 @@ export function CatalogTree({
       // 乐观删除（motion exit 动画会先播放）
       if (kind === "task") {
         removeTask(id)
+        onDeleteTask?.(id)
       } else {
         removeWorkflow(id)
+        onDeleteWorkflow?.(id)
       }
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, { method: "DELETE" })

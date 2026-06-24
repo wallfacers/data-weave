@@ -1460,6 +1460,10 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
               showTagFilter
               onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
               onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
+              onDeleteTask={(id) => closeTab(tabKey({ kind: "editor", id, name: "" }))}
+              onDeleteWorkflow={(id) => closeTab(tabKey({ kind: "canvas", id, name: "" }))}
+              onRenameTask={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "editor" && t.id === id ? { ...t, name } : t))}
+              onRenameWorkflow={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "canvas" && t.id === id ? { ...t, name } : t))}
             />
           </DwScroll>
         </motion.div>
@@ -1508,7 +1512,10 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
                 {t.kind === "canvas" ? (
                   <WorkflowCanvasPane workflowId={t.id} name={t.name} />
                 ) : (
-                  <TaskEditorPane taskId={t.id} />
+                  <TaskEditorPane
+                    taskId={t.id}
+                    onNameChange={(name) => setTabs((prev) => prev.map((s) => s.kind === "editor" && s.id === t.id ? { ...s, name } : s))}
+                  />
                 )}
               </div>
             ))
