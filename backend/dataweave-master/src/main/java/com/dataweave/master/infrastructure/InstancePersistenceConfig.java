@@ -1,5 +1,6 @@
 package com.dataweave.master.infrastructure;
 
+import com.dataweave.master.domain.BackfillRun;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.Uuid7;
 import com.dataweave.master.domain.WorkflowInstance;
@@ -35,6 +36,16 @@ public class InstancePersistenceConfig {
                 instance.setId(Uuid7.generate());
             }
             return instance;
+        };
+    }
+
+    @Bean
+    BeforeConvertCallback<BackfillRun> backfillRunIdAssign() {
+        return (run) -> {
+            if (run.getId() == null) {
+                run.setId(Uuid7.generate());
+            }
+            return run;
         };
     }
 }

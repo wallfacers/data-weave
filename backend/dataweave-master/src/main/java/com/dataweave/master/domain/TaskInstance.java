@@ -19,6 +19,7 @@ public class TaskInstance {
     private String paramsOverride;
     private String typeOverride;
     private String runMode;
+    private UUID backfillRunId;
     private String env;
     private String bizDate;
     private String state;
@@ -73,6 +74,9 @@ public class TaskInstance {
 
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }
+
+    public UUID getBackfillRunId() { return backfillRunId; }
+    public void setBackfillRunId(UUID backfillRunId) { this.backfillRunId = backfillRunId; }
 
     public String getEnv() { return env; }
     public void setEnv(String env) { this.env = env; }

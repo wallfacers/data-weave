@@ -259,7 +259,9 @@ public class SchedulerKernel {
                     + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
                     + "ti.locale "
                     + "FROM task_instance ti "
-                    + "WHERE ti.state='WAITING' AND ti.run_mode='NORMAL' AND ti.deleted=0 "
+                    + "WHERE ti.state='WAITING' AND ti.run_mode IN ('NORMAL','BACKFILL') AND ti.deleted=0 "
+                    // 冻结门（data-ops-center）：跳过已冻结 task_def 的实例（task_id 为空的 VIRTUAL 节点 COALESCE→0 不跳）。
+                    + "AND COALESCE((SELECT td.frozen FROM task_def td WHERE td.id=ti.task_id),0)=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
                     + "     WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) "
                     + "AND NOT EXISTS (SELECT 1 FROM workflow_edge e "

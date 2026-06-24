@@ -22,6 +22,7 @@ public class TaskDef {
     private Integer currentVersionNo;
     private Integer hasDraftChange;
     private Integer priority;
+    private Integer frozen;
     private String description;
     private Long ownerId;
     private Long createdBy;
@@ -78,6 +79,9 @@ public class TaskDef {
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }
+
+    public Integer getFrozen() { return frozen; }
+    public void setFrozen(Integer frozen) { this.frozen = frozen; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

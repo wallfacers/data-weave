@@ -102,6 +102,18 @@ public class WorkflowTriggerService {
      */
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey) {
+        return trigger(wf, triggerType, bizDate, priorityOverride, locale, scope, targetNodeKey,
+                "NORMAL", null);
+    }
+
+    /**
+     * 触发一个工作流，并指定运行模式与补数据批次（data-ops-center）。{@code runMode=BACKFILL} 时各节点实例落
+     * BACKFILL 标识 + {@code backfillRunId}，认领/执行复用既有路径（仅 runMode 标识，无专用认领分支）。
+     * 其余语义同 {@link #trigger(WorkflowDef, String, String, Integer, Locale, String, String)}。
+     */
+    public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
+                        Locale locale, String scope, String targetNodeKey,
+                        String runMode, UUID backfillRunId) {
         bizDate = defaultBizDate(bizDate);
 
         // nodeKey -> live workflow_node.id：物化 task_instance.workflow_node_id 外键用（事件流/节点变色按此 id）。
@@ -203,7 +215,8 @@ public class WorkflowTriggerService {
             TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now, locale);
             ti.setWorkflowInstanceId(savedWi.getId());
             ti.setWorkflowNodeId(m.liveNodeId());
-            ti.setRunMode("NORMAL");
+            ti.setRunMode(runMode);
+            ti.setBackfillRunId(backfillRunId);
             ti.setEnv(Envs.PROD);
             ti.setBizDate(bizDate);
             if ("VIRTUAL".equals(m.nodeType())) {
@@ -346,6 +359,32 @@ public class WorkflowTriggerService {
         ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);  // 跑已发布版本
         ti.setRunMode("NORMAL");
         ti.setEnv(Envs.PROD);               // 正式手动运行落 PROD
+        ti.setState(InstanceStates.WAITING);
+        ti.setBizDate(bizDate);
+        TaskInstance saved = taskInstanceRepository.save(ti);
+        wake();
+        return saved.getId();
+    }
+
+    /**
+     * 单任务补数据运行（data-ops-center）：跑**已发布版本**、{@code run_mode=BACKFILL} + {@code backfillRunId}，
+     * {@code bizDate} 为补数据指定日期（必传，不走 T-1 兜底——补数据的本意就是指定历史日期）。
+     * 认领/执行复用既有路径，仅 runMode 标识。返回 task_instance id。
+     */
+    public UUID triggerBackfillTaskRun(Long taskId, String bizDate, UUID backfillRunId, Locale locale) {
+        TaskDef task = taskDefRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
+        bizDate = defaultBizDate(bizDate);
+        Integer versionNo = task.getCurrentVersionNo();
+        LocalDateTime now = LocalDateTime.now();
+        TaskInstance ti = newTaskInstance(task.getTenantId(), task.getProjectId(), now, locale);
+        ti.setWorkflowInstanceId(null);
+        ti.setWorkflowNodeId(null);
+        ti.setTaskId(taskId);
+        ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);
+        ti.setRunMode("BACKFILL");
+        ti.setBackfillRunId(backfillRunId);
+        ti.setEnv(Envs.PROD);
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
         TaskInstance saved = taskInstanceRepository.save(ti);

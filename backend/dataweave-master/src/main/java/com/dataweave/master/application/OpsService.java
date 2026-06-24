@@ -1,5 +1,10 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.application.OpsContracts.InstanceQuery;
+import com.dataweave.master.application.OpsContracts.InstanceRow;
+import com.dataweave.master.application.OpsContracts.PageResult;
+import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
@@ -8,12 +13,15 @@ import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstance;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -30,20 +38,30 @@ public class OpsService {
     private final DiagnosisService diagnosisService;
     private final InstanceStateMachine stateMachine;
     private final LogBus logBus;
+    private final EventBus eventBus;
+    private final JdbcTemplate jdbc;
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
                       WorkflowInstanceRepository workflowInstanceRepository,
                       DiagnosisService diagnosisService,
                       InstanceStateMachine stateMachine,
-                      LogBus logBus) {
+                      LogBus logBus,
+                      EventBus eventBus,
+                      JdbcTemplate jdbc) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
         this.diagnosisService = diagnosisService;
         this.stateMachine = stateMachine;
         this.logBus = logBus;
+        this.eventBus = eventBus;
+        this.jdbc = jdbc;
     }
+
+    /** 非成功态：允许 set-success 的起始态（无运行事实的 NOT_RUN/WAITING/PAUSED 不在内）。 */
+    private static final Set<String> SET_SUCCESS_FROM =
+            Set.of(InstanceStates.FAILED, InstanceStates.STOPPED, InstanceStates.RUNNING, InstanceStates.PREEMPTED);
 
     /** 手动停止时向实例日志流插入的横幅（以 === 开头，前端 LogTab 会弱化着色，与执行 banner 一致）。 */
     private void appendManualStopLog(UUID taskInstanceId) {
@@ -249,6 +267,110 @@ public class OpsService {
         }
         // 返回最新态（CAS 已落库）。
         return instanceRepository.findById(instanceId).orElse(ti);
+    }
+
+    // ─── data-ops-center：置成功 / 重跑 / 冻结 / 筛选 ──────────────
+
+    /**
+     * 置成功（set-success）：FAILED/STOPPED/RUNNING/PREEMPTED 经乐观 CAS → SUCCESS，发唤醒令下游就绪重算。
+     * NOT_RUN/WAITING/PAUSED（无运行事实）拒绝。事务内只 CAS 落状态，唤醒在 CAS 成功后发出（死锁不变量④）。
+     */
+    public TaskInstance setSuccess(UUID instanceId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+        String from = ti.getState();
+        if (!SET_SUCCESS_FROM.contains(from)) {
+            throw new IllegalStateException("Only non-success runnable states can be set-success, got: " + from);
+        }
+        if (stateMachine.casTaskTerminal(instanceId, from, InstanceStates.SUCCESS, null)) {
+            // 唤醒：下游 WAITING 经调度认领的就绪门（上游 SUCCESS）自然解锁。
+            eventBus.publish(InstanceStates.WAKE_CHANNEL, "set-success");
+        }
+        return instanceRepository.findById(instanceId).orElse(ti);
+    }
+
+    /**
+     * 重跑（rerun）：终态实例就地重置 WAITING（清 worker/租约/attempt/归因/时间/日志），发唤醒重新认领。
+     * 节点隶属的工作流若已终态，一并回 RUNNING 让该节点可被认领。非终态拒绝。
+     */
+    public TaskInstance rerunInstance(UUID instanceId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+        if (!isTerminal(ti.getState())) {
+            throw new IllegalStateException("Only terminal task instances can be rerun, got: " + ti.getState());
+        }
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, worker_node_code=NULL, "
+                + "lease_expire_at=NULL, failure_reason=NULL, finished_at=NULL, exit_code=NULL, "
+                + "started_at=NULL, log=NULL, updated_at=? WHERE id=? AND deleted=0", now, instanceId);
+        UUID wiId = ti.getWorkflowInstanceId();
+        if (wiId != null) {
+            jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
+                    + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0", now, wiId);
+        }
+        eventBus.publish(InstanceStates.WAKE_CHANNEL, "rerun");
+        return instanceRepository.findById(instanceId).orElse(ti);
+    }
+
+    /** 冻结/解冻周期任务：置位 task_def.frozen（1/0）。调度认领按 frozen=0 过滤（SchedulerKernel 冻结门）。 */
+    public TaskDef setFrozen(Long taskDefId, boolean frozen) {
+        TaskDef def = taskDefRepository.findById(taskDefId)
+                .orElseThrow(() -> new IllegalStateException("Task def not found: " + taskDefId));
+        def.setFrozen(frozen ? 1 : 0);
+        def.setUpdatedAt(LocalDateTime.now());
+        return taskDefRepository.save(def);
+    }
+
+    /** 周期实例多维筛选 + 分页（runMode/state/taskId/bizDate 任一为空即不约束；按 id 降序）。 */
+    public PageResult<InstanceRow> queryInstances(InstanceQuery q) {
+        int page = Math.max(0, q.page());
+        int size = Math.min(Math.max(1, q.size()), 200);
+        StringBuilder where = new StringBuilder(" WHERE ti.deleted=0 ");
+        List<Object> args = new ArrayList<>();
+        if (q.runMode() != null && !q.runMode().isBlank()) {
+            where.append("AND ti.run_mode=? ");
+            args.add(q.runMode());
+        }
+        if (q.state() != null && !q.state().isBlank()) {
+            where.append("AND ti.state=? ");
+            args.add(q.state());
+        }
+        if (q.taskId() != null) {
+            where.append("AND ti.task_id=? ");
+            args.add(q.taskId());
+        }
+        if (q.bizDate() != null && !q.bizDate().isBlank()) {
+            where.append("AND ti.biz_date=? ");
+            args.add(q.bizDate());
+        }
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(size);
+        pageArgs.add((long) page * size);
+        List<InstanceRow> items = jdbc.query(
+                "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
+                        + "ti.started_at, ti.finished_at, "
+                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name "
+                        + "FROM task_instance ti" + where
+                        + "ORDER BY ti.id DESC LIMIT ? OFFSET ?",
+                (rs, n) -> {
+                    UUID id = rs.getObject("id", UUID.class);
+                    UUID wiId = rs.getObject("workflow_instance_id", UUID.class);
+                    Long taskId = (Long) rs.getObject("task_id");
+                    LocalDateTime startedAt = rs.getObject("started_at", LocalDateTime.class);
+                    LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
+                    Long durationMs = (startedAt != null && finishedAt != null)
+                            ? Duration.between(startedAt, finishedAt).toMillis() : null;
+                    return new InstanceRow(id, taskId, rs.getString("task_name"), wiId,
+                            rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
+                            startedAt != null ? startedAt.toString() : null,
+                            finishedAt != null ? finishedAt.toString() : null,
+                            durationMs);
+                },
+                pageArgs.toArray());
+        return new PageResult<>(items, totalCount, page, size);
     }
 
     /** 获取日志分块。 */
