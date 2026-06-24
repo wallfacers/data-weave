@@ -8,8 +8,8 @@
 
 ## 0. 契约对齐（两包共同前提，不写代码）
 
-- [ ] 0.1 双方确认 design.md §D5 冻结契约：`/agui`(不变)、`GET /api/agent/stream`、`GET /api/findings`、`POST /api/findings/{id}/apply`、`/api/agent/sessions*`；`Finding` 与 SSE 事件形状
-- [ ] 0.2 约定文件归属：🅰 owns `backend/`+sql+scripts+CLAUDE.md 导航行；🅱 owns `frontend/`+CLAUDE.md 前端栈门小节（不同小节，git 不冲突）
+- [x] 0.1 双方确认 design.md §D5 冻结契约：`/agui`(不变)、`GET /api/agent/stream`、`GET /api/findings`、`POST /api/findings/{id}/apply`、`/api/agent/sessions*`；`Finding` 与 SSE 事件形状
+- [x] 0.2 约定文件归属：🅰 owns `backend/`+sql+scripts+CLAUDE.md 导航行；🅱 owns `frontend/`+CLAUDE.md 前端栈门小节（不同小节，git 不冲突）
 
 ## 1. 🅰 Finding 模型与持久化
 
@@ -50,31 +50,31 @@
 
 ## 6. 🅱 自有聊天台（替换 CopilotKit）
 
-- [ ] 6.1 移除 `@copilotkit/*` 聊天用法与 `agent-rail.tsx` 旧实现（参照 `workhorse/workhorse-assistant/src/session/types.ts` 与 `components/chat/`）
-- [ ] 6.2 `MessagePart` 联合（text/reasoning/tool_call/permission/error/pending）+ `ChatMessage` + `ChatRuntime` 类型
-- [ ] 6.3 聊天台组件：消息列表渲染（markdown/工具块/reasoning）、输入框、流式增量追加
-- [ ] 6.4 AG-UI 流消费：`POST /agui` → 解析 SCREAMING_SNAKE_CASE 事件序列 → 追加 parts（RUN_STARTED…RUN_FINISHED）
-- [ ] 6.5 CLAUDE.md 前端栈门小节：CopilotKit→自有聊天台，写明偏离理由（指向本 change design）
+- [x] 6.1 移除 `@copilotkit/*` 聊天用法与 `agent-rail.tsx` 旧实现（参照 `workhorse/workhorse-assistant/src/session/types.ts` 与 `components/chat/`）
+- [x] 6.2 `MessagePart` 联合（text/reasoning/tool_call/permission/error/pending）+ `ChatMessage` + `ChatRuntime` 类型
+- [x] 6.3 聊天台组件：消息列表渲染（markdown/工具块/reasoning）、输入框、流式增量追加
+- [x] 6.4 AG-UI 流消费：`POST /agui` → 解析 SCREAMING_SNAKE_CASE 事件序列 → 追加 parts（RUN_STARTED…RUN_FINISHED）
+- [x] 6.5 CLAUDE.md 前端栈门小节：CopilotKit→自有聊天台，写明偏离理由（指向本 change design）
 
 ## 7. 🅱 多会话 store 与侧栏
 
-- [ ] 7.1 `runtimes: Map<sessionId, ChatRuntime>` store（zustand，与现有 workspace store 风格一致）
-- [ ] 7.2 会话侧栏：新建/切换/删除；切换保留各自缓冲
-- [ ] 7.3 持久化：走 `/api/agent/sessions*`；重开会话经 history 端点重水合
-- [ ] 7.4 后台并流：非可见会话的流继续接收（参照 SessionProvider「每活会话挂监听」）
+- [x] 7.1 `runtimes: Map<sessionId, ChatRuntime>` store（zustand，与现有 workspace store 风格一致）
+- [x] 7.2 会话侧栏：新建/切换/删除；切换保留各自缓冲
+- [x] 7.3 持久化：走 `/api/agent/sessions*`；重开会话经 history 端点重水合
+- [x] 7.4 后台并流：非可见会话的流继续接收（参照 SessionProvider「每活会话挂监听」）
 
 ## 8. 🅱 真推订阅与主动开口
 
-- [ ] 8.1 持久订阅 `GET /api/agent/stream`（EventSource 直连后端 SSE_BASE，避开 Next 代理缓冲；断线指数退避重连）
-- [ ] 8.2 收到 `agent.message` → push 进目标会话 runtime（Agent 无人发问主动开口）
-- [ ] 8.3 收到 `agent.finding` → 刷新举手台
+- [x] 8.1 持久订阅 `GET /api/agent/stream`（EventSource 直连后端 SSE_BASE，避开 Next 代理缓冲；断线指数退避重连）
+- [x] 8.2 收到 `agent.message` → push 进目标会话 runtime（Agent 无人发问主动开口）
+- [x] 8.3 收到 `agent.finding` → 刷新举手台
 
 ## 9. 🅱 举手台通用化 + 闸门内联
 
-- [ ] 9.1 举手台从 `/api/diagnosis` 改为渲染 `GET /api/findings` 的通用 `Finding[]`（title/severity/rootCause/evidence 卡片）
-- [ ] 9.2 一键修复 → `POST /api/findings/{id}/apply`，按 outcome 分流（executed / PENDING_APPROVAL / rejected）
-- [ ] 9.3 `permission` part 内联审批：PENDING_APPROVAL 时渲染同意/拒绝并提交决策
-- [ ] 9.4 i18n：新增用户可见文案进 `messages/{zh-CN,en-US}.json`（双 bundle 键集一致），无 `…` 进行中态
+- [x] 9.1 举手台从 `/api/diagnosis` 改为渲染 `GET /api/findings` 的通用 `Finding[]`（title/severity/rootCause/evidence 卡片）
+- [x] 9.2 一键修复 → `POST /api/findings/{id}/apply`，按 outcome 分流（executed / PENDING_APPROVAL / rejected）
+- [x] 9.3 `permission` part 内联审批：PENDING_APPROVAL 时渲染同意/拒绝并提交决策
+- [x] 9.4 i18n：新增用户可见文案进 `messages/{zh-CN,en-US}.json`（双 bundle 键集一致），无 `…` 进行中态
 
 ## 10. 收尾联调（两窗口合流后）
 

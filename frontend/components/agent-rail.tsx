@@ -6,17 +6,12 @@ import { motion, useMotionValue, useTransform } from "motion/react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SparklesIcon, Logout01Icon } from "@hugeicons/core-free-icons"
 
-import { AgentChat, type AgentPageContext } from "@/components/agent-chat"
+import { AgentChat } from "@/components/agent-chat"
+import { SessionSwitcher } from "@/components/chat/session-switcher"
 import { SettingsTrigger } from "@/components/settings-sheet"
 import { useAuth } from "@/lib/auth"
+import type { AgentPageContext } from "@/lib/chat/types"
 import { useWorkspaceStore } from "@/lib/workspace/store"
-import { VIEW_META } from "@/lib/workspace/views"
-
-/** 长 ID（UUID）紧凑显示：含连字符的取后 6 位 hex，与日志面板 tab 短 ID 一致；短 ID 原样。 */
-function compactId(id: string): string {
-  const hex = id.replace(/-/g, "")
-  return hex.length > 8 ? hex.slice(-6) : id
-}
 
 /** 左栏对话主驾宽度：默认 / 可拖拽范围 / 持久化键 */
 const RAIL_DEFAULT_WIDTH = 440
@@ -101,10 +96,6 @@ export function AgentRail() {
     nodeId: asStr(params?.nodeId),
   }
   const t = useTranslations()
-  const moduleName = activeTab ? t(VIEW_META[activeTab.view].title) : ""
-  const rawContext =
-    pageContext.instanceId ?? pageContext.nodeId ?? pageContext.taskId ?? null
-  const contextObject = rawContext ? compactId(rawContext) : null
 
   return (
     <motion.div
@@ -112,26 +103,13 @@ export function AgentRail() {
       style={{ width: widthStyle }}
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-sidebar shadow-lg">
-        {/* 标题行：品牌 + 当前上下文 + 设置（无下边框，遵守无分割线规则） */}
+        {/* 标题行：品牌 + 会话切换器 + 设置（无下边框，遵守无分割线规则） */}
         <div className="flex h-14 shrink-0 items-center gap-2 px-4">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <HugeiconsIcon icon={SparklesIcon} className="size-4" />
           </div>
           <span className="text-sm font-semibold">DataWeave</span>
-          {moduleName && (
-            <span
-              className="min-w-0 truncate text-xs text-muted-foreground"
-              title={rawContext ? `${moduleName} · ${rawContext}` : moduleName}
-            >
-              {t("agentRail.current")}{moduleName}
-              {contextObject && (
-                <>
-                  {" · "}
-                  <span className="font-mono">{contextObject}</span>
-                </>
-              )}
-            </span>
-          )}
+          <SessionSwitcher />
           <div className="flex-1" />
           {user && (
             <span className="text-xs text-muted-foreground">{user.displayName}</span>
