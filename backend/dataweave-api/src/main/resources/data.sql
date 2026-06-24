@@ -106,36 +106,36 @@ INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node
 -- ===== workflow id=3「订单 SHELL 流水线」（6 节点 DAG：n1→n2→{n3,n4}→n5→n6）=====
 -- 供 KernelSchedulingTest（弱依赖 / 子图运行范围 / 跨周期 / 端到端）依赖。其他 change 重构 seed 时请勿删此链。
 INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(4, 1, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(5, 1, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(6, 1, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(7, 1, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(8, 1, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(9, 1, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
+(10, 1, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(11, 1, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(12, 1, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(13, 1, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(14, 1, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(15, 1, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
-(4, 1, 1, 4, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(5, 1, 1, 5, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(6, 1, 1, 6, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(7, 1, 1, 7, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(8, 1, 1, 8, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(9, 1, 1, 9, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
+(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
 
 INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (3, 1, 1, '订单 SHELL 流水线', '抽取→清洗→质检/指标并行→加载→归档，全 SHELL 节点', 'CRON', '0 30 1 * * ?', TIMESTAMP '2026-06-12 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO workflow_def_version (id, tenant_id, project_id, workflow_id, version_no, name, description, schedule_type, cron, dag_snapshot_json, remark, published_by, published_at, created_at) VALUES
 (3, 1, 1, 3, 1, '订单 SHELL 流水线', '抽取→清洗→质检/指标并行→加载→归档', 'CRON', '0 30 1 * * ?',
-  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":4,"taskVersionNo":1},{"nodeKey":"n2","nodeType":"TASK","taskId":5,"taskVersionNo":1},{"nodeKey":"n3","nodeType":"TASK","taskId":6,"taskVersionNo":1},{"nodeKey":"n4","nodeType":"TASK","taskId":7,"taskVersionNo":1},{"nodeKey":"n5","nodeType":"TASK","taskId":8,"taskVersionNo":1},{"nodeKey":"n6","nodeType":"TASK","taskId":9,"taskVersionNo":1}],"edges":[{"fromNodeKey":"n1","toNodeKey":"n2","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n3","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n4","strength":"STRONG"},{"fromNodeKey":"n3","toNodeKey":"n5","strength":"STRONG"},{"fromNodeKey":"n4","toNodeKey":"n5","strength":"STRONG"},{"fromNodeKey":"n5","toNodeKey":"n6","strength":"STRONG"}]}',
+  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":10,"taskVersionNo":1},{"nodeKey":"n2","nodeType":"TASK","taskId":11,"taskVersionNo":1},{"nodeKey":"n3","nodeType":"TASK","taskId":12,"taskVersionNo":1},{"nodeKey":"n4","nodeType":"TASK","taskId":13,"taskVersionNo":1},{"nodeKey":"n5","nodeType":"TASK","taskId":14,"taskVersionNo":1},{"nodeKey":"n6","nodeType":"TASK","taskId":15,"taskVersionNo":1}],"edges":[{"fromNodeKey":"n1","toNodeKey":"n2","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n3","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n4","strength":"STRONG"},{"fromNodeKey":"n3","toNodeKey":"n5","strength":"STRONG"},{"fromNodeKey":"n4","toNodeKey":"n5","strength":"STRONG"},{"fromNodeKey":"n5","toNodeKey":"n6","strength":"STRONG"}]}',
   '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
 
 INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node_key, name, pos_x, pos_y, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(4, 1, 1, 3, 4, 'n1', '抽取-拉取订单分区', 100, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(5, 1, 1, 3, 5, 'n2', '清洗-去重生成宽表', 280, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(6, 1, 1, 3, 6, 'n3', '质检-行数阈值校验', 460, 100, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(7, 1, 1, 3, 7, 'n4', '指标-GMV 汇总',     460, 220, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(8, 1, 1, 3, 8, 'n5', '加载-写目标分区表', 640, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(9, 1, 1, 3, 9, 'n6', '归档-清理与统计',   820, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
+(4, 1, 1, 3, 10, 'n1', '抽取-拉取订单分区', 100, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(5, 1, 1, 3, 11, 'n2', '清洗-去重生成宽表', 280, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(6, 1, 1, 3, 12, 'n3', '质检-行数阈值校验', 460, 100, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(7, 1, 1, 3, 13, 'n4', '指标-GMV 汇总',     460, 220, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(8, 1, 1, 3, 14, 'n5', '加载-写目标分区表', 640, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(9, 1, 1, 3, 15, 'n6', '归档-清理与统计',   820, 160, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO workflow_edge (id, tenant_id, project_id, workflow_id, from_node_id, to_node_id, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (3, 1, 1, 3, 4, 5, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
@@ -172,7 +172,7 @@ INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, work
 -- 供 InspectorScheduler 启动后实时发现 → 自动诊断（真证据：node-3 mem 95%）→ 举手台冒出新卡片
 -- → Agent 主动开口。fresh boot 即可演示主动发现链路，无需 PG/故障注入脚本。
 INSERT INTO task_instance (id, tenant_id, project_id, task_id, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, exit_code, failure_reason, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0010-7000-8000-00000000000b', 1, 1, 4, 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+('01910000-0010-7000-8000-00000000000b', 1, 1, 10, 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
 
 -- ===== 域 D · 指标体系 =====
 INSERT INTO dimensions (id, tenant_id, project_id, code, name, data_type, expr, created_by, updated_by, created_at, updated_at, deleted, version)
