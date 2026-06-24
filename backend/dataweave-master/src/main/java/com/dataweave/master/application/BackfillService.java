@@ -10,6 +10,7 @@ import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -59,12 +60,12 @@ public class BackfillService {
     /** 发起补数据：校验 → 落 backfill_run → 逐 bizDate 生成实例 → 回填 total → 返回视图。 */
     public BackfillRunView submitBackfill(BackfillRequest req) {
         if (req == null || req.targetId() == null) {
-            throw new IllegalArgumentException("backfill target required");
+            throw new BizException("backfill.target_required");
         }
         boolean isTask = "task".equalsIgnoreCase(req.targetType());
         boolean isWorkflow = "workflow".equalsIgnoreCase(req.targetType());
         if (!isTask && !isWorkflow) {
-            throw new IllegalArgumentException("targetType must be task|workflow, got: " + req.targetType());
+            throw new BizException("backfill.invalid_target_type", req.targetType());
         }
         List<LocalDate> dates = expandDates(req.dateStart(), req.dateEnd());
 
@@ -205,16 +206,16 @@ public class BackfillService {
 
     private List<LocalDate> expandDates(String start, String end) {
         if (start == null || start.isBlank() || end == null || end.isBlank()) {
-            throw new IllegalArgumentException("dateStart/dateEnd required (yyyy-MM-dd)");
+            throw new BizException("backfill.dates_required");
         }
         LocalDate s = LocalDate.parse(start.trim(), ISO);
         LocalDate e = LocalDate.parse(end.trim(), ISO);
         if (e.isBefore(s)) {
-            throw new IllegalArgumentException("dateEnd before dateStart");
+            throw new BizException("backfill.date_order");
         }
         long span = Duration.between(s.atStartOfDay(), e.atStartOfDay()).toDays() + 1;
         if (span > MAX_DATE_SPAN) {
-            throw new IllegalArgumentException("date span exceeds " + MAX_DATE_SPAN + " days");
+            throw new BizException("backfill.date_span", MAX_DATE_SPAN);
         }
         List<LocalDate> dates = new ArrayList<>();
         for (LocalDate d = s; !d.isAfter(e); d = d.plusDays(1)) {

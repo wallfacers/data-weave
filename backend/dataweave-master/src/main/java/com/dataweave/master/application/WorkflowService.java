@@ -647,7 +647,7 @@ public class WorkflowService {
                     .toList();
             payload = new DagPayload(wf.getVersion(), nodes, edges);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to parse dag_snapshot_json for version " + versionNo, e);
+            throw new BizException("workflow.dag_parse_failed", versionNo);
         }
         saveDag(workflowId, payload);
 

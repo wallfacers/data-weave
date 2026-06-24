@@ -2,6 +2,7 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.AtomicMetric;
 import com.dataweave.master.domain.AtomicMetricRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class MetricService {
         String sql = "select " + metric.getMeasureExpr() + " from " + metric.getSourceTable();
         String reject = sqlExecutionService.rejectReason(sql);
         if (reject != null) {
-            throw new IllegalArgumentException("指标口径 SQL 未通过只读校验: " + reject);
+            throw new BizException("metric.sql_readonly_reject", reject);
         }
         return sqlExecutionService.queryScalar(sql);
     }

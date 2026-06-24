@@ -7,6 +7,7 @@ import com.dataweave.api.interfaces.dto.BackfillRun;
 import com.dataweave.api.interfaces.dto.BatchOp;
 import com.dataweave.api.interfaces.dto.InstanceQuery;
 import com.dataweave.api.interfaces.dto.InstanceRow;
+import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.ApprovalService;
 import com.dataweave.master.application.DiagnosisService;
@@ -487,14 +488,14 @@ public class McpToolRegistry {
                     @SuppressWarnings("unchecked")
                     List<String> ids = (List<String>) ctx.args().get("instanceIds");
                     if (ids == null || ids.isEmpty()) {
-                        throw new IllegalArgumentException("instanceIds 不能为空");
+                        throw new BizException("mcp.instance_ids_required");
                     }
                     String opName = required(ctx.args(), "op");
                     BatchOp op;
                     try {
                         op = BatchOp.valueOf(opName.toUpperCase().replace("-", "_"));
                     } catch (IllegalArgumentException e) {
-                        throw new IllegalArgumentException("op 必须为 rerun | kill | set-success");
+                        throw new BizException("mcp.invalid_op");
                     }
                     // 逐实例经闸门，与 OpsController.batchOp 一致
                     List<UUID> uuids = ids.stream().map(UUID::fromString).toList();
@@ -711,7 +712,7 @@ public class McpToolRegistry {
     private String required(Map<String, Object> args, String key) {
         String v = str(args, key);
         if (v == null || v.isBlank()) {
-            throw new IllegalArgumentException("缺少必填参数 " + key);
+            throw new BizException("mcp.param_required", key);
         }
         return v;
     }
@@ -727,14 +728,14 @@ public class McpToolRegistry {
         try {
             return Long.parseLong(v.toString().trim());
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(key + " 必须为整数");
+            throw new BizException("mcp.param_int", key);
         }
     }
 
     private Long requiredLong(Map<String, Object> args, String key) {
         Long v = lng(args, key);
         if (v == null) {
-            throw new IllegalArgumentException("缺少必填参数 " + key);
+            throw new BizException("mcp.param_required", key);
         }
         return v;
     }
@@ -747,14 +748,14 @@ public class McpToolRegistry {
         try {
             return java.util.UUID.fromString(v.toString().trim());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(key + " 必须为 UUID");
+            throw new BizException("mcp.param_uuid", key);
         }
     }
 
     private java.util.UUID requiredUuid(Map<String, Object> args, String key) {
         java.util.UUID v = uuid(args, key);
         if (v == null) {
-            throw new IllegalArgumentException("缺少必填参数 " + key);
+            throw new BizException("mcp.param_required", key);
         }
         return v;
     }

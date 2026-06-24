@@ -17,6 +17,7 @@ import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
 import com.dataweave.master.domain.WorkflowNode;
 import com.dataweave.master.domain.WorkflowNodeRepository;
+import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -124,7 +125,7 @@ public class WorkflowTriggerService {
         // 拓扑与版本仍以快照为准——live node 仅供取稳定 nodeKey 对应的物理主键。
         List<WorkflowNode> liveNodes = nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0);
         if (liveNodes.isEmpty()) {
-            throw new IllegalStateException("工作流无节点，无法触发：" + wf.getId());
+            throw new BizException("workflow.trigger.no_nodes", wf.getId());
         }
         Map<String, Long> keyToLiveId = new HashMap<>();
         Map<Long, String> idToKey = new HashMap<>();
@@ -177,7 +178,7 @@ public class WorkflowTriggerService {
             }
         }
         if (matNodes.isEmpty()) {
-            throw new IllegalStateException("工作流无可物化节点（快照节点均已失效，需重新晋级）：" + wf.getId());
+            throw new BizException("workflow.trigger.no_materialized", wf.getId());
         }
 
         // 运行范围子图（design D5）：按 nodeKey 闭包。子图外节点不物化。
@@ -186,7 +187,7 @@ public class WorkflowTriggerService {
         List<MatNode> subNodes = matNodes.stream()
                 .filter(m -> subKeys.contains(m.nodeKey())).toList();
         if (subNodes.isEmpty()) {
-            throw new IllegalStateException("运行范围为空（scope=" + scope + ", target=" + targetNodeKey + "）");
+            throw new BizException("workflow.trigger.empty_scope", scope, targetNodeKey);
         }
         LocalDateTime now = LocalDateTime.now();
 

@@ -1,5 +1,7 @@
 package com.dataweave.api.application.supervisor;
 
+import com.dataweave.master.i18n.BizException;
+
 /**
  * workhorse sidecar supervisor 的纯函数决策核心（变更 dataweave-managed-sidecar，design D1）。
  *
@@ -139,7 +141,7 @@ public final class SupervisorCore {
         } else if (os.contains("linux")) {
             goos = "linux";
         } else {
-            throw new IllegalArgumentException("不支持的 os.name：" + osName);
+            throw new BizException("supervisor.unsupported_os", osName);
         }
         String goarch;
         if (arch.equals("amd64") || arch.equals("x86_64")) {
@@ -147,7 +149,7 @@ public final class SupervisorCore {
         } else if (arch.equals("aarch64") || arch.equals("arm64")) {
             goarch = "arm64";
         } else {
-            throw new IllegalArgumentException("不支持的 os.arch：" + osArch);
+            throw new BizException("supervisor.unsupported_arch", osArch);
         }
         return "workhorse-agent-" + goos + "-" + goarch + (goos.equals("windows") ? ".exe" : "");
     }

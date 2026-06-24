@@ -8,6 +8,7 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -338,7 +339,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 case "kill" -> ops.killWorkflow(wiId).getState();
                 case "pause" -> ops.pauseWorkflow(wiId).getState();
                 case "resume" -> ops.resumeWorkflow(wiId).getState();
-                default -> throw new IllegalArgumentException("unknown op: " + op);
+                default -> throw new BizException("executor.unknown_op", op);
             };
             String msgKey = switch (op) {
                 case "kill" -> "executor.instance_op.killed";
@@ -373,7 +374,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 case "set-success" -> ops.setSuccess(id).getState();
                 case "rerun" -> ops.rerunInstance(id).getState();
                 case "kill" -> ops.killTask(id).getState();
-                default -> throw new IllegalArgumentException("unknown op: " + op);
+                default -> throw new BizException("executor.unknown_op", op);
             };
             String msgKey = switch (op) {
                 case "set-success" -> "executor.ops_task.set_success";

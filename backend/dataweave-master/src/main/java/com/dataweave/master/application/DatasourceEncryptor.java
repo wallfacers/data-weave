@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.i18n.BizException;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -33,15 +34,11 @@ public class DatasourceEncryptor {
     @PostConstruct
     void init() {
         if (masterKeyHex == null || masterKeyHex.isBlank()) {
-            throw new IllegalStateException(
-                    "DATASOURCE_MASTER_KEY environment variable is required. "
-                    + "Generate a 32-byte hex key (64 hex chars) and set it as env variable.");
+            throw new BizException("datasource.master_key_required");
         }
         byte[] keyBytes = hexToBytes(masterKeyHex.trim());
         if (keyBytes.length != 32) {
-            throw new IllegalStateException(
-                    "DATASOURCE_MASTER_KEY must be exactly 32 bytes (64 hex characters), got "
-                    + keyBytes.length + " bytes");
+            throw new BizException("datasource.master_key_invalid_length", keyBytes.length);
         }
         this.secretKey = new SecretKeySpec(keyBytes, "AES");
     }

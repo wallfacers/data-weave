@@ -13,6 +13,7 @@ import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstance;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -171,9 +172,9 @@ public class OpsService {
     /** 暂停工作流实例：RUNNING → PAUSED，所有 NOT_RUN 的 TaskInstance → PAUSED。 */
     public WorkflowInstance pauseWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
         if (!"RUNNING".equals(wi.getState())) {
-            throw new IllegalStateException("Only RUNNING instances can be paused");
+            throw new BizException("ops.pause.only_running");
         }
         wi.setState("PAUSED");
         wi.setUpdatedAt(LocalDateTime.now());
@@ -191,9 +192,9 @@ public class OpsService {
     /** 恢复工作流实例：PAUSED → RUNNING，所有 PAUSED 的 TaskInstance → NOT_RUN。 */
     public WorkflowInstance resumeWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
         if (!"PAUSED".equals(wi.getState())) {
-            throw new IllegalStateException("Only PAUSED instances can be resumed");
+            throw new BizException("ops.resume.only_paused");
         }
         wi.setState("RUNNING");
         wi.setUpdatedAt(LocalDateTime.now());
@@ -210,9 +211,9 @@ public class OpsService {
     /** 终止工作流实例：→ STOPPED，所有非终态 TaskInstance → STOPPED（经状态机 CAS 发状态事件→画布实时变色，并往各节点日志插手动停止行）。 */
     public WorkflowInstance killWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
         if (isTerminal(wi.getState())) {
-            throw new IllegalStateException("Cannot kill a terminal instance");
+            throw new BizException("ops.kill.terminal");
         }
         LocalDateTime now = LocalDateTime.now();
         instanceRepository.findByWorkflowInstanceId(instanceId).forEach(ti -> {
@@ -234,9 +235,9 @@ public class OpsService {
     /** 暂停单个任务实例。 */
     public TaskInstance pauseTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         if (!"NOT_RUN".equals(ti.getState())) {
-            throw new IllegalStateException("Only NOT_RUN task instances can be paused");
+            throw new BizException("ops.pause_task.only_not_run");
         }
         ti.setState("PAUSED");
         ti.setUpdatedAt(LocalDateTime.now());
@@ -246,9 +247,9 @@ public class OpsService {
     /** 恢复单个任务实例。 */
     public TaskInstance resumeTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         if (!"PAUSED".equals(ti.getState())) {
-            throw new IllegalStateException("Only PAUSED task instances can be resumed");
+            throw new BizException("ops.resume_task.only_paused");
         }
         ti.setState("NOT_RUN");
         ti.setUpdatedAt(LocalDateTime.now());
@@ -258,9 +259,9 @@ public class OpsService {
     /** 终止单个任务实例：经状态机 CAS 置 STOPPED（发状态事件），并往其日志流插手动停止行。 */
     public TaskInstance killTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         if (isTerminal(ti.getState())) {
-            throw new IllegalStateException("Cannot kill a terminal task instance");
+            throw new BizException("ops.kill_task.terminal");
         }
         if (stateMachine.casTaskTerminal(instanceId, ti.getState(), "STOPPED", "MANUAL_STOP")) {
             appendManualStopLog(instanceId);
@@ -277,10 +278,10 @@ public class OpsService {
      */
     public TaskInstance setSuccess(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         String from = ti.getState();
         if (!SET_SUCCESS_FROM.contains(from)) {
-            throw new IllegalStateException("Only non-success runnable states can be set-success, got: " + from);
+            throw new BizException("ops.set_success.invalid_state", from);
         }
         if (stateMachine.casTaskTerminal(instanceId, from, InstanceStates.SUCCESS, null)) {
             // 唤醒：下游 WAITING 经调度认领的就绪门（上游 SUCCESS）自然解锁。
@@ -295,9 +296,9 @@ public class OpsService {
      */
     public TaskInstance rerunInstance(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Task instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         if (!isTerminal(ti.getState())) {
-            throw new IllegalStateException("Only terminal task instances can be rerun, got: " + ti.getState());
+            throw new BizException("ops.rerun.not_terminal", ti.getState());
         }
         LocalDateTime now = LocalDateTime.now();
         jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, worker_node_code=NULL, "
@@ -376,7 +377,7 @@ public class OpsService {
     /** 获取日志分块。 */
     public LogChunk getLog(UUID instanceId, int offset, int limit) {
         TaskInstance ti = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalStateException("Instance not found: " + instanceId));
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
         String log = ti.getLog();
         if (log == null || log.isEmpty()) {
             return new LogChunk("", 0, offset, false);

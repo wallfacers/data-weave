@@ -1,6 +1,7 @@
 package com.dataweave.master.infrastructure;
 
 import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -86,7 +87,7 @@ public class IsolatedDriverLoader {
         try {
             byte[] bytes = storage.get(jar.getStorageKey());
             if (bytes == null) {
-                throw new IllegalStateException("驱动 jar 内容缺失: storageKey=" + jar.getStorageKey());
+                throw new BizException("datasource.driver_missing", jar.getStorageKey());
             }
             // 复制为临时副本，避免原文件锁；进程退出时清理
             Path temp = Files.createTempFile("dw-driver-", ".jar");
