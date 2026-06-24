@@ -281,6 +281,36 @@ html.dark .os-theme-dark {
   --os-handle-bg-active: oklch(0.6 0 0);
 }
 
+/* 聊天输入 textarea 原生滚动条：对齐 OverlayScrollbars(.os-theme-dark) —— 宽 4px（= --os-size）、
+   中性灰、全圆角、透明轨道，并用 ::-webkit-scrollbar-button:display none 去掉上下箭头（「倒三角」）。
+   textarea 需自身滚动、套不了 OverlayScrollbars，故用 ::-webkit-scrollbar 还原同款（不要整条隐藏）。 */
+.dw-textarea-thumb::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.dw-textarea-thumb::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dw-textarea-thumb::-webkit-scrollbar-thumb {
+  background-color: oklch(0.556 0 0 / 85%);
+  border-radius: 9999px;
+}
+.dw-textarea-thumb::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.556 0 0);
+}
+.dw-textarea-thumb::-webkit-scrollbar-button,
+.dw-textarea-thumb::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+}
+html.dark .dw-textarea-thumb::-webkit-scrollbar-thumb {
+  background-color: oklch(0.708 0 0 / 85%);
+}
+html.dark .dw-textarea-thumb::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.708 0 0);
+}
+
 /* Chrome 卡片标签：激活态底部两角向外凸的弧度，使标签平滑融入下方内容区（非简单顶部圆角）。
    伪元素填充表面色 --dw-tab-surface（= 内容面色，默认 sidebar），radial-gradient 切出 1/4 圆的
    凹弧 → 标签底边向两侧外扩、与内容连体。--dw-tab-surface 由 TabStrip 在激活标签上内联注入。 */

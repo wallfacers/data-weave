@@ -226,7 +226,7 @@ export function ChatInput({ context }: { context?: AgentPageContext }) {
           }}
           placeholder={t("placeholder")}
           rows={1}
-          className="max-h-[200px] min-h-[1.5rem] w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="dw-textarea-thumb max-h-[200px] min-h-[1.5rem] w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
         />
 
         {/* 附件 chip 行 */}
