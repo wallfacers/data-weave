@@ -46,4 +46,4 @@
 
 - [x] 6.1 H2 与 PG 双库各跑一遍血缘读写 + 驾驶舱端到端，确认方言无坑：H2 全栈 `LineageGraphEndpointTest`(4，含 sync-summary 186M / eta-summary 非空)；PG 重启 + 三端点(graph 5 节点 / sync 186M / eta 1785s)实证。**修幂等坑**：data_table/task_table_io/task_run_table_io（含他人 driver_jars）裸 CREATE 缺配套 DROP，mode=always 在持久 PG 重启撞 already exists → 补 DROP 块（44 CREATE/40 DROP 缺口 4 张补齐）
 - [x] 6.2 更新 CLAUDE.md「Knowledge Base Navigation」加 4 行导航：表级血缘(LineageGraphService+SqlTableExtractor+Controller)、态势驾驶舱视图(cockpit-view+lineage-graph)、ETA 预测(SlaService+端点)
-- [ ] 6.3 `openspec validate` 通过 → `/opsx:archive` 归档（合并 delta 至 base specs）
+- [x] 6.3 `openspec validate` 通过（valid）→ `/opsx:archive` 归档：合并 delta 至 base specs（新增 lineage-cockpit/table-lineage，更新 cockpit-shell/mcp-tool-server），change 移入 archive。1.5/4.4/5.2 三项作已接受延后增量随档记录
