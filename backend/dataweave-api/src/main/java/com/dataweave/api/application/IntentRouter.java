@@ -1,6 +1,11 @@
 package com.dataweave.api.application;
 
 import com.dataweave.api.interfaces.dto.PageContext;
+import com.dataweave.api.infrastructure.OpsMessages;
+import com.dataweave.api.interfaces.dto.BatchOp;
+import com.dataweave.api.interfaces.dto.InstanceQuery;
+import com.dataweave.api.interfaces.dto.InstanceRow;
+import com.dataweave.api.interfaces.dto.Page;
 import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.FleetService;
 import com.dataweave.master.application.LineageService;
@@ -12,6 +17,7 @@ import com.dataweave.master.domain.AtomicMetric;
 import com.dataweave.master.domain.MetricLineage;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDiagnosis;
+import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Component;
@@ -24,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,6 +54,8 @@ public class IntentRouter {
     private final LlmClient llmClient; // 预留：后期做真实意图识别/SQL 生成
     private final FleetService fleetService;
     private final DiagnosisService diagnosisService;
+    private final DataOpsBridge dataOpsBridge;
+    private final OpsMessages opsMessages;
     private final ObjectMapper objectMapper;
     private final Messages messages;
 
@@ -57,6 +66,8 @@ public class IntentRouter {
                         LlmClient llmClient,
                         FleetService fleetService,
                         DiagnosisService diagnosisService,
+                        DataOpsBridge dataOpsBridge,
+                        OpsMessages opsMessages,
                         ObjectMapper objectMapper,
                         Messages messages) {
         this.metricService = metricService;
@@ -66,6 +77,8 @@ public class IntentRouter {
         this.llmClient = llmClient;
         this.fleetService = fleetService;
         this.diagnosisService = diagnosisService;
+        this.dataOpsBridge = dataOpsBridge;
+        this.opsMessages = opsMessages;
         this.objectMapper = objectMapper;
         this.messages = messages;
     }
@@ -102,6 +115,16 @@ public class IntentRouter {
         if (containsAny(msg, "机器", "集群", "节点", "worker", "机器状态", "资源水位", "机器列表", "几台",
                 "node", "cluster", "fleet", "machine", "resource usage")) {
             return tryFleet(loc);
+        }
+
+        // 0c) 运维意图（data-ops-center Stream C）：查失败实例 / 重跑建议 / 补数据建议
+        if (containsAny(msg, "失败实例", "哪些失败了", "最近失败", "失败的实例",
+                "failed instances", "what failed", "recent failures",
+                "有哪些失败", "失败的有哪些", "show failed")) {
+            return tryOpsFailedInstances(loc);
+        }
+        if (containsAny(msg, "补数据", "backfill", "回补", "重补数据")) {
+            return tryOpsBackfillSuggestion(msg, loc);
         }
 
         // 1) 血缘意图（优先于纯指标查询，因为也含指标名）
@@ -412,6 +435,105 @@ public class IntentRouter {
             }
         }
         return null;
+    }
+
+    // ---- 运维意图 (data-ops-center Stream C) ----
+
+    /** 查询最近失败实例，返回列表 + 重跑建议。 */
+    private AgentReply tryOpsFailedInstances(Locale loc) {
+        try {
+            var q = new InstanceQuery(null, "FAILED", null, null, 1, 10);
+            Page<InstanceRow> page = dataOpsBridge.queryInstances(q);
+            if (page.items().isEmpty()) {
+                return AgentReply.text(opsMessages.get("ops.agent.no_failed", loc));
+            }
+
+            StringBuilder md = new StringBuilder();
+            md.append(opsMessages.get("ops.agent.failed_instances", loc)).append("\n\n");
+            md.append("| 实例 ID | 任务 | 业务日期 | 运行模式 |\n");
+            md.append("| --- | --- | --- | --- |\n");
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (InstanceRow r : page.items()) {
+                String idShort = r.id().toString().substring(0, 8);
+                md.append("| ").append(idShort).append("...")
+                        .append(" | ").append(r.taskDefName() != null ? r.taskDefName() : "task-" + r.taskDefId())
+                        .append(" | ").append(r.bizDate() != null ? r.bizDate() : "-")
+                        .append(" | ").append(r.runMode())
+                        .append(" |\n");
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", r.id().toString());
+                row.put("taskDefId", r.taskDefId());
+                row.put("taskDefName", r.taskDefName());
+                row.put("bizDate", r.bizDate());
+                row.put("runMode", r.runMode());
+                rows.add(row);
+            }
+
+            md.append("\n").append(opsMessages.get("ops.agent.rerun_suggestion", loc)).append("\n");
+            for (InstanceRow r : page.items()) {
+                md.append("- #").append(r.id().toString().substring(0, 8)).append("...")
+                        .append(" (").append(r.taskDefName() != null ? r.taskDefName() : "task-" + r.taskDefId())
+                        .append(")\n");
+            }
+
+            Map<String, Object> structured = new LinkedHashMap<>();
+            structured.put("kind", "failed-instances");
+            structured.put("total", page.total());
+            structured.put("rows", rows);
+            structured.put("suggestedAction", Map.of("op", "rerun"));
+
+            return new AgentReply(md.toString(), structured)
+                    .opening("ops", Map.of("tab", "instances", "filter", Map.of("state", "FAILED")));
+        } catch (Exception e) {
+            return AgentReply.text(opsMessages.get("ops.agent.no_failed", loc));
+        }
+    }
+
+    /** 补数据建议：从消息解析日期区间，给出 backfill 建议。 */
+    private AgentReply tryOpsBackfillSuggestion(String msg, Locale loc) {
+        // 尝试从消息中提取日期区间（yyyy-MM-dd 格式）
+        Pattern datePattern = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})");
+        Matcher m = datePattern.matcher(msg);
+        String dateStart = null;
+        String dateEnd = null;
+        List<String> dates = new ArrayList<>();
+        while (m.find()) {
+            dates.add(m.group(1));
+        }
+        if (dates.size() >= 2) {
+            dateStart = dates.get(0);
+            dateEnd = dates.get(1);
+        } else if (dates.size() == 1) {
+            dateStart = dates.get(0);
+            dateEnd = dates.get(0);
+        }
+
+        StringBuilder md = new StringBuilder();
+        md.append(opsMessages.get("ops.agent.backfill_suggestion", loc)).append("\n\n");
+
+        if (dateStart != null) {
+            md.append("- ").append(opsMessages.get("ops.agent.failed_instances", loc))
+                    .append(": ").append(dateStart).append(" ~ ").append(dateEnd).append("\n");
+            md.append("- 并发度建议: 1\n");
+        } else {
+            md.append("- 请指定补数据的日期范围，例如：补数据 2026-06-20 ~ 2026-06-23\n");
+            md.append("- 并发度建议: 1（默认）\n");
+        }
+
+        Map<String, Object> structured = new LinkedHashMap<>();
+        structured.put("kind", "backfill-suggestion");
+        structured.put("dateStart", dateStart);
+        structured.put("dateEnd", dateEnd);
+        structured.put("parallelism", 1);
+
+        Map<String, Object> uiParams = new LinkedHashMap<>();
+        uiParams.put("tab", "backfill");
+        if (dateStart != null) {
+            uiParams.put("dateStart", dateStart);
+            uiParams.put("dateEnd", dateEnd);
+        }
+        return new AgentReply(md.toString(), structured)
+                .opening("ops", uiParams);
     }
 
     // ---- 兜底 ----

@@ -50,7 +50,8 @@ class IntentRouterIntentTest {
         ms.setFallbackToSystemLocale(false);
         Messages messages = new Messages(ms);
         router = new IntentRouter(metricService, lineageService, taskService,
-                sqlExecutionService, llmClient, fleetService, diagnosisService, objectMapper, messages);
+                sqlExecutionService, llmClient, fleetService, diagnosisService,
+                null, null, objectMapper, messages);
     }
 
     @Test

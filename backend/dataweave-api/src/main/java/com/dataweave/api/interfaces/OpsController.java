@@ -1,22 +1,22 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.application.AguiEvents;
+import com.dataweave.api.application.DataOpsBridge;
+import com.dataweave.api.application.OpsAlertService;
 import com.dataweave.api.application.supervisor.WorkhorseSupervisor;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.OpsMessages;
+import com.dataweave.api.interfaces.dto.*;
+import com.dataweave.master.application.ActionRequest;
+import com.dataweave.master.application.GateResult;
+import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.OpsService;
-import com.dataweave.master.application.OpsService.DashboardSummary;
-import com.dataweave.master.application.OpsService.LogChunk;
 import com.dataweave.master.application.RecoveryService;
 import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.application.SchedulerMetrics.MetricsSnapshot;
 import com.dataweave.master.application.SlaService;
-import com.dataweave.master.domain.EventBus;
-import com.dataweave.master.domain.InstanceStates;
-import com.dataweave.master.domain.LogArchiveStorage;
-import com.dataweave.master.domain.LogBus;
-import com.dataweave.master.domain.TaskDef;
-import com.dataweave.master.domain.TaskInstance;
-import com.dataweave.master.domain.WorkflowInstance;
+import com.dataweave.master.domain.*;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
 import org.springframework.http.MediaType;
@@ -28,14 +28,20 @@ import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 调度运维 / 驾驶舱查询 REST 端点：全局概况、任务定义、运行实例、失败清单、系统指标。
  *
  * <p>供前端驾驶舱首页（{@code /}）、调度运维页（{@code /ops}）、数据开发页（{@code /tasks}）拉取。
  * MVP 阶段读侧走 REST，写侧（建任务/诊断/修复）统一走 Agent（{@code /agui}）。
+ *
+ * <p>data-ops-center Stream C：新增周期实例筛选分页、批量操作、补数据、冻结端点；
+ * 写操作全部经 {@link GatedActionService} 闸门 + agent_action 审计，无旁路。
  */
 @RestController
 @RequestMapping("/api/ops")
@@ -49,12 +55,22 @@ public class OpsController {
     private final LogArchiveStorage logArchive;
     private final EventBus eventBus;
     private final Messages messages;
+    private final OpsMessages opsMessages;
     private final WorkhorseSupervisor workhorseSupervisor;
+    private final DataOpsBridge dataOpsBridge;
+    private final GatedActionService gatedActionService;
+    private final AguiEvents aguiEvents;
+    private final OpsAlertService opsAlertService;
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
                          LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus,
-                         Messages messages, WorkhorseSupervisor workhorseSupervisor) {
+                         Messages messages, OpsMessages opsMessages,
+                         WorkhorseSupervisor workhorseSupervisor,
+                         DataOpsBridge dataOpsBridge,
+                         GatedActionService gatedActionService,
+                         AguiEvents aguiEvents,
+                         OpsAlertService opsAlertService) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
         this.metrics = metrics;
@@ -63,12 +79,17 @@ public class OpsController {
         this.logArchive = logArchive;
         this.eventBus = eventBus;
         this.messages = messages;
+        this.opsMessages = opsMessages;
         this.workhorseSupervisor = workhorseSupervisor;
+        this.dataOpsBridge = dataOpsBridge;
+        this.gatedActionService = gatedActionService;
+        this.aguiEvents = aguiEvents;
+        this.opsAlertService = opsAlertService;
     }
 
     /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
     @GetMapping("/summary")
-    public ApiResponse<DashboardSummary> summary() {
+    public ApiResponse<OpsService.DashboardSummary> summary() {
         return ApiResponse.ok(opsService.summary());
     }
 
@@ -87,9 +108,35 @@ public class OpsController {
         return ApiResponse.ok(slaService.predictLatestEta(1L, 1L));
     }
 
-    /** 正式运行实例（排除 TEST 试跑），按 id 降序。 */
+    /**
+     * 周期实例筛选分页查询 — 契约①。
+     * 兼容旧调用（无参数时返回全部 NORMAL 实例列表）。
+     */
     @GetMapping("/instances")
-    public ApiResponse<List<TaskInstance>> instances() {
+    public ApiResponse<?> instances(
+            @RequestParam(required = false) String runMode,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) Long taskId,
+            @RequestParam(required = false) String bizDate,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        // 新签名：有筛选/分页参数时走契约①
+        boolean hasFilter = runMode != null || state != null || taskId != null || bizDate != null
+                || page > 1; // page>1 表示调用方明确要分页
+        if (hasFilter) {
+            InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate, page, size);
+            Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
+            return ApiResponse.ok(result);
+        }
+
+        // 旧兼容：无参数返回全部 NORMAL 实例
+        if (size != 20 || page != 1) {
+            InstanceQuery q = new InstanceQuery(null, null, null, null, page, size);
+            Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
+            return ApiResponse.ok(result);
+        }
+
         return ApiResponse.ok(opsService.instances());
     }
 
@@ -173,6 +220,201 @@ public class OpsController {
     public ApiResponse<?> killTask(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.killTask(id));
     }
+
+    // ─── 契约① 新增端点：批量操作 / 补数据 / 冻结 ─────────────────
+
+    /**
+     * 批量操作：rerun / kill / set-success — 契约①。
+     * 逐个经闸门裁决，返回每项结果 + outcome。
+     */
+    @PostMapping("/instances/batch")
+    public ApiResponse<Map<String, Object>> batchOp(@RequestBody Map<String, Object> body,
+                                                     ServerWebExchange exchange) {
+        @SuppressWarnings("unchecked")
+        List<String> idStrings = (List<String>) body.get("ids");
+        String opName = (String) body.get("op");
+        if (idStrings == null || idStrings.isEmpty()) {
+            throw new BizException("ops.batch.empty_ids");
+        }
+        if (opName == null || opName.isBlank()) {
+            throw new BizException("ops.batch.missing_op");
+        }
+        BatchOp op;
+        try {
+            op = BatchOp.valueOf(opName.toUpperCase().replace("-", "_"));
+        } catch (IllegalArgumentException e) {
+            throw new BizException("ops.batch.invalid_op");
+        }
+
+        List<UUID> ids = idStrings.stream().map(UUID::fromString).collect(Collectors.toList());
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+
+        List<BatchResult.BatchResultItem> items = new ArrayList<>();
+        int accepted = 0;
+        for (UUID id : ids) {
+            try {
+                ActionRequest req = buildBatchActionRequest(id, op);
+                GateResult gr = gatedActionService.submit(req, locale);
+                String outcome = gr.outcome().name();
+                if (gr.executed()) accepted++;
+                items.add(new BatchResult.BatchResultItem(
+                        id.toString(), outcome, gr.actionId()));
+            } catch (Exception e) {
+                items.add(new BatchResult.BatchResultItem(
+                        id.toString(), "REJECTED", null));
+            }
+        }
+
+        BatchResult batchResult = new BatchResult(ids.size(), accepted, items);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("outcome", accepted == ids.size() ? "EXECUTED"
+                : accepted > 0 ? "PARTIAL" : "REJECTED");
+        result.put("result", batchResult);
+        return ApiResponse.ok(result);
+    }
+
+    /**
+     * 提交补数据 — 契约①。
+     */
+    @PostMapping("/backfill")
+    public ApiResponse<Map<String, Object>> backfill(@RequestBody BackfillRequest req,
+                                                      ServerWebExchange exchange) {
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+
+        ActionRequest actionReq = ActionRequest.builder()
+                .toolName("backfill").actionType("BACKFILL")
+                .targetType(req.targetType().toUpperCase())
+                .targetId(String.valueOf(req.targetId()))
+                .actor("ui").actorSource("UI")
+                .summary(opsMessages.get("ops.approval.backfill", locale))
+                .param("dateStart", req.dateStart())
+                .param("dateEnd", req.dateEnd())
+                .param("includeDownstream", req.includeDownstream())
+                .param("parallelism", req.parallelism())
+                .build();
+
+        GateResult gr = gatedActionService.submit(actionReq, locale);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("outcome", gr.outcome().name());
+        if (gr.executed()) {
+            try {
+                BackfillRun run = dataOpsBridge.submitBackfill(req);
+                result.put("run", run);
+            } catch (UnsupportedOperationException e) {
+                result.put("message", "闸门通过，领域执行待 Stream A 实现");
+                result.put("run", null);
+            }
+        } else {
+            result.put("message", gr.message());
+            result.put("approvalId", gr.actionId());
+        }
+        return ApiResponse.ok(result);
+    }
+
+    /**
+     * 查询补数据运行列表 — 契约①。
+     */
+    @GetMapping("/backfill")
+    public ApiResponse<Map<String, Object>> backfillList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        try {
+            List<BackfillRun> runs = dataOpsBridge.backfillRuns(page, size);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("items", runs);
+            result.put("total", runs.size());
+            return ApiResponse.ok(result);
+        } catch (UnsupportedOperationException e) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("items", List.of());
+            result.put("total", 0);
+            result.put("note", "待 Stream A 实现");
+            return ApiResponse.ok(result);
+        }
+    }
+
+    /**
+     * 查询单个补数据运行详情 — 契约①。
+     */
+    @GetMapping("/backfill/{runId}")
+    public ApiResponse<Map<String, Object>> backfillDetail(@PathVariable UUID runId) {
+        try {
+            BackfillRun run = dataOpsBridge.backfillRun(runId);
+            List<InstanceRow> instances = dataOpsBridge.backfillRunInstances(runId);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("run", run);
+            result.put("instances", instances);
+            return ApiResponse.ok(result);
+        } catch (UnsupportedOperationException e) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("run", null);
+            result.put("instances", List.of());
+            result.put("note", "待 Stream A 实现");
+            return ApiResponse.ok(result);
+        }
+    }
+
+    /**
+     * 冻结/解冻任务 — 契约①。
+     */
+    @PostMapping("/tasks/{taskId}/freeze")
+    public ApiResponse<Map<String, Object>> freeze(@PathVariable Long taskId,
+                                                    @RequestBody Map<String, Object> body,
+                                                    ServerWebExchange exchange) {
+        boolean frozen = Boolean.TRUE.equals(body.get("frozen"));
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+
+        ActionRequest actionReq = ActionRequest.builder()
+                .toolName("freeze_task").actionType("FREEZE_TASK")
+                .targetType("TASK").targetId(String.valueOf(taskId))
+                .actor("ui").actorSource("UI")
+                .summary(opsMessages.get("ops.approval.freeze", locale) + " #" + taskId)
+                .param("frozen", frozen)
+                .build();
+
+        GateResult gr = gatedActionService.submit(actionReq, locale);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("outcome", gr.outcome().name());
+
+        if (gr.executed()) {
+            try {
+                TaskDef td = dataOpsBridge.setFrozen(taskId, frozen);
+                result.put("task", Map.of("id", td.getId(), "name", td.getName(), "frozen", frozen));
+            } catch (UnsupportedOperationException e) {
+                result.put("message", "闸门通过，领域执行待 Stream A 实现");
+                result.put("task", null);
+            }
+        } else {
+            result.put("message", gr.message());
+            result.put("approvalId", gr.actionId());
+        }
+        return ApiResponse.ok(result);
+    }
+
+    // ─── 巡检告警端点（Agent 闭环） ──────────────────────
+
+    /**
+     * 触发一次巡检：扫描失败实例，发 AG-UI ops.alert 事件。
+     * GET 查询，无副作用；返回生成的告警数。
+     */
+    @GetMapping("/inspect")
+    public ApiResponse<Map<String, Object>> inspect(ServerWebExchange exchange) {
+        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
+        List<TaskInstance> failedInstances = opsService.failedInstances();
+        int count = 0;
+        for (TaskInstance inst : failedInstances) {
+            Map<String, Object> alert = opsAlertService.buildFailedAlert(inst, locale);
+            if (alert != null) {
+                count++;
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("inspected", failedInstances.size());
+        result.put("alertsGenerated", count);
+        return ApiResponse.ok(result);
+    }
+
+    // ─── 现有日志 / 指标 / SSE ──────────────────────
 
     @GetMapping("/instances/{id}/log")
     public ApiResponse<?> log(@PathVariable UUID id,
@@ -326,5 +568,31 @@ public class OpsController {
                         // 忽略
                     }
                 });
+    }
+
+    // ─── helpers ────────────────────────────────────────
+
+    /** 构造批量操作请求（每个 instance 独立一个 ActionRequest，逐经闸门）。 */
+    private ActionRequest buildBatchActionRequest(UUID instanceId, BatchOp op) {
+        String actionType = switch (op) {
+            case RERUN -> "TASK_RERUN";
+            case KILL -> "KILL_INSTANCE";
+            case SET_SUCCESS -> "SET_SUCCESS";
+        };
+        String summary = switch (op) {
+            case RERUN -> "重跑实例 #" + instanceId;
+            case KILL -> "终止实例 #" + instanceId;
+            case SET_SUCCESS -> "置成功实例 #" + instanceId;
+        };
+        return ActionRequest.builder()
+                .toolName("batch_" + op.name().toLowerCase())
+                .actionType(actionType)
+                .targetType("TASK_INSTANCE")
+                .targetId(String.valueOf(instanceId))
+                .actor("ui")
+                .actorSource("UI")
+                .summary(summary)
+                .param("instanceId", instanceId.toString())
+                .build();
     }
 }

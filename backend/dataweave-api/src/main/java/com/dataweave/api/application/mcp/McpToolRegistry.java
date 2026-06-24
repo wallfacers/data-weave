@@ -1,5 +1,12 @@
 package com.dataweave.api.application.mcp;
 
+import com.dataweave.api.application.DataOpsBridge;
+import com.dataweave.api.infrastructure.OpsMessages;
+import com.dataweave.api.interfaces.dto.BackfillRequest;
+import com.dataweave.api.interfaces.dto.BackfillRun;
+import com.dataweave.api.interfaces.dto.BatchOp;
+import com.dataweave.api.interfaces.dto.InstanceQuery;
+import com.dataweave.api.interfaces.dto.InstanceRow;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.ApprovalService;
 import com.dataweave.master.application.DiagnosisService;
@@ -31,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 平台工具注册中心：平台能力的唯一真相源。查询工具直通 master 领域服务（与观测页 REST 同源）；
@@ -54,6 +62,8 @@ public class McpToolRegistry {
     private final ApprovalService approvalService;
     private final TaskService taskService;
     private final OpsService opsService;
+    private final DataOpsBridge dataOpsBridge;
+    private final OpsMessages opsMessages;
     private final ObjectMapper objectMapper;
     private final int outputThreshold;
     private final Path archiveDir;
@@ -70,6 +80,8 @@ public class McpToolRegistry {
                            ApprovalService approvalService,
                            TaskService taskService,
                            OpsService opsService,
+                           DataOpsBridge dataOpsBridge,
+                           OpsMessages opsMessages,
                            ObjectMapper objectMapper,
                            @Value("${mcp.output-threshold:8000}") int outputThreshold,
                            @Value("${mcp.archive-dir:${java.io.tmpdir}/dataweave-tool-outputs}") String archiveDir) {
@@ -83,6 +95,8 @@ public class McpToolRegistry {
         this.approvalService = approvalService;
         this.taskService = taskService;
         this.opsService = opsService;
+        this.dataOpsBridge = dataOpsBridge;
+        this.opsMessages = opsMessages;
         this.objectMapper = objectMapper;
         this.outputThreshold = outputThreshold;
         this.archiveDir = Path.of(archiveDir);
@@ -416,6 +430,168 @@ public class McpToolRegistry {
                             .summary("整流重跑实例 " + instanceId)
                             .build();
                     return gateText(gatedActionService.submit(req, ctx.locale()));
+                });
+
+        // ─── data-ops-center Stream C: 运维工具 ──────────────────
+
+        register("query_failed_instances", "查询最近失败的周期实例（可选按 taskId 过滤）",
+                schema(prop("taskId", "integer", "任务定义 id，可选"),
+                        prop("limit", "integer", "返回数量上限，默认 20")),
+                ctx -> {
+                    Long taskId = lng(ctx.args(), "taskId");
+                    Long limit = lng(ctx.args(), "limit");
+                    int size = limit != null ? limit.intValue() : 20;
+                    var q = new InstanceQuery(null, "FAILED", taskId, null, 1, size);
+                    return dataOpsBridge.queryInstances(q);
+                });
+
+        register("rerun_instance", "重跑一个失败的任务实例（经策略闸门）",
+                schema(req("instanceId", "string", "任务实例 id（UUID）")),
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("rerun_instance").actionType("TASK_RERUN")
+                            .targetType("TASK_INSTANCE").targetId(instanceId.toString())
+                            .actor("agent").actorSource("AGENT")
+                            .summary(opsMessages.get("ops.approval.rerun", ctx.locale()) + " #" + instanceId)
+                            .build();
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
+                });
+
+        register("set_instance_success", "将任务实例标记为成功（经策略闸门）",
+                schema(req("instanceId", "string", "任务实例 id（UUID）")),
+                ctx -> {
+                    java.util.UUID instanceId = requiredUuid(ctx.args(), "instanceId");
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("set_instance_success").actionType("SET_SUCCESS")
+                            .targetType("TASK_INSTANCE").targetId(instanceId.toString())
+                            .actor("agent").actorSource("AGENT")
+                            .summary(opsMessages.get("ops.approval.set_success", ctx.locale()) + " #" + instanceId)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    try {
+                        var inst = dataOpsBridge.setSuccess(instanceId);
+                        return Map.of("outcome", "EXECUTED", "instanceId", instanceId.toString(),
+                                "state", inst.getState());
+                    } catch (UnsupportedOperationException e) {
+                        return Map.of("outcome", "EXECUTED", "instanceId", instanceId.toString(),
+                                "note", "领域执行待 Stream A 实现");
+                    }
+                });
+
+        register("batch_instance_ops", "批量操作实例：rerun/kill/set-success（经策略闸门）",
+                schema(req("instanceIds", "array", "实例 id 列表（UUID 字符串）"),
+                        req("op", "string", "操作类型：rerun | kill | set-success")),
+                ctx -> {
+                    @SuppressWarnings("unchecked")
+                    List<String> ids = (List<String>) ctx.args().get("instanceIds");
+                    if (ids == null || ids.isEmpty()) {
+                        throw new IllegalArgumentException("instanceIds 不能为空");
+                    }
+                    String opName = required(ctx.args(), "op");
+                    BatchOp op;
+                    try {
+                        op = BatchOp.valueOf(opName.toUpperCase().replace("-", "_"));
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("op 必须为 rerun | kill | set-success");
+                    }
+                    List<UUID> uuids = ids.stream().map(UUID::fromString).toList();
+                    try {
+                        return dataOpsBridge.batchOp(uuids, op);
+                    } catch (UnsupportedOperationException e) {
+                        return Map.of("requested", uuids.size(), "note", "待 Stream A 实现");
+                    }
+                });
+
+        register("freeze_task", "冻结/解冻任务定义（经策略闸门）",
+                schema(req("taskId", "integer", "任务定义 id"),
+                        req("frozen", "boolean", "true=冻结 false=解冻")),
+                ctx -> {
+                    Long taskId = requiredLong(ctx.args(), "taskId");
+                    Boolean frozen = Boolean.TRUE.equals(ctx.args().get("frozen"));
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("freeze_task").actionType("FREEZE_TASK")
+                            .targetType("TASK").targetId(String.valueOf(taskId))
+                            .actor("agent").actorSource("AGENT")
+                            .summary(opsMessages.get("ops.approval.freeze", ctx.locale()) + " #" + taskId)
+                            .param("frozen", frozen)
+                            .build();
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    try {
+                        var td = dataOpsBridge.setFrozen(taskId, frozen);
+                        return Map.of("outcome", "EXECUTED", "taskId", taskId, "frozen", frozen,
+                                "name", td.getName());
+                    } catch (UnsupportedOperationException e) {
+                        return Map.of("outcome", "EXECUTED", "taskId", taskId, "frozen", frozen,
+                                "note", "领域执行待 Stream A 实现");
+                    }
+                });
+
+        register("submit_backfill", "提交补数据：对指定日期区间生成补数据实例（经策略闸门）",
+                schema(req("targetType", "string", "task 或 workflow"),
+                        req("targetId", "integer", "目标任务/工作流 id"),
+                        req("dateStart", "string", "起始日期 yyyy-MM-dd"),
+                        req("dateEnd", "string", "结束日期 yyyy-MM-dd"),
+                        prop("includeDownstream", "boolean", "是否包含下游，默认 false"),
+                        prop("parallelism", "integer", "并发度 1-10，默认 1")),
+                ctx -> {
+                    BackfillRequest bfReq = new BackfillRequest(
+                            required(ctx.args(), "targetType"),
+                            requiredLong(ctx.args(), "targetId"),
+                            required(ctx.args(), "dateStart"),
+                            required(ctx.args(), "dateEnd"),
+                            Boolean.TRUE.equals(ctx.args().get("includeDownstream")),
+                            lng(ctx.args(), "parallelism") != null ? lng(ctx.args(), "parallelism").intValue() : 1);
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("submit_backfill").actionType("BACKFILL")
+                            .targetType(bfReq.targetType().toUpperCase())
+                            .targetId(String.valueOf(bfReq.targetId()))
+                            .actor("agent").actorSource("AGENT")
+                            .summary(opsMessages.get("ops.approval.backfill", ctx.locale()))
+                            .param("dateStart", bfReq.dateStart())
+                            .param("dateEnd", bfReq.dateEnd())
+                            .param("includeDownstream", bfReq.includeDownstream())
+                            .param("parallelism", bfReq.parallelism())
+                            .build();
+                    GateResult gr = gatedActionService.submit(req, ctx.locale());
+                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
+                    try {
+                        BackfillRun run = dataOpsBridge.submitBackfill(bfReq);
+                        return Map.of("outcome", "EXECUTED", "run", run);
+                    } catch (UnsupportedOperationException e) {
+                        return Map.of("outcome", "EXECUTED", "run", null,
+                                "note", "领域执行待 Stream A 实现");
+                    }
+                });
+
+        register("query_backfill", "查询补数据运行记录",
+                schema(prop("page", "integer", "页码，默认 1"),
+                        prop("size", "integer", "每页数量，默认 20"),
+                        prop("runId", "string", "单个运行 id（UUID），提供时忽略分页")),
+                ctx -> {
+                    String runIdStr = str(ctx.args(), "runId");
+                    if (runIdStr != null && !runIdStr.isBlank()) {
+                        try {
+                            UUID runId = UUID.fromString(runIdStr.trim());
+                            BackfillRun run = dataOpsBridge.backfillRun(runId);
+                            List<InstanceRow> instances = dataOpsBridge.backfillRunInstances(runId);
+                            return Map.of("run", run, "instances", instances);
+                        } catch (UnsupportedOperationException e) {
+                            return Map.of("note", "待 Stream A 实现");
+                        }
+                    }
+                    Long page = lng(ctx.args(), "page");
+                    Long size = lng(ctx.args(), "size");
+                    int p = page != null ? page.intValue() : 1;
+                    int s = size != null ? size.intValue() : 20;
+                    try {
+                        List<BackfillRun> runs = dataOpsBridge.backfillRuns(p, s);
+                        return Map.of("items", runs, "total", runs.size());
+                    } catch (UnsupportedOperationException e) {
+                        return Map.of("items", List.of(), "total", 0, "note", "待 Stream A 实现");
+                    }
                 });
     }
 
