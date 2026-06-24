@@ -135,8 +135,8 @@ export function TaskConfigPanel({
 
       {/* 数据源绑定（仅 SQL 任务显示） */}
       {type === "SQL" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.datasource")}</label>
             <DropdownSelect
               value={datasourceId != null ? String(datasourceId) : DATASOURCE_NONE}
@@ -144,7 +144,7 @@ export function TaskConfigPanel({
               options={datasourceOptions}
             />
           </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.targetDatasource")}</label>
             <DropdownSelect
               value={targetDatasourceId != null ? String(targetDatasourceId) : DATASOURCE_NONE}
