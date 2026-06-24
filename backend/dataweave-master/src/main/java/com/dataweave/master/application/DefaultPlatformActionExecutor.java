@@ -86,6 +86,11 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "KILL_INSTANCE" -> instanceOp(action, "kill", locale);
             case "PAUSE_INSTANCE" -> instanceOp(action, "pause", locale);
             case "RESUME_INSTANCE" -> instanceOp(action, "resume", locale);
+            // 运维中心批量操作（data-ops-center）：targetType=TASK_INSTANCE，对单个 task_instance 生效。
+            // 与既有 TASK_RERUN（按 taskId 新建实例）/KILL_INSTANCE（杀工作流实例）语义区分，故用独立动作类型。
+            case "OPS_SET_SUCCESS" -> opsTaskInstanceOp(action, "set-success", locale);
+            case "OPS_RERUN_INSTANCE" -> opsTaskInstanceOp(action, "rerun", locale);
+            case "OPS_KILL_INSTANCE" -> opsTaskInstanceOp(action, "kill", locale);
             case "ROLLBACK_TASK" -> rollbackTask(action, locale);
             case "ROLLBACK_WORKFLOW" -> rollbackWorkflow(action, locale);
             default -> new ExecOutcome(false,
@@ -347,6 +352,40 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             // OpsService 对非法状态/不存在抛 IllegalStateException；转为可读的失败结果，不抛穿闸门。
             return new ExecOutcome(false,
                     messages.get("executor.instance_op.failed", locale, op, e.getMessage()),
+                    json(Map.of("error", op + "_failed", "detail", String.valueOf(e.getMessage()))), null);
+        }
+    }
+
+    /**
+     * 运维中心单 task_instance 操作（data-ops-center 批量）：targetId=taskInstanceId(UUID)，
+     * op ∈ set-success|rerun|kill。经 OpsService 领域方法（CAS/唤醒纪律在内）。非法状态/不存在转为可读失败结果，不抛穿闸门。
+     */
+    private ExecOutcome opsTaskInstanceOp(AgentAction action, String op, Locale locale) {
+        UUID id = parseUuid(action.getTargetId());
+        if (id == null) {
+            return new ExecOutcome(false,
+                    messages.get("executor.ops_task.bad_id", locale, action.getTargetId()),
+                    json(Map.of("error", "bad_instance_id", "actionType", action.getActionType())), null);
+        }
+        OpsService ops = opsService.getObject();
+        try {
+            String state = switch (op) {
+                case "set-success" -> ops.setSuccess(id).getState();
+                case "rerun" -> ops.rerunInstance(id).getState();
+                case "kill" -> ops.killTask(id).getState();
+                default -> throw new IllegalArgumentException("unknown op: " + op);
+            };
+            String msgKey = switch (op) {
+                case "set-success" -> "executor.ops_task.set_success";
+                case "rerun" -> "executor.ops_task.rerun";
+                default -> "executor.ops_task.killed";
+            };
+            return new ExecOutcome(true,
+                    messages.get(msgKey, locale, state),
+                    json(Map.of("op", op, "taskInstanceId", id.toString(), "state", String.valueOf(state))), id);
+        } catch (RuntimeException e) {
+            return new ExecOutcome(false,
+                    messages.get("executor.ops_task.failed", locale, op, String.valueOf(e.getMessage())),
                     json(Map.of("error", op + "_failed", "detail", String.valueOf(e.getMessage()))), null);
         }
     }
