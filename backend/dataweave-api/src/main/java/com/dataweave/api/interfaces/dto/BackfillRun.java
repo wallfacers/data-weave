@@ -19,5 +19,7 @@ public record BackfillRun(
         int success,
         int failed,
         int running,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        int activeDates,        // 节流可观测（backfill-parallelism-throttle）：放行且未全部终态的 bizDate 数
+        int heldDates           // 持有待晋升的 bizDate 数（跑完后为 0）
 ) {}

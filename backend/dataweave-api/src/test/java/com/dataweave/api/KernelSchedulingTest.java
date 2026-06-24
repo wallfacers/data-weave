@@ -146,6 +146,30 @@ class KernelSchedulingTest {
         assertThat(nodeIds).containsExactlyInAnyOrder(4L, 5L, 6L, 7L, 8L, 9L);
     }
 
+    @Test
+    void backfillHeldInstance_notClaimed_untilReleased() throws Exception {
+        // 节流认领守卫（backfill-parallelism-throttle，6.7）：held=1 的补数据实例不被认领；置 0 后被放行。
+        Long taskId = jdbc.queryForObject(
+                "SELECT task_id FROM workflow_node WHERE workflow_id=3 AND task_id IS NOT NULL ORDER BY id LIMIT 1",
+                Long.class);
+        // 随机 runId：不建 backfill_run 行 → BackfillPromoter 扫不到 RUNNING 批次，不会自动晋升，测试稳定。
+        UUID runId = UUID.fromString("00000000-0000-7000-8000-0000000000ff");
+        UUID heldInst = triggerService.triggerBackfillTaskRun(
+                taskId, "2026-06-11", runId, 1, java.util.Locale.SIMPLIFIED_CHINESE);
+
+        schedulerKernel.scheduleOnce();
+        Thread.sleep(800); // 给异步认领留窗口；held=1 应始终被守卫排除
+        assertThat(taskInstanceState(heldInst))
+                .as("held=1 的补数据实例不应被认领").isEqualTo(InstanceStates.WAITING);
+
+        // 晋升：held→0 → 应被认领，离开 WAITING。
+        jdbc.update("UPDATE task_instance SET backfill_held=0 WHERE id=?", heldInst);
+        schedulerKernel.scheduleOnce();
+        boolean released = await(Duration.ofSeconds(15), () ->
+                !InstanceStates.WAITING.equals(taskInstanceState(heldInst)));
+        assertThat(released).as("置 held=0 后应被认领（离开 WAITING）").isTrue();
+    }
+
     private UUID instanceIdForNode(UUID wiId, Long nodeId) {
         return jdbc.queryForObject(
                 "SELECT id FROM task_instance WHERE workflow_instance_id=? AND workflow_node_id=? AND deleted=0",

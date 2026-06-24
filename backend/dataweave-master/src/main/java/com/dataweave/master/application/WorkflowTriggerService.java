@@ -103,17 +103,21 @@ public class WorkflowTriggerService {
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey) {
         return trigger(wf, triggerType, bizDate, priorityOverride, locale, scope, targetNodeKey,
-                "NORMAL", null);
+                "NORMAL", null, 0);
     }
 
     /**
      * 触发一个工作流，并指定运行模式与补数据批次（data-ops-center）。{@code runMode=BACKFILL} 时各节点实例落
      * BACKFILL 标识 + {@code backfillRunId}，认领/执行复用既有路径（仅 runMode 标识，无专用认领分支）。
      * 其余语义同 {@link #trigger(WorkflowDef, String, String, Integer, Locale, String, String)}。
+     *
+     * @param backfillHeld 补数据节流持有标志（backfill-parallelism-throttle）：1=该 bizDate 整张 DAG 节点落
+     *                     {@code backfill_held=1}（INSERT 时即定，根除「插入后→置 held 前」被抢认领的竞态），
+     *                     由 BackfillPromoter 完成即晋升 1→0；非补数据路径恒传 0。
      */
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey,
-                        String runMode, UUID backfillRunId) {
+                        String runMode, UUID backfillRunId, int backfillHeld) {
         bizDate = defaultBizDate(bizDate);
 
         // nodeKey -> live workflow_node.id：物化 task_instance.workflow_node_id 外键用（事件流/节点变色按此 id）。
@@ -217,6 +221,7 @@ public class WorkflowTriggerService {
             ti.setWorkflowNodeId(m.liveNodeId());
             ti.setRunMode(runMode);
             ti.setBackfillRunId(backfillRunId);
+            ti.setBackfillHeld(backfillHeld);   // 整张 DAG 同 held（晋升以 bizDate 为单位，design D2）
             ti.setEnv(Envs.PROD);
             ti.setBizDate(bizDate);
             if ("VIRTUAL".equals(m.nodeType())) {
@@ -371,7 +376,7 @@ public class WorkflowTriggerService {
      * {@code bizDate} 为补数据指定日期（必传，不走 T-1 兜底——补数据的本意就是指定历史日期）。
      * 认领/执行复用既有路径，仅 runMode 标识。返回 task_instance id。
      */
-    public UUID triggerBackfillTaskRun(Long taskId, String bizDate, UUID backfillRunId, Locale locale) {
+    public UUID triggerBackfillTaskRun(Long taskId, String bizDate, UUID backfillRunId, int backfillHeld, Locale locale) {
         TaskDef task = taskDefRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在：" + taskId));
         bizDate = defaultBizDate(bizDate);
@@ -384,6 +389,7 @@ public class WorkflowTriggerService {
         ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);
         ti.setRunMode("BACKFILL");
         ti.setBackfillRunId(backfillRunId);
+        ti.setBackfillHeld(backfillHeld);   // 超出 parallelism 配额的 bizDate 持有（backfill-parallelism-throttle）
         ti.setEnv(Envs.PROD);
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
@@ -413,6 +419,7 @@ public class WorkflowTriggerService {
         ti.setUpdatedAt(now);
         ti.setDeleted(0);
         ti.setVersion(0L);
+        ti.setBackfillHeld(0);   // 默认不持有；补数据节流路径按配额覆写（backfill-parallelism-throttle）
         return ti;
     }
 

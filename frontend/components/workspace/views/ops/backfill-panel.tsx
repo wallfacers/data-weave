@@ -43,6 +43,8 @@ interface BackfillRun {
   failed: number
   running: number
   createdAt: string
+  activeDates?: number
+  heldDates?: number
 }
 
 const STATE_VARIANT: Record<string, "success" | "destructive" | "warning" | "info"> = {
@@ -139,7 +141,17 @@ export function BackfillPanel() {
                   <TableCell className="tabular-nums text-xs">
                     {run.dateStart} ~ {run.dateEnd}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{run.parallelism}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {run.parallelism}
+                    {run.heldDates ? (
+                      <div className="text-xs text-muted-foreground">
+                        {t("backfillThrottle", {
+                          active: run.activeDates ?? 0,
+                          held: run.heldDates,
+                        })}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">

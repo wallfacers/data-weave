@@ -20,6 +20,7 @@ public class TaskInstance {
     private String typeOverride;
     private String runMode;
     private UUID backfillRunId;
+    private Integer backfillHeld;
     private String env;
     private String bizDate;
     private String state;
@@ -77,6 +78,9 @@ public class TaskInstance {
 
     public UUID getBackfillRunId() { return backfillRunId; }
     public void setBackfillRunId(UUID backfillRunId) { this.backfillRunId = backfillRunId; }
+
+    public Integer getBackfillHeld() { return backfillHeld; }
+    public void setBackfillHeld(Integer backfillHeld) { this.backfillHeld = backfillHeld; }
 
     public String getEnv() { return env; }
     public void setEnv(String env) { this.env = env; }

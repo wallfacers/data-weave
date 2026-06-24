@@ -131,6 +131,7 @@
     "backfillStateFailed": "失败",
     "backfillStatePartial": "部分完成",
     "backfillProgress": "成功 {success} / 失败 {failed} / 运行中 {running} / 共 {total}",
+    "backfillThrottle": "{active} 并发 / {held} 待晋升",
     "backfillValidationError": "请完整填写目标、日期区间",
     "tasksTitle": "周期任务",
     "tasksEmpty": "暂无周期任务",

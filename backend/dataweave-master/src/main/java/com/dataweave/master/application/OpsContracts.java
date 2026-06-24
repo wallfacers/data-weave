@@ -33,11 +33,15 @@ public final class OpsContracts {
     public record BackfillRequest(String targetType, Long targetId, String dateStart, String dateEnd,
                                   boolean includeDownstream, int parallelism) {}
 
-    /** 补数据批次视图：实体字段 + 子实例聚合进度（success/failed/running 查询时算）。 */
+    /**
+     * 补数据批次视图：实体字段 + 子实例聚合进度（success/failed/running 查询时算）。
+     * activeDates/heldDates 为节流可观测（backfill-parallelism-throttle）：activeDates=当前放行（held=0）且未全部
+     * 终态的 bizDate 数；heldDates=当前持有（held=1）待晋升的 bizDate 数。跑完后 heldDates=0。
+     */
     public record BackfillRunView(UUID id, String targetType, Long targetId, String targetName,
                                   String dateStart, String dateEnd, int parallelism, boolean includeDownstream,
                                   String state, int total, int success, int failed, int running,
-                                  String createdAt) {}
+                                  String createdAt, int activeDates, int heldDates) {}
 
     /** 补数据批次详情：批次视图 + 其全部子实例。 */
     public record BackfillRunDetail(BackfillRunView run, List<InstanceRow> instances) {}

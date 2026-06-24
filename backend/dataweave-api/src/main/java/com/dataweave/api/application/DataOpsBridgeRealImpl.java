@@ -131,7 +131,8 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {
         return new BackfillRun(v.id(), v.targetType(), v.targetId(), v.targetName(),
                 v.dateStart(), v.dateEnd(), v.parallelism(), v.state(),
-                v.total(), v.success(), v.failed(), v.running(), parseDt(v.createdAt()));
+                v.total(), v.success(), v.failed(), v.running(), parseDt(v.createdAt()),
+                v.activeDates(), v.heldDates());
     }
 
     private static LocalDateTime parseDt(String iso) {

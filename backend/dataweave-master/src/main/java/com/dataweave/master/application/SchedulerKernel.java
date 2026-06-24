@@ -262,6 +262,9 @@ public class SchedulerKernel {
                     + "WHERE ti.state='WAITING' AND ti.run_mode IN ('NORMAL','BACKFILL') AND ti.deleted=0 "
                     // 冻结门（data-ops-center）：跳过已冻结 task_def 的实例（task_id 为空的 VIRTUAL 节点 COALESCE→0 不跳）。
                     + "AND COALESCE((SELECT td.frozen FROM task_def td WHERE td.id=ti.task_id),0)=0 "
+                    // 节流门（backfill-parallelism-throttle）：被持有的补数据实例不可认领；与 frozen 同构旁路标志，
+                    // 由 BackfillPromoter 完成即晋升（held 1→0）。NORMAL 实例 held 默认 0 不受影响。
+                    + "AND COALESCE(ti.backfill_held,0)=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
                     + "     WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) "
                     + "AND NOT EXISTS (SELECT 1 FROM workflow_edge e "

@@ -462,6 +462,7 @@ CREATE TABLE task_instance (
     type_override        VARCHAR(32),          -- TEST 试跑携带的编辑器临时任务类型（SQL/SHELL/ECHO）；非空则覆盖 task_def.type 选执行器
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试 / BACKFILL 补数据（data-ops-center）
     backfill_run_id      UUID,                 -- 所属补数据批次（run_mode=BACKFILL 时非空；指向 backfill_run.id）
+    backfill_held        SMALLINT DEFAULT 0,   -- 补数据 bizDate 粒度节流旁路标志（backfill-parallelism-throttle）：1=被持有不可认领，由 BackfillPromoter 完成即晋升 1→0；与认领状态正交（实例仍 WAITING）
     env                  VARCHAR(8) DEFAULT 'PROD',  -- 运行环境：PROD(cron/正式手动) | DEV(画布试跑)；与 run_mode 正交，可空（NULL≡PROD）
     biz_date             VARCHAR(32),          -- 业务日期（注入任务执行环境，幂等钥匙之一）
     state                VARCHAR(32) DEFAULT 'NOT_RUN',  -- NOT_RUN/WAITING/DISPATCHED/RUNNING/SUCCESS/FAILED/STOPPED/PREEMPTED/PAUSED
@@ -505,6 +506,9 @@ CREATE TABLE backfill_run (
     version            INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_task_instance_backfill ON task_instance (backfill_run_id, deleted);
+-- 节流晋升索引（backfill-parallelism-throttle）：BackfillPromoter 按 (run, held) 重算活跃/待晋升 bizDate。
+-- 普通复合索引（非 partial）以兼容 H2；持有集随晋升单调缩小，开销可忽略。
+CREATE INDEX IF NOT EXISTS idx_task_instance_backfill_held ON task_instance (backfill_run_id, backfill_held);
 
 -- 热认领索引：SchedulerKernel.selectRunnable 按 (state, run_mode, deleted) 过滤 + updated_at 排序捞 WAITING。
 -- 无此索引则随 SUCCESS 历史行累积全表扫描，认领变慢、吞吐线性衰减（实测 6k 行即显著）。H2 兼容（非 partial）。

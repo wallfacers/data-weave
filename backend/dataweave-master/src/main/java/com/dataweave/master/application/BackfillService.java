@@ -106,14 +106,19 @@ public class BackfillService {
         BackfillRun saved = backfillRunRepository.save(run);
         UUID runId = saved.getId();
 
-        for (LocalDate d : dates) {
-            String bizDate = d.format(ISO);
+        // bizDate 粒度节流（backfill-parallelism-throttle，design D2）：bizDate 升序前 parallelism 个放行（held=0），
+        // 其余整批持有（held=1），由 BackfillPromoter 完成即晋升。held 在 INSERT 时即定（trigger 透传），
+        // 根除「插入后→置 held 前」被抢认领的竞态。parallelism≥bizDate 总数时全部 held=0，退化为无节流。
+        int parallelism = Math.max(1, req.parallelism());
+        for (int i = 0; i < dates.size(); i++) {
+            String bizDate = dates.get(i).format(ISO);
+            int held = i < parallelism ? 0 : 1;
             if (isTask) {
-                triggerService.triggerBackfillTaskRun(req.targetId(), bizDate, runId, Messages.DEFAULT_LOCALE);
+                triggerService.triggerBackfillTaskRun(req.targetId(), bizDate, runId, held, Messages.DEFAULT_LOCALE);
             } else {
                 // 工作流补数：物化整张 DAG（同 bizDate 内上下游就绪由调度就绪门自然串行 → includeDownstream 语义）。
                 triggerService.trigger(wf, "BACKFILL", bizDate, null, Messages.DEFAULT_LOCALE,
-                        "FULL", null, "BACKFILL", runId);
+                        "FULL", null, "BACKFILL", runId, held);
             }
         }
 
@@ -166,12 +171,22 @@ public class BackfillService {
         int total = byState.values().stream().mapToInt(Integer::intValue).sum();
         int running = total - success - failed;
         String derived = deriveState(running, success, failed);
+        // 节流可观测（backfill-parallelism-throttle）：activeDates=放行且未全部终态的 bizDate 数；heldDates=持有待晋升数。
+        Integer activeDates = jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT biz_date) FROM task_instance WHERE backfill_run_id=? AND deleted=0 "
+                        + "AND COALESCE(backfill_held,0)=0 AND state NOT IN ('SUCCESS','FAILED')",
+                Integer.class, r.getId());
+        Integer heldDates = jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT biz_date) FROM task_instance WHERE backfill_run_id=? AND deleted=0 "
+                        + "AND COALESCE(backfill_held,0)=1",
+                Integer.class, r.getId());
         return new BackfillRunView(r.getId(), r.getTargetType(), r.getTargetId(), r.getTargetName(),
                 r.getDateStart(), r.getDateEnd(),
                 r.getParallelism() == null ? 1 : r.getParallelism(),
                 r.getIncludeDownstream() != null && r.getIncludeDownstream() == 1,
                 derived, total, success, failed, running,
-                r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
+                r.getCreatedAt() != null ? r.getCreatedAt().toString() : null,
+                activeDates == null ? 0 : activeDates, heldDates == null ? 0 : heldDates);
     }
 
     /** RUNNING（仍有在跑）→ 否则全成 SUCCESS / 全败 FAILED / 部分失败 PARTIAL。 */

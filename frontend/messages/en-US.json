@@ -131,6 +131,7 @@
     "backfillStateFailed": "Failed",
     "backfillStatePartial": "Partial",
     "backfillProgress": "{success} ok / {failed} failed / {running} running / {total} total",
+    "backfillThrottle": "{active} active / {held} held",
     "backfillValidationError": "Fill target and date range",
     "tasksTitle": "Periodic Tasks",
     "tasksEmpty": "No periodic tasks yet",
