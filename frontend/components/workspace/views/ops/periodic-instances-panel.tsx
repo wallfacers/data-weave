@@ -138,6 +138,25 @@ const STATE_OPTIONS = [
   { value: "PAUSED", label: "statePaused" },
 ] as const
 
+/**
+ * 周期实例表格列宽（百分比，table-fixed）：表头表与数据表【共享】同一份 colgroup。
+ * 两张表都用 table-layout:fixed + width:100% → 列宽严格一致、且各自占满容器宽。
+ */
+const INSTANCE_COLGROUP = (
+  <colgroup>
+    <col className="w-[4%]" />
+    <col className="w-[9%]" />
+    <col className="w-[18%]" />
+    <col className="w-[8%]" />
+    <col className="w-[10%]" />
+    <col className="w-[10%]" />
+    <col className="w-[13%]" />
+    <col className="w-[13%]" />
+    <col className="w-[5%]" />
+    <col className="w-[10%]" />
+  </colgroup>
+)
+
 export function PeriodicInstancesPanel({
   initialFilter,
 }: {
@@ -351,7 +370,7 @@ export function PeriodicInstancesPanel({
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 p-5">
+    <div className="flex h-full min-w-0 flex-col gap-3 p-5">
       {/* 筛选栏（固定，不随表格滚动） */}
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <HugeiconsIcon icon={FilterIcon} className="size-4 text-muted-foreground" />
@@ -439,29 +458,39 @@ export function PeriodicInstancesPanel({
         </div>
       ) : (
         <>
-          <DwScroll direction="both" className="flex-1">
-            <table className="w-full caption-bottom text-sm font-sans">
-              {/* 表头 sticky：贴 DwScroll 滚动视口顶部固定，th 加不透明底色遮住下方滚动行 */}
-              <TableHeader className="sticky top-0 z-10 [&_th]:bg-background">
-                <TableRow>
-                  <TableHead className="w-10">
+          {/*
+            表头与数据行拆为两张表（共享 INSTANCE_COLGROUP + table-fixed → 列宽严格一致）：
+            表头在 DwScroll 外固定不滚，数据行单独用 DwScroll 纵向滚动 →
+            滚动条只出现在数据行区域，既不覆盖表头，也不会因滚动条占位让表头右上角缺角。
+          */}
+          <div className="shrink-0 border-b bg-background">
+            <table className="w-full table-fixed caption-bottom text-sm font-sans">
+              {INSTANCE_COLGROUP}
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>
                     <Checkbox
                       checked={allSelected}
                       onChange={toggleSelectAll}
                       aria-label="select all"
                     />
                   </TableHead>
-                  <TableHead className="w-24 font-mono">{t("colInstance")}</TableHead>
-                  <TableHead className="w-40">{t("colTaskName")}</TableHead>
-                  <TableHead className="w-24">{t("colState")}</TableHead>
-                  <TableHead className="w-28">{t("colSchedule")}</TableHead>
-                  <TableHead className="w-28">{t("colBizDate")}</TableHead>
-                  <TableHead className="w-36">{t("colStartedAt")}</TableHead>
-                  <TableHead className="w-36">{t("colFinishedAt")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("colDuration")}</TableHead>
-                  <TableHead className="w-20 text-right">{t("colActions")}</TableHead>
+                  <TableHead className="font-mono">{t("colInstance")}</TableHead>
+                  <TableHead>{t("colTaskName")}</TableHead>
+                  <TableHead>{t("colState")}</TableHead>
+                  <TableHead>{t("colSchedule")}</TableHead>
+                  <TableHead>{t("colBizDate")}</TableHead>
+                  <TableHead>{t("colStartedAt")}</TableHead>
+                  <TableHead>{t("colFinishedAt")}</TableHead>
+                  <TableHead className="text-right">{t("colDuration")}</TableHead>
+                  <TableHead className="text-right">{t("colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
+            </table>
+          </div>
+          <DwScroll direction="vertical" className="min-h-0 flex-1">
+            <table className="w-full table-fixed caption-bottom text-sm font-sans">
+              {INSTANCE_COLGROUP}
               <TableBody>
                 {items.map((inst) => {
                   const checked = selected.has(inst.id)
@@ -470,31 +499,31 @@ export function PeriodicInstancesPanel({
                       <TableCell>
                         <Checkbox checked={checked} onChange={() => toggleSelect(inst.id)} />
                       </TableCell>
-                      <TableCell className="font-mono tabular-nums text-xs">
+                      <TableCell className="font-mono overflow-hidden tabular-nums text-xs">
                         {inst.id.slice(0, 8)}
                       </TableCell>
-                      <TableCell className="max-w-0 truncate" title={inst.taskDefName || `#${inst.taskDefId}`}>
+                      <TableCell className="overflow-hidden align-top" title={inst.taskDefName || (inst.taskDefId != null ? t("taskFallback", { id: inst.taskDefId }) : t("taskFallbackUnknown"))}>
                         <div className="truncate font-medium">
-                          {inst.taskDefName || `任务 #${inst.taskDefId}`}
+                          {inst.taskDefName || (inst.taskDefId != null ? t("taskFallback", { id: inst.taskDefId }) : t("taskFallbackUnknown"))}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
                           {inst.runMode === "PERIODIC" && inst.cronExpression
-                            ? `${humanizeCron(inst.cronExpression)} · #${inst.taskDefId}`
-                            : `#${inst.taskDefId}`}
+                            ? `${humanizeCron(inst.cronExpression)} · ${inst.taskDefId != null ? t("taskFallback", { id: inst.taskDefId }) : t("taskFallbackUnknown")}`
+                            : (inst.taskDefId != null ? t("taskFallback", { id: inst.taskDefId }) : t("taskFallbackUnknown"))}
                         </div>
                       </TableCell>
                       <TableCell>{stateBadge(inst.state)}</TableCell>
-                      <TableCell className="tabular-nums text-xs">
+                      <TableCell className="overflow-hidden tabular-nums text-xs">
                         {humanizeCron(inst.cronExpression)}
                       </TableCell>
-                      <TableCell className="tabular-nums text-xs">{inst.bizDate}</TableCell>
-                      <TableCell className="tabular-nums text-xs">
+                      <TableCell className="overflow-hidden tabular-nums text-xs">{inst.bizDate}</TableCell>
+                      <TableCell className="overflow-hidden tabular-nums text-xs">
                         {formatDateTime(inst.startedAt ?? null, locale)}
                       </TableCell>
-                      <TableCell className="tabular-nums text-xs">
+                      <TableCell className="overflow-hidden tabular-nums text-xs">
                         {formatDateTime(inst.finishedAt ?? null, locale)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-xs">
+                      <TableCell className="text-right overflow-hidden tabular-nums text-xs">
                         {formatDuration(inst.durationMs)}
                       </TableCell>
                       <TableCell className="text-right">

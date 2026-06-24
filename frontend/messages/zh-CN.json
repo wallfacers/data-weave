@@ -79,6 +79,8 @@
     "colInstance": "实例",
     "colTask": "任务",
     "colTaskName": "任务名称",
+    "taskFallback": "任务 #{id}",
+    "taskFallbackUnknown": "任务 #—",
     "colState": "状态",
     "colBizDate": "业务日期",
     "colSchedule": "定时",

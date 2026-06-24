@@ -79,6 +79,8 @@
     "colInstance": "Instance",
     "colTask": "Task",
     "colTaskName": "Task Name",
+    "taskFallback": "Task #{id}",
+    "taskFallbackUnknown": "Task #—",
     "colState": "State",
     "colBizDate": "Biz Date",
     "colSchedule": "Schedule",
