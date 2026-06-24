@@ -8,6 +8,7 @@
 
 export type ViewType =
   | "cockpit"
+  | "ops"
   | "workflow-canvas"
   | "freshness"
   | "reports"
@@ -33,6 +34,7 @@ export interface ViewMeta {
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
   cockpit: { title: "views.cockpit", defaultPinned: true },
+  ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas" },
   freshness: { title: "views.freshness", defaultPinned: true },
   reports: { title: "views.reports", defaultPinned: true },

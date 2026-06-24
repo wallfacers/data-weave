@@ -21,6 +21,7 @@ import {
   GitBranchIcon,
   RefreshIcon,
   ServerStackIcon,
+  SettingDone02Icon,
   Settings02Icon,
   ServiceIcon,
   Shield01Icon,
@@ -28,6 +29,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { CockpitView } from "@/components/workspace/views/cockpit-view"
+import { OpsView } from "@/components/workspace/views/ops-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { ReportsView } from "@/components/workspace/views/reports-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
@@ -63,6 +65,7 @@ const placeholder = (viewKey: string, descKey: string) => {
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   cockpit: { icon: DashboardSquare01Icon, component: CockpitView },
+  ops: { icon: SettingDone02Icon, component: OpsView },
   "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },
   reports: { icon: Analytics01Icon, component: ReportsView },

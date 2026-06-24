@@ -227,6 +227,37 @@ export function AgentChat({ context }: { context?: AgentPageContext }) {
             useWorkspaceStore.getState().open(v.view, v.params, { activate: v.activate })
           }
         }
+        // 运维举手台：dataweave.ops.alert → ops alerts store，ops-view 右栏渲染卡片
+        if (event?.name === "dataweave.ops.alert" && event.value) {
+          const a = event.value as {
+            id?: string
+            kind?: string
+            severity?: string
+            title?: string
+            detail?: string
+            instanceIds?: string[]
+            suggestedAction?: { op: string; params: Record<string, unknown> }
+          }
+          if (a && typeof a.id === "string" && typeof a.title === "string") {
+            import("@/lib/workspace/ops-alerts-store").then(({ useOpsAlertsStore }) => {
+              useOpsAlertsStore.getState().push({
+                id: a.id!,
+                kind: (a.kind as "INSTANCE_FAILED" | "SLA_RISK" | "BACKFILL_DONE") ?? "INSTANCE_FAILED",
+                severity: (a.severity as "info" | "warning" | "error") ?? "info",
+                title: a.title!,
+                detail: a.detail,
+                instanceIds: Array.isArray(a.instanceIds) ? a.instanceIds : [],
+                suggestedAction: a.suggestedAction
+                  ? {
+                      op: a.suggestedAction.op as "rerun" | "kill" | "set-success" | "backfill",
+                      params: a.suggestedAction.params ?? {},
+                    }
+                  : undefined,
+                receivedAt: Date.now(),
+              })
+            })
+          }
+        }
         // 结构化结果（dataweave.result / dataweave.fleet 等）：凡含 columns + rows 即 shadcn Table 富渲染。
         const val = event?.value as
           | { kind?: string; title?: string; sql?: string; columns?: unknown; rows?: unknown }
