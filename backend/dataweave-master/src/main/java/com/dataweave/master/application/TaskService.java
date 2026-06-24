@@ -7,6 +7,8 @@ import com.dataweave.master.domain.TaskDefVersionRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.domain.WorkflowNode;
+import com.dataweave.master.domain.WorkflowNodeRepository;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class TaskService {
     private final TaskDefRepository taskDefRepository;
     private final TaskDefVersionRepository taskDefVersionRepository;
     private final TaskInstanceRepository taskInstanceRepository;
+    private final WorkflowNodeRepository workflowNodeRepository;
     private final FleetService fleetService;
     private final JdbcTemplate jdbcTemplate;
     private final LineageGraphService lineageGraphService;
@@ -33,6 +36,7 @@ public class TaskService {
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
                        TaskInstanceRepository taskInstanceRepository,
+                       WorkflowNodeRepository workflowNodeRepository,
                        FleetService fleetService,
                        JdbcTemplate jdbcTemplate,
                        LineageGraphService lineageGraphService,
@@ -40,6 +44,7 @@ public class TaskService {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
+        this.workflowNodeRepository = workflowNodeRepository;
         this.fleetService = fleetService;
         this.jdbcTemplate = jdbcTemplate;
         this.lineageGraphService = lineageGraphService;
@@ -196,7 +201,7 @@ public class TaskService {
      */
     public TaskDef update(Long id, TaskDef patch) {
         TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException("Task not found: " + id));
+                .orElseThrow(() -> new BizException("task.not_found", id));
         if (patch.getName() != null) task.setName(patch.getName());
         if (patch.getType() != null) task.setType(patch.getType());
         if (patch.getContent() != null) task.setContent(patch.getContent());
@@ -215,12 +220,16 @@ public class TaskService {
 
     // ─── SoftDelete ──────────────────────────────────────
 
-    /** 软删除任务（仅 DRAFT 可删）。 */
+    /** 软删除任务（仅 DRAFT 且未被工作流关联可删）。 */
     public void softDelete(Long id) {
         TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException("Task not found: " + id));
+                .orElseThrow(() -> new BizException("task.not_found", id));
         if (!"DRAFT".equals(task.getStatus())) {
-            throw new IllegalStateException("Task must be offline before deletion");
+            throw new BizException("task.not_draft");
+        }
+        List<WorkflowNode> nodes = workflowNodeRepository.findByTaskIdAndDeleted(id, 0);
+        if (!nodes.isEmpty()) {
+            throw new BizException("task.associated_with_workflow", nodes.size());
         }
         task.setDeleted(1);
         task.setUpdatedAt(LocalDateTime.now());
@@ -232,9 +241,9 @@ public class TaskService {
     /** 发布上线：DRAFT → ONLINE，生成版本快照。 */
     public TaskDef publish(Long id, String remark) {
         TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException("Task not found: " + id));
+                .orElseThrow(() -> new BizException("task.not_found", id));
         if ("ONLINE".equals(task.getStatus()) && (task.getHasDraftChange() == null || task.getHasDraftChange() == 0)) {
-            throw new IllegalStateException("No draft changes to publish");
+            throw new BizException("task.no_draft_changes");
         }
         LocalDateTime now = LocalDateTime.now();
         int newVersion = (task.getCurrentVersionNo() != null ? task.getCurrentVersionNo() : 0) + 1;
@@ -272,9 +281,9 @@ public class TaskService {
     /** 下线：ONLINE → DRAFT。 */
     public TaskDef offline(Long id) {
         TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException("Task not found: " + id));
+                .orElseThrow(() -> new BizException("task.not_found", id));
         if (!"ONLINE".equals(task.getStatus())) {
-            throw new IllegalStateException("Task is already offline");
+            throw new BizException("task.already_offline");
         }
         task.setStatus("DRAFT");
         task.setUpdatedAt(LocalDateTime.now());
