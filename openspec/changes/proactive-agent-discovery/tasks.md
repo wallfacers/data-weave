@@ -13,10 +13,10 @@
 
 ## 1. 🅰 Finding 模型与持久化
 
-- [ ] 1.1 `finding` 表加入 `schema.sql`（含顶部 `DROP TABLE IF EXISTS finding;` 幂等；列见 design D1），自检 CREATE/DROP 配对
-- [ ] 1.2 `Finding` domain + `FindingRepository`（Spring Data JDBC），字段含 evidenceJson/actionsJson/status/announced
-- [ ] 1.3 `data.sql` 视需要播种少量首屏 Finding（或留空由巡检填充，按 D 决策）；H2/PG 两库各验一遍
-- [ ] 1.4 单测：Finding 存取 + status 流转
+- [x] 1.1 `finding` 表加入 `schema.sql`（含顶部 `DROP TABLE IF EXISTS finding;` 幂等；列见 design D1），自检 CREATE/DROP 配对 — 45/45 配对
+- [x] 1.2 `Finding` domain + `FindingRepository`（Spring Data JDBC），字段含 evidenceJson/actionsJson/status/announced
+- [x] 1.3 `data.sql` 视需要播种少量首屏 Finding（或留空由巡检填充，按 D 决策）；H2/PG 两库各验一遍 — 播种 OOM Finding(id=1) 对应现有诊断
+- [x] 1.4 单测：Finding 存取 + status 流转 — 落为 `FindingService`(去重/resolve/markAnnounced) + `FindingServiceTest` 4 通过
 
 ## 2. 🅰 Inspector SPI 与失败巡检器
 
