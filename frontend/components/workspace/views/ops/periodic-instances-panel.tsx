@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
+import { zhCN, enUS } from "date-fns/locale"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   BoxIcon,
@@ -31,6 +32,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownSelect } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
+import { Pagination } from "@/components/ui/pagination"
 import {
   Table,
   TableBody,
@@ -155,14 +158,15 @@ export function PeriodicInstancesPanel({
 }) {
   const t = useTranslations("ops")
   const locale = useLocale()
+  const dateFnsLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const open = useWorkspaceStore((s) => s.open)
 
   const [filters, setFilters] = useState<Filters>(() => ({
     ...DEFAULT_FILTERS,
     ...(initialFilter ?? {}),
   }))
-  const [page, setPage] = useState(0)
-  const [size] = useState(DEFAULT_PAGE_SIZE)
+  const [page, setPage] = useState(1)
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE)
   const [data, setData] = useState<InstancesResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -183,8 +187,25 @@ export function PeriodicInstancesPanel({
         setData(null)
         return
       }
-      const json = (await res.json()) as ApiResponse<InstancesResponse>
-      if (json.code === 0 && json.data) setData(json.data)
+      const json = (await res.json()) as ApiResponse<InstanceRow[] | InstancesResponse>
+      if (json.code === 0 && json.data) {
+        // 后端两种返回格式：① 数组（无筛选时全量返回）② Spring Page {content, totalElements, ...}
+        const d = json.data
+        if (Array.isArray(d)) {
+          setData({ items: d, total: d.length, page: 1, size: d.length })
+        } else if ("content" in d && Array.isArray(d.content)) {
+          // Spring Data Page 格式
+          const pageObj = d as Record<string, unknown>
+          setData({
+            items: pageObj.content as InstanceRow[],
+            total: (pageObj.totalElements as number) ?? 0,
+            page: (pageObj.number as number) + 1,
+            size: (pageObj.size as number) ?? size,
+          })
+        } else {
+          setData(d as InstancesResponse)
+        }
+      }
       else setData(null)
     } catch {
       setData(null)
@@ -200,13 +221,13 @@ export function PeriodicInstancesPanel({
   // 切换筛选回第一页
   function updateFilter<K extends keyof Filters>(k: K, v: string) {
     setFilters((f) => ({ ...f, [k]: v }))
-    setPage(0)
+    setPage(1)
     setSelected(new Set())
   }
 
   function resetFilters() {
     setFilters(DEFAULT_FILTERS)
-    setPage(0)
+    setPage(1)
     setSelected(new Set())
   }
 
@@ -345,12 +366,13 @@ export function PeriodicInstancesPanel({
           value={filters.taskId}
           onChange={(e) => updateFilter("taskId", e.target.value)}
         />
-        <Input
-          type="date"
-          className="h-8 w-40 text-sm"
+        <DatePicker
+          value={filters.bizDate || undefined}
+          onChange={(date) => updateFilter("bizDate", date)}
           placeholder={t("filterBizDate")}
-          value={filters.bizDate}
-          onChange={(e) => updateFilter("bizDate", e.target.value)}
+          triggerClassName="h-8 w-40"
+          locale={dateFnsLocale}
+          quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
         />
         <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetFilters}>
           <HugeiconsIcon icon={RefreshIcon} className="size-3.5" />
@@ -479,31 +501,14 @@ export function PeriodicInstancesPanel({
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs text-muted-foreground">
-                {t("pageInfo", { total, page: page + 1, totalPages })}
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  {t("prevPage")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  {t("nextPage")}
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              size={size}
+              onPageChange={setPage}
+              onSizeChange={setSize}
+            />
           )}
         </>
       )}

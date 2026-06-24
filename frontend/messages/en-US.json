@@ -160,7 +160,13 @@
     "colFrozen": "Frozen",
     "colStatus": "Status",
     "statusOnline": "Online",
-    "statusDraft": "Draft"
+    "statusDraft": "Draft",
+    "pageSize": "Page size",
+    "pageJump": "Go to",
+    "pageFirst": "First",
+    "pageLast": "Last",
+    "quickToday": "Today",
+    "quickYesterday": "Yesterday"
   },
   "views": {
     "cockpit": "Cockpit",

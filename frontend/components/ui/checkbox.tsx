@@ -19,7 +19,7 @@ export function Checkbox({ className, checked, onChange, ...props }: CheckboxPro
   return (
     <label
       className={cn(
-        "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded border border-primary/40 bg-background transition-colors",
+        "inline-flex size-4 shrink-0 cursor-pointer items-center justify-center align-middle rounded border border-primary/40 bg-background transition-colors",
         checked && "bg-primary border-primary text-primary-foreground",
         className,
       )}

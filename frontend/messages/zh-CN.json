@@ -160,7 +160,13 @@
     "colFrozen": "冻结",
     "colStatus": "状态",
     "statusOnline": "已上线",
-    "statusDraft": "草稿"
+    "statusDraft": "草稿",
+    "pageSize": "每页条数",
+    "pageJump": "跳至",
+    "pageFirst": "首页",
+    "pageLast": "末页",
+    "quickToday": "今天",
+    "quickYesterday": "昨天"
   },
   "views": {
     "cockpit": "驾驶舱",

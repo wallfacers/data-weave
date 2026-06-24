@@ -108,7 +108,7 @@ export function OpsView({ params }: ViewProps) {
         </main>
 
         <aside className="flex w-[360px] shrink-0 flex-col">
-          <div className="flex items-center gap-2 border-b px-5 py-3">
+          <div className="flex items-center gap-2 border-b px-5 h-11">
             <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
             <h2 className="text-sm font-semibold tracking-tight">{t("railTitle")}</h2>
             {activeAlerts.length > 0 && (
@@ -143,7 +143,7 @@ function OpsTabBar({
 }) {
   const t = useTranslations("ops")
   return (
-    <div className="flex items-center gap-1 border-b px-5" role="tablist">
+    <div className="flex items-center gap-1 border-b px-5 h-11" role="tablist">
       {TAB_ORDER.map((tb) => {
         const isActive = tb.id === active
         return (
@@ -154,7 +154,7 @@ function OpsTabBar({
             aria-selected={isActive}
             onClick={() => onChange(tb.id)}
             className={
-              "relative flex items-center gap-1.5 px-3 py-2.5 text-sm transition-colors " +
+              "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
               (isActive
                 ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
                 : "text-muted-foreground hover:text-foreground")

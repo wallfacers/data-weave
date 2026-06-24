@@ -56,6 +56,7 @@ const STATE_VARIANT: Record<string, "success" | "destructive" | "warning" | "inf
 
 export function BackfillPanel() {
   const t = useTranslations("ops")
+  const tc = useTranslations("common")
   const locale = useLocale()
   const [runs, setRuns] = useState<BackfillRun[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,7 +104,11 @@ export function BackfillPanel() {
         </Button>
       </div>
 
-      {runs.length === 0 && !loading ? (
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center py-20">
+          <p className="text-sm text-muted-foreground">{tc("loading")}</p>
+        </div>
+      ) : runs.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center">
           <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
             <HugeiconsIcon icon={BoxIcon} className="size-6" />
