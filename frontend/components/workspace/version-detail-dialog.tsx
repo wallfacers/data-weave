@@ -6,6 +6,7 @@
 import { useTranslations } from "next-intl"
 import Editor from "@monaco-editor/react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import type { TaskDefVersion } from "@/lib/types"
 
 export interface VersionDetailDialogProps {
@@ -27,7 +28,7 @@ export function VersionDetailDialog({ open, onClose, version }: VersionDetailDia
         <DialogHeader>
           <DialogTitle>{t("versionHistory.detailTitle", { vno: version.versionNo })}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-auto space-y-3">
+        <DwScroll className="flex-1 space-y-3">
           {/* 代码快照 */}
           <div>
             <label className="text-xs font-medium text-muted-foreground">
@@ -56,7 +57,7 @@ export function VersionDetailDialog({ open, onClose, version }: VersionDetailDia
               <span className="font-medium">{t("versionHistory.remark")}:</span> {version.remark}
             </div>
           )}
-        </div>
+        </DwScroll>
       </DialogContent>
     </Dialog>
   )

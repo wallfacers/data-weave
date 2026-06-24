@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { DropdownSelect } from "@/components/ui/select"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import {
   listDatasources,
   listDatasourceTypes,
@@ -199,7 +200,7 @@ export function DatasourcesView() {
           <p>{t("empty")}</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto rounded border">
+        <DwScroll className="flex-1 rounded border">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/40">
               <tr>
@@ -271,7 +272,7 @@ export function DatasourcesView() {
               ))}
             </tbody>
           </table>
-        </div>
+        </DwScroll>
       )}
 
       {/* Create/Edit Dialog */}

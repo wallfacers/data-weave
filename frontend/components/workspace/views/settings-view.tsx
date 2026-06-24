@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -198,7 +199,7 @@ function UsersTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -257,7 +258,7 @@ function UsersTab() {
             )}
           </tbody>
         </table>
-      </div>
+      </DwScroll>
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
@@ -373,7 +374,7 @@ function RolesTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -418,7 +419,7 @@ function RolesTab() {
             )}
           </tbody>
         </table>
-      </div>
+      </DwScroll>
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
@@ -520,7 +521,7 @@ function ProjectsTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-[var(--radius-lg)] border">
+      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -567,7 +568,7 @@ function ProjectsTab() {
             )}
           </tbody>
         </table>
-      </div>
+      </DwScroll>
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>

@@ -6,6 +6,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import {
   Table,
   TableBody,
@@ -60,11 +61,13 @@ export function ResultTable({ data, onClose }: { data: ResultData; onClose: () =
         </Button>
       </div>
       {sql && (
-        <pre className="overflow-x-auto rounded-[var(--radius-sm)] bg-muted/50 px-2 py-1 text-xs">
-          <code>{sql}</code>
-        </pre>
+        <DwScroll direction="horizontal" className="rounded-[var(--radius-sm)] bg-muted/50 px-2 py-1">
+          <pre className="text-xs">
+            <code>{sql}</code>
+          </pre>
+        </DwScroll>
       )}
-      <div className="max-h-72 overflow-auto rounded-[var(--radius-sm)] border">
+      <DwScroll className="max-h-72 rounded-[var(--radius-sm)] border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -94,7 +97,7 @@ export function ResultTable({ data, onClose }: { data: ResultData; onClose: () =
             )}
           </TableBody>
         </Table>
-      </div>
+      </DwScroll>
     </div>
   )
 }

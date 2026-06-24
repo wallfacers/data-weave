@@ -60,6 +60,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -181,7 +182,7 @@ function MoveFolderPicker({
   }
 
   return (
-    <div className="max-h-64 overflow-auto">
+    <DwScroll className="max-h-64">
       <div
         role="button"
         tabIndex={0}
@@ -195,7 +196,7 @@ function MoveFolderPicker({
         <span className="truncate font-medium text-muted-foreground">{t("catalog.uncategorized")}</span>
       </div>
       {(tree?.roots ?? []).map((r) => renderRow(r, 0))}
-    </div>
+    </DwScroll>
   )
 }
 

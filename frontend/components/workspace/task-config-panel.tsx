@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import type { DatasourceVO } from "@/lib/types"
 
 const TYPE_OPTIONS = [
@@ -228,9 +229,11 @@ export function TaskConfigPanel({
         </div>
         {previewError && <p className="text-[11px] text-destructive">{previewError}</p>}
         {previewResult !== null && (
-          <pre className="max-h-[140px] overflow-auto rounded-md border border-input bg-muted/30 p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
-            {previewResult}
-          </pre>
+          <DwScroll className="max-h-[140px] rounded-md border border-input">
+            <pre className="p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
+              {previewResult}
+            </pre>
+          </DwScroll>
         )}
       </div>
 
