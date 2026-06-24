@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import {
   API_BASE,
   authFetch,
@@ -184,31 +185,33 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-medium text-muted-foreground">{t("workflowConfig.crossCycleDeps")}</label>
       {/* 列表 */}
-      <div className="flex flex-col gap-1">
-        {loading ? (
-          <span className="text-xs text-muted-foreground">{t("common.loading")}</span>
-        ) : deps.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{t("workflowConfig.noCrossCycleDeps")}</span>
-        ) : (
-          deps.map((d) => (
-            <div key={d.id} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs">
-              <span className="flex-1 truncate">
-                {d.nodeKey}
-                {d.dependNodeKey && d.dependNodeKey !== d.nodeKey ? ` ← ${d.dependNodeKey}` : ""}
-                {" · "}{d.dateOffset}
-                {d.earliestBizDate ? ` · ≥${d.earliestBizDate}` : ""}
-              </span>
-              <button
-                type="button"
-                className="shrink-0 text-destructive hover:underline"
-                onClick={() => d.id != null && remove(d.id)}
-              >
-                {t("common.delete")}
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+      <DwScroll className="max-h-40">
+        <div className="flex flex-col gap-1">
+          {loading ? (
+            <span className="text-xs text-muted-foreground">{t("common.loading")}</span>
+          ) : deps.length === 0 ? (
+            <span className="text-xs text-muted-foreground">{t("workflowConfig.noCrossCycleDeps")}</span>
+          ) : (
+            deps.map((d) => (
+              <div key={d.id} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs">
+                <span className="flex-1 truncate">
+                  {d.nodeKey}
+                  {d.dependNodeKey && d.dependNodeKey !== d.nodeKey ? ` ← ${d.dependNodeKey}` : ""}
+                  {" · "}{d.dateOffset}
+                  {d.earliestBizDate ? ` · ≥${d.earliestBizDate}` : ""}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-destructive hover:underline"
+                  onClick={() => d.id != null && remove(d.id)}
+                >
+                  {t("common.delete")}
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </DwScroll>
       {/* 新增（自依赖） */}
       <DropdownSelect value={nodeKey} onChange={setNodeKey} options={nodeOptions} />
       <div className="flex gap-1">
@@ -217,9 +220,9 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
         </div>
         <Input
           className="h-8 flex-1 text-xs"
-          type="date"
           value={earliest}
           onChange={(e) => setEarliest(e.target.value)}
+          placeholder="yyyy-MM-dd"
           aria-label={t("workflowConfig.earliestBizDate")}
         />
         <Button size="sm" onClick={add} disabled={!nodeKey}>+</Button>

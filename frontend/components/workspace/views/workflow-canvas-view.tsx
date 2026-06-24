@@ -1453,7 +1453,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
           className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg"
           style={{ width: catalogWidthProp }}
         >
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <DwScroll className="min-h-0 flex-1 p-3">
             <CatalogTree
               draggableTasksToCanvas
               enableMove
@@ -1461,7 +1461,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
               onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
               onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
             />
-          </div>
+          </DwScroll>
         </motion.div>
         {/* 右缘分割线拖拽 */}
         <div
