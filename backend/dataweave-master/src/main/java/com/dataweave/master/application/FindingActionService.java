@@ -38,7 +38,7 @@ public class FindingActionService {
     public Result apply(Long findingId, String actionKey, String actor, String actorSource, Locale locale) {
         Optional<Finding> opt = findingService.get(findingId);
         if (opt.isEmpty()) {
-            return new Result("REJECTED", false, messages.get("finding.not_found", locale, findingId), null);
+            return new Result("REJECTED", false, messages.get("finding.not_found", locale, findingId), null, null);
         }
         Finding f = opt.get();
 
@@ -47,11 +47,13 @@ public class FindingActionService {
             if (gr.executed()) {
                 findingService.resolve(findingId);
             }
-            return new Result(gr.outcome().name(), gr.executed(), gr.message(), gr.resultInstanceId());
+            // approvalId 透出 GateResult.actionId（PENDING_APPROVAL 时即审批单 id，供前端内联审批）。
+            return new Result(gr.outcome().name(), gr.executed(), gr.message(),
+                    gr.resultInstanceId(), gr.actionId());
         }
 
         // 其余来源（数据质量/SLA…）的修复执行器后续接入；当前无可执行通道。
-        return new Result("REJECTED", false, messages.get("finding.action_unsupported", locale, f.getSource()), null);
+        return new Result("REJECTED", false, messages.get("finding.action_unsupported", locale, f.getSource()), null, null);
     }
 
     /**
@@ -61,7 +63,8 @@ public class FindingActionService {
      * @param executed      是否已直接执行
      * @param message       面向用户的反馈
      * @param newInstanceId 若产生重跑实例，其 id
+     * @param approvalId    PENDING_APPROVAL 时的审批单 id（agent_action id），供前端内联同意/拒绝；否则 null
      */
-    public record Result(String outcome, boolean executed, String message, UUID newInstanceId) {
+    public record Result(String outcome, boolean executed, String message, UUID newInstanceId, Long approvalId) {
     }
 }

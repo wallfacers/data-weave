@@ -21,14 +21,15 @@ import {
 import { acceptLanguageHeader } from "@/lib/locale-client"
 import { handleUnauthorized } from "@/lib/auth-401"
 import type {
-  AgentMessageEvent,
   AgentSession,
   AgentStreamHandlers,
   AguiEvent,
+  ApplyOutcome,
   ApplyResult,
   ChatMessage,
   Finding,
   FindingAction,
+  MessagePart,
 } from "./types"
 import type { ChatProvider, SendMessageArgs } from "./provider"
 
@@ -65,6 +66,33 @@ interface RawFinding {
   announced?: boolean
   createdAt?: string
   updatedAt?: string
+}
+
+// 后端 GateResult.Outcome 为全大写（EXECUTED/PENDING_APPROVAL/REJECTED）；
+// 前端 canonical 为 executed/PENDING_APPROVAL/rejected（与 mock/store/findings-rail 一致）。
+function normOutcome(o: string | undefined): ApplyOutcome {
+  const u = (o ?? "").toUpperCase()
+  if (u === "EXECUTED") return "executed"
+  if (u === "REJECTED") return "rejected"
+  return "PENDING_APPROVAL"
+}
+
+// 后端 GET /sessions/{id}/history 返回 AgentChatMessage{id,role,partsJson(串)}；
+// 前端 ChatMessage{id,role,parts(数组)} —— partsJson 解析回 parts 重水合。
+function rehydrateMessage(m: {
+  id?: number | string
+  role?: string
+  parts?: MessagePart[]
+  partsJson?: string | null
+}): ChatMessage {
+  const parts = Array.isArray(m.parts)
+    ? m.parts
+    : (safeJsonParse<MessagePart[]>(m.partsJson) ?? [])
+  return {
+    id: m.id == null ? nid() : String(m.id),
+    role: m.role === "user" ? "user" : "assistant",
+    parts,
+  }
 }
 
 function normalizeFinding(r: RawFinding): Finding {
@@ -209,13 +237,19 @@ export const realChatProvider: ChatProvider = {
       }
       es.addEventListener("agent.message", (ev) => {
         const data = parseJson((ev as MessageEvent).data)
-        if (data) handlers.onMessage(data as unknown as AgentMessageEvent)
+        if (!data) return
+        // 后端 AgentNotifier.message 文本字段为 markdown；前端 canonical 用 content。
+        handlers.onMessage({
+          sessionId: data.sessionId as string | undefined,
+          findingId: data.findingId as number | string | undefined,
+          title: data.title as string | undefined,
+          content: (data.markdown as string) ?? (data.content as string) ?? "",
+        })
       })
       es.addEventListener("agent.finding", (ev) => {
-        const data = parseJson((ev as MessageEvent).data) as {
-          finding?: RawFinding
-        } | null
-        if (data?.finding) handlers.onFinding({ finding: normalizeFinding(data.finding) })
+        // 后端 AgentNotifier.finding 推**扁平** finding（与 GET /api/findings 同形），直接归一化。
+        const raw = parseJson((ev as MessageEvent).data) as RawFinding | null
+        if (raw && raw.id != null) handlers.onFinding({ finding: normalizeFinding(raw) })
       })
       es.addEventListener("keepalive", () => handlers.onKeepalive?.())
       es.onerror = () => {
@@ -265,7 +299,8 @@ export const realChatProvider: ChatProvider = {
     if (json.code !== 0 || !json.data) {
       throw new Error(json.message ?? "apply failed")
     }
-    return json.data
+    // 后端 outcome 全大写 → 归一到前端 canonical；approvalId 字段同名透传。
+    return { ...json.data, outcome: normOutcome(json.data.outcome) }
   },
 
   async decideApproval(requestId, action, confirmation) {
@@ -329,10 +364,11 @@ export const realChatProvider: ChatProvider = {
       return []
     }
     const json = (await res.json()) as ApiResponse<
-      ChatMessage[] | { messages?: ChatMessage[] }
+      unknown[] | { messages?: unknown[] }
     >
     if (json.code !== 0 || !json.data) return []
     const data = json.data
-    return Array.isArray(data) ? data : (data.messages ?? [])
+    const list = Array.isArray(data) ? data : (data.messages ?? [])
+    return list.map((m) => rehydrateMessage(m as Parameters<typeof rehydrateMessage>[0]))
   },
 }
