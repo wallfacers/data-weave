@@ -7,6 +7,7 @@ import com.dataweave.master.domain.TaskDefVersionRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
+import com.dataweave.master.domain.WorkflowNodeRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -32,6 +33,7 @@ class TaskServiceLineageTest {
     private final TaskDefRepository taskDefRepo = mock(TaskDefRepository.class);
     private final TaskDefVersionRepository verRepo = mock(TaskDefVersionRepository.class);
     private final TaskInstanceRepository instRepo = mock(TaskInstanceRepository.class);
+    private final WorkflowNodeRepository workflowNodeRepo = mock(WorkflowNodeRepository.class);
     private final FleetService fleetService = mock(FleetService.class);
     private final LineageGraphService lineage = mock(LineageGraphService.class);
 
@@ -48,7 +50,7 @@ class TaskServiceLineageTest {
             return i;
         });
         when(fleetService.pickLeastLoadedOnline()).thenReturn(Optional.<WorkerNode>empty());
-        return new TaskService(taskDefRepo, verRepo, instRepo, fleetService, null,
+        return new TaskService(taskDefRepo, verRepo, instRepo, workflowNodeRepo, fleetService, null,
                 lineage, new SqlTableExtractor());
     }
 
