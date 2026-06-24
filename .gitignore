@@ -26,3 +26,6 @@ deploy/workhorse/.env.workhorse
 
 # workhorse-agent 预编译二进制（六平台，由 fetch-bin.sh 产出；交付物非源码，不入 git）
 deploy/workhorse/bin/
+
+# 共享开发 worktree（并行多窗口/多需求隔离；非源码，不入 git）
+.worktrees/
