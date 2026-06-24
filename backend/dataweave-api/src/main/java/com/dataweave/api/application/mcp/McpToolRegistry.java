@@ -480,7 +480,7 @@ public class McpToolRegistry {
                     }
                 });
 
-        register("batch_instance_ops", "批量操作实例：rerun/kill/set-success（经策略闸门）",
+        register("batch_instance_ops", "批量操作实例：rerun/kill/set-success（逐实例经策略闸门）",
                 schema(req("instanceIds", "array", "实例 id 列表（UUID 字符串）"),
                         req("op", "string", "操作类型：rerun | kill | set-success")),
                 ctx -> {
@@ -496,12 +496,31 @@ public class McpToolRegistry {
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("op 必须为 rerun | kill | set-success");
                     }
+                    // 逐实例经闸门，与 OpsController.batchOp 一致
                     List<UUID> uuids = ids.stream().map(UUID::fromString).toList();
-                    try {
-                        return dataOpsBridge.batchOp(uuids, op);
-                    } catch (UnsupportedOperationException e) {
-                        return Map.of("requested", uuids.size(), "note", "待 Stream A 实现");
+                    String actionType = switch (op) {
+                        case RERUN -> "TASK_RERUN";
+                        case KILL -> "KILL_INSTANCE";
+                        case SET_SUCCESS -> "SET_SUCCESS";
+                    };
+                    List<Map<String, Object>> results = new ArrayList<>();
+                    int accepted = 0;
+                    for (UUID id : uuids) {
+                        ActionRequest req = ActionRequest.builder()
+                                .toolName("batch_" + op.name().toLowerCase()).actionType(actionType)
+                                .targetType("TASK_INSTANCE").targetId(id.toString())
+                                .actor("agent").actorSource("AGENT")
+                                .summary(opName + " #" + id)
+                                .build();
+                        GateResult gr = gatedActionService.submit(req, ctx.locale());
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("id", id.toString());
+                        item.put("outcome", gr.outcome().name());
+                        if (gr.pending()) item.put("approvalId", gr.actionId());
+                        results.add(item);
+                        if (gr.executed()) accepted++;
                     }
+                    return Map.of("requested", uuids.size(), "accepted", accepted, "results", results);
                 });
 
         register("freeze_task", "冻结/解冻任务定义（经策略闸门）",

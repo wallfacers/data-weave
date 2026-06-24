@@ -111,6 +111,10 @@ public class OpsController {
     /**
      * 周期实例筛选分页查询 — 契约①。
      * 兼容旧调用（无参数时返回全部 NORMAL 实例列表）。
+     *
+     * <p><strong>租户隔离：</strong>当前租户/项目过滤由 Stream A 的 {@code DataOpsBridge} 真实现负责
+     * （从安全上下文获取 {@code tenantId/projectId}），契约②冻结后由 A 侧统一注入。
+     * 此端点本身不做租户解析——与现有 {@code /api/ops/instances}（无参数版）的隔离模型一致。
      */
     @GetMapping("/instances")
     public ApiResponse<?> instances(
