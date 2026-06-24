@@ -8,6 +8,7 @@ import { SparklesIcon } from "@hugeicons/core-free-icons"
 
 import { useChatStore } from "@/lib/chat/store"
 import { MessagePartView } from "./message-part"
+import { AttachmentChip } from "./attachment-chip"
 import type { ChatMessage } from "@/lib/chat/types"
 
 export function MessageList() {
@@ -65,11 +66,22 @@ function MessageItem({
 
   if (message.role === "user") {
     const text = message.parts.find((p) => p.type === "text")
+    const content = text?.type === "text" ? text.content : ""
+    const atts = message.attachments ?? []
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
-          {text?.type === "text" ? text.content : ""}
-        </div>
+      <div className="flex flex-col items-end gap-1.5">
+        {content && (
+          <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
+            {content}
+          </div>
+        )}
+        {atts.length > 0 && (
+          <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+            {atts.map((a, i) => (
+              <AttachmentChip key={i} attachment={a} />
+            ))}
+          </div>
+        )}
       </div>
     )
   }

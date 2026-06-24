@@ -22,6 +22,7 @@ import {
   type AgentSession,
   type AguiEvent,
   type ApplyResult,
+  type ChatAttachment,
   type ChatMessage,
   type ChatRuntime,
   type Finding,
@@ -235,7 +236,11 @@ interface ChatState {
   newSession: () => Promise<void>
   switchSession: (id: string) => Promise<void>
   deleteSession: (id: string) => Promise<void>
-  sendMessage: (text: string, context?: AgentPageContext) => Promise<void>
+  sendMessage: (
+    text: string,
+    context?: AgentPageContext,
+    attachments?: ChatAttachment[],
+  ) => Promise<void>
   cancel: () => void
   decidePermission: (
     requestId: string,
@@ -350,17 +355,19 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     })
   },
 
-  sendMessage: async (text, context) => {
+  sendMessage: async (text, context, attachments) => {
     const sid = get().activeId
     if (!sid) return
     const trimmed = text.trim()
-    if (!trimmed) return
+    const atts = attachments && attachments.length > 0 ? attachments : undefined
+    if (!trimmed && !atts) return
 
     // 1) 预放 user + pending 占位（pendingId 待 TEXT_MESSAGE_START 认领）
     const userMsg: ChatMessage = {
       id: uid("u"),
       role: "user",
       parts: [{ type: "text", content: trimmed }],
+      attachments: atts,
     }
     const pendingId = uid("a")
     const scratch = scratchFor(sid)
@@ -408,7 +415,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
     try {
       await chatProvider.sendMessage(
-        { sessionId: sid, text: trimmed, context, signal: ctrl.signal },
+        { sessionId: sid, text: trimmed, context, attachments: atts, signal: ctrl.signal },
         onEvent,
       )
     } catch {

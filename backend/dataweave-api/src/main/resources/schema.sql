@@ -7,6 +7,7 @@
 
 -- ===== DROP（逆依赖序）=====
 DROP TABLE IF EXISTS backfill_run;
+DROP TABLE IF EXISTS agent_chat_file;
 DROP TABLE IF EXISTS agent_chat_message;
 DROP TABLE IF EXISTS agent_chat_session;
 DROP TABLE IF EXISTS agent_action;
@@ -846,6 +847,21 @@ CREATE TABLE agent_chat_message (
     session_id           BIGINT NOT NULL,
     role                 VARCHAR(16) NOT NULL,    -- user / assistant
     parts_json           VARCHAR(8000),           -- MessagePart[] 序列化（后端透明 blob）
+    created_at           TIMESTAMP
+);
+
+-- 聊天附件文件（chat-attachments）：用户在输入框上传的真实文件元数据。
+-- 字节存外部存储（ChatFileStorage：Local 默认 / Minio 可选），库里只存元数据 + storage_key。
+-- sha256 去重；附件引用经 forwardedProps.dataweave.attachments 透传给 Agent。
+CREATE TABLE agent_chat_file (
+    id                   VARCHAR(64) PRIMARY KEY,  -- sha256（内容寻址，天然去重）
+    tenant_id            BIGINT NOT NULL,
+    original_name        VARCHAR(512) NOT NULL,
+    mime_type            VARCHAR(128),
+    size_bytes           BIGINT NOT NULL,
+    storage_type         VARCHAR(16) NOT NULL,     -- LOCAL / MINIO
+    storage_key          VARCHAR(256) NOT NULL,
+    created_by           BIGINT,
     created_at           TIMESTAMP
 );
 

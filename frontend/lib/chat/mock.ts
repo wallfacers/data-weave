@@ -12,7 +12,10 @@ import {
   type AgentStreamHandlers,
   type AguiEvent,
   type ApplyResult,
+  type ChatFileRef,
   type ChatMessage,
+  type EntityOption,
+  type EntityRefType,
   type Finding,
 } from "./types"
 import type { ChatProvider, SendMessageArgs } from "./provider"
@@ -197,7 +200,12 @@ export const mockChatProvider: ChatProvider = {
     ensureSeed()
     const sid = args.sessionId
     const hist = histories.get(sid) ?? []
-    hist.push({ id: nid("u"), role: "user", parts: [{ type: "text", content: args.text }] })
+    hist.push({
+      id: nid("u"),
+      role: "user",
+      parts: [{ type: "text", content: args.text }],
+      attachments: args.attachments,
+    })
     histories.set(sid, hist)
 
     const runId = nid("run")
@@ -350,5 +358,47 @@ export const mockChatProvider: ChatProvider = {
 
   async getSessionHistory(id): Promise<ChatMessage[]> {
     return histories.has(id) ? [...(histories.get(id) as ChatMessage[])] : []
+  },
+
+  async uploadFile(file: File): Promise<ChatFileRef> {
+    await delay(220)
+    return {
+      id: `mock-${nid("f")}`,
+      name: file.name,
+      mime: file.type || undefined,
+      size: file.size,
+    }
+  },
+
+  async searchEntities(refType: EntityRefType, keyword: string): Promise<EntityOption[]> {
+    await delay(120)
+    const kw = keyword.trim().toLowerCase()
+    const seed: Record<EntityRefType, EntityOption[]> = {
+      task: [
+        { refType: "task", refId: "100", label: "etl_daily", hint: "ONLINE" },
+        { refType: "task", refId: "101", label: "order_sync", hint: "ONLINE" },
+        { refType: "task", refId: "102", label: "user_profile_agg", hint: "OFFLINE" },
+      ],
+      instance: [
+        { refType: "instance", refId: "0191aaaa-1", label: "order_sync", hint: "FAILED · 2026-06-23" },
+        { refType: "instance", refId: "0191bbbb-2", label: "etl_daily", hint: "SUCCEEDED · 2026-06-23" },
+      ],
+      finding: [
+        { refType: "finding", refId: "1001", label: "order_sync OOM", hint: "CRITICAL" },
+      ],
+      datasource: [
+        { refType: "datasource", refId: "1", label: "prod-mysql", hint: "MYSQL" },
+        { refType: "datasource", refId: "2", label: "warehouse-pg", hint: "POSTGRES" },
+      ],
+    }
+    const opts = seed[refType]
+    return kw
+      ? opts.filter(
+          (o) =>
+            o.label.toLowerCase().includes(kw) ||
+            o.refId.toLowerCase().includes(kw) ||
+            (o.hint?.toLowerCase().includes(kw) ?? false),
+        )
+      : opts
   },
 }

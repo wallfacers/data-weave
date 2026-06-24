@@ -44,6 +44,36 @@ export interface ChatMessage {
   parts: MessagePart[]
   /** 该轮被用户取消（RUN 未正常结束）。 */
   interrupted?: boolean
+  /** 用户消息携带的附件（实体引用 / 上传文件），气泡下方 chip 展示。 */
+  attachments?: ChatAttachment[]
+}
+
+// ─── 聊天附件（chat-attachments）─────────────────────────────
+//
+// 实体引用（任务/实例/发现/数据源）+ 上传文件，随消息经 forwardedProps.dataweave.attachments
+// 送达后端：实体让 Agent 直接定位平台对象，文件经 /api/chat/files/{id} 回取内容。
+
+export type EntityRefType = "task" | "instance" | "finding" | "datasource"
+
+export type ChatAttachment =
+  | { kind: "entity"; refType: EntityRefType; refId: string; label: string }
+  | { kind: "file"; fileId: string; name: string; size: number; mime?: string }
+
+/** 上传文件元数据（后端 POST /api/chat/files 返回）。 */
+export interface ChatFileRef {
+  id: string
+  name: string
+  mime?: string
+  size: number
+}
+
+/** 实体选择器候选项（搜索平台实体的结果）。 */
+export interface EntityOption {
+  refType: EntityRefType
+  refId: string
+  label: string
+  /** 副标题（状态 / 类型 / 业务日期等），辅助辨识。 */
+  hint?: string
 }
 
 /** 单会话活动缓冲：消息列表 + 仍在流式中的 assistant 消息 id 集合。 */

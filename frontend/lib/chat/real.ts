@@ -26,7 +26,10 @@ import type {
   AguiEvent,
   ApplyOutcome,
   ApplyResult,
+  ChatFileRef,
   ChatMessage,
+  EntityOption,
+  EntityRefType,
   Finding,
   FindingAction,
   MessagePart,
@@ -153,10 +156,16 @@ async function streamAgui(
   args: SendMessageArgs,
   emit: (e: AguiEvent) => void,
 ): Promise<void> {
+  // 页面上下文 + 附件并进同一 dataweave 载荷；任一存在即下发。
+  const hasAtt = !!args.attachments && args.attachments.length > 0
+  const dataweave =
+    args.context || hasAtt
+      ? { ...(args.context ?? {}), ...(hasAtt ? { attachments: args.attachments } : {}) }
+      : undefined
   const body = JSON.stringify({
     threadId: args.sessionId,
     messages: [{ id: nid(), role: "user", content: args.text }],
-    forwardedProps: args.context ? { dataweave: args.context } : undefined,
+    forwardedProps: dataweave ? { dataweave } : undefined,
   })
   const token =
     typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
@@ -371,4 +380,111 @@ export const realChatProvider: ChatProvider = {
     const list = Array.isArray(data) ? data : (data.messages ?? [])
     return list.map((m) => rehydrateMessage(m as Parameters<typeof rehydrateMessage>[0]))
   },
+
+  async uploadFile(file): Promise<ChatFileRef> {
+    const form = new FormData()
+    form.append("file", file)
+    const res = await authFetch(`${API_BASE}/api/chat/files`, {
+      method: "POST",
+      body: form,
+    })
+    if (res.status === 401) {
+      handleUnauthorized()
+      throw new Error("unauthorized")
+    }
+    const json = (await res.json()) as ApiResponse<ChatFileRef>
+    if (json.code !== 0 || !json.data) {
+      throw new Error(json.message || "upload failed")
+    }
+    return json.data
+  },
+
+  async searchEntities(refType, keyword): Promise<EntityOption[]> {
+    const kw = keyword.trim().toLowerCase()
+    const res = await authFetch(`${API_BASE}${entityListPath(refType)}`, {
+      cache: "no-store",
+    })
+    if (res.status === 401) {
+      handleUnauthorized()
+      return []
+    }
+    const json = (await res.json()) as ApiResponse<unknown>
+    if (json.code !== 0 || !json.data) return []
+    const rows = unwrapRows(json.data)
+    const opts = rows
+      .map((r) => mapEntityOption(refType, r as Record<string, unknown>))
+      .filter((o): o is EntityOption => o !== null)
+    // 统一客户端关键词过滤（实例端点无 server keyword，task/datasource 也兜底）。
+    return (kw ? opts.filter((o) => matchOption(o, kw)) : opts).slice(0, 8)
+  },
+}
+
+// ─── 实体选择器：列表端点 + 行映射 ───────────────────────────
+
+function entityListPath(refType: EntityRefType): string {
+  switch (refType) {
+    case "task":
+      return "/api/tasks?size=20"
+    case "instance":
+      return "/api/ops/instances?size=20"
+    case "finding":
+      return "/api/findings"
+    case "datasource":
+      return "/api/datasources?projectId=1"
+  }
+}
+
+/** 解包列表：直接数组 / 分页 {content} / 分页 {items} / {messages}。 */
+function unwrapRows(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data
+  if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>
+    if (Array.isArray(o.content)) return o.content
+    if (Array.isArray(o.items)) return o.items
+  }
+  return []
+}
+
+function mapEntityOption(
+  refType: EntityRefType,
+  r: Record<string, unknown>,
+): EntityOption | null {
+  const s = (v: unknown): string => (v == null ? "" : String(v))
+  switch (refType) {
+    case "task": {
+      if (r.id == null) return null
+      return { refType, refId: s(r.id), label: s(r.name) || s(r.id), hint: s(r.status) }
+    }
+    case "instance": {
+      if (r.id == null) return null
+      const biz = s(r.bizDate)
+      return {
+        refType,
+        refId: s(r.id),
+        label: s(r.taskDefName) || s(r.id),
+        hint: [s(r.state), biz].filter(Boolean).join(" · "),
+      }
+    }
+    case "finding": {
+      if (r.id == null) return null
+      return { refType, refId: s(r.id), label: s(r.title) || s(r.id), hint: s(r.severity) }
+    }
+    case "datasource": {
+      if (r.id == null) return null
+      return {
+        refType,
+        refId: s(r.id),
+        label: s(r.name) || s(r.id),
+        hint: s(r.typeCode),
+      }
+    }
+  }
+}
+
+function matchOption(o: EntityOption, kw: string): boolean {
+  return (
+    o.label.toLowerCase().includes(kw) ||
+    o.refId.toLowerCase().includes(kw) ||
+    (o.hint?.toLowerCase().includes(kw) ?? false)
+  )
 }

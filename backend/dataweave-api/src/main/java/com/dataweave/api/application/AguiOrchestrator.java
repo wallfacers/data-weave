@@ -55,9 +55,13 @@ public class AguiOrchestrator {
         String runId = input.getRunId() != null ? input.getRunId() : UUID.randomUUID().toString();
         String userMessage = input.lastUserContent();
         PageContext context = input.pageContext();
+        List<RunAgentInput.Attachment> attachments = input.attachments();
 
         if ("workhorse".equalsIgnoreCase(mode)) {
-            return workhorseBridge.run(threadId, runId, userMessage, context.toPromptSegment(locale, messages))
+            // 附件段拼在页面上下文段之后，一并喂给真脑（实体引用 + 文件名，文件可经 /api/chat/files/{id} 回取）。
+            String segment = joinSegments(context.toPromptSegment(locale, messages),
+                    attachmentSegment(attachments, locale));
+            return workhorseBridge.run(threadId, runId, userMessage, segment)
                     .subscribeOn(Schedulers.boundedElastic());
         }
 
@@ -65,7 +69,8 @@ public class AguiOrchestrator {
         return Flux.defer(() -> {
                     AgentSession session = audit.getOrCreateSession(threadId, "MOCK", null);
                     AgentRun runRow = audit.startRun(session.getId(), runId, "USER_MESSAGE", userMessage);
-                    AgentReply reply = intentRouter.route(userMessage, context, locale);
+                    AgentReply reply = withAttachmentAck(intentRouter.route(userMessage, context, locale),
+                            attachments, locale);
                     recordMockStep(runRow.getId(), userMessage, reply);
                     audit.finishRun(runRow.getId(), "FINISHED");
                     return Flux.fromIterable(buildEvents(threadId, runId, UUID.randomUUID().toString(), reply));
@@ -82,6 +87,54 @@ public class AguiOrchestrator {
         step.setOutputPreview(truncate(reply.markdown(), 4000));
         step.setTruncated(0);
         audit.recordStep(step);
+    }
+
+    /** 拼附件本地化上下文段，如 {@code [附件] 任务=etl_daily 文件=error.log}；无附件返回空串。 */
+    private String attachmentSegment(List<RunAgentInput.Attachment> attachments, Locale locale) {
+        if (attachments == null || attachments.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(messages.get("agent.attach.prefix", locale));
+        for (RunAgentInput.Attachment a : attachments) {
+            sb.append(" ").append(messages.get(attachmentKey(a), locale, a.displayLabel()));
+        }
+        return sb.toString();
+    }
+
+    private static String attachmentKey(RunAgentInput.Attachment a) {
+        if (a.isFile()) {
+            return "agent.attach.file";
+        }
+        return switch (a.refType() == null ? "" : a.refType()) {
+            case "task" -> "agent.attach.task";
+            case "instance" -> "agent.attach.instance";
+            case "finding" -> "agent.attach.finding";
+            case "datasource" -> "agent.attach.datasource";
+            default -> "agent.attach.file";
+        };
+    }
+
+    /** mock 模式：附件非空时在回复前置一句本地化「已收到附件」，证明附件已抵达后端（保留结构化/视图召唤）。 */
+    private AgentReply withAttachmentAck(AgentReply reply, List<RunAgentInput.Attachment> attachments, Locale locale) {
+        if (attachments == null || attachments.isEmpty()) {
+            return reply;
+        }
+        String labels = attachments.stream()
+                .map(RunAgentInput.Attachment::displayLabel)
+                .reduce((x, y) -> x + ", " + y).orElse("");
+        String ack = messages.get("agent.attach.ack", locale, attachments.size(), labels);
+        return new AgentReply(ack + "\n\n" + reply.markdown(), reply.structured(),
+                reply.customEventName(), reply.uiOpen());
+    }
+
+    private static String joinSegments(String a, String b) {
+        if (a == null || a.isBlank()) {
+            return b == null ? "" : b;
+        }
+        if (b == null || b.isBlank()) {
+            return a;
+        }
+        return a + " " + b;
     }
 
     private List<ServerSentEvent<String>> buildEvents(String threadId, String runId,

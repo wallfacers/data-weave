@@ -11,7 +11,11 @@ import type {
   AgentStreamHandlers,
   AguiEvent,
   ApplyResult,
+  ChatAttachment,
+  ChatFileRef,
   ChatMessage,
+  EntityOption,
+  EntityRefType,
   Finding,
 } from "./types"
 import { CHAT_USE_MOCK } from "./mode"
@@ -22,6 +26,8 @@ export interface SendMessageArgs {
   sessionId: string
   text: string
   context?: AgentPageContext
+  /** 本轮附件（实体引用 / 上传文件），经 forwardedProps.dataweave.attachments 送达后端。 */
+  attachments?: ChatAttachment[]
   /** 取消信号（用户中断本轮）。 */
   signal?: AbortSignal
 }
@@ -57,6 +63,10 @@ export interface ChatProvider {
   deleteSession(id: string): Promise<void>
   /** 会话历史重水合（§D5 GET /api/agent/sessions/{id}/history）。 */
   getSessionHistory(id: string): Promise<ChatMessage[]>
+  /** 上传聊天附件文件（POST /api/chat/files multipart）→ 可引用的文件元数据。 */
+  uploadFile(file: File): Promise<ChatFileRef>
+  /** 搜索可附加的平台实体（任务/实例/发现/数据源），供输入框实体选择器。 */
+  searchEntities(refType: EntityRefType, keyword: string): Promise<EntityOption[]>
 }
 
 export const chatProvider: ChatProvider = CHAT_USE_MOCK
