@@ -1,0 +1,49 @@
+## 1. Phase 0 — 驾驶舱外壳（纯前端复用，可演示，无 DB 变更）
+
+- [x] 1.1 在 `frontend/lib/workspace/` 注册新视图来源：`cockpit` 视图重构为「顶条聚合 + 主舞台 + 右栏」三区布局骨架（views.ts/registry.tsx 不新增 view，原地重构 cockpit-view.tsx）
+- [x] 1.2 顶条聚合条组件：复用 `/api/ops/summary` + `/api/ops/metrics`，展示健康度/运行·排队·异常计数（今日同步量/最迟 ETA 先占位「估算中」）
+- [x] 1.3 右栏「Agent 举手台」组件：复用 `/api/diagnosis` 列表，每条渲染根因+建议+「让它处理/我看看/忽略」按钮（复用 DiagnosisCard/FixActions）；处理动作按 `outcome` 分流（PENDING_APPROVAL 显示「已提交审批」，不只看 code===0）
+- [ ] 1.4 主舞台 Phase 0 形态：**改为分层血缘占位舞台**（ODS→DWD→DWS→ADS 方向 + 「任务声明 io 后呈现实时流向」提示）。原「ReactFlow 并排单工作流 DAG」判定为 Phase 1 会替换的抛弃型代码，故延到 Phase 1 接真血缘端点时一次成型（4.2）
+- [ ] 1.5 节点下钻：点节点经 `dataweave.ui.open` 打开 `instance-log`/`workflow-instance-detail`/`metrics`（随 1.4 延到 Phase 1，需真血缘节点）
+- [x] 1.6 i18n：新增 `lineageCockpit` 命名空间双语 key（zh-CN/en-US 键集一致，i18n:lint 通过），顶条/举手台/空状态文案，无省略号表进行中
+- [x] 1.7 浏览器验证门：CopilotChat 渲染正常、驾驶舱三区（顶条聚合/主舞台/右栏举手台）呈现、6 项文案断言全过、console 0 错（SSE 节点实时变色/下钻随 1.4/1.5 延到 Phase 1 验）
+
+## 2. Phase 1 — 血缘脊柱：数据模型与建表
+
+- [x] 2.1 新建 `data_table` 表 DDL（H2 + PG 双方言，schema.sql `mode:always` 幂等重建配 DROP）：`id/datasource_id/qualified_name/layer/...`，唯一索引 `datasource_id+qualified_name`（datasource_id=0 兜底未知源，规避 NULL 唯一性差异）
+- [x] 2.2 新建 `task_table_io` 表 DDL：`id/task_def_id/task_version_no/table_id/direction/source/confidence/...`（运行态 `task_run_table_io` 一并建好供 Phase 2）
+- [x] 2.3 master 领域层：`DataTable`/`TaskTableIo` 领域模型 + Spring Data JDBC Repository（`deleteByTaskDefId` 替换语义）
+- [x] 2.4 `LineageGraphService`（新建，独立于指标域 `LineageService`）：写设计态边（upsert 表节点 + 替换旧边）、命名前缀推导 layer、全局图、表→表流边推导、N 跳邻域子图、上下游双向 BFS
+- [x] 2.5 `dataweave-master` 编译通过（JDK25 export 后 `-pl dataweave-master compile` EXIT=0）+ `install -DskipTests`
+
+## 3. Phase 1 — 建任务链路接入血缘（三来源 A×B）
+
+- [x] 3.1 引入 SQL 解析依赖（**Calcite 1.40.0**，OQ3 定）于 master，封装 `SqlTableExtractor`：从 content 提取 FROM/JOIN→reads、INSERT/MERGE→writes，排除 CTE 名；解析异常吞掉降级（6 单测过）
+- [x] 3.2 `TaskService.createAndOnline` 加 io 重载 `datasourceId/targetDatasourceId/reads[]/writes[]`，落 `task_def` 数据源字段 + 调 `recordDesignTimeIo`；4 参旧签名委托（向后兼容）
+- [x] 3.3 A×B 交叉校验 `buildEdges`：AGENT×SQL_PARSED 比对（大小写不敏感）→ CONFIRMED/CONFLICT/UNVERIFIED；仅解析→SQL_PARSED/CONFIRMED；mock 模式自动以解析为主（5 单测过）
+- [x] 3.4 `McpToolRegistry.create_task` schema 增 `datasourceId/targetDatasourceId/reads/writes`，管道编码 `@io:` 头穿过闸门，executor 解码调 8 参 createAndOnline（向后兼容旧命令）
+- [x] 3.5 `IntentRouter.createTask`（mock）免改即产出血缘——createAndOnline 自动解析 content；未声明 io 且不可解析时不记录，向后兼容
+- [x] 3.6 后端单测：`SqlTableExtractorTest`(6) + `TaskServiceLineageTest`(5) 覆盖解析、A×B 三态、无 io 降级（全过；二部图查询 REST 测试见 4.1）
+
+## 4. Phase 1 — 血缘查询 REST 与前端活血缘图
+
+- [x] 4.1 新增血缘查询 REST `LineageGraphController`：全局图 + N 跳邻域 + 上下游（带 confidence）；`LineageGraphEndpointTest`(2) h2 全栈契约过（坑：cat>> 追加的 DDL 被 linter 剥掉致 data_table 不存在→500，改用 Edit 重加）
+- [x] 4.2 前端 `lineage-graph.tsx`（ReactFlow 只读）：主舞台换为真·跨系统血缘图，节点按 layer 列布局（SOURCE/ODS/DWD/DWS/ADS），接 `/api/lineage/graph`；接入 cockpit-view 主舞台
+- [x] 4.3 CONFLICT/UNVERIFIED 边视觉标记：CONFLICT 红虚线、UNVERIFIED 黄虚线、CONFIRMED 流动实线 + 右上图例（双语 i18n）
+- [~] 4.4 全局图规模控制：N 跳邻域 REST 已就绪（`/tables/{id}/neighborhood`）；前端 layer 折叠暂缓（当前规模小，节点 5/百级可直渲），留待数据量上来再接
+- [x] 4.5 浏览器验证门：8 项断言全过（态势标题/4 血缘节点/2 图例/ReactFlow 5 节点渲染/无裸 i18nKey），console 0 错，CONFLICT 红虚线实证；后端 PG 实时供数（data.sql 种 ODS→ADS 流）
+
+## 5. Phase 2 — 运行态行数采集与 ETA
+
+- [ ] 5.1 新建 `task_run_table_io` 表 DDL（H2+PG）：`task_instance_id/table_id/direction/row_count/bytes/biz_date`
+- [ ] 5.2 worker 执行后采集读/写行数（JDBC updateCount / 受影响行），经现有 worker→master 回报通道带回；无法可靠采集时留空不猜
+- [ ] 5.3 master 落 `task_run_table_io`；「今日同步量」聚合端点（按「已采集任务」口径）接入顶条
+- [ ] 5.4 ETA 预测：`SlaService` 扩展历史运行时长中位数维度，暴露轻量预测端点；冷启动无样本返回「估算中」
+- [ ] 5.5 前端节点贴 ETA + 吞吐动画（近期运行态滑动统计驱动粒子/发热），顶条今日同步量接真实数据
+- [ ] 5.6 后端测试：行数采集、聚合口径、ETA 中位数算法、冷启动留空；浏览器验证门最终回归（全链路：建任务声明 io → 血缘图出现 → 运行 → 变色 + 行数 + ETA）
+
+## 6. 收尾与归档
+
+- [ ] 6.1 H2 与 PG 双库各跑一遍血缘读写 + 驾驶舱端到端，确认方言无坑（CONCAT/IF NOT EXISTS）
+- [ ] 6.2 更新 CLAUDE.md「Knowledge Base Navigation」加 `LineageGraphService` 与 `lineage-cockpit` 视图导航行
+- [ ] 6.3 `openspec validate` 通过 → `/opsx:archive` 归档（合并 delta 至 base specs）

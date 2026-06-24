@@ -1,245 +1,146 @@
 "use client"
 
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
-  CheckmarkCircle01Icon,
-  Cancel01Icon,
+  Activity02Icon,
   Loading03Icon,
-  ArrowRight01Icon,
+  HourglassIcon,
+  Alert01Icon,
+  ArrowDataTransferHorizontalIcon,
+  TimeManagementIcon,
   ServerStack01Icon,
   Bug01Icon,
-  PlaySquareIcon,
 } from "@hugeicons/core-free-icons"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { type DashboardSummary, formatDateTime, truncate } from "@/lib/types"
+import { DiagnosisCard } from "@/components/cockpit/diagnosis-card"
+import { type DashboardSummary, type TaskDiagnosis } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { ViewStatus } from "./view-status"
+import { LineageGraph } from "./lineage-graph"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
-function StatCard({
+/** 后端 MetricsSnapshot 子集：顶条只需队列深度。 */
+interface MetricsSnapshot {
+  queueDepth: number
+}
+
+type Tone = "default" | "success" | "destructive" | "warning" | "info"
+
+const TONE_CLASSES: Record<Tone, string> = {
+  default: "bg-muted text-muted-foreground",
+  success: "bg-success/10 text-success",
+  destructive: "bg-destructive/10 text-destructive",
+  warning: "bg-warning/10 text-warning",
+  info: "bg-info/10 text-info",
+}
+
+/** 顶条聚合 pill：一眼健康，面向非开发人员。 */
+function TopStat({
   label,
   value,
   icon,
   tone,
 }: {
   label: string
-  value: number
+  value: string
   icon: IconSvgElement
-  tone?: "default" | "success" | "destructive" | "running"
+  tone?: Tone
 }) {
-  const toneClasses = {
-    default: "bg-muted text-muted-foreground",
-    success: "bg-success/10 text-success",
-    destructive: "bg-destructive/10 text-destructive",
-    running: "bg-info/10 text-info",
-  }
-
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 pt-5">
-        <div
-          className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone ?? "default"]}`}
-        >
-          <HugeiconsIcon icon={icon} className="size-5" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-3xl font-semibold tracking-tight font-sans tabular-nums">
-            {value}
-          </span>
-          <span className="text-xs text-muted-foreground">{label}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5">
+      <div
+        className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${TONE_CLASSES[tone ?? "default"]}`}
+      >
+        <HugeiconsIcon icon={icon} className="size-4" />
+      </div>
+      <div className="flex min-w-0 flex-col">
+        <span className="text-lg font-semibold tracking-tight font-sans tabular-nums whitespace-nowrap">
+          {value}
+        </span>
+        <span className="truncate text-[11px] text-muted-foreground">{label}</span>
+      </div>
+    </div>
   )
 }
 
 export function CockpitView() {
-  const t = useTranslations("cockpit")
-  const locale = useLocale()
-  const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
+  const t = useTranslations("lineageCockpit")
+  const tc = useTranslations("cockpit")
   const open = useWorkspaceStore((s) => s.open)
+  const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
+  const { data: metrics } = useApi<MetricsSnapshot>("/api/ops/metrics")
+  const { data: diagnoses } = useApi<TaskDiagnosis[]>("/api/diagnosis")
 
   if (!summary) return <ViewStatus loading={loading} />
 
+  const healthPct = summary.total > 0 ? Math.round((summary.success / summary.total) * 100) : 100
+  const healthTone: Tone =
+    healthPct >= 90 ? "success" : healthPct >= 70 ? "warning" : "destructive"
+  const queued = metrics?.queueDepth ?? 0
+  const openDiagnoses = (diagnoses ?? []).filter((d) => d.status === "OPEN")
+
   return (
-    <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+      <div className="flex items-center justify-between border-b px-6 py-4">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => open("fleet")}>
           <HugeiconsIcon icon={ServerStack01Icon} data-icon="inline-start" />
-          {t("clusterMachines")}
+          {tc("clusterMachines")}
         </Button>
       </div>
 
-      {/* Summary stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t("statTotal")} value={summary.total} icon={PlaySquareIcon} />
-        <StatCard
-          label={t("statSuccess")}
-          value={summary.success}
-          icon={CheckmarkCircle01Icon}
-          tone="success"
-        />
-        <StatCard
-          label={t("statFailed")}
-          value={summary.failed}
-          icon={Cancel01Icon}
-          tone="destructive"
-        />
-        <StatCard
-          label={t("statRunning")}
-          value={summary.running}
-          icon={Loading03Icon}
-          tone="running"
-        />
+      {/* 顶条聚合：一眼健康 */}
+      <div className="grid gap-3 border-b px-6 py-4 grid-cols-2 sm:grid-cols-3 2xl:grid-cols-6">
+        <TopStat label={t("topHealth")} value={`${healthPct}%`} icon={Activity02Icon} tone={healthTone} />
+        <TopStat label={t("topRunning")} value={String(summary.running)} icon={Loading03Icon} tone="info" />
+        <TopStat label={t("topQueued")} value={String(queued)} icon={HourglassIcon} tone={queued > 0 ? "warning" : "default"} />
+        <TopStat label={t("topError")} value={String(summary.failed)} icon={Alert01Icon} tone={summary.failed > 0 ? "destructive" : "default"} />
+        <TopStat label={t("topSyncToday")} value={t("estimating")} icon={ArrowDataTransferHorizontalIcon} />
+        <TopStat label={t("topLatestEta")} value={t("estimating")} icon={TimeManagementIcon} />
       </div>
 
-      {/* Failed tasks table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <HugeiconsIcon icon={Cancel01Icon} className="size-4 text-destructive" />
-              {t("failedTasks")}
-              <Badge variant="destructive">{summary.failedInstances.length}</Badge>
-            </CardTitle>
+      {/* 主体：主舞台 + 右栏举手台 */}
+      <div className="flex min-h-0 flex-1">
+        {/* 主舞台：跨系统活血缘图（Phase 0 占位） */}
+        <main className="flex min-w-0 flex-1 flex-col border-r">
+          <div className="flex items-center gap-2 border-b px-5 py-3">
+            <HugeiconsIcon icon={Activity02Icon} className="size-4 text-primary" />
+            <h2 className="text-sm font-semibold tracking-tight">{t("stageTitle")}</h2>
           </div>
-        </CardHeader>
-        <CardContent>
-          {summary.failedInstances.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {t("noFailedTasks")}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="font-sans">{t("colInstance")}</TableHead>
-                  <TableHead className="font-sans">{t("colTask")}</TableHead>
-                  <TableHead className="font-sans">{t("colNode")}</TableHead>
-                  <TableHead className="font-sans">{t("colState")}</TableHead>
-                  <TableHead className="font-sans">{t("colFinishedAt")}</TableHead>
-                  <TableHead className="font-sans">{t("colLogSummary")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.failedInstances.map((inst) => (
-                  <TableRow key={inst.id}>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => open("diagnosis", { instanceId: inst.id })}
-                        className="font-sans text-link hover:underline"
-                      >
-                        #{inst.id}
-                      </button>
-                    </TableCell>
-                    <TableCell className="font-sans text-muted-foreground">
-                      #{inst.taskId}
-                    </TableCell>
-                    <TableCell className="font-sans text-muted-foreground">
-                      {inst.workerNodeCode ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="destructive">{inst.state}</Badge>
-                    </TableCell>
-                    <TableCell className="font-sans text-muted-foreground">
-                      {formatDateTime(inst.finishedAt, locale)}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                      {truncate(inst.log, 50)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          <LineageGraph />
+        </main>
 
-      {/* Agent diagnosing items */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
-              {t("agentDiagnosing")}
-              <Badge variant="secondary">{summary.diagnosing.length}</Badge>
-            </CardTitle>
-            {summary.diagnosing.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => open("diagnosis")}>
-                {t("viewAll")}
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  className="size-3.5"
-                  data-icon="inline-end"
-                />
-              </Button>
+        {/* 右栏：Agent 举手台 */}
+        <aside className="flex w-[360px] shrink-0 flex-col">
+          <div className="flex items-center gap-2 border-b px-5 py-3">
+            <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
+            <h2 className="text-sm font-semibold tracking-tight">{t("railTitle")}</h2>
+            {openDiagnoses.length > 0 && (
+              <span className="ml-auto rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive tabular-nums">
+                {openDiagnoses.length}
+              </span>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {summary.diagnosing.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {t("noDiagnosing")}
-            </p>
+          {openDiagnoses.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center p-8 text-center">
+              <p className="text-sm text-muted-foreground">{t("railEmpty")}</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="font-sans">{t("colDiagnosis")}</TableHead>
-                  <TableHead>{t("colTitle")}</TableHead>
-                  <TableHead className="font-sans">{t("colNode")}</TableHead>
-                  <TableHead className="font-sans">{t("colState")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.diagnosing.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          open("diagnosis", { instanceId: d.taskInstanceId })
-                        }
-                        className="font-sans text-link hover:underline"
-                      >
-                        #{d.id}
-                      </button>
-                    </TableCell>
-                    <TableCell>{d.title}</TableCell>
-                    <TableCell className="font-sans text-muted-foreground">
-                      {d.workerNodeCode ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={d.status === "RESOLVED" ? "secondary" : "info"}>
-                        {d.status === "RESOLVED" ? t("statusResolved") : t("statusDiagnosing")}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-4">
+              {openDiagnoses.map((d) => (
+                <DiagnosisCard key={d.id} diagnosis={d} />
+              ))}
+            </DwScroll>
           )}
-        </CardContent>
-      </Card>
-    </DwScroll>
+        </aside>
+      </div>
+    </div>
   )
 }

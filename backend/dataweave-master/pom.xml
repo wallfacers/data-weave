@@ -78,6 +78,19 @@
             <artifactId>jcc</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Apache Calcite SQL 解析（table-lineage）：解析任务 content 提取读/写表，与 Agent 声明 A×B 交叉校验。
+             仅用 SqlParser，排除不需要的传递依赖以减小冲突面。 -->
+        <dependency>
+            <groupId>org.apache.calcite</groupId>
+            <artifactId>calcite-core</artifactId>
+            <version>1.40.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

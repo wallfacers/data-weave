@@ -156,15 +156,33 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 inst.getId());
     }
 
-    // ---- 建任务并上线（MCP create_task）。command 编码为 "cron\ncontent"，targetId 为任务名 ----
+    // ---- 建任务并上线（MCP create_task）。command 编码为 "[@io:ds|tds|reads|writes\n]cron\ncontent"，targetId 为任务名 ----
     private ExecOutcome createTask(AgentAction action, Locale locale) {
         String fallbackName = messages.get("executor.create_task.default_name", locale);
         String name = action.getTargetId() != null ? action.getTargetId() : fallbackName;
         String cmd = action.getCommand() == null ? "" : action.getCommand();
+
+        // 可选 io 头：Agent 声明的输入/输出表与数据源（设计态血缘 AGENT 来源）
+        Long dsId = null, tdsId = null;
+        java.util.List<String> reads = null, writes = null;
+        if (cmd.startsWith("@io:")) {
+            int hnl = cmd.indexOf('\n');
+            String header = cmd.substring(4, hnl < 0 ? cmd.length() : hnl);
+            cmd = hnl < 0 ? "" : cmd.substring(hnl + 1);
+            String[] parts = header.split("\\|", -1);
+            if (parts.length >= 4) {
+                dsId = parseLongOrNull(parts[0]);
+                tdsId = parseLongOrNull(parts[1]);
+                reads = parts[2].isBlank() ? null : java.util.Arrays.asList(parts[2].split(","));
+                writes = parts[3].isBlank() ? null : java.util.Arrays.asList(parts[3].split(","));
+            }
+        }
+
         int nl = cmd.indexOf('\n');
         String cron = nl >= 0 ? cmd.substring(0, nl) : "0 0 8 * * ?";
         String content = nl >= 0 ? cmd.substring(nl + 1) : (cmd.isBlank() ? "select count(*) from orders" : cmd);
-        TaskService.TaskCreation c = taskService.createAndOnline(name, "SQL", content, cron);
+        TaskService.TaskCreation c = taskService.createAndOnline(name, "SQL", content, cron,
+                dsId, tdsId, reads, writes);
         return new ExecOutcome(true,
                 messages.get("executor.create_task.success", locale, name, cron),
                 json(Map.of("taskId", c.task().getId(), "name", name, "cron", cron, "instanceId", c.instanceId())),
@@ -224,7 +242,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 json(Map.of("instanceId", instanceId.toString(), "taskId", taskId, "runMode", "NORMAL")), instanceId);
     }
 
-    /** 手动触发工作流：targetId=workflowId，command=bizDate（可空）。 */
+    /** 手动触发工作流：targetId=workflowId，command=TriggerCommand 编码的 bizDate(+scope+targetNodeKey)。 */
     private ExecOutcome triggerWorkflow(AgentAction action, Locale locale) {
         Long workflowId = parseLong(action.getTargetId());
         WorkflowDef wf = workflowId == null ? null : workflowDefRepository.findById(workflowId).orElse(null);
@@ -233,7 +251,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     messages.get("workflow.not_found", locale, action.getTargetId()),
                     json(Map.of("error", "workflow_not_found")), null);
         }
-        UUID wiId = triggerService.trigger(wf, "MANUAL", action.getCommand(), wf.getPriority(), locale);
+        TriggerCommand.Decoded cmd = TriggerCommand.decode(action.getCommand());
+        UUID wiId = triggerService.trigger(wf, "MANUAL", cmd.bizDate(), wf.getPriority(), locale,
+                cmd.scope(), cmd.targetNodeKey());
         return new ExecOutcome(true,
                 messages.get("executor.trigger_workflow.success", locale, wf.getName()),
                 json(Map.of("workflowInstanceId", wiId.toString(), "workflowId", workflowId)), wiId);
@@ -397,6 +417,17 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         try {
             return UUID.fromString(s.trim());
         } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private Long parseLongOrNull(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(s.trim());
+        } catch (NumberFormatException e) {
             return null;
         }
     }

@@ -27,17 +27,23 @@ public class TaskService {
     private final TaskInstanceRepository taskInstanceRepository;
     private final FleetService fleetService;
     private final JdbcTemplate jdbcTemplate;
+    private final LineageGraphService lineageGraphService;
+    private final SqlTableExtractor sqlTableExtractor;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
                        TaskInstanceRepository taskInstanceRepository,
                        FleetService fleetService,
-                       JdbcTemplate jdbcTemplate) {
+                       JdbcTemplate jdbcTemplate,
+                       LineageGraphService lineageGraphService,
+                       SqlTableExtractor sqlTableExtractor) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
         this.fleetService = fleetService;
         this.jdbcTemplate = jdbcTemplate;
+        this.lineageGraphService = lineageGraphService;
+        this.sqlTableExtractor = sqlTableExtractor;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -303,8 +309,22 @@ public class TaskService {
 
     // ─── 兼容旧方法（MCP create_task 调用）───────────────
 
-    /** 创建任务定义（status=ONLINE）、版本快照 v1，并 mock 推进一条 SUCCESS 实例。 */
+    /** 创建任务定义（status=ONLINE）、版本快照 v1，并 mock 推进一条 SUCCESS 实例（无 io 声明）。 */
     public TaskCreation createAndOnline(String name, String type, String content, String cron) {
+        return createAndOnline(name, type, content, cron, null, null, null, null);
+    }
+
+    /**
+     * 创建即上线，并落设计态血缘（table-lineage）。
+     *
+     * <p>血缘三来源 A×B 交叉校验：{@code agentReads/agentWrites} 为 Agent 显式声明（AGENT），
+     * 同时用 Calcite 解析 {@code content}（SQL_PARSED）。两者一致 → CONFIRMED；仅声明未证实 → CONFLICT；
+     * 解析失败 → UNVERIFIED；仅解析未声明 → SQL_PARSED/CONFIRMED。reads 关联 {@code datasourceId}，
+     * writes 关联 {@code targetDatasourceId}。血缘写入失败不影响建任务（容错降级）。
+     */
+    public TaskCreation createAndOnline(String name, String type, String content, String cron,
+                                        Long datasourceId, Long targetDatasourceId,
+                                        List<String> agentReads, List<String> agentWrites) {
         LocalDateTime now = LocalDateTime.now();
 
         TaskDef task = new TaskDef();
@@ -313,6 +333,8 @@ public class TaskService {
         task.setName(name);
         task.setType(type);
         task.setContent(content);
+        task.setDatasourceId(datasourceId);
+        task.setTargetDatasourceId(targetDatasourceId);
         task.setStatus("ONLINE");
         task.setCurrentVersionNo(1);
         task.setHasDraftChange(0);
@@ -323,6 +345,9 @@ public class TaskService {
         task.setDeleted(0);
         task.setVersion(0L);
         TaskDef saved = taskDefRepository.save(task);
+
+        recordLineage(saved.getId(), type, content, datasourceId, targetDatasourceId,
+                agentReads, agentWrites);
 
         TaskDefVersion ver = new TaskDefVersion();
         ver.setTenantId(1L);
@@ -359,5 +384,71 @@ public class TaskService {
         TaskInstance savedInstance = taskInstanceRepository.save(instance);
 
         return new TaskCreation(saved, cron, savedInstance.getId());
+    }
+
+    // ─── 设计态血缘记录（A×B 交叉校验）─────────────────────
+
+    /** 解析 content + 合并 Agent 声明，落 task_table_io。容错：失败不影响建任务。 */
+    private void recordLineage(Long taskDefId, String type, String content,
+                              Long datasourceId, Long targetDatasourceId,
+                              List<String> agentReads, List<String> agentWrites) {
+        try {
+            SqlTableExtractor.Result parsed = "SQL".equalsIgnoreCase(type)
+                    ? sqlTableExtractor.extract(content)
+                    : new SqlTableExtractor.Result(false, java.util.Set.of(), java.util.Set.of());
+
+            List<LineageGraphService.EdgeInput> edges = new ArrayList<>();
+            edges.addAll(buildEdges(LineageGraphService.READ, agentReads, parsed.reads(),
+                    parsed.parsed(), datasourceId));
+            edges.addAll(buildEdges(LineageGraphService.WRITE, agentWrites, parsed.writes(),
+                    parsed.parsed(), targetDatasourceId));
+            if (!edges.isEmpty()) {
+                lineageGraphService.recordDesignTimeIo(1L, 1L, taskDefId, 1, edges);
+            }
+        } catch (Exception e) {
+            // 血缘是增强，绝不阻断建任务主链路
+        }
+    }
+
+    /**
+     * 合并某方向的 Agent 声明与 SQL 解析结果，按 A×B 判定来源与可信度：
+     * 两者皆有→AGENT/CONFIRMED；仅声明且解析成功→AGENT/CONFLICT；仅声明且解析失败→AGENT/UNVERIFIED；
+     * 仅解析→SQL_PARSED/CONFIRMED。表名比对大小写不敏感，呈现保留声明优先的原始拼写。
+     */
+    private List<LineageGraphService.EdgeInput> buildEdges(String direction, List<String> agent,
+                                                           java.util.Set<String> parsedSet,
+                                                           boolean parsed, Long datasourceId) {
+        // 规范化映射：lower → 原始拼写（声明优先）
+        java.util.Map<String, String> canonical = new java.util.LinkedHashMap<>();
+        java.util.Set<String> agentLower = new java.util.LinkedHashSet<>();
+        if (agent != null) {
+            for (String a : agent) {
+                if (a == null || a.isBlank()) continue;
+                String t = a.trim();
+                canonical.put(t.toLowerCase(), t);
+                agentLower.add(t.toLowerCase());
+            }
+        }
+        java.util.Set<String> parsedLower = new java.util.LinkedHashSet<>();
+        for (String p : parsedSet) {
+            String low = p.toLowerCase();
+            parsedLower.add(low);
+            canonical.putIfAbsent(low, p);
+        }
+
+        List<LineageGraphService.EdgeInput> out = new ArrayList<>();
+        for (String low : canonical.keySet()) {
+            boolean inA = agentLower.contains(low);
+            boolean inP = parsedLower.contains(low);
+            String source;
+            String confidence;
+            if (inA && inP) { source = "AGENT"; confidence = "CONFIRMED"; }
+            else if (inA && parsed) { source = "AGENT"; confidence = "CONFLICT"; }
+            else if (inA) { source = "AGENT"; confidence = "UNVERIFIED"; }
+            else { source = "SQL_PARSED"; confidence = "CONFIRMED"; }
+            out.add(new LineageGraphService.EdgeInput(
+                    datasourceId, canonical.get(low), null, direction, source, confidence));
+        }
+        return out;
     }
 }

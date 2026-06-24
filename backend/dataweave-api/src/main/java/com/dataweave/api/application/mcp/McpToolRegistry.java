@@ -192,7 +192,11 @@ public class McpToolRegistry {
         register("create_task", "创建并上线一个任务（经策略闸门）",
                 schema(req("name", "string", "任务名"),
                         req("content", "string", "执行内容（SQL）"),
-                        prop("cron", "string", "cron 表达式，缺省每天 8 点")),
+                        prop("cron", "string", "cron 表达式，缺省每天 8 点"),
+                        prop("datasourceId", "number", "输入数据源 id（可选）"),
+                        prop("targetDatasourceId", "number", "输出数据源 id（可选）"),
+                        prop("reads", "string", "输入表，逗号分隔（可选；Agent 声明血缘，与 SQL 解析交叉校验）"),
+                        prop("writes", "string", "输出表，逗号分隔（可选；Agent 声明血缘）")),
                 ctx -> {
                     String name = required(ctx.args(), "name");
                     String content = required(ctx.args(), "content");
@@ -200,10 +204,22 @@ public class McpToolRegistry {
                     if (cron == null || cron.isBlank()) {
                         cron = "0 0 8 * * ?";
                     }
+                    // 设计态血缘 io 声明：管道编码进 command 头穿过闸门（"@io:ds|tds|reads|writes\n" + cron\ncontent）
+                    Long dsId = lng(ctx.args(), "datasourceId");
+                    Long tdsId = lng(ctx.args(), "targetDatasourceId");
+                    String reads = str(ctx.args(), "reads");
+                    String writes = str(ctx.args(), "writes");
+                    String ioHeader = "";
+                    if (dsId != null || tdsId != null
+                            || (reads != null && !reads.isBlank()) || (writes != null && !writes.isBlank())) {
+                        ioHeader = "@io:" + (dsId == null ? "" : dsId) + "|" + (tdsId == null ? "" : tdsId)
+                                + "|" + (reads == null ? "" : reads.trim())
+                                + "|" + (writes == null ? "" : writes.trim()) + "\n";
+                    }
                     ActionRequest req = ActionRequest.builder()
                             .toolName("create_task").actionType("CREATE_TASK")
                             .targetType("TASK").targetId(name)
-                            .command(cron + "\n" + content)
+                            .command(ioHeader + cron + "\n" + content)
                             .actor("agent").actorSource("AGENT")
                             .summary("建任务「" + name + "」 cron " + cron)
                             .build();
