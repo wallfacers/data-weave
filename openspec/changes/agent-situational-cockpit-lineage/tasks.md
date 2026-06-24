@@ -3,8 +3,8 @@
 - [x] 1.1 在 `frontend/lib/workspace/` 注册新视图来源：`cockpit` 视图重构为「顶条聚合 + 主舞台 + 右栏」三区布局骨架（views.ts/registry.tsx 不新增 view，原地重构 cockpit-view.tsx）
 - [x] 1.2 顶条聚合条组件：复用 `/api/ops/summary` + `/api/ops/metrics`，展示健康度/运行·排队·异常计数（今日同步量/最迟 ETA 先占位「估算中」）
 - [x] 1.3 右栏「Agent 举手台」组件：复用 `/api/diagnosis` 列表，每条渲染根因+建议+「让它处理/我看看/忽略」按钮（复用 DiagnosisCard/FixActions）；处理动作按 `outcome` 分流（PENDING_APPROVAL 显示「已提交审批」，不只看 code===0）
-- [ ] 1.4 主舞台 Phase 0 形态：**改为分层血缘占位舞台**（ODS→DWD→DWS→ADS 方向 + 「任务声明 io 后呈现实时流向」提示）。原「ReactFlow 并排单工作流 DAG」判定为 Phase 1 会替换的抛弃型代码，故延到 Phase 1 接真血缘端点时一次成型（4.2）
-- [ ] 1.5 节点下钻：点节点经 `dataweave.ui.open` 打开 `instance-log`/`workflow-instance-detail`/`metrics`（随 1.4 延到 Phase 1，需真血缘节点）
+- [x] 1.4 主舞台形态：占位舞台被 4.2 直接取代——cockpit-view 主舞台即渲染真·跨系统血缘图（`<LineageGraph/>`，layer 列布局 SOURCE/ODS/DWD/DWS/ADS + 方向流边），无需中间占位态，抛弃型代码省去
+- [~] 1.5 节点下钻：随 4.2 节点语义由「任务」变为「表」，下钻目标语义随之改变（表 → 产出它的任务 → 最近实例日志/详情），需「表详情」落点设计；当前血缘图节点可视交互已就绪，富下钻留作增量（依赖 表→producing-task→latest-instance 链路设计）
 - [x] 1.6 i18n：新增 `lineageCockpit` 命名空间双语 key（zh-CN/en-US 键集一致，i18n:lint 通过），顶条/举手台/空状态文案，无省略号表进行中
 - [x] 1.7 浏览器验证门：CopilotChat 渲染正常、驾驶舱三区（顶条聚合/主舞台/右栏举手台）呈现、6 项文案断言全过、console 0 错（SSE 节点实时变色/下钻随 1.4/1.5 延到 Phase 1 验）
 
@@ -45,5 +45,5 @@
 ## 6. 收尾与归档
 
 - [x] 6.1 H2 与 PG 双库各跑一遍血缘读写 + 驾驶舱端到端，确认方言无坑：H2 全栈 `LineageGraphEndpointTest`(4，含 sync-summary 186M / eta-summary 非空)；PG 重启 + 三端点(graph 5 节点 / sync 186M / eta 1785s)实证。**修幂等坑**：data_table/task_table_io/task_run_table_io（含他人 driver_jars）裸 CREATE 缺配套 DROP，mode=always 在持久 PG 重启撞 already exists → 补 DROP 块（44 CREATE/40 DROP 缺口 4 张补齐）
-- [ ] 6.2 更新 CLAUDE.md「Knowledge Base Navigation」加 `LineageGraphService` 与 `lineage-cockpit` 视图导航行
+- [x] 6.2 更新 CLAUDE.md「Knowledge Base Navigation」加 4 行导航：表级血缘(LineageGraphService+SqlTableExtractor+Controller)、态势驾驶舱视图(cockpit-view+lineage-graph)、ETA 预测(SlaService+端点)
 - [ ] 6.3 `openspec validate` 通过 → `/opsx:archive` 归档（合并 delta 至 base specs）

@@ -150,6 +150,9 @@ This file is the map; details live elsewhere:
 | Frontend metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx`  |
 | Catalog tree (folders+tags) | `backend/dataweave-master/.../application/CatalogTreeService.java` (path maintenance/move/cycle guard) + `CatalogController`/`TagController` |
 | Frontend catalog tree component | `frontend/components/workspace/catalog-tree.tsx` (left canvas panel; two drag types MOVE_MIME/TASK_MIME) |
+| Table lineage (build-as-you-create) | `backend/dataweave-master/.../application/LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局图/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite 解析 reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
+| Situational cockpit (lineage) view | `frontend/components/workspace/views/cockpit-view.tsx` (顶条聚合: 健康/同步量/ETA + 主舞台活血缘图 + 右栏 Agent 举手台) + `lineage-graph.tsx` (ReactFlow 只读, layer 列布局, CONFLICT/UNVERIFIED 边标记) |
+| ETA prediction         | `backend/dataweave-master/.../application/SlaService.java` (`durationMedianMs` 历史时长中位数 + `predictLatestEta` 运行中实例最迟完成) → `GET /api/ops/eta-summary` |
 | How to run             | [README.md](README.md)                                      |
 
 ## Working Rules
