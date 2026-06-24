@@ -6,9 +6,11 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
+import com.dataweave.master.application.SchedulerKernel;
 import com.dataweave.master.application.WorkflowTriggerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -16,7 +18,9 @@ import org.springframework.test.context.TestPropertySource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,10 +47,15 @@ class KernelSchedulingTest {
     WorkflowInstanceRepository workflowInstanceRepository;
     @Autowired
     TaskInstanceRepository taskInstanceRepository;
+    @Autowired
+    SchedulerKernel schedulerKernel;
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void triggeredWorkflow_runsAllNodes_andAggregatesSuccess() throws Exception {
-        WorkflowDef wf = workflowDefRepository.findById(1L).orElseThrow();
+        // 种子 workflow id=3「订单 SHELL 流水线」（6 个 SHELL 节点，分叉+合并 DAG）。
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
 
         UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null, java.util.Locale.SIMPLIFIED_CHINESE);
 
@@ -62,6 +71,89 @@ class KernelSchedulingTest {
         // 每个节点都被真实下发执行（有 worker 落点 + attempt 递增）
         assertThat(nodes).allMatch(n -> n.getWorkerNodeCode() != null);
         assertThat(nodes).allMatch(n -> n.getAttempt() != null && n.getAttempt() >= 1);
+    }
+
+    @Test
+    void weakDependency_upstreamTerminal_downstreamReleased() throws Exception {
+        // 弱依赖：n1(node4)→n2(node5) 边(edge id=3)设为 WEAK，上游到终态 FAILED 后下游应被放行。
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null, java.util.Locale.SIMPLIFIED_CHINESE);
+        assertThat(await(Duration.ofSeconds(20), () -> InstanceStates.SUCCESS.equals(
+                workflowInstanceRepository.findById(wiId).map(w -> w.getState()).orElse(null))))
+                .as("前置：工作流先跑完 SUCCESS").isTrue();
+
+        UUID n1Inst = instanceIdForNode(wiId, 4L);
+        UUID n2Inst = instanceIdForNode(wiId, 5L);
+        jdbc.update("UPDATE workflow_edge SET strength='WEAK' WHERE id=3");
+        jdbc.update("UPDATE task_instance SET state='FAILED' WHERE id=?", n1Inst);
+        jdbc.update("UPDATE task_instance SET state='WAITING', worker_node_code=NULL, lease_expire_at=NULL WHERE id=?", n2Inst);
+
+        schedulerKernel.scheduleOnce();
+        boolean released = await(Duration.ofSeconds(10), () ->
+                !InstanceStates.WAITING.equals(taskInstanceState(n2Inst)));
+        assertThat(released).as("弱依赖：上游到达终态 FAILED 后下游应被放行（离开 WAITING）").isTrue();
+    }
+
+    @Test
+    void strongDependency_upstreamFailed_downstreamBlocked() throws Exception {
+        // 强依赖对照：n2(node5)→n4(node7) 边(edge id=5)保持 STRONG，上游 FAILED 时下游应保持 WAITING。
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null, java.util.Locale.SIMPLIFIED_CHINESE);
+        assertThat(await(Duration.ofSeconds(20), () -> InstanceStates.SUCCESS.equals(
+                workflowInstanceRepository.findById(wiId).map(w -> w.getState()).orElse(null))))
+                .as("前置：工作流先跑完 SUCCESS").isTrue();
+
+        UUID n2Inst = instanceIdForNode(wiId, 5L);
+        UUID n4Inst = instanceIdForNode(wiId, 7L);
+        jdbc.update("UPDATE task_instance SET state='FAILED' WHERE id=?", n2Inst);
+        jdbc.update("UPDATE task_instance SET state='WAITING', worker_node_code=NULL, lease_expire_at=NULL WHERE id=?", n4Inst);
+
+        schedulerKernel.scheduleOnce();
+        Thread.sleep(1000); // 让本轮认领事务落实
+        assertThat(taskInstanceState(n4Inst))
+                .as("强依赖：上游 FAILED 时下游应保持 WAITING").isEqualTo(InstanceStates.WAITING);
+    }
+
+    @Test
+    void runToNode_materializesTargetAndPredecessors() {
+        // wf3 DAG: n1(4)→n2(5)→{n3(6),n4(7)}→n5(8)→n6(9)。TO_NODE n5：物化 n5 及前驱闭包 n1..n4，不含下游 n6。
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null,
+                java.util.Locale.SIMPLIFIED_CHINESE, "TO_NODE", "n5");
+        Set<Long> nodeIds = taskInstanceRepository.findByWorkflowInstanceId(wiId).stream()
+                .map(TaskInstance::getWorkflowNodeId).collect(Collectors.toSet());
+        assertThat(nodeIds).containsExactlyInAnyOrder(4L, 5L, 6L, 7L, 8L);
+    }
+
+    @Test
+    void runDownstream_materializesTargetAndSuccessors() {
+        // DOWNSTREAM n2：物化 n2 及后继闭包 n3..n6，不含上游 n1。
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null,
+                java.util.Locale.SIMPLIFIED_CHINESE, "DOWNSTREAM", "n2");
+        Set<Long> nodeIds = taskInstanceRepository.findByWorkflowInstanceId(wiId).stream()
+                .map(TaskInstance::getWorkflowNodeId).collect(Collectors.toSet());
+        assertThat(nodeIds).containsExactlyInAnyOrder(5L, 6L, 7L, 8L, 9L);
+    }
+
+    @Test
+    void runFull_materializesAllNodes() {
+        WorkflowDef wf = workflowDefRepository.findById(3L).orElseThrow();
+        UUID wiId = triggerService.trigger(wf, "MANUAL", "2026-06-11", null,
+                java.util.Locale.SIMPLIFIED_CHINESE, "FULL", null);
+        Set<Long> nodeIds = taskInstanceRepository.findByWorkflowInstanceId(wiId).stream()
+                .map(TaskInstance::getWorkflowNodeId).collect(Collectors.toSet());
+        assertThat(nodeIds).containsExactlyInAnyOrder(4L, 5L, 6L, 7L, 8L, 9L);
+    }
+
+    private UUID instanceIdForNode(UUID wiId, Long nodeId) {
+        return jdbc.queryForObject(
+                "SELECT id FROM task_instance WHERE workflow_instance_id=? AND workflow_node_id=? AND deleted=0",
+                UUID.class, wiId, nodeId);
+    }
+
+    private String taskInstanceState(UUID id) {
+        return jdbc.queryForObject("SELECT state FROM task_instance WHERE id=?", String.class, id);
     }
 
     private boolean await(Duration timeout, java.util.function.BooleanSupplier cond) throws InterruptedException {

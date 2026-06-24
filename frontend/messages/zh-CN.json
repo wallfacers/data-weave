@@ -399,7 +399,19 @@
     "versionsTab": "版本历史",
     "rollbackSuccess": "已回滚到 v{vno} 草稿，请检查后发布",
     "rollbackPendingApproval": "回滚需审批，已提交审批单 #{id}，批准后生效",
-    "rollbackFailed": "回滚失败：{error}"
+    "rollbackFailed": "回滚失败：{error}",
+    "edgeMenuSetWeak": "设为弱依赖",
+    "edgeMenuSetStrong": "设为强依赖",
+    "nodeMenuRunToNode": "运行到本节点",
+    "nodeMenuRunDownstream": "运行下游",
+    "runDialogTitle": "运行工作流",
+    "runDialogDesc": "选择运行范围与目标节点",
+    "runDialogScope": "运行范围",
+    "runDialogTarget": "目标节点",
+    "runScopeFull": "全量运行",
+    "runScopeToNode": "运行到节点",
+    "runScopeDownstream": "运行下游",
+    "runScopeOnlyNode": "仅本节点"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "未指定工作流实例 ID",

@@ -279,10 +279,15 @@ export interface DagNode {
   posY: number | null
 }
 
-/** DAG 边（端点用 nodeKey 引用）。 */
+/**
+ * DAG 边（端点用 nodeKey 引用）。strength=依赖强度：
+ *  - STRONG（默认）上游须 SUCCESS 才放行下游；
+ *  - WEAK 上游到任意终态（SUCCESS/FAILED/STOPPED）即放行下游。
+ */
 export interface DagEdge {
   fromNodeKey: string
   toNodeKey: string
+  strength?: "STRONG" | "WEAK"
 }
 
 /** 读图视图（GET /api/workflows/{id}/dag）。version 用于保存时乐观锁回传。 */
@@ -300,6 +305,31 @@ export interface DagPayload {
   version: number | null
   nodes: DagNode[]
   edges: DagEdge[]
+}
+
+/**
+ * 手动运行范围（manual-run-scope）：
+ *  - FULL=全图；TO_NODE=运行到目标节点（含其全部前驱）；DOWNSTREAM=运行目标节点全部下游；
+ *  - ONLY_NODE=仅运行单个任务节点（走 /api/tasks/{id}/run，脱离工作流）。
+ */
+export type RunScope = "FULL" | "TO_NODE" | "DOWNSTREAM" | "ONLY_NODE"
+
+/** 手动触发工作流运行请求体（POST /api/workflows/{id}/run）。scope 缺省 FULL。 */
+export interface RunWorkflowRequest {
+  bizDate?: string | null
+  scope?: RunScope
+  targetNodeKey?: string | null
+}
+
+/** 跨周期依赖（GET/POST/DELETE /api/workflows/{id}/dependencies）。nodeId/dependNodeId 为 workflow_node 主键。 */
+export interface WorkflowDependency {
+  id?: number | null
+  nodeId: number
+  dependWorkflowId: number | null
+  dependNodeId: number | null
+  dateOffset: string
+  earliestBizDate: string | null
+  enabled: number
 }
 
 /** 分页结果（GET /api/workflows）。 */

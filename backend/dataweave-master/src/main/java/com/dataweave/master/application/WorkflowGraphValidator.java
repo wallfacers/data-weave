@@ -54,12 +54,18 @@ public class WorkflowGraphValidator {
      * 这条边后是否成环。{@code workflowId} 为下游（依赖方），{@code dependWorkflowId} 为上游（被依赖）。
      */
     public void validateDependencyAcyclic(Long workflowId, Long dependWorkflowId) {
+        // 自依赖（同工作流自指）合法——跨周期自依赖是受支持语义，不构成跨节点环。
+        // 自指边不加入邻接图（否则自环被环检测误判为环），仅对非自指依赖做全局跨流环检测。
         if (Objects.equals(workflowId, dependWorkflowId)) {
-            throw new BizException("workflow.graph.self_dependency").withHttpStatus(400);
+            return;
         }
         Map<Long, List<Long>> adjacency = new HashMap<>();
         for (WorkflowDependency d : dependencyRepository.findAll()) {
             if (d.getEnabled() != null && d.getEnabled() == 0) {
+                continue;
+            }
+            // 跳过已存在的自依赖行（合法，不参与环检测）
+            if (Objects.equals(d.getWorkflowId(), d.getDependWorkflowId())) {
                 continue;
             }
             adjacency.computeIfAbsent(d.getWorkflowId(), k -> new ArrayList<>())

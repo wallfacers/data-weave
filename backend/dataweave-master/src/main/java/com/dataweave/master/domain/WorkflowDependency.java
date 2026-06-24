@@ -16,6 +16,7 @@ public class WorkflowDependency {
     private Long dependNodeId;
     private String dateOffset;
     private String depType;
+    private String earliestBizDate;
     private Integer enabled;
     private Long createdBy;
     private Long updatedBy;
@@ -52,6 +53,9 @@ public class WorkflowDependency {
 
     public String getDepType() { return depType; }
     public void setDepType(String depType) { this.depType = depType; }
+
+    public String getEarliestBizDate() { return earliestBizDate; }
+    public void setEarliestBizDate(String earliestBizDate) { this.earliestBizDate = earliestBizDate; }
 
     public Integer getEnabled() { return enabled; }
     public void setEnabled(Integer enabled) { this.enabled = enabled; }

@@ -13,6 +13,7 @@ public class WorkflowEdge {
     private Long workflowId;
     private Long fromNodeId;
     private Long toNodeId;
+    private String strength;
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -39,6 +40,9 @@ public class WorkflowEdge {
 
     public Long getToNodeId() { return toNodeId; }
     public void setToNodeId(Long toNodeId) { this.toNodeId = toNodeId; }
+
+    public String getStrength() { return strength; }
+    public void setStrength(String strength) { this.strength = strength; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

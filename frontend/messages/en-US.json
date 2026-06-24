@@ -399,7 +399,19 @@
     "versionsTab": "Versions",
     "rollbackSuccess": "Rolled back to v{vno} draft. Please review and publish.",
     "rollbackPendingApproval": "Rollback requires approval. Submitted approval #{id}; effective once approved.",
-    "rollbackFailed": "Rollback failed: {error}"
+    "rollbackFailed": "Rollback failed: {error}",
+    "edgeMenuSetWeak": "Set as weak dependency",
+    "edgeMenuSetStrong": "Set as strong dependency",
+    "nodeMenuRunToNode": "Run to this node",
+    "nodeMenuRunDownstream": "Run downstream",
+    "runDialogTitle": "Run workflow",
+    "runDialogDesc": "Choose run scope and target node",
+    "runDialogScope": "Run scope",
+    "runDialogTarget": "Target node",
+    "runScopeFull": "Full run",
+    "runScopeToNode": "Run to node",
+    "runScopeDownstream": "Run downstream",
+    "runScopeOnlyNode": "Only this node"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "No workflow instance ID specified",

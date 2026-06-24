@@ -1,29 +1,4 @@
-# workflow-authoring Specification
-
-## Purpose
-工作流定义的编排能力：草稿工作流的全生命周期 CRUD、以「整图」为单位的 DAG 读写、以及把当前 DAG 冻结为不可变版本快照的发布流程。所有写操作经 `GatedActionService` 闸门并留痕。
-## Requirements
-### Requirement: 工作流定义 CRUD
-
-系统 SHALL 提供工作流定义的完整 CRUD 能力。用户 MUST 能创建草稿工作流、按名称/状态分页搜索、查看详情、编辑（仅 `DRAFT` 或 `has_draft_change` 态可改调度配置）、软删除、下线。创建的工作流初始 `status=DRAFT`、`current_version_no=0`、`has_draft_change=1`。所有写操作 MUST 经 `GatedActionService` 闸门并留痕。
-
-`GET /api/workflows/{id}` 的响应结构 MUST 为 `WorkflowDetail { workflow: WorkflowDef, versions: WorkflowDefVersion[] }`，`versions` 按 `version_no DESC` 排序，与任务 `TaskDetail` 对称。
-
-#### Scenario: 创建草稿工作流
-- **WHEN** 用户 POST `/api/workflows` 提交名称与调度配置
-- **THEN** 系统创建一条 `workflow_def`，`status=DRAFT`、`current_version_no=0`、`has_draft_change=1`，返回新 id
-
-#### Scenario: 分页搜索工作流
-- **WHEN** 用户 GET `/api/workflows?keyword=&status=&page=0&size=20`
-- **THEN** 系统返回匹配的分页结果（content + totalElements + totalPages）
-
-#### Scenario: 软删除工作流
-- **WHEN** 用户 DELETE `/api/workflows/{id}`
-- **THEN** 系统将该工作流 `deleted=1`，后续搜索/读取不再返回，且不物理删除其历史版本
-
-#### Scenario: 获取工作流详情含版本列表
-- **WHEN** 用户 GET `/api/workflows/1`
-- **THEN** 系统返回 `{ "workflow": {...}, "versions": [v3, v2, v1] }` 结构
+## MODIFIED Requirements
 
 ### Requirement: DAG 整图读写
 
@@ -54,17 +29,7 @@
 - **WHEN** 用户 PUT 一条边并指定 `strength=WEAK`，随后发布
 - **THEN** 该边 `strength=WEAK` 持久化并冻结进 `dag_snapshot_json`；回滚到旧版本时该边强度随快照还原
 
-### Requirement: 工作流发布
-
-系统 SHALL 支持工作流发布（POST `/api/workflows/{id}/publish`）。发布前 MUST 调用 `WorkflowGraphValidator.validateWorkflowDagAcyclic` 校验 DAG 无环；有环 MUST 拒绝发布并返回面向用户的错误（含环路节点）。发布 SHALL 将当前 DAG 冻结为 `dag_snapshot_json`（含 nodes、edges 及各 TASK 节点的 `current_version_no`）写入新的 `workflow_def_version`，并 `current_version_no++`、`has_draft_change=0`、`status=ONLINE`。
-
-#### Scenario: 无环 DAG 发布成功
-- **WHEN** 用户发布一个无环工作流
-- **THEN** 系统生成新版本快照、`current_version_no` 自增、`has_draft_change=0`、`status=ONLINE`
-
-#### Scenario: 有环 DAG 拒绝发布
-- **WHEN** 用户发布一个存在环路的工作流
-- **THEN** 系统拒绝发布并返回错误，提示环路节点路径，工作流版本号不变
+## ADDED Requirements
 
 ### Requirement: 跨周期依赖配置
 
@@ -89,4 +54,3 @@
 
 - **WHEN** 用户编辑一条跨周期依赖后未发布即触发周期
 - **THEN** 该依赖按 `workflow_def` 当前态即时生效，且不出现在任何 `dag_snapshot_json` 中
-

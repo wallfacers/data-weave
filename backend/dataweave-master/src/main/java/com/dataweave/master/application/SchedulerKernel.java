@@ -167,9 +167,11 @@ public class SchedulerKernel {
         List<Row> tests = selectRunnable(true);
         assign(tests, nodes, true, now, out);
 
-        // NORMAL 次之（仅非预留空槽），按策略有效优先级排序
-        List<Row> normals = selectRunnable(false);
-        normals.sort(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)));
+        // NORMAL 次之（仅非预留空槽）；CRON 实例还需满足跨周期依赖（手动/测试忽略跨周期）
+        List<Row> normals = selectRunnable(false).stream()
+                .filter(this::crossCycleReady)
+                .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
+                .toList();
         assign(normals, nodes, false, now, out);
 
         return out;
@@ -240,6 +242,7 @@ public class SchedulerKernel {
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
                     + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
+                    + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
                     + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
@@ -253,6 +256,7 @@ public class SchedulerKernel {
                     + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
                     + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
+                    + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
                     + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='NORMAL' AND ti.deleted=0 "
@@ -261,7 +265,10 @@ public class SchedulerKernel {
                     + "AND NOT EXISTS (SELECT 1 FROM workflow_edge e "
                     + "   JOIN task_instance pred ON pred.workflow_instance_id=ti.workflow_instance_id "
                     + "        AND pred.workflow_node_id=e.from_node_id AND pred.deleted=0 "
-                    + "   WHERE e.to_node_id=ti.workflow_node_id AND e.deleted=0 AND pred.state<>'SUCCESS') "
+                    + "   WHERE e.to_node_id=ti.workflow_node_id AND e.deleted=0 "
+                    + "        AND ( (COALESCE(e.strength,'STRONG')='WEAK' "
+                    + "               AND pred.state NOT IN ('SUCCESS','FAILED','STOPPED')) "
+                    + "              OR (COALESCE(e.strength,'STRONG')<>'WEAK' AND pred.state<>'SUCCESS') ) ) "
                     + "ORDER BY ti.updated_at ASC "
                     + "LIMIT " + claimBatchSize + " FOR UPDATE SKIP LOCKED";
         }
@@ -283,9 +290,62 @@ public class SchedulerKernel {
             r.taskType = rs.getString("task_type");
             r.datasourceId = (Long) rs.getObject("datasource_id");
             r.locale = rs.getString("locale");
+            r.workflowTrigger = rs.getString("wtrigger");
             return r;
         });
     }
+
+    /**
+     * 跨周期就绪判定（design D4，实现为 Java 层过滤以避开 H2/PG 日期运算方言差异）：
+     * 仅周期触发（CRON）实例检查；手动/测试实例忽略跨周期依赖（即席运行不背跨周期包袱）。
+     * 本节点每条启用的跨周期依赖（earliest_biz_date 非空=启用），其 depend_node 在 biz_date 按
+     * date_offset 偏移后的上一周期实例必须存在 SUCCESS；biz_date<earliest_biz_date 者豁免（首周期 bootstrap）。
+     */
+    private boolean crossCycleReady(Row r) {
+        if (!"CRON".equals(r.workflowTrigger)) {
+            return true;
+        }
+        if (r.workflowInstanceId == null || r.workflowNodeId == null || r.bizDate == null) {
+            return true;
+        }
+        List<DepRow> deps = jdbc.query(
+                "SELECT depend_node_id, date_offset, earliest_biz_date FROM workflow_dependency "
+                        + "WHERE workflow_id=(SELECT workflow_id FROM workflow_instance WHERE id=?) "
+                        + "AND node_id=? AND enabled=1 AND deleted=0 AND earliest_biz_date IS NOT NULL",
+                (rs, n) -> new DepRow(
+                        (Long) rs.getObject("depend_node_id"),
+                        rs.getString("date_offset"),
+                        rs.getString("earliest_biz_date")),
+                r.workflowInstanceId, r.workflowNodeId);
+        for (DepRow d : deps) {
+            if (d.earliestBizDate() != null && r.bizDate.compareTo(d.earliestBizDate()) < 0) {
+                continue;  // 首周期豁免：biz_date 早于回溯起点，不检查上一周期
+            }
+            String prevBizDate = offsetBizDate(r.bizDate, d.dateOffset());
+            Integer cnt = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM task_instance WHERE workflow_node_id=? AND biz_date=? "
+                            + "AND state='SUCCESS' AND deleted=0",
+                    Integer.class, d.dependNodeId(), prevBizDate);
+            if (cnt == null || cnt == 0) {
+                return false;  // 上一周期未 SUCCESS，跨周期未就绪
+            }
+        }
+        return true;
+    }
+
+    /** date_offset → bizDate 偏移：LAST_DAY=上一日(-1)，CURRENT_DAY/空=同日。 */
+    private String offsetBizDate(String bizDate, String offset) {
+        if ("LAST_DAY".equals(offset)) {
+            try {
+                return java.time.LocalDate.parse(bizDate).minusDays(1).toString();
+            } catch (java.time.format.DateTimeParseException e) {
+                return bizDate;  // 非标准日期保守不偏移
+            }
+        }
+        return bizDate;
+    }
+
+    private record DepRow(Long dependNodeId, String dateOffset, String earliestBizDate) {}
 
     /** 取下发内容：NORMAL 用已发布版本快照；TEST/无版本用任务草稿内容。 */
     private String contentOf(Row r) {
@@ -379,6 +439,7 @@ public class SchedulerKernel {
         String taskType;
         Long datasourceId;
         String locale;
+        String workflowTrigger;
 
         boolean test() {
             return "TEST".equals(runMode);

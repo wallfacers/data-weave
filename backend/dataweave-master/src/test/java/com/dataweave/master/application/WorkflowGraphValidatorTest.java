@@ -59,11 +59,9 @@ class WorkflowGraphValidatorTest {
     }
 
     @Test
-    void selfDependency_rejected() {
-        assertThatThrownBy(() -> validator.validateDependencyAcyclic(5L, 5L))
-                .isInstanceOf(BizException.class)
-                .extracting(ex -> ((BizException) ex).getCode())
-                .isEqualTo("workflow.graph.self_dependency");
+    void selfDependency_allowed() {
+        // 自依赖（同工作流自指）合法——跨周期自依赖是受支持语义，不构成跨节点环，直接放行不抛
+        assertThatCode(() -> validator.validateDependencyAcyclic(5L, 5L)).doesNotThrowAnyException();
     }
 
     @Test

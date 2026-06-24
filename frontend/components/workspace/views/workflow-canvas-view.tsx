@@ -49,6 +49,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { DropdownSelect } from "@/components/ui/select"
 import {
   Dialog,
   DialogClose,
@@ -81,6 +82,7 @@ import {
   type LatestInstanceView,
 } from "@/lib/types"
 import { isTerminalInstanceState } from "@/lib/workspace/run-dot-state"
+import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
@@ -116,6 +118,12 @@ interface NodeActions {
   onViewLog: (taskDefId: number, label: string) => void
   /** 单独运行该 TASK 节点（脱离工作流，复用 /api/tasks/{id}/run）。 */
   onRunNode: (taskId: number, label: string) => void
+  /** 运行到该节点（TO_NODE：本节点 + 其全部前驱闭包）。 */
+  onRunToNode: (nodeKey: string) => void
+  /** 运行该节点的全部下游（DOWNSTREAM 后继闭包）。 */
+  onRunDownstream: (nodeKey: string) => void
+  /** 工作流是否已上线（未上线时禁用子图运行菜单）。 */
+  online: boolean
   /** 删除节点（及其关联边）。 */
   onDeleteNode: (id: string) => void
   /** 该 TASK 节点是否已有可看日志的运行实例。 */
@@ -195,6 +203,12 @@ function TaskNode({ id, data, selected }: NodeProps<CanvasNode>) {
         >
           {t("nodeMenuRunNode")}
         </ContextMenuItem>
+        <ContextMenuItem disabled={!actions?.online} onClick={() => actions?.onRunToNode(id)}>
+          {t("nodeMenuRunToNode")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={!actions?.online} onClick={() => actions?.onRunDownstream(id)}>
+          {t("nodeMenuRunDownstream")}
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem variant="destructive" onClick={() => actions?.onDeleteNode(id)}>
           {t("nodeMenuDelete")}
@@ -239,11 +253,17 @@ function toFlow(dag: DagView): { nodes: CanvasNode[]; edges: Edge[] } {
     position: { x: n.posX ?? 0, y: n.posY ?? 0 },
     data: { nodeType: n.nodeType, taskId: n.taskId, label: n.name ?? "" },
   }))
-  const edges: Edge[] = dag.edges.map((e) => ({
-    id: `${e.fromNodeKey}->${e.toNodeKey}`,
-    source: e.fromNodeKey,
-    target: e.toNodeKey,
-  }))
+  // 弱依赖：虚线 + 流动动画做视觉区分（不阻塞语义由后端就绪门按 strength 处理）
+  const edges: Edge[] = dag.edges.map((e) => {
+    const strength = e.strength ?? "STRONG"
+    return {
+      id: `${e.fromNodeKey}->${e.toNodeKey}`,
+      source: e.fromNodeKey,
+      target: e.toNodeKey,
+      data: { strength },
+      ...(strength === "WEAK" ? { animated: true, style: { strokeDasharray: "6 4" } } : {}),
+    }
+  })
   return { nodes, edges }
 }
 
@@ -256,7 +276,11 @@ function toPayload(version: number | null, nodes: CanvasNode[], edges: Edge[]): 
     posX: Math.round(n.position.x),
     posY: Math.round(n.position.y),
   }))
-  const dagEdges: DagEdge[] = edges.map((e) => ({ fromNodeKey: e.source, toNodeKey: e.target }))
+  const dagEdges: DagEdge[] = edges.map((e) => ({
+    fromNodeKey: e.source,
+    toNodeKey: e.target,
+    strength: (e.data?.strength as "STRONG" | "WEAK" | undefined) ?? "STRONG",
+  }))
   return { version, nodes: dagNodes, edges: dagEdges }
 }
 
@@ -349,6 +373,10 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const autoOpenedRef = useRef<Set<string>>(new Set())
   // 边右键菜单（边是 SVG path，不便套 ContextMenu 包裹，用轻量浮层）
   const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  // 运行范围 Dialog（工具栏「运行」入口）：scope + 目标节点
+  const [runDialogOpen, setRunDialogOpen] = useState(false)
+  const [runScope, setRunScope] = useState<"FULL" | "TO_NODE" | "DOWNSTREAM" | "ONLY_NODE">("FULL")
+  const [runTargetKey, setRunTargetKey] = useState("")
 
   const { screenToFlowPosition, deleteElements } = useReactFlow()
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -602,38 +630,93 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
     setRunStateByTaskDef(stateMap)
   }, [dagNodes, name, openRunTab])
 
-  // 手动触发正式实例：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
-  // D8：未上线禁用。D9：只盯最近一次（新运行重置状态）。
-  const runWorkflow = useCallback(async () => {
-    setBusy(true)
+  // 手动触发正式实例（带运行范围）：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
+  // D8：未上线禁用（后端 409，前端 toast）。D9：只盯最近一次（新运行重置状态）。
+  // scope: FULL=全图 / TO_NODE=运行到 target（含其全部前驱）/ DOWNSTREAM=运行 target 的全部下游。
+  const runWorkflowWithScope = useCallback(
+    async (scope: "FULL" | "TO_NODE" | "DOWNSTREAM", targetNodeKey?: string) => {
+      setBusy(true)
+      try {
+        const res = await authFetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // 显式带业务日期（T-1）：脚本里的 $bizdate/$bizmonth 等平台占位符方有值，否则节点解析即 FAILED 且无日志。
+          body: JSON.stringify({ bizDate: yesterdayBizDate(), scope, targetNodeKey: targetNodeKey ?? null }),
+        })
+        const j = (await res.json()) as ApiResponse<RunResult>
+        if (j.code !== 0 || !j.data) {
+          toast.error(j.message)
+          return
+        }
+        const r = j.data
+        if (r.outcome !== "EXECUTED" || !r.resultInstanceId) {
+          if (r.outcome === "PENDING_APPROVAL") {
+            toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
+          } else {
+            toast.error(r.message || j.message)
+          }
+          return
+        }
+        await attachRunningInstance(r.resultInstanceId, "RUNNING")
+        toast.success(t("toastRunTriggered"))
+      } catch {
+        toast.error(t("toastRunFailed"))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [workflowId, t, attachRunningInstance],
+  )
+
+  // 运行范围 Dialog 目标节点选项：ONLY_NODE 仅列 TASK 节点（单跑须有任务），其余列全部节点
+  const runTargetOptions = useMemo(() => {
+    const nodes = runScope === "ONLY_NODE" ? dagNodes.filter((n) => n.data.taskId != null) : dagNodes
+    return nodes.map((n) => ({ value: n.id, label: n.data.label || n.id }))
+  }, [dagNodes, runScope])
+
+  // 单跑一个 TASK 节点（脱离工作流，POST /api/tasks/{id}/run）：节点右键「单独运行」与运行范围 Dialog 的 ONLY_NODE 共用。
+  const runSingleTaskNode = useCallback(async (taskId: number, label: string) => {
     try {
-      const res = await authFetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
+      const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        // 同工作流运行：带 T-1 业务日期，保证单跑该节点时 $bizdate 等占位符可解析。
+        body: JSON.stringify({ bizDate: yesterdayBizDate() }),
       })
       const j = (await res.json()) as ApiResponse<RunResult>
       if (j.code !== 0 || !j.data) {
-        toast.error(j.message)
+        toast.error(j.message || t("toastNodeRunFailed"))
         return
       }
       const r = j.data
-      if (r.outcome !== "EXECUTED" || !r.resultInstanceId) {
-        if (r.outcome === "PENDING_APPROVAL") {
-          toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
-        } else {
-          toast.error(r.message || j.message)
-        }
-        return
+      if (r.outcome === "EXECUTED" && r.resultInstanceId) {
+        openRunTab({ instanceId: r.resultInstanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
+        toast.success(t("toastNodeRunTriggered"))
+      } else if (r.outcome === "PENDING_APPROVAL") {
+        toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
+      } else {
+        toast.error(r.message || t("toastNodeRunNotExecuted"))
       }
-      await attachRunningInstance(r.resultInstanceId, "RUNNING")
-      toast.success(t("toastRunTriggered"))
     } catch {
-      toast.error(t("toastRunFailed"))
-    } finally {
-      setBusy(false)
+      toast.error(t("toastNodeRunFailed"))
     }
-  }, [workflowId, t, attachRunningInstance])
+  }, [openRunTab, t])
+
+  // 运行范围 Dialog 提交：FULL→全图；TO_NODE/DOWNSTREAM→带 target 子图；ONLY_NODE→单跑该 TASK
+  const confirmRunDialog = useCallback(() => {
+    const scope = runScope
+    setRunDialogOpen(false)
+    if (scope === "ONLY_NODE") {
+      const node = dagNodes.find((n) => n.id === runTargetKey && n.data.taskId != null)
+      if (node) runSingleTaskNode(node.data.taskId as number, node.data.label || node.id)
+      return
+    }
+    if (scope === "FULL") {
+      runWorkflowWithScope("FULL")
+      return
+    }
+    runWorkflowWithScope(scope, runTargetKey || undefined)
+  }, [runScope, runTargetKey, dagNodes, runSingleTaskNode, runWorkflowWithScope])
 
   // 重开/刷新续接（run-state-resume）：查后端最近工作流实例,非终态则接管 → 续订阅事件流 + 节点重着色 + 停止按钮恢复。
   useEffect(() => {
@@ -674,6 +757,24 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       setStopping(false)
     }
   }, [runWfId, t])
+
+  // 切换边依赖强度（边右键菜单）：更新 edge.data.strength + 弱依赖虚线视觉，置脏待保存。
+  const setEdgeStrength = useCallback((edgeId: string, strength: "STRONG" | "WEAK") => {
+    setEdges((eds) =>
+      eds.map((e) =>
+        e.id === edgeId
+          ? {
+              ...e,
+              data: { ...e.data, strength },
+              animated: strength === "WEAK",
+              style: strength === "WEAK" ? { strokeDasharray: "6 4" } : undefined,
+            }
+          : e,
+      ),
+    )
+    setDirty(true)
+    setEdgeMenu(null)
+  }, [])
 
   // 工作流整体运行徽标：运行中/成功/失败/已停止
   const runStatusBadge = useMemo(() => {
@@ -733,36 +834,15 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         }
         openRunTab({ instanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
       },
-      onRunNode: async (taskId, label) => {
-        try {
-          const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/run`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          })
-          const j = (await res.json()) as ApiResponse<RunResult>
-          if (j.code !== 0 || !j.data) {
-            toast.error(j.message || t("toastNodeRunFailed"))
-            return
-          }
-          const r = j.data
-          if (r.outcome === "EXECUTED" && r.resultInstanceId) {
-            openRunTab({ instanceId: r.resultInstanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
-            toast.success(t("toastNodeRunTriggered"))
-          } else if (r.outcome === "PENDING_APPROVAL") {
-            toast.info(t("toastPendingApproval", { actionId: r.actionId ?? "?" }))
-          } else {
-            toast.error(r.message || t("toastNodeRunNotExecuted"))
-          }
-        } catch {
-          toast.error(t("toastNodeRunFailed"))
-        }
-      },
+      onRunNode: (taskId, label) => runSingleTaskNode(taskId, label),
       onDeleteNode: (id) => {
         deleteElements({ nodes: [{ id }] })
       },
+      online,
+      onRunToNode: (nodeKey) => runWorkflowWithScope("TO_NODE", nodeKey),
+      onRunDownstream: (nodeKey) => runWorkflowWithScope("DOWNSTREAM", nodeKey),
     }),
-    [taskDefToInstance, openRunTab, deleteElements, t],
+    [taskDefToInstance, openRunTab, deleteElements, t, online, runWorkflowWithScope, runSingleTaskNode],
   )
 
   // ─── 版本操作 ───────────────────────────────────────
@@ -826,7 +906,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
             <HugeiconsIcon icon={StopIcon} className="size-4" /> {stopping ? t("stopping") : t("stop")}
           </Button>
         ) : (
-          <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
+          <Button size="sm" onClick={() => setRunDialogOpen(true)} disabled={!online || busy}>
             <HugeiconsIcon icon={PlayIcon} className="size-4" /> {t("run")}
           </Button>
         )}
@@ -886,27 +966,48 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
           </ReactFlow>
         </NodeActionsContext.Provider>
 
-        {/* 边右键菜单浮层（click-away 关闭） */}
-        {edgeMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setEdgeMenu(null)} onContextMenu={(e) => { e.preventDefault(); setEdgeMenu(null) }} />
-            <div
-              className="fixed z-50 min-w-32 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-              style={{ left: edgeMenu.x, top: edgeMenu.y }}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
-                onClick={() => {
-                  deleteElements({ edges: [{ id: edgeMenu.id }] })
-                  setEdgeMenu(null)
-                }}
+        {/* 边右键菜单浮层（click-away 关闭）：切换强/弱依赖 + 删除 */}
+        {edgeMenu && (() => {
+          const edge = edges.find((e) => e.id === edgeMenu.id)
+          const cur = (edge?.data as { strength?: string } | undefined)?.strength ?? "STRONG"
+          return (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setEdgeMenu(null)} onContextMenu={(e) => { e.preventDefault(); setEdgeMenu(null) }} />
+              <div
+                className="fixed z-50 min-w-36 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                style={{ left: edgeMenu.x, top: edgeMenu.y }}
               >
-                {t("edgeMenuDelete")}
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  type="button"
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent disabled:opacity-50"
+                  disabled={cur === "WEAK"}
+                  onClick={() => setEdgeStrength(edgeMenu.id, "WEAK")}
+                >
+                  {t("edgeMenuSetWeak")}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent disabled:opacity-50"
+                  disabled={cur !== "WEAK"}
+                  onClick={() => setEdgeStrength(edgeMenu.id, "STRONG")}
+                >
+                  {t("edgeMenuSetStrong")}
+                </button>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
+                  onClick={() => {
+                    deleteElements({ edges: [{ id: edgeMenu.id }] })
+                    setEdgeMenu(null)
+                  }}
+                >
+                  {t("edgeMenuDelete")}
+                </button>
+              </div>
+            </>
+          )
+        })()}
       </div>
 
         {/* 右：配置 / 版本历史 tab 栏 */}
@@ -1035,6 +1136,53 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         hasDraft={hasDraft}
         rolling={rolling}
       />
+
+      {/* 运行范围 Dialog（工具栏「运行」入口）：FULL / TO_NODE / DOWNSTREAM / ONLY_NODE + 目标节点 */}
+      <Dialog open={runDialogOpen} onOpenChange={setRunDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("runDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("runDialogDesc")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-1">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t("runDialogScope")}</label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { s: "FULL" as const, label: t("runScopeFull") },
+                  { s: "TO_NODE" as const, label: t("runScopeToNode") },
+                  { s: "DOWNSTREAM" as const, label: t("runScopeDownstream") },
+                  { s: "ONLY_NODE" as const, label: t("runScopeOnlyNode") },
+                ]).map(({ s, label }) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                      runScope === s ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-accent",
+                    )}
+                    onClick={() => { setRunScope(s); setRunTargetKey("") }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {runScope !== "FULL" && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">{t("runDialogTarget")}</label>
+                <DropdownSelect value={runTargetKey} onChange={setRunTargetKey} options={runTargetOptions} />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>
+            <Button onClick={confirmRunDialog} disabled={runScope !== "FULL" && !runTargetKey}>
+              {t("run")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
