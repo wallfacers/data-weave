@@ -293,10 +293,28 @@ public class WorkflowService {
 
     // ─── SoftDelete / Offline ──────────────────────────────
 
+    @Transactional
     public void softDelete(Long id) {
         WorkflowDef wf = requireWorkflow(id);
+        // 与 task 对称：仅 DRAFT 可删（ONLINE 须先下线），避免误删在产工作流。
+        if (!"DRAFT".equals(wf.getStatus())) {
+            throw new BizException("workflow.not_draft").withHttpStatus(409);
+        }
+        // 级联软删节点 + 边：解除对 task 的关联引用，否则被本工作流引用的任务删除时
+        // 会被 task.associated_with_workflow 卡住（节点残留 deleted=0）。
+        LocalDateTime now = LocalDateTime.now();
+        for (WorkflowNode n : nodeRepository.findByWorkflowIdAndDeleted(id, 0)) {
+            n.setDeleted(1);
+            n.setUpdatedAt(now);
+            nodeRepository.save(n);
+        }
+        for (WorkflowEdge e : edgeRepository.findByWorkflowIdAndDeleted(id, 0)) {
+            e.setDeleted(1);
+            e.setUpdatedAt(now);
+            edgeRepository.save(e);
+        }
         wf.setDeleted(1);
-        wf.setUpdatedAt(LocalDateTime.now());
+        wf.setUpdatedAt(now);
         workflowDefRepository.save(wf);
     }
 

@@ -11,6 +11,8 @@ import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowDef;
+import com.dataweave.master.domain.WorkflowEdgeRepository;
+import com.dataweave.master.domain.WorkflowNodeRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,6 +40,12 @@ class WorkflowServiceTest {
 
     @Autowired
     TaskInstanceRepository taskInstanceRepository;
+
+    @Autowired
+    WorkflowNodeRepository nodeRepository;
+
+    @Autowired
+    WorkflowEdgeRepository edgeRepository;
 
     private WorkflowDef newDraft(String name) {
         WorkflowDef wf = new WorkflowDef();
@@ -173,5 +181,37 @@ class WorkflowServiceTest {
         assertThat(dag.nodes()).hasSize(1);
         assertThat(dag.nodes().get(0).nodeKey()).isEqualTo("t1");
         assertThat(dag.edges()).isEmpty();
+    }
+
+    @Test
+    void softDelete_rejectsOnlineWorkflow() {
+        WorkflowDef wf = newDraft("删除测试-ONLINE");
+        workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
+                List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
+                        new DagNodeDto("t1", "TASK", 1L, "任务1", 100, 0)),
+                List.of(new DagEdgeDto("v0", "t1", null))));
+        workflowService.publish(wf.getId(), "上线");
+        assertThatThrownBy(() -> workflowService.softDelete(wf.getId()))
+                .isInstanceOf(BizException.class)
+                .hasMessage("workflow.not_draft");
+        // ONLINE 工作流未被删除，节点仍在
+        assertThat(nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).hasSize(2);
+    }
+
+    @Test
+    void softDelete_draftCascadesNodesAndEdges() {
+        WorkflowDef wf = newDraft("删除测试-DRAFT");
+        workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
+                List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
+                        new DagNodeDto("t1", "TASK", 1L, "任务1", 100, 0)),
+                List.of(new DagEdgeDto("v0", "t1", null))));
+        assertThat(nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).hasSize(2);
+        assertThat(edgeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).hasSize(1);
+
+        workflowService.softDelete(wf.getId());
+
+        // 节点 + 边级联软删 → 解除对 task 的关联引用（task 删除不再被 associated_with_workflow 卡住）
+        assertThat(nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).isEmpty();
+        assertThat(edgeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).isEmpty();
     }
 }
