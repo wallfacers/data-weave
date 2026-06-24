@@ -240,6 +240,25 @@ export function CatalogTree({
     }, 900)
   }, [])
 
+  // ── in-flight 锁（兜底）：写请求未完成期间锁定该节点（key 同 render key：folder-/task-/workflow-id），
+  //    防止用户对「已发出删除/改名/移动请求但尚未返回」的节点重复操作（再删/再拖/再改名）造成并发歧义。──
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
+  const lock = useCallback((key: string) => {
+    setPendingKeys((s) => {
+      const n = new Set(s)
+      n.add(key)
+      return n
+    })
+  }, [])
+  const unlock = useCallback((key: string) => {
+    setPendingKeys((s) => {
+      if (!s.has(key)) return s
+      const n = new Set(s)
+      n.delete(key)
+      return n
+    })
+  }, [])
+
   // ── 本地搜索（D7）：子串过滤叶子 + 命中祖先自动展开；清空恢复 store 原展开态 ──
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
@@ -374,17 +393,27 @@ export function CatalogTree({
   }, [workflows, visibleWorkflowIds, matchedWorkflowIds])
 
   // ── 移动归属（树内拖放）：乐观更新 catalogNodeId，展开目标文件夹，高亮新位置 ──
+  //    失败局部回滚（恢复原 catalogNodeId），不刷整树；in-flight 期间锁节点防重复拖拽。
   const move = useCallback(
     async (payload: MovePayload, targetNodeId: number | null) => {
       const base = payload.kind === "task" ? "tasks" : "workflows"
-      // 乐观更新：直接改 store
-      if (payload.kind === "task") {
-        updateTask(payload.id, { catalogNodeId: targetNodeId })
-      } else {
-        updateWorkflow(payload.id, { catalogNodeId: targetNodeId })
+      const key = `${payload.kind}-${payload.id}`
+      const store = useCatalogTreeStore.getState()
+      const prev = (payload.kind === "task" ? store.tasks : store.workflows).find(
+        (x) => x.id === payload.id,
+      )?.catalogNodeId
+      const rollback = () => {
+        if (prev !== undefined) {
+          if (payload.kind === "task") updateTask(payload.id, { catalogNodeId: prev })
+          else updateWorkflow(payload.id, { catalogNodeId: prev })
+        }
       }
+      // 乐观更新：直接改 store
+      if (payload.kind === "task") updateTask(payload.id, { catalogNodeId: targetNodeId })
+      else updateWorkflow(payload.id, { catalogNodeId: targetNodeId })
       if (targetNodeId != null) expand(targetNodeId)
-      flashHighlight([`${payload.kind}-${payload.id}`])
+      flashHighlight([key])
+      lock(key)
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${payload.id}/catalog`, {
           method: "PATCH",
@@ -396,14 +425,16 @@ export function CatalogTree({
           toast.success(t("catalog.toastMoved"))
         } else {
           toast.error(json.message || t("catalog.toastMoveFailed"))
-          reload() // 回滚：全量重拉
+          rollback()
         }
       } catch {
         toast.error(t("catalog.toastMoveFailed"))
-        reload()
+        rollback()
+      } finally {
+        unlock(key)
       }
     },
-    [expand, reload, flashHighlight],
+    [expand, lock, unlock, updateTask, updateWorkflow, flashHighlight, t],
   )
 
   const onFolderDrop = useCallback(
@@ -449,18 +480,25 @@ export function CatalogTree({
     [projectId, expand, flashHighlight, t],
   )
 
-  // 重命名叶子：乐观更新 name，失败回滚全量重拉。
+  // 重命名叶子：乐观更新 name，失败局部回滚（恢复原名），不刷整树；in-flight 期间锁节点。
   const renameLeaf = useCallback(
     async (kind: "task" | "workflow", id: number, name: string) => {
       if (!name.trim()) return
       const base = kind === "task" ? "tasks" : "workflows"
-      // 乐观更新
-      if (kind === "task") {
-        updateTask(id, { name: name.trim() })
-      } else {
-        updateWorkflow(id, { name: name.trim() })
+      const key = `${kind}-${id}`
+      const store = useCatalogTreeStore.getState()
+      const prev = (kind === "task" ? store.tasks : store.workflows).find((x) => x.id === id)?.name
+      const rollback = () => {
+        if (prev !== undefined) {
+          if (kind === "task") updateTask(id, { name: prev })
+          else updateWorkflow(id, { name: prev })
+        }
       }
-      flashHighlight([`${kind}-${id}`])
+      // 乐观更新
+      if (kind === "task") updateTask(id, { name: name.trim() })
+      else updateWorkflow(id, { name: name.trim() })
+      flashHighlight([key])
+      lock(key)
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, {
           method: "PUT",
@@ -472,40 +510,43 @@ export function CatalogTree({
           toast.success(t("catalog.toastRenamed"))
         } else {
           toast.error(json.message || t("catalog.toastRenameFailed"))
-          reload()
+          rollback()
         }
       } catch {
         toast.error(t("catalog.toastRenameFailed"))
-        reload()
+        rollback()
+      } finally {
+        unlock(key)
       }
     },
-    [reload, flashHighlight, t],
+    [lock, unlock, updateTask, updateWorkflow, flashHighlight, t],
   )
 
+  // 删除叶子：确认式（后端成功才 remove 节点）。失败只 toast、不动树——前端从未改过，天然自洽，
+  // 无需整树重拉；in-flight 期间锁节点，防用户重复删除/拖拽同一节点。
   const deleteLeaf = useCallback(
     async (kind: "task" | "workflow", id: number) => {
       const base = kind === "task" ? "tasks" : "workflows"
-      // 乐观删除（motion exit 动画会先播放）
-      if (kind === "task") {
-        removeTask(id)
-      } else {
-        removeWorkflow(id)
-      }
+      const key = `${kind}-${id}`
+      lock(key)
       try {
         const res = await authFetch(`${API_BASE}/api/${base}/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
         if (json.code === 0) {
+          // 后端删除成功 → 才移除前端节点（motion exit 动画播放）
+          if (kind === "task") removeTask(id)
+          else removeWorkflow(id)
           toast.success(t("catalog.toastDeleted"))
         } else {
           toast.error(json.message || t("catalog.toastDeleteFailed"))
-          reload()
         }
       } catch {
         toast.error(t("catalog.toastDeleteFailed"))
-        reload()
+      } finally {
+        unlock(key)
       }
     },
-    [reload, t],
+    [lock, unlock, removeTask, removeWorkflow, t],
   )
 
   // 在此新建任务/工作流：乐观加入本地数组，并开子 Tab。
@@ -579,9 +620,11 @@ export function CatalogTree({
     [flashHighlight, t],
   )
 
-  // 文件夹删除：乐观从树中移除（motion exit 动画先播放）。
+  // 文件夹删除：确认式（后端成功才 remove）。失败只 toast、不动树，无需整树重拉；in-flight 期间锁节点。
   const deleteFolder = useCallback(
     async (id: number) => {
+      const key = `folder-${id}`
+      lock(key)
       try {
         const res = await authFetch(`${API_BASE}/api/catalog/nodes/${id}`, { method: "DELETE" })
         const json = (await res.json()) as ApiResponse<unknown>
@@ -590,14 +633,14 @@ export function CatalogTree({
           toast.success(t("catalog.toastFolderDeleted"))
         } else {
           toast.error(json.message || t("catalog.toastDeleteFailed"))
-          reload()
         }
       } catch {
         toast.error(t("catalog.toastDeleteFailed"))
-        reload()
+      } finally {
+        unlock(key)
       }
     },
-    [reload, t],
+    [lock, unlock, removeFolder, t],
   )
 
   // 统一提交：空名（建/改名/新建叶子）不关闭以引导输入，成功后关闭
@@ -642,6 +685,7 @@ export function CatalogTree({
     dirty: boolean,
   ) => {
     const key = `${kind}-${id}`
+    const pending = pendingKeys.has(key)
     return (
       <motion.div
         key={key}
@@ -651,7 +695,7 @@ export function CatalogTree({
       >
         <ContextMenu>
           <ContextMenuTrigger
-            draggable
+            draggable={!pending}
             onClick={() => (kind === "task" ? onOpenTask?.(id, name) : onOpenWorkflow?.(id, name))}
             onDragStart={(e) => {
               e.dataTransfer.setData(MOVE_MIME, JSON.stringify({ kind, id } satisfies MovePayload))
@@ -679,6 +723,7 @@ export function CatalogTree({
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem
+              disabled={pending}
               onClick={() => {
                 const st = useCatalogTreeStore.getState()
                 const cur =
@@ -688,11 +733,15 @@ export function CatalogTree({
             >
               <HugeiconsIcon icon={MoveToIcon} className="size-4" /> {t("catalog.moveTo")}
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => setDialog({ mode: "rename", kind, id, name })}>
+            <ContextMenuItem
+              disabled={pending}
+              onClick={() => setDialog({ mode: "rename", kind, id, name })}
+            >
               <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
             </ContextMenuItem>
             <ContextMenuItem
               variant="destructive"
+              disabled={pending}
               onClick={() => setDialog({ mode: "delete", kind, id, name })}
             >
               <HugeiconsIcon icon={Delete02Icon} className="size-4" /> {t("catalog.delete")}
@@ -712,6 +761,7 @@ export function CatalogTree({
     const isDrop = dropTarget === node.id
     const nonEmpty = node.taskCount + node.workflowCount > 0 || (node.children ?? []).length > 0
     const key = `folder-${node.id}`
+    const pending = pendingKeys.has(key)
     return (
       <motion.div
         key={key}
@@ -725,9 +775,9 @@ export function CatalogTree({
         <ContextMenu>
           <ContextMenuTrigger
             onClick={() => toggleExpand(node.id)}
-            onDragOver={enableMove ? (e) => { e.preventDefault(); setDropTarget(node.id) } : undefined}
-            onDragLeave={enableMove ? () => setDropTarget((d) => (d === node.id ? null : d)) : undefined}
-            onDrop={enableMove ? (e) => onFolderDrop(e, node.id) : undefined}
+            onDragOver={enableMove && !pending ? (e) => { e.preventDefault(); setDropTarget(node.id) } : undefined}
+            onDragLeave={enableMove && !pending ? () => setDropTarget((d) => (d === node.id ? null : d)) : undefined}
+            onDrop={enableMove && !pending ? (e) => onFolderDrop(e, node.id) : undefined}
             style={{ paddingLeft: depth * 22 + 4 }}
             className={`flex cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-2 text-sm hover:bg-accent ${
               isDrop ? "bg-primary/10 ring-1 ring-primary" : ""
@@ -747,26 +797,34 @@ export function CatalogTree({
             </span>
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem onClick={() => setDialog({ mode: "folder", parentId: node.id, name: "" })}>
+            <ContextMenuItem
+              disabled={pending}
+              onClick={() => setDialog({ mode: "folder", parentId: node.id, name: "" })}
+            >
               <HugeiconsIcon icon={FolderAddIcon} className="size-4" /> {t("catalog.newSubFolder")}
             </ContextMenuItem>
             <ContextMenuItem
+              disabled={pending}
               onClick={() => setDialog({ mode: "create-task", parentId: node.id, name: "", taskType: "SQL" })}
             >
               <HugeiconsIcon icon={Task01Icon} className="size-4 text-primary" /> {t("catalog.newTask")}
             </ContextMenuItem>
             <ContextMenuItem
+              disabled={pending}
               onClick={() => setDialog({ mode: "create-workflow", parentId: node.id, name: "" })}
             >
               <HugeiconsIcon icon={Share08Icon} className="size-4 text-chart-2" /> {t("catalog.newWorkflow")}
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => setDialog({ mode: "folder-rename", id: node.id, name: node.name })}>
+            <ContextMenuItem
+              disabled={pending}
+              onClick={() => setDialog({ mode: "folder-rename", id: node.id, name: node.name })}
+            >
               <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
             </ContextMenuItem>
             <ContextMenuItem
               variant="destructive"
-              disabled={nonEmpty}
+              disabled={nonEmpty || pending}
               title={nonEmpty ? t("catalog.mustEmptyFirst") : undefined}
               onClick={() => setDialog({ mode: "folder-delete", id: node.id, name: node.name })}
             >
