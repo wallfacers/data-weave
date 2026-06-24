@@ -78,6 +78,15 @@ public class OpsController {
         return ApiResponse.ok(opsService.tasks());
     }
 
+    /**
+     * 顶条「最迟看板 ETA」：当前运行中实例里最迟的预计完成时刻（基于历史时长中位数）。
+     * 无运行中实例或冷启动无样本 → data=null，前端显示「估算中」。tenant/project 固定 1/1。
+     */
+    @GetMapping("/eta-summary")
+    public ApiResponse<SlaService.EtaResult> etaSummary() {
+        return ApiResponse.ok(slaService.predictLatestEta(1L, 1L));
+    }
+
     /** 正式运行实例（排除 TEST 试跑），按 id 降序。 */
     @GetMapping("/instances")
     public ApiResponse<List<TaskInstance>> instances() {

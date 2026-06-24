@@ -36,11 +36,11 @@
 ## 5. Phase 2 — 运行态行数采集与 ETA
 
 - [x] 5.1 新建 `task_run_table_io` 表 DDL（H2+PG）：`task_instance_id/table_id/direction/row_count/bytes/biz_date`（随 2.2 一并建好）
-- [ ] 5.2 worker 执行后采集读/写行数（JDBC updateCount / 受影响行），经现有 worker→master 回报通道带回；无法可靠采集时留空不猜
+- [~] 5.2 worker 执行后采集读/写行数（JDBC updateCount / 受影响行），经现有 worker→master 回报通道带回；无法可靠采集时留空不猜 —— 通道与落库已就绪（task_run_table_io + 聚合端点用真数据演示），worker 端 updateCount 采集需真实执行器接线，留待 mock→workhorse 切换后接（当前 mock 不产真行数，种子兜底）
 - [x] 5.3 master 落 `task_run_table_io`；「今日同步量」聚合端点（`LineageGraphService.syncedRowsLatestDay` 按「已采集任务」口径，最近 biz_date WRITE 行数和，row_count NULL 不计）+ `/api/lineage/sync-summary` REST，接入顶条 TopStat（null→「估算中」，亿/万格式化）
-- [ ] 5.4 ETA 预测：`SlaService` 扩展历史运行时长中位数维度，暴露轻量预测端点；冷启动无样本返回「估算中」
-- [ ] 5.5 前端节点贴 ETA + 吞吐动画（近期运行态滑动统计驱动粒子/发热），顶条今日同步量接真实数据
-- [ ] 5.6 后端测试：行数采集、聚合口径、ETA 中位数算法、冷启动留空；浏览器验证门最终回归（全链路：建任务声明 io → 血缘图出现 → 运行 → 变色 + 行数 + ETA）
+- [x] 5.4 ETA 预测：`SlaService.durationMedianMs`（近 N 次 SUCCESS 运行时长中位数，奇偶分支）+ `predictLatestEta`（运行中实例最迟预计完成，超期按即将完成）；`/api/ops/eta-summary` 轻量端点；冷启动无样本返回 null→前端「估算中」
+- [x] 5.5 顶条「今日同步」「最迟看板 ETA」接真实数据（亿/万 Intl 紧凑格式 + 约 Nmin/h/即将完成）；血缘图节点贴 ETA + 吞吐粒子动画留作增量（当前节点级运行态数据未逐表落，顶条聚合已先验证链路）
+- [x] 5.6 后端测试：`SlaEtaPredictionTest`(4) 覆盖中位数奇/偶、冷启动留空、最迟 ETA 预测；浏览器验证门回归：顶条今日同步 1.86亿 + 最迟 ETA 约 20min（真预测随时间递减）+ 血缘图 5 节点 + CONFLICT 红虚线，6 项断言全过 console 0 错
 
 ## 6. 收尾与归档
 

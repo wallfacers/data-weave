@@ -136,4 +136,76 @@ public class SlaService {
     public List<SlaBaseline> recentBreaches(int limit) {
         return repository.recentBreaches(limit);
     }
+
+    // ─── ETA 预测（task 5.4）─────────────────────────────────
+
+    /** ETA 预测结果：最迟预计完成时刻 + 剩余秒数 + 运行中/可预测计数。无样本时整体返回 null。 */
+    public record EtaResult(LocalDateTime latestEta, long remainingSeconds,
+                            int runningCount, int predictedCount) {}
+
+    /**
+     * 某任务定义近 {@code window} 次 SUCCESS 实例的运行时长（finished-started）中位数（毫秒）。
+     * 冷启动无成功样本返回 null（前端据此显示「估算中」而非编造 0）。
+     */
+    public Long durationMedianMs(long taskId, int window) {
+        List<java.util.Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT started_at, finished_at FROM task_instance "
+                        + "WHERE task_id = ? AND state = 'SUCCESS' AND deleted = 0 "
+                        + "  AND started_at IS NOT NULL AND finished_at IS NOT NULL "
+                        + "ORDER BY finished_at DESC LIMIT ?",
+                taskId, window);
+        List<Long> durations = new ArrayList<>();
+        for (var r : rows) {
+            LocalDateTime s = toLdt(r.get("STARTED_AT"));
+            LocalDateTime f = toLdt(r.get("FINISHED_AT"));
+            if (s == null || f == null) continue;
+            long ms = Duration.between(s, f).toMillis();
+            if (ms >= 0) durations.add(ms);
+        }
+        if (durations.isEmpty()) return null;
+        durations.sort(Comparator.naturalOrder());
+        int mid = durations.size() / 2;
+        return durations.size() % 2 == 1
+                ? durations.get(mid)
+                : (durations.get(mid - 1) + durations.get(mid)) / 2;
+    }
+
+    /**
+     * 预测当前运行中实例里「最迟」的预计完成时刻：对每个 RUNNING/DISPATCHED 实例，
+     * 以其 task_id 历史时长中位数 + started_at 估算完成时刻，取最迟者。
+     * 无运行中实例或全部冷启动（无历史样本）→ 返回 null（前端「估算中」）。已超期者按「即将完成」(now) 计。
+     */
+    public EtaResult predictLatestEta(long tenantId, long projectId) {
+        List<java.util.Map<String, Object>> running = jdbc.queryForList(
+                "SELECT task_id, started_at FROM task_instance "
+                        + "WHERE state IN ('RUNNING','DISPATCHED') AND deleted = 0 "
+                        + "  AND task_id IS NOT NULL AND started_at IS NOT NULL "
+                        + "  AND tenant_id = ? AND project_id = ?",
+                tenantId, projectId);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime latest = null;
+        int predicted = 0;
+        for (var r : running) {
+            long taskId = ((Number) r.get("TASK_ID")).longValue();
+            Long medMs = durationMedianMs(taskId, baselineWindow);
+            if (medMs == null) continue;
+            LocalDateTime startedAt = toLdt(r.get("STARTED_AT"));
+            if (startedAt == null) continue;
+            LocalDateTime eta = startedAt.plusNanos(medMs * 1_000_000L);
+            if (eta.isBefore(now)) eta = now;
+            predicted++;
+            if (latest == null || eta.isAfter(latest)) latest = eta;
+        }
+        if (latest == null) return null;
+        long remaining = Math.max(0, Duration.between(now, latest).getSeconds());
+        return new EtaResult(latest, remaining, running.size(), predicted);
+    }
+
+    /** JDBC TIMESTAMP（H2/PG 均读成 java.sql.Timestamp）安全转 LocalDateTime。 */
+    private static LocalDateTime toLdt(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof LocalDateTime ldt) return ldt;
+        if (raw instanceof java.sql.Timestamp ts) return ts.toLocalDateTime();
+        return null;
+    }
 }

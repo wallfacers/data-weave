@@ -296,3 +296,12 @@ INSERT INTO task_run_table_io (id, tenant_id, project_id, task_instance_id, tabl
 ALTER TABLE data_table ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE task_table_io ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE task_run_table_io ALTER COLUMN id RESTART WITH 100;
+
+-- ETA 预测演示种子（task 5.4）：独立任务 9101「实时GMV增量同步」，3 条历史 SUCCESS（时长 28/30/32min，中位 30min）
+-- + 1 条「此刻起跑」RUNNING（started_at=CURRENT_TIMESTAMP），供顶条「最迟看板 ETA」算出约 +30min 的真预测。
+-- 不挂 workflow_instance（standalone），避免触碰其他 change 的工作流实例链。
+INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0010-7000-8000-000000009101', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', 0, 0),
+('01910000-0010-7000-8000-000000009102', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', 0, 0),
+('01910000-0010-7000-8000-000000009103', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', 0, 0),
+('01910000-0010-7000-8000-000000009104', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'RUNNING', 1, 'node-1', CURRENT_TIMESTAMP, NULL, '执行中', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);

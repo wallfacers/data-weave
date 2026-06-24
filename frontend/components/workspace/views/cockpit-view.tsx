@@ -1,6 +1,6 @@
 "use client"
 
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
@@ -32,11 +32,32 @@ interface SyncSummary {
   syncedRows: number | null
 }
 
-/** 行数按中文量级格式化（亿/万），保留两位有效；不足万直接整数。 */
-function formatRows(n: number): string {
-  if (n >= 1e8) return `${(n / 1e8).toFixed(2).replace(/\.?0+$/, "")}亿`
-  if (n >= 1e4) return `${(n / 1e4).toFixed(2).replace(/\.?0+$/, "")}万`
-  return String(n)
+/** 行数按 locale 紧凑格式化：zh→「1.9亿」、en→「186M」（Intl 内建，单位随 locale，无硬编码）。 */
+function formatRows(locale: string, n: number): string {
+  return new Intl.NumberFormat(locale, {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(n)
+}
+
+/** 顶条「最迟看板 ETA」聚合：运行中实例里最迟预计完成；null=冷启动无样本。 */
+interface EtaSummary {
+  latestEta: string
+  remainingSeconds: number
+  runningCount: number
+  predictedCount: number
+}
+
+/** 剩余秒数格式化为 ETA 文案。 */
+function formatEta(t: (k: string) => string, sec: number): string {
+  if (sec <= 0) return t("etaImminent")
+  const min = Math.round(sec / 60)
+  if (min < 60) return `${t("etaAboutPrefix")}${min}${t("etaMinUnit")}`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m > 0
+    ? `${t("etaAboutPrefix")}${h}${t("etaHourUnit")}${m}${t("etaMinUnit")}`
+    : `${t("etaAboutPrefix")}${h}${t("etaHourUnit")}`
 }
 
 type Tone = "default" | "success" | "destructive" | "warning" | "info"
@@ -81,10 +102,12 @@ function TopStat({
 export function CockpitView() {
   const t = useTranslations("lineageCockpit")
   const tc = useTranslations("cockpit")
+  const locale = useLocale()
   const open = useWorkspaceStore((s) => s.open)
   const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
   const { data: metrics } = useApi<MetricsSnapshot>("/api/ops/metrics")
   const { data: syncSummary } = useApi<SyncSummary>("/api/lineage/sync-summary")
+  const { data: etaSummary } = useApi<EtaSummary>("/api/ops/eta-summary")
   const { data: diagnoses } = useApi<TaskDiagnosis[]>("/api/diagnosis")
 
   if (!summary) return <ViewStatus loading={loading} />
@@ -94,7 +117,10 @@ export function CockpitView() {
     healthPct >= 90 ? "success" : healthPct >= 70 ? "warning" : "destructive"
   const queued = metrics?.queueDepth ?? 0
   const syncedRows = syncSummary?.syncedRows ?? null
-  const syncValue = syncedRows != null ? formatRows(syncedRows) : t("estimating")
+  const syncValue = syncedRows != null ? formatRows(locale, syncedRows) : t("estimating")
+  const etaValue = etaSummary
+    ? formatEta(t, etaSummary.remainingSeconds)
+    : t("estimating")
   const openDiagnoses = (diagnoses ?? []).filter((d) => d.status === "OPEN")
 
   return (
@@ -118,7 +144,7 @@ export function CockpitView() {
         <TopStat label={t("topQueued")} value={String(queued)} icon={HourglassIcon} tone={queued > 0 ? "warning" : "default"} />
         <TopStat label={t("topError")} value={String(summary.failed)} icon={Alert01Icon} tone={summary.failed > 0 ? "destructive" : "default"} />
         <TopStat label={t("topSyncToday")} value={syncValue} icon={ArrowDataTransferHorizontalIcon} tone={syncedRows != null ? "info" : "default"} />
-        <TopStat label={t("topLatestEta")} value={t("estimating")} icon={TimeManagementIcon} />
+        <TopStat label={t("topLatestEta")} value={etaValue} icon={TimeManagementIcon} tone={etaSummary ? "info" : "default"} />
       </div>
 
       {/* 主体：主舞台 + 右栏举手台 */}
