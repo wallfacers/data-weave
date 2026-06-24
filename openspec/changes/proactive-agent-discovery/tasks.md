@@ -42,11 +42,11 @@
 
 ## 5. 🅰 L1 真采集 + 故障注入脚本
 
-- [ ] 5.1 `HeartbeatReporter` 接 `com.sun.management.OperatingSystemMXBean` 采真实 cpu/load/mem，替换硬编码
-- [ ] 5.2 master 端按 `worker_node_code` 聚合 DISPATCHED/RUNNING 计数 → 真实 `concurrentTasks` 入诊断证据
-- [ ] 5.3 近 7 天 `task_id`×`worker_node_code` FAILED 计数 → 真实 `history` 入 Finding evidence
-- [ ] 5.4 `scripts/` 故障注入脚本：插入真实 FAILED 实例（日志含 OOM 堆栈）+ 拉高目标节点指标；非运行时、prod 不加载
-- [ ] 5.5 测试：真采集值随环境变化（非常量）；脚本跑完巡检能产出真证据 Finding
+- [x] 5.1 `HeartbeatReporter.sample()` 接 `com.sun.management.OperatingSystemMXBean` 采真实 cpu/mem/disk/load（0-100 百分比），替换硬编码 0.3/0.45/0.5/1.2
+- [x] 5.2 `NodeTelemetryService.concurrentTasks` 按 worker_node_code 聚合 DISPATCHED/RUNNING → 真实 concurrentTasks，经 `DiagnosisAnalyzer.Telemetry` 注入诊断证据（不再信任 worker 上报）
+- [x] 5.3 `NodeTelemetryService.failureCount7d` 近 7 天 task_id×node FAILED 计数 → `history7d` 入诊断 context/Finding evidence
+- [x] 5.4 `scripts/fault-injection.sql` 故障注入脚本：FAILED 实例(OOM 堆栈日志)+拉高 node-3 指标+2 并发争抢；非运行时、prod 不加载、可重跑
+- [x] 5.5 测试：HeartbeatMetricsTest(真采集值非旧常量) + NodeTelemetryServiceTest(并发=2/history=1 真实聚合) 通过
 
 ## 6. 🅱 自有聊天台（替换 CopilotKit）
 

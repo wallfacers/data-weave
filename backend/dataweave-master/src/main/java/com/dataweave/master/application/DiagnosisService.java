@@ -36,6 +36,7 @@ public class DiagnosisService {
     private final TaskDiagnosisRepository diagnosisRepository;
     private final DiagnosisAnalyzer analyzer;
     private final GatedActionService gatedActionService;
+    private final NodeTelemetryService nodeTelemetry;
     private final Messages messages;
 
     public DiagnosisService(TaskInstanceRepository instanceRepository,
@@ -44,6 +45,7 @@ public class DiagnosisService {
                             TaskDiagnosisRepository diagnosisRepository,
                             DiagnosisAnalyzer analyzer,
                             GatedActionService gatedActionService,
+                            NodeTelemetryService nodeTelemetry,
                             Messages messages) {
         this.instanceRepository = instanceRepository;
         this.taskDefRepository = taskDefRepository;
@@ -51,6 +53,7 @@ public class DiagnosisService {
         this.diagnosisRepository = diagnosisRepository;
         this.analyzer = analyzer;
         this.gatedActionService = gatedActionService;
+        this.nodeTelemetry = nodeTelemetry;
         this.messages = messages;
     }
 
@@ -87,7 +90,14 @@ public class DiagnosisService {
         TaskDef task = instance != null && instance.getTaskId() != null
                 ? taskDefRepository.findById(instance.getTaskId()).orElse(null) : null;
 
-        DiagnosisAnalyzer.Analysis analysis = analyzer.analyze(instance, node, task, locale);
+        // live-telemetry L1：master 端真采集并发争抢数与近 7 天失败 history，喂给分析器作真证据。
+        String nodeCode = instance != null ? instance.getWorkerNodeCode() : null;
+        Long taskId = instance != null ? instance.getTaskId() : null;
+        DiagnosisAnalyzer.Telemetry telemetry = new DiagnosisAnalyzer.Telemetry(
+                nodeTelemetry.concurrentTasks(nodeCode),
+                nodeTelemetry.failureCount7d(taskId, nodeCode));
+
+        DiagnosisAnalyzer.Analysis analysis = analyzer.analyze(instance, node, task, telemetry, locale);
 
         LocalDateTime now = LocalDateTime.now();
         TaskDiagnosis diagnosis = new TaskDiagnosis();
