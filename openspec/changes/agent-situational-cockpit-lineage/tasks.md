@@ -35,9 +35,9 @@
 
 ## 5. Phase 2 — 运行态行数采集与 ETA
 
-- [ ] 5.1 新建 `task_run_table_io` 表 DDL（H2+PG）：`task_instance_id/table_id/direction/row_count/bytes/biz_date`
+- [x] 5.1 新建 `task_run_table_io` 表 DDL（H2+PG）：`task_instance_id/table_id/direction/row_count/bytes/biz_date`（随 2.2 一并建好）
 - [ ] 5.2 worker 执行后采集读/写行数（JDBC updateCount / 受影响行），经现有 worker→master 回报通道带回；无法可靠采集时留空不猜
-- [ ] 5.3 master 落 `task_run_table_io`；「今日同步量」聚合端点（按「已采集任务」口径）接入顶条
+- [x] 5.3 master 落 `task_run_table_io`；「今日同步量」聚合端点（`LineageGraphService.syncedRowsLatestDay` 按「已采集任务」口径，最近 biz_date WRITE 行数和，row_count NULL 不计）+ `/api/lineage/sync-summary` REST，接入顶条 TopStat（null→「估算中」，亿/万格式化）
 - [ ] 5.4 ETA 预测：`SlaService` 扩展历史运行时长中位数维度，暴露轻量预测端点；冷启动无样本返回「估算中」
 - [ ] 5.5 前端节点贴 ETA + 吞吐动画（近期运行态滑动统计驱动粒子/发热），顶条今日同步量接真实数据
 - [ ] 5.6 后端测试：行数采集、聚合口径、ETA 中位数算法、冷启动留空；浏览器验证门最终回归（全链路：建任务声明 io → 血缘图出现 → 运行 → 变色 + 行数 + ETA）

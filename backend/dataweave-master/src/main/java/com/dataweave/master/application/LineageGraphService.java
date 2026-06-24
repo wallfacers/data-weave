@@ -200,6 +200,22 @@ public class LineageGraphService {
                 tenantId, projectId);
     }
 
+    /**
+     * 今日同步行数（运行态聚合）：最近业务日期下所有 WRITE 边的 row_count 之和。
+     * row_count 为 NULL（未采集）的行不计入——口径为「已采集任务」，避免误导。
+     * 无运行态数据时返回 null（前端据此显示「估算中」而非编造 0）。
+     */
+    public Long syncedRowsLatestDay(long tenantId, long projectId) {
+        String sql =
+                "SELECT SUM(row_count) FROM task_run_table_io " +
+                "WHERE direction = 'WRITE' AND deleted = 0 AND row_count IS NOT NULL " +
+                "  AND tenant_id = ? AND project_id = ? " +
+                "  AND (biz_date IS NULL OR biz_date = (" +
+                "      SELECT MAX(biz_date) FROM task_run_table_io " +
+                "      WHERE direction = 'WRITE' AND deleted = 0 AND tenant_id = ? AND project_id = ?))";
+        return jdbcTemplate.queryForObject(sql, Long.class, tenantId, projectId, tenantId, projectId);
+    }
+
     private List<FlowEdge> loadFlowEdges(long tenantId, long projectId) {
         // 表→表流边：同一任务的 READ 表 × WRITE 表；confidence 取两端较低。
         String sql =

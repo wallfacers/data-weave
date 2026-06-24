@@ -53,4 +53,12 @@ public class LineageGraphController {
     public ApiResponse<List<GraphNode>> downstream(@PathVariable Long id) {
         return ApiResponse.ok(lineageGraphService.downstream(TENANT, PROJECT, id));
     }
+
+    /** 今日同步行数（运行态聚合）。data.syncedRows=null 表示无采集数据，前端显示「估算中」。 */
+    @GetMapping("/sync-summary")
+    public ApiResponse<SyncSummary> syncSummary() {
+        return ApiResponse.ok(new SyncSummary(lineageGraphService.syncedRowsLatestDay(TENANT, PROJECT)));
+    }
+
+    public record SyncSummary(Long syncedRows) {}
 }

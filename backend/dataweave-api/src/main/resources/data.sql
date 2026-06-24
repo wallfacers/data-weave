@@ -266,3 +266,33 @@ ALTER TABLE agent_session ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_run ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_step ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;
+
+-- ============================================================
+-- 域 F · 表级血缘种子（table-lineage）：一条 ODS→DWD→DWS→ADS 数据流，供态势驾驶舱开屏即见
+-- ============================================================
+INSERT INTO data_table (id, tenant_id, project_id, datasource_id, qualified_name, layer, created_at, deleted, version) VALUES
+  (1, 1, 1, 1, 'ods_order',      'ODS', CURRENT_TIMESTAMP, 0, 0),
+  (2, 1, 1, 1, 'ods_user',       'ODS', CURRENT_TIMESTAMP, 0, 0),
+  (3, 1, 1, 1, 'dwd_order',      'DWD', CURRENT_TIMESTAMP, 0, 0),
+  (4, 1, 1, 1, 'dws_user_order', 'DWS', CURRENT_TIMESTAMP, 0, 0),
+  (5, 1, 1, 1, 'ads_gmv',        'ADS', CURRENT_TIMESTAMP, 0, 0);
+
+INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, task_version_no, table_id, direction, source, confidence, created_at, deleted, version) VALUES
+  (1, 1, 1, 9001, 1, 1, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (2, 1, 1, 9001, 1, 3, 'WRITE', 'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (3, 1, 1, 9002, 1, 2, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (4, 1, 1, 9002, 1, 3, 'READ',  'AGENT',      'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (5, 1, 1, 9002, 1, 4, 'WRITE', 'AGENT',      'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (6, 1, 1, 9003, 1, 4, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
+  (7, 1, 1, 9003, 1, 5, 'WRITE', 'AGENT',      'CONFLICT',  CURRENT_TIMESTAMP, 0, 0);
+
+-- 运行态血缘种子（task_run_table_io）：今日各 WRITE 表实际同步行数，供顶条「今日同步」显真数
+INSERT INTO task_run_table_io (id, tenant_id, project_id, task_instance_id, table_id, direction, row_count, bytes, biz_date, created_at, deleted, version) VALUES
+  (1, 1, 1, '019ef700-0000-7000-8000-000000000001', 1, 'READ',  120000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
+  (2, 1, 1, '019ef700-0000-7000-8000-000000000001', 3, 'WRITE',  98000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
+  (3, 1, 1, '019ef700-0000-7000-8000-000000000002', 4, 'WRITE',  76000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
+  (4, 1, 1, '019ef700-0000-7000-8000-000000000003', 5, 'WRITE',  12000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0);
+
+ALTER TABLE data_table ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE task_table_io ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE task_run_table_io ALTER COLUMN id RESTART WITH 100;

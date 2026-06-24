@@ -27,6 +27,18 @@ interface MetricsSnapshot {
   queueDepth: number
 }
 
+/** 今日同步行数聚合（运行态）；syncedRows=null 表示无采集数据。 */
+interface SyncSummary {
+  syncedRows: number | null
+}
+
+/** 行数按中文量级格式化（亿/万），保留两位有效；不足万直接整数。 */
+function formatRows(n: number): string {
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2).replace(/\.?0+$/, "")}亿`
+  if (n >= 1e4) return `${(n / 1e4).toFixed(2).replace(/\.?0+$/, "")}万`
+  return String(n)
+}
+
 type Tone = "default" | "success" | "destructive" | "warning" | "info"
 
 const TONE_CLASSES: Record<Tone, string> = {
@@ -72,6 +84,7 @@ export function CockpitView() {
   const open = useWorkspaceStore((s) => s.open)
   const { data: summary, loading } = useApi<DashboardSummary>("/api/ops/summary")
   const { data: metrics } = useApi<MetricsSnapshot>("/api/ops/metrics")
+  const { data: syncSummary } = useApi<SyncSummary>("/api/lineage/sync-summary")
   const { data: diagnoses } = useApi<TaskDiagnosis[]>("/api/diagnosis")
 
   if (!summary) return <ViewStatus loading={loading} />
@@ -80,6 +93,8 @@ export function CockpitView() {
   const healthTone: Tone =
     healthPct >= 90 ? "success" : healthPct >= 70 ? "warning" : "destructive"
   const queued = metrics?.queueDepth ?? 0
+  const syncedRows = syncSummary?.syncedRows ?? null
+  const syncValue = syncedRows != null ? formatRows(syncedRows) : t("estimating")
   const openDiagnoses = (diagnoses ?? []).filter((d) => d.status === "OPEN")
 
   return (
@@ -102,7 +117,7 @@ export function CockpitView() {
         <TopStat label={t("topRunning")} value={String(summary.running)} icon={Loading03Icon} tone="info" />
         <TopStat label={t("topQueued")} value={String(queued)} icon={HourglassIcon} tone={queued > 0 ? "warning" : "default"} />
         <TopStat label={t("topError")} value={String(summary.failed)} icon={Alert01Icon} tone={summary.failed > 0 ? "destructive" : "default"} />
-        <TopStat label={t("topSyncToday")} value={t("estimating")} icon={ArrowDataTransferHorizontalIcon} />
+        <TopStat label={t("topSyncToday")} value={syncValue} icon={ArrowDataTransferHorizontalIcon} tone={syncedRows != null ? "info" : "default"} />
         <TopStat label={t("topLatestEta")} value={t("estimating")} icon={TimeManagementIcon} />
       </div>
 
