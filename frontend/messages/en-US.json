@@ -189,7 +189,9 @@
     "resizeLogPanel": "Resize run log panel",
     "configTab": "Config",
     "versionsTab": "Versions",
-    "content": "Code"
+    "content": "Code",
+    "datasource": "Datasource",
+    "datasourceNone": "None (unbound)"
   },
   "versionHistory": {
     "empty": "No published versions",
