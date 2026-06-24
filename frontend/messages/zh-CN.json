@@ -307,7 +307,9 @@
     "resizeLogPanel": "调整运行日志区高度",
     "configTab": "配置",
     "versionsTab": "版本历史",
-    "content": "代码"
+    "content": "代码",
+    "datasource": "数据源",
+    "datasourceNone": "未绑定"
   },
   "versionHistory": {
     "empty": "暂无发布版本",
