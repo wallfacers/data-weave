@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.containsString;
  *   <li>草稿任务 / 未上线工作流 → 闸门前即拒（code=409）；</li>
  *   <li>policy_rules 收紧 run_task → L2 → PENDING_APPROVAL（数据驱动抬级）。</li>
  * </ul>
- * 复用 data.sql 种子：task id=1（GMV 统计，ONLINE v1）、workflow id=1（每日 GMV，ONLINE v1）。
+ * 复用 data.sql 种子：task id=4（抽取-拉取订单分区，SHELL，ONLINE v1）、workflow id=3（订单 SHELL 流水线，ONLINE v1）。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("h2")
@@ -62,7 +62,7 @@ class ManualRunTriggerTest {
 
     @Test
     void runTask_published_executesNormalInstanceAndAudits() throws Exception {
-        byte[] body = client.post().uri("/api/tasks/1/run")
+        byte[] body = client.post().uri("/api/tasks/4/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("bizDate", "2026-06-16"))
                 .exchange()
@@ -86,7 +86,7 @@ class ManualRunTriggerTest {
 
     @Test
     void runWorkflow_online_executesManualInstance() throws Exception {
-        byte[] body = client.post().uri("/api/workflows/1/run")
+        byte[] body = client.post().uri("/api/workflows/3/run")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("bizDate", "2026-06-16"))
                 .exchange()
@@ -99,7 +99,43 @@ class ManualRunTriggerTest {
 
         WorkflowInstance wi = workflowInstanceRepository.findById(wiId).orElseThrow();
         assertThat(wi.getTriggerType()).isEqualTo("MANUAL");    // 薄包装 WorkflowTriggerService.trigger(MANUAL)
-        assertThat(wi.getWorkflowId()).isEqualTo(1L);
+        assertThat(wi.getWorkflowId()).isEqualTo(3L);
+    }
+
+    @Test
+    void runTask_withoutBizDate_defaultsToYesterday() throws Exception {
+        // bizDate 省略时后端兜底为 T-1（yyyy-MM-dd），保证 $bizdate 等平台内置占位符「任何运行模式均有值」。
+        byte[] body = client.post().uri("/api/tasks/4/run")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.data.outcome").isEqualTo("EXECUTED")
+                .returnResult().getResponseBody();
+        UUID instanceId = UUID.fromString(objectMapper.readTree(body).get("data").get("resultInstanceId").asText());
+
+        TaskInstance ti = taskInstanceRepository.findById(instanceId).orElseThrow();
+        assertThat(ti.getBizDate()).isEqualTo(java.time.LocalDate.now().minusDays(1).toString());
+    }
+
+    @Test
+    void runWorkflow_withoutBizDate_defaultsToYesterdayOnAllNodes() throws Exception {
+        // 工作流手动运行不带 bizDate：实例与所有节点 task_instance 的 biz_date 兜底 T-1（否则 $bizdate 解析即 FAILED、无日志）。
+        byte[] body = client.post().uri("/api/workflows/3/run")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.data.outcome").isEqualTo("EXECUTED")
+                .returnResult().getResponseBody();
+        UUID wiId = UUID.fromString(objectMapper.readTree(body).get("data").get("resultInstanceId").asText());
+
+        String expected = java.time.LocalDate.now().minusDays(1).toString();
+        WorkflowInstance wi = workflowInstanceRepository.findById(wiId).orElseThrow();
+        assertThat(wi.getBizDate()).isEqualTo(expected);
+        java.util.List<String> nodeBizDates = jdbcTemplate.queryForList(
+                "SELECT biz_date FROM task_instance WHERE workflow_instance_id=?", String.class, wiId);
+        assertThat(nodeBizDates).isNotEmpty().allMatch(expected::equals);
     }
 
     @Test
@@ -135,7 +171,7 @@ class ManualRunTriggerTest {
         jdbcTemplate.update("INSERT INTO policy_rules (match_type, pattern, base_level, enabled, sort_order, version) "
                 + "VALUES ('TOOL', 'run_task', 'L2', 1, 5, 0)");
         try {
-            client.post().uri("/api/tasks/1/run")
+            client.post().uri("/api/tasks/4/run")
                     .contentType(MediaType.APPLICATION_JSON)
                     .exchange()
                     .expectStatus().isOk()

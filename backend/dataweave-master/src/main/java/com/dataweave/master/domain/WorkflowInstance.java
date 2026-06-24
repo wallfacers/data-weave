@@ -13,6 +13,7 @@ public class WorkflowInstance {
     private Long projectId;
     private Long workflowId;
     private Integer workflowVersionNo;
+    private String env;
     private String triggerType;
     private String state;
     private Integer priority;
@@ -45,6 +46,9 @@ public class WorkflowInstance {
 
     public Integer getWorkflowVersionNo() { return workflowVersionNo; }
     public void setWorkflowVersionNo(Integer workflowVersionNo) { this.workflowVersionNo = workflowVersionNo; }
+
+    public String getEnv() { return env; }
+    public void setEnv(String env) { this.env = env; }
 
     public String getTriggerType() { return triggerType; }
     public void setTriggerType(String triggerType) { this.triggerType = triggerType; }

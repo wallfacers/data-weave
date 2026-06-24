@@ -19,6 +19,7 @@ public class TaskInstance {
     private String paramsOverride;
     private String typeOverride;
     private String runMode;
+    private String env;
     private String bizDate;
     private String state;
     private Integer attempt;
@@ -72,6 +73,9 @@ public class TaskInstance {
 
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }
+
+    public String getEnv() { return env; }
+    public void setEnv(String env) { this.env = env; }
 
     public String getBizDate() { return bizDate; }
     public void setBizDate(String bizDate) { this.bizDate = bizDate; }

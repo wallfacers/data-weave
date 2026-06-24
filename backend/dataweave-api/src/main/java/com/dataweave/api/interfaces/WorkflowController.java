@@ -7,6 +7,7 @@ import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
+import com.dataweave.master.application.TriggerCommand;
 import com.dataweave.master.application.WorkflowService;
 import com.dataweave.master.application.WorkflowService.DagPayload;
 import com.dataweave.master.application.WorkflowService.DagView;
@@ -16,6 +17,7 @@ import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -83,6 +85,15 @@ public class WorkflowController {
             throw new BizException("workflow.not_found", id).withHttpStatus(404);
         }
         return ApiResponse.ok(detail);
+    }
+
+    /**
+     * 工作流漂移（workflow-version-binding）：是否需要「重新晋级」+ 漂移节点明细（pinned→latest）。
+     * 读侧计算不落库——drifted = 任务版本漂移（快照钉死版落后于任务最新发布版）或 DAG 草稿漂移（has_draft_change）。
+     */
+    @GetMapping("/{id}/drift")
+    public ApiResponse<WorkflowService.DriftResult> drift(@PathVariable Long id) {
+        return ApiResponse.ok(workflowService.computeDrift(id));
     }
 
     /** 编辑工作流（调度配置等）。 */
@@ -169,17 +180,40 @@ public class WorkflowController {
         if (!"ONLINE".equals(wf.getStatus())) {
             throw new BizException("workflow.not_online").withHttpStatus(409);
         }
+        String bizDate = body != null ? body.bizDate() : null;
+        String scope = body != null ? body.scope() : null;
+        String targetNodeKey = body != null ? body.targetNodeKey() : null;
         ActionRequest req = ActionRequest.builder()
                 .toolName("trigger_workflow").actionType("TRIGGER_WORKFLOW")
                 .targetType("WORKFLOW").targetId(String.valueOf(id))
-                .command(body != null ? body.bizDate() : null)
+                .command(TriggerCommand.encode(bizDate, scope, targetNodeKey))
                 .actor("ui").actorSource("UI")
                 .summary("手动触发工作流 #" + id + "「" + wf.getName() + "」")
                 .build();
         return ApiResponse.ok(gatedActionService.submit(req, Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
-    /** 手动运行请求体（bizDate 可空）。 */
-    public record RunRequest(String bizDate) {
+    /** 手动运行请求体（bizDate/scope/targetNodeKey 均可空；scope 缺省 FULL）。 */
+    public record RunRequest(String bizDate, String scope, String targetNodeKey) {
+    }
+
+    /** 列出工作流的跨周期依赖。 */
+    @GetMapping("/{id}/dependencies")
+    public ApiResponse<List<WorkflowService.DependencyDto>> listDependencies(@PathVariable Long id) {
+        return ApiResponse.ok(workflowService.listDependencies(id));
+    }
+
+    /** 新建跨周期依赖（自依赖合法；非自指做跨流环检测）。 */
+    @PostMapping("/{id}/dependencies")
+    public ApiResponse<WorkflowService.DependencyDto> createDependency(@PathVariable Long id,
+            @RequestBody WorkflowService.DependencyDto body) {
+        return ApiResponse.ok(workflowService.createDependency(id, body));
+    }
+
+    /** 删除跨周期依赖（软删）。 */
+    @DeleteMapping("/{id}/dependencies/{depId}")
+    public ApiResponse<Void> deleteDependency(@PathVariable Long id, @PathVariable Long depId) {
+        workflowService.deleteDependency(id, depId);
+        return ApiResponse.ok();
     }
 }

@@ -2,15 +2,20 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
+import com.dataweave.master.domain.WorkflowDagSnapshot;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
 import com.dataweave.master.domain.WorkflowDefVersion;
 import com.dataweave.master.domain.WorkflowDefVersionRepository;
 import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
+import com.dataweave.master.domain.WorkflowDependency;
+import com.dataweave.master.domain.WorkflowDependencyRepository;
 import com.dataweave.master.domain.WorkflowNode;
 import com.dataweave.master.domain.WorkflowNodeRepository;
 import com.dataweave.master.i18n.BizException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,12 +40,15 @@ import java.util.Set;
 @Service
 public class WorkflowService {
 
+    private static final Logger log = LoggerFactory.getLogger(WorkflowService.class);
+
     private static final String EDGE_KEY_SEP = "";
 
     private final WorkflowDefRepository workflowDefRepository;
     private final WorkflowDefVersionRepository workflowDefVersionRepository;
     private final WorkflowNodeRepository nodeRepository;
     private final WorkflowEdgeRepository edgeRepository;
+    private final WorkflowDependencyRepository dependencyRepository;
     private final TaskDefRepository taskDefRepository;
     private final WorkflowGraphValidator graphValidator;
     private final JdbcTemplate jdbcTemplate;
@@ -50,6 +58,7 @@ public class WorkflowService {
                            WorkflowDefVersionRepository workflowDefVersionRepository,
                            WorkflowNodeRepository nodeRepository,
                            WorkflowEdgeRepository edgeRepository,
+                           WorkflowDependencyRepository dependencyRepository,
                            TaskDefRepository taskDefRepository,
                            WorkflowGraphValidator graphValidator,
                            JdbcTemplate jdbcTemplate,
@@ -58,6 +67,7 @@ public class WorkflowService {
         this.workflowDefVersionRepository = workflowDefVersionRepository;
         this.nodeRepository = nodeRepository;
         this.edgeRepository = edgeRepository;
+        this.dependencyRepository = dependencyRepository;
         this.taskDefRepository = taskDefRepository;
         this.graphValidator = graphValidator;
         this.jdbcTemplate = jdbcTemplate;
@@ -73,7 +83,7 @@ public class WorkflowService {
     public record DagNodeDto(String nodeKey, String nodeType, Long taskId, String name, Integer posX, Integer posY) {}
 
     /** DAG 边 DTO（端点用 node_key 引用）。 */
-    public record DagEdgeDto(String fromNodeKey, String toNodeKey) {}
+    public record DagEdgeDto(String fromNodeKey, String toNodeKey, String strength) {}
 
     /** 读图视图：含乐观锁 version 与草稿标志，供前端保存时回传。 */
     public record DagView(Long workflowId, Long version, Integer hasDraftChange, String status,
@@ -85,12 +95,25 @@ public class WorkflowService {
     /** 工作流详情（含版本历史），与 TaskService.TaskDetail 对称。 */
     public record WorkflowDetail(WorkflowDef workflow, List<WorkflowDefVersion> versions) {}
 
-    // ─── 快照结构（发布冻结，序列化进 dag_snapshot_json）───
+    /** 单节点漂移：快照钉死版本 {@code pinned} 落后于任务最新发布版 {@code latest}。 */
+    public record DriftNode(String nodeKey, Integer pinned, Integer latest) {}
 
-    private record SnapshotNode(String nodeKey, String nodeType, Long taskId, Integer taskVersionNo,
-                                String name, Integer posX, Integer posY) {}
-    private record SnapshotEdge(String fromNodeKey, String toNodeKey) {}
-    private record Snapshot(List<SnapshotNode> nodes, List<SnapshotEdge> edges) {}
+    /**
+     * 工作流漂移结果（workflow-version-binding D3，读侧计算不落库）。
+     * {@code drifted} = 任务版本漂移（{@code driftedNodes} 非空）或 DAG 草稿漂移（{@code dagDraft}）。
+     */
+    public record DriftResult(boolean drifted, boolean dagDraft, List<DriftNode> driftedNodes) {}
+
+    /**
+     * 跨周期依赖 DTO（自依赖=dependWorkflowId 同 workflow + dependNodeId 同 node；earliestBizDate 空=不启用）。
+     * <p>nodeKey/dependNodeKey 是前端画布节点标识（与 {@link DagNodeDto#nodeKey()} 一致），内部转 workflow_node.id 存储；
+     * list 回填 key 供前端渲染，create 接 key 解析 id（nodeId/dependNodeId 兼容旧调用，优先级高于 key）。
+     */
+    public record DependencyDto(Long id, Long nodeId, Long dependWorkflowId, Long dependNodeId,
+                                String nodeKey, String dependNodeKey,
+                                String dateOffset, String earliestBizDate, Integer enabled) {}
+
+    // ─── 快照结构（发布冻结，序列化进 dag_snapshot_json）：见公共 WorkflowDagSnapshot（domain）───
 
     // ─── Create（草稿）─────────────────────────────────────
 
@@ -204,6 +227,51 @@ public class WorkflowService {
                 });
     }
 
+    /**
+     * 计算工作流漂移（workflow-version-binding D3）：读侧计算，不落库，每次读时算保证永远准确。
+     *
+     * <p>「需要重新晋级」当且仅当满足任一：(a) 任务版本漂移——当前已发布快照中某节点钉死的
+     * {@code taskVersionNo} 落后于该 task 的最新 {@code current_version_no}；(b) DAG 草稿漂移——
+     * {@code has_draft_change=1}（live DAG/属性改了未发布）。无快照（未发布）则仅看 (b)。
+     */
+    public DriftResult computeDrift(Long workflowId) {
+        WorkflowDef wf = requireWorkflow(workflowId);
+        boolean dagDraft = wf.getHasDraftChange() != null && wf.getHasDraftChange() == 1;
+        List<DriftNode> driftedNodes = new ArrayList<>();
+        Integer ver = wf.getCurrentVersionNo();
+        if (ver != null && ver > 0) {
+            workflowDefVersionRepository.findByWorkflowIdAndVersionNo(workflowId, ver)
+                    .map(WorkflowDefVersion::getDagSnapshotJson)
+                    .filter(s -> s != null && !s.isBlank())
+                    .ifPresent(json -> {
+                        try {
+                            WorkflowDagSnapshot snap = objectMapper.readValue(json, WorkflowDagSnapshot.class);
+                            // 一次性批量查各 task 的最新发布版（按快照节点 taskId 去重）
+                            Set<Long> taskIds = new HashSet<>();
+                            for (WorkflowDagSnapshot.Node n : snap.nodes()) {
+                                if (n.taskId() != null) taskIds.add(n.taskId());
+                            }
+                            Map<Long, Integer> latestByTask = new HashMap<>();
+                            taskDefRepository.findAllById(taskIds)
+                                    .forEach(t -> latestByTask.put(t.getId(), t.getCurrentVersionNo()));
+                            for (WorkflowDagSnapshot.Node n : snap.nodes()) {
+                                if (n.taskId() == null) continue;
+                                Integer pinned = n.taskVersionNo();
+                                Integer latest = latestByTask.get(n.taskId());
+                                if (latest != null && latest > 0 && (pinned == null || latest > pinned)) {
+                                    driftedNodes.add(new DriftNode(n.nodeKey(), pinned, latest));
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("computeDrift 解析 dag_snapshot_json 失败（workflowId={}，versionNo={}）：{}",
+                                    workflowId, ver, e.getMessage());
+                        }
+                    });
+        }
+        boolean drifted = dagDraft || !driftedNodes.isEmpty();
+        return new DriftResult(drifted, dagDraft, driftedNodes);
+    }
+
     // ─── Update（编辑调度配置）─────────────────────────────
 
     /** 编辑工作流（调度配置等）；置 has_draft_change=1。 */
@@ -261,7 +329,7 @@ public class WorkflowService {
             String from = idToKey.get(e.getFromNodeId());
             String to = idToKey.get(e.getToNodeId());
             if (from != null && to != null) {
-                edgeDtos.add(new DagEdgeDto(from, to));
+                edgeDtos.add(new DagEdgeDto(from, to, e.getStrength() != null ? e.getStrength() : "STRONG"));
             }
         }
         return new DagView(wf.getId(), wf.getVersion(), wf.getHasDraftChange(), wf.getStatus(), nodeDtos, edgeDtos);
@@ -356,18 +424,26 @@ public class WorkflowService {
             }
             String pair = dto.fromNodeKey() + EDGE_KEY_SEP + dto.toNodeKey();
             incomingPairs.add(pair);
-            if (!existingEdgeByPair.containsKey(pair)) {
+            String strength = "WEAK".equals(dto.strength()) ? "WEAK" : "STRONG";
+            WorkflowEdge existing = existingEdgeByPair.get(pair);
+            if (existing == null) {
                 WorkflowEdge edge = new WorkflowEdge();
                 edge.setTenantId(wf.getTenantId());
                 edge.setProjectId(wf.getProjectId());
                 edge.setWorkflowId(id);
                 edge.setFromNodeId(fromId);
                 edge.setToNodeId(toId);
+                edge.setStrength(strength);
                 edge.setCreatedAt(now);
                 edge.setUpdatedAt(now);
                 edge.setDeleted(0);
                 edge.setVersion(0L);
                 edgeRepository.save(edge);
+            } else if (!strength.equals(existing.getStrength())) {
+                // 既有边强度变化（STRONG↔WEAK）也要落库
+                existing.setStrength(strength);
+                existing.setUpdatedAt(now);
+                edgeRepository.save(existing);
             }
         }
         // 软删被省略的边
@@ -395,7 +471,11 @@ public class WorkflowService {
     @Transactional
     public WorkflowDef publish(Long id, String remark) {
         WorkflowDef wf = requireWorkflow(id);
-        if ("ONLINE".equals(wf.getStatus()) && (wf.getHasDraftChange() == null || wf.getHasDraftChange() == 0)) {
+        // 「无变更」= 无 DAG 草稿改动 且 无任务版本漂移。重新晋级（workflow-version-binding）采纳任务新版时
+        // hasDraftChange=0 但快照钉死版落后于任务最新发布版（drifted），应放行——否则无法采纳漂移。
+        if ("ONLINE".equals(wf.getStatus())
+                && (wf.getHasDraftChange() == null || wf.getHasDraftChange() == 0)
+                && !computeDrift(id).drifted()) {
             throw new BizException("workflow.publish.no_change").withHttpStatus(409);
         }
         List<WorkflowNode> nodes = nodeRepository.findByWorkflowIdAndDeleted(id, 0);
@@ -440,7 +520,7 @@ public class WorkflowService {
     /** 冻结整张 DAG 为 JSON（nodes 含各 TASK 节点 current_version_no + edges）。 */
     private String buildSnapshotJson(Long id, List<WorkflowNode> nodes) {
         Map<Long, String> idToKey = new HashMap<>();
-        List<SnapshotNode> snapNodes = new ArrayList<>();
+        List<WorkflowDagSnapshot.Node> snapNodes = new ArrayList<>();
         for (WorkflowNode n : nodes) {
             idToKey.put(n.getId(), n.getNodeKey());
             Integer taskVersionNo = null;
@@ -448,22 +528,94 @@ public class WorkflowService {
                 taskVersionNo = taskDefRepository.findById(n.getTaskId())
                         .map(TaskDef::getCurrentVersionNo).orElse(null);
             }
-            snapNodes.add(new SnapshotNode(n.getNodeKey(),
+            snapNodes.add(new WorkflowDagSnapshot.Node(n.getNodeKey(),
                     n.getNodeType() != null ? n.getNodeType() : "TASK",
                     n.getTaskId(), taskVersionNo, n.getName(), n.getPosX(), n.getPosY()));
         }
-        List<SnapshotEdge> snapEdges = new ArrayList<>();
+        List<WorkflowDagSnapshot.Edge> snapEdges = new ArrayList<>();
         for (WorkflowEdge e : edgeRepository.findByWorkflowIdAndDeleted(id, 0)) {
             String from = idToKey.get(e.getFromNodeId());
             String to = idToKey.get(e.getToNodeId());
             if (from != null && to != null) {
-                snapEdges.add(new SnapshotEdge(from, to));
+                snapEdges.add(new WorkflowDagSnapshot.Edge(from, to, e.getStrength() != null ? e.getStrength() : "STRONG"));
             }
         }
-        return objectMapper.writeValueAsString(new Snapshot(snapNodes, snapEdges));
+        return objectMapper.writeValueAsString(new WorkflowDagSnapshot(snapNodes, snapEdges));
+    }
+
+    // ─── 跨周期依赖 CRUD（cross-cycle-dependency）──────────
+
+    /** 列出工作流的启用跨周期依赖。 */
+    public List<DependencyDto> listDependencies(Long workflowId) {
+        requireWorkflow(workflowId);
+        return dependencyRepository.findByWorkflowId(workflowId).stream()
+                .filter(d -> d.getDeleted() == null || d.getDeleted() == 0)
+                .map(this::toDependencyDto).toList();
+    }
+
+    /**
+     * 新建跨周期依赖。自依赖（dependWorkflowId=workflowId 且 dependNodeId=nodeId）合法直接放行；
+     * 非自指做全局跨流环检测（成环拒绝）。dateOffset 缺省 CURRENT_DAY，earliestBizDate 空=不启用。
+     */
+    public DependencyDto createDependency(Long workflowId, DependencyDto dto) {
+        WorkflowDef wf = requireWorkflow(workflowId);
+        graphValidator.validateDependencyAcyclic(workflowId, dto.dependWorkflowId());
+        LocalDateTime now = LocalDateTime.now();
+        // 前端传 nodeKey（画布标识），内部解析为 workflow_node.id；自依赖=dependWorkflowId 同本流
+        Long nodeId = dto.nodeId() != null ? dto.nodeId() : resolveNodeId(workflowId, dto.nodeKey());
+        if (nodeId == null) {
+            throw new BizException("workflow.dependency.node_not_found", dto.nodeKey());
+        }
+        Long dependWfId = dto.dependWorkflowId() != null ? dto.dependWorkflowId() : workflowId;
+        Long dependNodeId = dto.dependNodeId() != null ? dto.dependNodeId() : resolveNodeId(dependWfId, dto.dependNodeKey());
+        WorkflowDependency d = new WorkflowDependency();
+        d.setTenantId(wf.getTenantId());
+        d.setProjectId(wf.getProjectId());
+        d.setWorkflowId(workflowId);
+        d.setNodeId(nodeId);
+        d.setDependWorkflowId(dependWfId);
+        d.setDependNodeId(dependNodeId);
+        d.setDateOffset(dto.dateOffset() != null && !dto.dateOffset().isBlank() ? dto.dateOffset() : "CURRENT_DAY");
+        d.setEarliestBizDate(dto.earliestBizDate());
+        d.setEnabled(dto.enabled() != null ? dto.enabled() : 1);
+        d.setCreatedAt(now);
+        d.setUpdatedAt(now);
+        d.setDeleted(0);
+        d.setVersion(0L);
+        return toDependencyDto(dependencyRepository.save(d));
+    }
+
+    /** 删除跨周期依赖（软删）。 */
+    public void deleteDependency(Long workflowId, Long depId) {
+        WorkflowDependency d = dependencyRepository.findById(depId)
+                .filter(x -> x.getWorkflowId().equals(workflowId))
+                .orElseThrow(() -> new BizException("workflow.dependency.not_found", depId).withHttpStatus(404));
+        d.setDeleted(1);
+        d.setUpdatedAt(LocalDateTime.now());
+        dependencyRepository.save(d);
+    }
+
+    private DependencyDto toDependencyDto(WorkflowDependency d) {
+        return new DependencyDto(d.getId(), d.getNodeId(), d.getDependWorkflowId(), d.getDependNodeId(),
+                nodeKeyOf(d.getNodeId()), nodeKeyOf(d.getDependNodeId()),
+                d.getDateOffset(), d.getEarliestBizDate(), d.getEnabled());
     }
 
     // ─── helpers ───────────────────────────────────────────
+
+    /** nodeKey → workflow_node.id（按 workflow + key 查）；找不到返回 null。 */
+    private Long resolveNodeId(Long workflowId, String nodeKey) {
+        if (workflowId == null || nodeKey == null) return null;
+        return nodeRepository.findByWorkflowIdAndDeleted(workflowId, 0).stream()
+                .filter(n -> nodeKey.equals(n.getNodeKey()))
+                .map(WorkflowNode::getId).findFirst().orElse(null);
+    }
+
+    /** workflow_node.id → nodeKey；找不到返回 null。 */
+    private String nodeKeyOf(Long nodeId) {
+        if (nodeId == null) return null;
+        return nodeRepository.findById(nodeId).map(WorkflowNode::getNodeKey).orElse(null);
+    }
 
     private WorkflowDef requireWorkflow(Long id) {
         return workflowDefRepository.findById(id)
@@ -485,13 +637,13 @@ public class WorkflowService {
         // 解析快照 → DagPayload 复用 saveDag 对账逻辑
         DagPayload payload;
         try {
-            Snapshot snap = objectMapper.readValue(ver.getDagSnapshotJson(), Snapshot.class);
+            WorkflowDagSnapshot snap = objectMapper.readValue(ver.getDagSnapshotJson(), WorkflowDagSnapshot.class);
             List<DagNodeDto> nodes = snap.nodes().stream()
                     .map(sn -> new DagNodeDto(sn.nodeKey(), sn.nodeType(), sn.taskId(),
                             sn.name(), sn.posX(), sn.posY()))
                     .toList();
             List<DagEdgeDto> edges = snap.edges().stream()
-                    .map(se -> new DagEdgeDto(se.fromNodeKey(), se.toNodeKey()))
+                    .map(se -> new DagEdgeDto(se.fromNodeKey(), se.toNodeKey(), se.strength()))
                     .toList();
             payload = new DagPayload(wf.getVersion(), nodes, edges);
         } catch (Exception e) {

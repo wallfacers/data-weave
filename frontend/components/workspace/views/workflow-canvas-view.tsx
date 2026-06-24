@@ -79,10 +79,12 @@ import {
   type WorkflowDef,
   type WorkflowDefVersion,
   type WorkflowDetail,
+  type DriftResult,
   type LatestInstanceView,
 } from "@/lib/types"
 import { isTerminalInstanceState } from "@/lib/workspace/run-dot-state"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
+import { wouldCreateCycle } from "@/lib/workspace/dag-helpers"
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
@@ -284,26 +286,6 @@ function toPayload(version: number | null, nodes: CanvasNode[], edges: Edge[]): 
   return { version, nodes: dagNodes, edges: dagEdges }
 }
 
-/** 在现有边集上加入 source→target 是否成环：从 target 出发能否回到 source。 */
-function wouldCreateCycle(edges: Edge[], source: string, target: string): boolean {
-  if (source === target) return true
-  const adj = new Map<string, string[]>()
-  for (const e of edges) {
-    if (!adj.has(e.source)) adj.set(e.source, [])
-    adj.get(e.source)!.push(e.target)
-  }
-  const stack = [target]
-  const seen = new Set<string>()
-  while (stack.length) {
-    const cur = stack.pop()!
-    if (cur === source) return true
-    if (seen.has(cur)) continue
-    seen.add(cur)
-    for (const nxt of adj.get(cur) ?? []) stack.push(nxt)
-  }
-  return false
-}
-
 /** /run 闸门返回的 GateResult。 */
 interface RunResult {
   outcome: "EXECUTED" | "PENDING_APPROVAL" | "REJECTED"
@@ -327,6 +309,8 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
+  // 漂移：已发布快照钉死的任务版本落后于任务最新发布版（或 DAG 草稿）；读侧计算，不落库。
+  const [drift, setDrift] = useState<DriftResult | null>(null)
 
   // 右侧栏
   const [sidebarTab, setSidebarTab] = useState<"config" | "versions">("config")
@@ -384,6 +368,14 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
 
   const online = status === "ONLINE"
 
+  // 漂移明细 tooltip：逐节点 pinned→latest，含 DAG 草稿提示
+  const driftTitle = useMemo(() => {
+    if (!drift?.drifted) return ""
+    const lines = drift.driftedNodes.map((n) => `${n.nodeKey}: v${n.pinned} → v${n.latest}`)
+    if (drift.dagDraft) lines.push(t("driftDagHint"))
+    return lines.join("\n")
+  }, [drift, t])
+
   // 加载该工作流的 DAG（草稿态）
   const loadDag = useCallback((id: number) => {
     setBusy(true)
@@ -424,8 +416,17 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       .catch(() => { /* 静默失败，不影响 DAG 加载 */ })
   }, [workflowId])
 
+  // 加载漂移状态（读侧计算，未发布工作流后端返回 drifted=false）
+  const loadDrift = useCallback(() => {
+    authFetch(`${API_BASE}/api/workflows/${workflowId}/drift`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiResponse<DriftResult>>)
+      .then((j) => { if (j.code === 0 && j.data) setDrift(j.data) })
+      .catch(() => { /* 静默失败，不影响画布 */ })
+  }, [workflowId])
+
   useEffect(() => {
     setLoading(true)
+    loadDrift()
     loadDag(workflowId)
     loadWfDetail()
     setLoading(false)
@@ -588,6 +589,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         if (j.code === 0 && j.data) {
           setStatus(j.data.status)
           setHasDraft(false)
+          loadDrift() // 重新晋级/发布后刷新漂移（应清空）
           toast.success(t("toastPublished", { version: j.data.currentVersionNo }))
           useCatalogTreeStore.getState().updateWorkflow(workflowId, {
             status: j.data.status,
@@ -600,7 +602,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       })
       .catch(() => toast.error(t("toastPublishFailed")))
       .finally(() => setBusy(false))
-  }, [workflowId, dirty, t])
+  }, [workflowId, dirty, t, loadDrift])
 
   // 接管一个运行实例（首跑与重开续接共用）：订阅事件流、拉详情建「实例UUID↔task_def id」映射、
   // 初始节点态着色、对运行中节点顶日志。initialStatus 为整体运行徽标初值(首跑 RUNNING / 续接=后端实际态)。
@@ -926,6 +928,16 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
               {dirty ? t("unsavedChanges") : t("unpublishedChanges")}
             </Badge>
           )}
+          {online && drift?.drifted && (
+            <>
+              <Badge variant="outline" className="cursor-help text-amber-600" title={driftTitle}>
+                {t("driftBadge", { count: drift.driftedNodes.length })}
+              </Badge>
+              <Button size="sm" variant="outline" onClick={publish} disabled={busy || dirty} title={t("rePromoteHint")}>
+                <HugeiconsIcon icon={RocketIcon} className="size-4" /> {t("rePromote")}
+              </Button>
+            </>
+          )}
           <Button size="sm" variant="outline" onClick={addVirtualNode} disabled={busy}>
             <HugeiconsIcon icon={CircleIcon} className="size-4" /> {t("virtualNode")}
           </Button>
@@ -1046,6 +1058,8 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
                 priority={wfPriority}
                 setPriority={(v) => setWfPriority(v)}
                 onDirty={() => setDirty(true)}
+                workflowId={workflowId}
+                nodes={dagNodes.map((n) => ({ nodeKey: n.id, nodeType: n.data.nodeType, taskId: n.data.taskId, name: n.data.label, posX: null, posY: null }))}
               />
             </div>
             <div style={{ display: sidebarTab === "versions" ? "block" : "none" }}>

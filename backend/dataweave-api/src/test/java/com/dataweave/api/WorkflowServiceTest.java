@@ -61,7 +61,7 @@ class WorkflowServiceTest {
         DagView v1 = workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
                 List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
                         new DagNodeDto("t1", "TASK", 1L, "任务1", 100, 0)),
-                List.of(new DagEdgeDto("v0", "t1"))));
+                List.of(new DagEdgeDto("v0", "t1", null))));
         assertThat(v1.nodes()).hasSize(2);
         assertThat(v1.edges()).hasSize(1);
         assertThat(v1.version()).isGreaterThan(wf.getVersion());
@@ -70,7 +70,7 @@ class WorkflowServiceTest {
         DagView v2 = workflowService.saveDag(wf.getId(), new DagPayload(v1.version(),
                 List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
                         new DagNodeDto("t2", "TASK", 2L, "任务2", 200, 0)),
-                List.of(new DagEdgeDto("v0", "t2"))));
+                List.of(new DagEdgeDto("v0", "t2", null))));
         assertThat(v2.nodes()).extracting(DagNodeDto::nodeKey).containsExactlyInAnyOrder("v0", "t2");
         assertThat(v2.edges()).hasSize(1);
         assertThat(v2.edges().get(0).toNodeKey()).isEqualTo("t2");
@@ -103,7 +103,7 @@ class WorkflowServiceTest {
         DagView v = workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
                 List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0),
                         new DagNodeDto("t2", "TASK", 2L, "任务2", 100, 0)),
-                List.of(new DagEdgeDto("t1", "t2"))));
+                List.of(new DagEdgeDto("t1", "t2", null))));
         WorkflowDef published = workflowService.publish(wf.getId(), "首发");
         assertThat(published.getStatus()).isEqualTo("ONLINE");
         assertThat(published.getCurrentVersionNo()).isEqualTo(1);
@@ -113,7 +113,7 @@ class WorkflowServiceTest {
         DagView cyclic = workflowService.saveDag(wf.getId(), new DagPayload(published.getVersion(),
                 List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0),
                         new DagNodeDto("t2", "TASK", 2L, "任务2", 100, 0)),
-                List.of(new DagEdgeDto("t1", "t2"), new DagEdgeDto("t2", "t1"))));
+                List.of(new DagEdgeDto("t1", "t2", null), new DagEdgeDto("t2", "t1", null))));
         assertThatThrownBy(() -> workflowService.publish(wf.getId(), "应失败"))
                 .isInstanceOf(BizException.class);
         // 版本号不变（仍是 1）
@@ -126,7 +126,7 @@ class WorkflowServiceTest {
         workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
                 List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
                         new DagNodeDto("t1", "TASK", 1L, "任务1", 100, 0)),
-                List.of(new DagEdgeDto("v0", "t1"))));
+                List.of(new DagEdgeDto("v0", "t1", null))));
         WorkflowDef published = workflowService.publish(wf.getId(), "首发");
 
         UUID wiId = triggerService.trigger(published, "MANUAL", "2026-06-15", null, java.util.Locale.SIMPLIFIED_CHINESE);
@@ -159,7 +159,7 @@ class WorkflowServiceTest {
         workflowService.saveDag(wf.getId(), new DagPayload(afterEdit.getVersion(),
                 List.of(new DagNodeDto("t1", "TASK", 1L, "任务1", 0, 0),
                         new DagNodeDto("t2", "TASK", 2L, "任务2", 100, 0)),
-                List.of(new DagEdgeDto("t1", "t2"))));
+                List.of(new DagEdgeDto("t1", "t2", null))));
         WorkflowDef v2 = workflowService.publish(wf.getId(), "新增节点");
         assertThat(v2.getCurrentVersionNo()).isEqualTo(2);
 

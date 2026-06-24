@@ -267,6 +267,23 @@ export interface WorkflowDetail {
   versions: WorkflowDefVersion[]
 }
 
+/** 漂移节点：快照钉死版本（pinned）落后于任务最新发布版（latest）。与后端 WorkflowService.DriftNode 对应。 */
+export interface DriftNode {
+  nodeKey: string
+  pinned: number
+  latest: number
+}
+
+/**
+ * 工作流漂移（读侧计算，不落库）。与后端 WorkflowService.DriftResult 对应。
+ * drifted = 任意节点 task 版本落后（driftedNodes 非空）或 DAG 草稿漂移（dagDraft）。
+ */
+export interface DriftResult {
+  drifted: boolean
+  dagDraft: boolean
+  driftedNodes: DriftNode[]
+}
+
 export type DagNodeType = "TASK" | "VIRTUAL"
 
 /** DAG 节点（以 nodeKey 为稳定标识，与后端 DagNodeDto 对应）。 */
@@ -321,12 +338,12 @@ export interface RunWorkflowRequest {
   targetNodeKey?: string | null
 }
 
-/** 跨周期依赖（GET/POST/DELETE /api/workflows/{id}/dependencies）。nodeId/dependNodeId 为 workflow_node 主键。 */
+/** 跨周期依赖（GET/POST/DELETE /api/workflows/{id}/dependencies）。前端用 nodeKey/dependNodeKey（画布标识），后端内部转 workflow_node.id。 */
 export interface WorkflowDependency {
   id?: number | null
-  nodeId: number
+  nodeKey: string
   dependWorkflowId: number | null
-  dependNodeId: number | null
+  dependNodeKey: string | null
   dateOffset: string
   earliestBizDate: string | null
   enabled: number

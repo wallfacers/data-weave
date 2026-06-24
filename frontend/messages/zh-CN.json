@@ -219,7 +219,10 @@
     "scheduleType": "调度类型",
     "cron": "Cron",
     "cronPlaceholder": "0 30 2 * * ?",
-    "priority": "优先级"
+    "priority": "优先级",
+    "crossCycleDeps": "跨周期依赖",
+    "noCrossCycleDeps": "暂无跨周期依赖",
+    "earliestBizDate": "首周期豁免截止日"
   },
   "settings": {
     "open": "项目设置",
@@ -365,6 +368,10 @@
     "online": "已上线",
     "unsavedChanges": "未保存改动",
     "unpublishedChanges": "有未发布改动",
+    "driftBadge": "漂移 {count}",
+    "driftDagHint": "DAG 草稿未发布",
+    "rePromote": "重新晋级",
+    "rePromoteHint": "重建快照，采纳各任务最新发布版与 DAG 草稿；需先保存草稿",
     "virtualNode": "虚拟节点",
     "saveDraft": "保存草稿",
     "notOnlineHint": "未上线不可运行，请先",

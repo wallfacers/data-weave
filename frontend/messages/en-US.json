@@ -219,7 +219,10 @@
     "scheduleType": "Schedule Type",
     "cron": "Cron",
     "cronPlaceholder": "0 30 2 * * ?",
-    "priority": "Priority"
+    "priority": "Priority",
+    "crossCycleDeps": "Cross-cycle dependencies",
+    "noCrossCycleDeps": "No cross-cycle dependencies",
+    "earliestBizDate": "First-cycle exempt before"
   },
   "settings": {
     "open": "Settings",
@@ -365,6 +368,10 @@
     "online": "Online",
     "unsavedChanges": "Unsaved changes",
     "unpublishedChanges": "Unpublished changes",
+    "driftBadge": "Drift {count}",
+    "driftDagHint": "DAG draft not published",
+    "rePromote": "Re-promote",
+    "rePromoteHint": "Rebuild snapshot adopting each task's latest published version and DAG draft; save draft first",
     "virtualNode": "Virtual node",
     "saveDraft": "Save draft",
     "notOnlineHint": "Cannot run while offline, please first",
