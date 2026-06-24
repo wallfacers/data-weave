@@ -1,6 +1,7 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Finding;
+import com.dataweave.master.i18n.Messages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -25,10 +26,15 @@ public class InspectorScheduler {
 
     private final List<Inspector> inspectors;
     private final FindingService findingService;
+    private final AgentNotifier agentNotifier;
+    private final Messages messages;
 
-    public InspectorScheduler(List<Inspector> inspectors, FindingService findingService) {
+    public InspectorScheduler(List<Inspector> inspectors, FindingService findingService,
+                              AgentNotifier agentNotifier, Messages messages) {
         this.inspectors = inspectors;
         this.findingService = findingService;
+        this.agentNotifier = agentNotifier;
+        this.messages = messages;
     }
 
     /** 定时兜底巡检。 */
@@ -63,12 +69,27 @@ public class InspectorScheduler {
                 continue;
             }
             for (Finding candidate : candidates) {
-                findingService.recordIfNew(candidate).ifPresent(created::add);
+                findingService.recordIfNew(candidate).ifPresent(saved -> {
+                    created.add(saved);
+                    announce(saved);
+                });
             }
         }
         if (!created.isEmpty()) {
             log.info("主动发现：本轮新建 {} 条 Finding", created.size());
         }
         return created;
+    }
+
+    /** 新发现落库后：推 agent.finding 刷新举手台 + agent.message 让 Agent 主动开口，并标记已播报去重。 */
+    private void announce(Finding f) {
+        agentNotifier.finding(f);
+        String markdown = messages.get("finding.proactive.announce",
+                f.getTitle() != null ? f.getTitle() : "",
+                f.getRootCause() != null ? f.getRootCause() : "");
+        agentNotifier.message(null, markdown, f.getId());
+        if (f.getId() != null) {
+            findingService.markAnnounced(f.getId());
+        }
     }
 }

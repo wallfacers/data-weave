@@ -139,9 +139,19 @@ public class DiagnosisService {
      * @param locale 本地化反馈 message 用
      */
     public FixResult applyFix(Long diagnosisId, String action, String actor, String actorSource, Locale locale) {
+        GateResult gr = submitFix(diagnosisId, action, actor, actorSource, locale);
+        return new FixResult(gr.executed(), gr.message(), gr.resultInstanceId());
+    }
+
+    /**
+     * 与 {@link #applyFix} 同一闸门路径，但返回完整 {@link GateResult}（含 outcome：EXECUTED/PENDING_APPROVAL/REJECTED），
+     * 供需要按 outcome 分流的调用方（如通用发现 {@code FindingActionService}）使用。诊断不存在时返回 REJECTED。
+     */
+    public GateResult submitFix(Long diagnosisId, String action, String actor, String actorSource, Locale locale) {
         TaskDiagnosis diagnosis = diagnosisRepository.findById(diagnosisId).orElse(null);
         if (diagnosis == null) {
-            return new FixResult(false, messages.get("diagnosis.fix.not_found", locale, diagnosisId), null);
+            return new GateResult(GateResult.Outcome.REJECTED, null, null,
+                    messages.get("diagnosis.fix.not_found", locale, diagnosisId), null, false, null);
         }
         String act = action == null ? "RERUN" : action.trim().toUpperCase();
         String summary = messages.get("diagnosis.fix.summary_label", locale, act, diagnosisId)
@@ -158,8 +168,7 @@ public class DiagnosisService {
                 .summary(summary)
                 .build();
 
-        GateResult gr = gatedActionService.submit(req, locale);
-        return new FixResult(gr.executed(), gr.message(), gr.resultInstanceId());
+        return gatedActionService.submit(req, locale);
     }
 
     /**

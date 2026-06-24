@@ -33,12 +33,12 @@
 
 ## 4. 🅰 真推通道与 Findings/会话 API
 
-- [ ] 4.1 `AgentNotifier`：Reactor `Sinks.many().multicast()` 广播（all-in-one 进程内；分布式经 Redis pub/sub 桥接预留）
-- [ ] 4.2 `GET /api/agent/stream` 持久 SSE 控制器：fan-out `agent.finding`/`agent.message`/`keepalive`
-- [ ] 4.3 巡检落库后经 `AgentNotifier` 推 `agent.finding`；需主动开口时推 `agent.message`（带 findingId）
-- [ ] 4.4 `GET /api/findings`（OPEN/ANNOUNCED 列表）、`POST /api/findings/{id}/apply`（经 `GatedActionService` 闸门，成功置 RESOLVED）
-- [ ] 4.5 多会话持久化：`GET/POST/DELETE /api/agent/sessions` + `GET /api/agent/sessions/{id}/history`（可复用/扩展 `agent_session` 表）
-- [ ] 4.6 测试：WebTestClient 验 `/api/findings`、apply 经闸门分流（executed vs PENDING_APPROVAL）、会话增删列
+- [x] 4.1 `AgentNotifier`：经现有 `EventBus`(InMemory/Redis 双实现) 广播到 `dw:agent:notify`，信封 `{event,data}`；finding()/message() 两出口
+- [x] 4.2 `GET /api/agent/stream` 持久 SSE 控制器：订阅 EventBus → Flux fan-out `agent.finding`/`agent.message`/`keepalive`(20s)，断线关订阅
+- [x] 4.3 巡检落库后 `AgentNotifier.finding` + 主动开口 `message`(i18n `finding.proactive.announce`) + `markAnnounced` 去重
+- [x] 4.4 `GET /api/findings`(active) + `POST /api/findings/{id}/apply`：`FindingActionService`→`DiagnosisService.submitFix`(抽出返回完整 GateResult)→闸门，EXECUTED 置 RESOLVED；返回 outcome 分流
+- [x] 4.5 多会话持久化：新建 `agent_chat_session`/`agent_chat_message` 两表 + domain/repo/`AgentSessionService` + `AgentSessionController`(增/列/删/历史/追加消息)
+- [x] 4.6 测试：FindingEndpointTest(list+apply 经闸门) + AgentSessionEndpointTest(增→追加→历史→删全链) h2 通过
 
 ## 5. 🅰 L1 真采集 + 故障注入脚本
 
