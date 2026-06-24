@@ -39,8 +39,17 @@ const KIND_LABEL_KEY: Record<string, string> = {
   diagnosis: "kindDiagnosis",
 }
 
-/** 用 shadcn `Table` 富渲染 Agent 返回的结构化表格（MVP 4.6），与 markdown 表格互补。 */
-export function ResultTable({ data, onClose }: { data: ResultData; onClose: () => void }) {
+/**
+ * 用 shadcn `Table` 富渲染 Agent 返回的结构化表格（MVP 4.6），与 markdown 表格互补。
+ * `onClose` 可选：顶部浮层场景提供关闭；消息流内联渲染（proactive-agent-discovery）不传。
+ */
+export function ResultTable({
+  data,
+  onClose,
+}: {
+  data: ResultData
+  onClose?: () => void
+}) {
   const t = useTranslations("resultTable")
   const { columns, rows, kind, title, sql } = data
   const kindKey = KIND_LABEL_KEY[kind ?? ""]
@@ -50,15 +59,17 @@ export function ResultTable({ data, onClose }: { data: ResultData; onClose: () =
         <span className="text-sm font-medium">{title ?? (kindKey ? t(kindKey) : t("fallbackTitle"))}</span>
         {kind && <Badge className="bg-muted text-muted-foreground">{kind}</Badge>}
         <span className="ml-auto text-xs text-muted-foreground">{t("rowCount", { count: rows.length })}</span>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-6"
-          onClick={onClose}
-          aria-label={t("closeLabel")}
-        >
-          <HugeiconsIcon icon={Cancel01Icon} className="size-3.5" />
-        </Button>
+        {onClose && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-6"
+            onClick={onClose}
+            aria-label={t("closeLabel")}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} className="size-3.5" />
+          </Button>
+        )}
       </div>
       {sql && (
         <DwScroll direction="horizontal" className="rounded-[var(--radius-sm)] bg-muted/50 px-2 py-1">

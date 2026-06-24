@@ -28,7 +28,8 @@ public class MockDiagnosisAnalyzer implements DiagnosisAnalyzer {
     }
 
     @Override
-    public Analysis analyze(TaskInstance failed, WorkerNode node, TaskDef task, Locale locale) {
+    public Analysis analyze(TaskInstance failed, WorkerNode node, TaskDef task, Telemetry telemetry, Locale locale) {
+        Telemetry tel = telemetry != null ? telemetry : Telemetry.EMPTY;
         String taskName = task != null ? task.getName()
                 : messages.get("diagnosis.common.task_fallback", locale,
                         failed != null ? String.valueOf(failed.getTaskId()) : "?");
@@ -37,7 +38,9 @@ public class MockDiagnosisAnalyzer implements DiagnosisAnalyzer {
         double mem = node != null && node.getMem() != null ? node.getMem() : 0;
         double cpu = node != null && node.getCpu() != null ? node.getCpu() : 0;
         double load = node != null && node.getLoadAvg() != null ? node.getLoadAvg() : 0;
-        int concurrent = node != null && node.getRunningTasks() != null ? node.getRunningTasks() : 0;
+        // 真采集（live-telemetry）：并发争抢数取 master 端按节点聚合，不再信任 worker 上报。
+        int concurrent = tel.concurrentTasks();
+        int history7d = tel.failureCount7d();
         String log = failed != null && failed.getLog() != null ? failed.getLog() : "";
 
         boolean oom = log.toLowerCase().contains("outofmemory") || log.toLowerCase().contains("oom")
@@ -74,7 +77,8 @@ public class MockDiagnosisAnalyzer implements DiagnosisAnalyzer {
 
         String context = "{\"nodeCode\":\"" + nodeCode + "\",\"nodeMem\":" + fmt(mem)
                 + ",\"nodeCpu\":" + fmt(cpu) + ",\"nodeLoad\":" + fmt(load)
-                + ",\"concurrentTasks\":" + concurrent + "}";
+                + ",\"concurrentTasks\":" + concurrent
+                + ",\"history7d\":" + history7d + "}";
 
         return new Analysis(title, rootCause, context, suggestions);
     }

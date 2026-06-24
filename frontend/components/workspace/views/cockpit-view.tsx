@@ -10,17 +10,15 @@ import {
   ArrowDataTransferHorizontalIcon,
   TimeManagementIcon,
   ServerStack01Icon,
-  Bug01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
-import { DiagnosisCard } from "@/components/cockpit/diagnosis-card"
-import { type DashboardSummary, type TaskDiagnosis } from "@/lib/types"
+import { FindingsRail } from "@/components/cockpit/findings-rail"
+import { type DashboardSummary } from "@/lib/types"
 import { useApi } from "@/lib/workspace/use-api"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { ViewStatus } from "./view-status"
 import { LineageGraph } from "./lineage-graph"
-import { DwScroll } from "@/components/ui/dw-scroll"
 
 /** 后端 MetricsSnapshot 子集：顶条只需队列深度。 */
 interface MetricsSnapshot {
@@ -108,7 +106,6 @@ export function CockpitView() {
   const { data: metrics } = useApi<MetricsSnapshot>("/api/ops/metrics")
   const { data: syncSummary } = useApi<SyncSummary>("/api/lineage/sync-summary")
   const { data: etaSummary } = useApi<EtaSummary>("/api/ops/eta-summary")
-  const { data: diagnoses } = useApi<TaskDiagnosis[]>("/api/diagnosis")
 
   if (!summary) return <ViewStatus loading={loading} />
 
@@ -121,7 +118,6 @@ export function CockpitView() {
   const etaValue = etaSummary
     ? formatEta(t, etaSummary.remainingSeconds)
     : t("estimating")
-  const openDiagnoses = (diagnoses ?? []).filter((d) => d.status === "OPEN")
 
   return (
     <div className="flex h-full flex-col">
@@ -158,29 +154,8 @@ export function CockpitView() {
           <LineageGraph />
         </main>
 
-        {/* 右栏：Agent 举手台 */}
-        <aside className="flex w-[360px] shrink-0 flex-col">
-          <div className="flex items-center gap-2 border-b px-5 py-3">
-            <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold tracking-tight">{t("railTitle")}</h2>
-            {openDiagnoses.length > 0 && (
-              <span className="ml-auto rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive tabular-nums">
-                {openDiagnoses.length}
-              </span>
-            )}
-          </div>
-          {openDiagnoses.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-center">
-              <p className="text-sm text-muted-foreground">{t("railEmpty")}</p>
-            </div>
-          ) : (
-            <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-4">
-              {openDiagnoses.map((d) => (
-                <DiagnosisCard key={d.id} diagnosis={d} />
-              ))}
-            </DwScroll>
-          )}
-        </aside>
+        {/* 右栏：Agent 举手台（通用 Finding[]，由 agent.finding 实时刷新） */}
+        <FindingsRail />
       </div>
     </div>
   )

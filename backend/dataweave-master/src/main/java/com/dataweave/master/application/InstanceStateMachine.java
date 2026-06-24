@@ -1,6 +1,7 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -29,10 +30,13 @@ public class InstanceStateMachine {
 
     private final JdbcTemplate jdbc;
     private final EventBus eventBus;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus) {
+    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus,
+                                ApplicationEventPublisher eventPublisher) {
         this.jdbc = jdbc;
         this.eventBus = eventBus;
+        this.eventPublisher = eventPublisher;
     }
 
     // ─── task_instance ───────────────────────────────────
@@ -66,7 +70,17 @@ public class InstanceStateMachine {
                 "UPDATE task_instance SET state=?, failure_reason=?, finished_at=?, updated_at=? "
                         + "WHERE id=? AND state=? AND deleted=0",
                 to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
-        if (n == 1) publishTaskState(id, to);
+        if (n == 1) {
+            publishTaskState(id, to);
+            if ("FAILED".equals(to)) {
+                // 加速主动发现：异步监听者立刻巡检（定时兜底保底）。发布失败不影响状态推进。
+                try {
+                    eventPublisher.publishEvent(new TaskInstanceFailedEvent(id));
+                } catch (RuntimeException ignored) {
+                    // 事件仅作加速，吞掉异常守住状态机纪律。
+                }
+            }
+        }
         return n == 1;
     }
 

@@ -143,226 +143,125 @@
     }
 }
 
-/* CopilotKit v2 在 [data-copilotkit] 作用域里用一套零彩度中性灰阶重定义了整套 shadcn
-   变量。本应用已是 neutral 黑白主题，与 cpk 自带中性阶同家族，故此处仅做最小对齐：
-   把对话面填充对齐 var(--sidebar)（与 Agent 悬浮面板外层卡片、侧栏同底色，避免割裂），
-   其余语义 token 一律 inherit 跟随 app 主题。两态（亮/暗）对称。 */
-html [data-copilotkit] {
-  --sidebar: inherit;
-  --background: var(--sidebar);
-  --card: var(--sidebar);
-  --popover: var(--sidebar);
-  --muted: oklch(0.94 0 0);
-  --muted-foreground: inherit;
-  --foreground: inherit;
-  --primary: inherit;
-  --primary-foreground: inherit;
-  --secondary: inherit;
-  --secondary-foreground: inherit;
-  --accent: inherit;
-  --accent-foreground: inherit;
-  --border: inherit;
-  --input: inherit;
-  --ring: inherit;
-  --destructive: inherit;
+/* 自研聊天台 markdown 渲染（components/chat/markdown-content.tsx：marked + morphdom + Shiki）。
+   取代原 CopilotKit Streamdown prose 规则。对话紧致节奏（窄栏），配色走主题 token，
+   代码块 chrome（语言标签 + 复制按钮）+ Shiki 双主题（defaultColor:false 发 --shiki-light/dark）。 */
+.markdown-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-wrap: break-word;
+  color: var(--foreground);
 }
-html.dark [data-copilotkit] {
-  --sidebar: inherit;
-  --background: var(--sidebar);
-  --foreground: inherit;
-  --card: var(--sidebar);
-  --card-foreground: inherit;
-  --popover: var(--sidebar);
-  --popover-foreground: inherit;
-  --secondary: inherit;
-  --secondary-foreground: inherit;
-  --muted: inherit;
-  --muted-foreground: inherit;
-  --accent: inherit;
-  --accent-foreground: inherit;
-  --border: inherit;
-  --input: inherit;
-  --ring: inherit;
-  --primary: inherit;
-  --primary-foreground: inherit;
-  --destructive: inherit;
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body > :last-child { margin-bottom: 0; }
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6,
+.markdown-body pre,
+.markdown-body table {
+  margin-top: 0;
+  margin-bottom: 0.625rem;
 }
-
-/* CopilotChat 的 AI 回复用 Streamdown（react-markdown + Tailwind prose）渲染。
-   把 prose 配色映射到主题 token：正文/标题/加粗走 --foreground，链接/行内代码走 --link，
-   代码块底走 --muted。token 随亮/暗自动切，单套规则覆盖两态。 */
-html [data-copilotkit] [class*="prose"] {
-  --tw-prose-body: var(--foreground);
-  --tw-prose-headings: var(--foreground);
-  --tw-prose-bold: var(--foreground);
-  --tw-prose-links: var(--link);
-  --tw-prose-code: var(--link);
-  --tw-prose-pre-bg: var(--muted);
-  --tw-prose-pre-code: var(--foreground);
-  --tw-prose-quotes: var(--muted-foreground);
-  --tw-prose-quote-borders: var(--border);
-  --tw-prose-bullets: var(--muted-foreground);
-  --tw-prose-counters: var(--muted-foreground);
-  --tw-prose-hr: var(--border);
-  --tw-prose-th-borders: var(--border);
-  --tw-prose-td-borders: var(--border);
-  --tw-prose-captions: var(--muted-foreground);
-}
-html [data-copilotkit] [class*="prose"] code,
-html [data-copilotkit] [class*="prose"] pre {
-  font-family: var(--font-mono);
-}
-/* 行内代码（非代码块内）：link 色文字 + 极淡底，与代码块区分 */
-html [data-copilotkit] [class*="prose"] :not(pre) > code {
-  background-color: var(--muted);
+.markdown-body h1 { font-size: 15px; font-weight: 600; }
+.markdown-body h2 { font-size: 14px; font-weight: 600; }
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 { font-size: 13px; font-weight: 600; }
+.markdown-body ul,
+.markdown-body ol { padding-left: 1rem; }
+.markdown-body li { margin-top: 0.125rem; margin-bottom: 0.125rem; }
+.markdown-body a { color: var(--link); text-decoration: underline; }
+.markdown-body code { font-family: var(--font-mono); }
+.markdown-body :not(pre) > code {
+  background: var(--muted);
   color: var(--link);
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
   font-weight: 500;
+  font-size: 0.9em;
 }
-/* 代码块语法高亮：项目语法主题（lib/syntax-palette）经 agent-chat 的 markdownRenderer
-   slot 透传给 Streamdown 的 Shiki dual-theme。亮色自动生效；暗色把前景/底色切到 --shiki-dark*。 */
-html.dark [data-copilotkit] [data-streamdown="code-block-body"] code span {
-  color: var(--shiki-dark, inherit) !important;
-}
-html.dark [data-copilotkit] [data-streamdown="code-block-body"] .shiki,
-html.dark [data-copilotkit] [data-streamdown="code-block-body"] pre {
-  background-color: var(--shiki-dark-bg, var(--muted)) !important;
-}
-
-/* ── AI 回复 Markdown「对话紧致节奏」───────────────────────────────────────
-   Streamdown 的 prose 默认是长文基线（16px / 行高 1.75、段落上下各 20px，
-   再叠 .space-y-4 16px → 段间 ~36px），在窄对话栏偏松。下面把它收成对话节奏。
-   ⚠️ 间距只能靠元素规则直接覆盖（Tailwind 间距是硬编码，不走 --tw-prose-*；
-      后者仅管颜色）。全程仅改排版量（字号/行高/margin/padding），不动任何颜色。 */
-html [data-copilotkit] [class*="prose"] {
-  font-size: 13.5px;
-  line-height: 1.6;
-}
-/* 统一纵向节奏：清上间距、只留下间距（10px），块与段同一口径，消除双重叠加 */
-html [data-copilotkit] [class*="prose"]
-  :where(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6,
-         [data-streamdown="code-block"], [data-streamdown="table-wrapper"]) {
-  margin-top: 0;
-  margin-bottom: 0.625rem;
-}
-/* Streamdown 块容器自带 .space-y-4（子元素 margin-top:16px）→ 归零，交由上面统一节奏接管 */
-html [data-copilotkit] [class*="prose"] .space-y-4 > * {
-  margin-top: 0;
-}
-/* 首/末子元素清零纵向 margin（气泡顶/底不留多余白） */
-html [data-copilotkit] [class*="prose"] > :first-child,
-html [data-copilotkit] [class*="prose"] .space-y-4 > :first-child {
-  margin-top: 0;
-}
-html [data-copilotkit] [class*="prose"] > :last-child,
-html [data-copilotkit] [class*="prose"] .space-y-4 > :last-child {
-  margin-bottom: 0;
-}
-/* 列表贴紧 + 适度左缩进 */
-html [data-copilotkit] [class*="prose"] li {
-  margin-top: 0.125rem;
-  margin-bottom: 0.125rem;
-}
-html [data-copilotkit] [class*="prose"] :where(ul, ol) {
-  padding-left: 1rem;
-}
-/* 标题按字号比例下调，不喧宾夺主（字重保留 600） */
-html [data-copilotkit] [class*="prose"] h1 { font-size: 15px; font-weight: 600; }
-html [data-copilotkit] [class*="prose"] h2 { font-size: 14px; font-weight: 600; }
-html [data-copilotkit] [class*="prose"] :where(h3, h4, h5, h6) { font-size: 13px; font-weight: 600; }
-/* 代码块顶栏 padding 适度收敛（默认 p-3=12px → 6px/12px） */
-html [data-copilotkit] [data-streamdown="code-block-header"] {
-  padding: 0.375rem 0.75rem;
-}
-/* 表格单元格收紧（仅排版量，配色仍走 --tw-prose-*） */
-html [data-copilotkit] [class*="prose"] :where([data-streamdown="table-cell"], [data-streamdown="table-header-cell"]) {
-  padding: 0.375rem 0.625rem;
+.markdown-body pre {
+  margin: 0.625rem 0;
+  padding: 0.7em 0.9em;
+  overflow-x: auto;
+  background: var(--muted);
+  border-radius: var(--radius-md);
   font-size: 12.5px;
 }
-/* 对话场景隐藏「下载」按钮（下载 SQL/表格片段无意义），保留复制按钮 */
-html [data-copilotkit] [data-streamdown="code-block-download-button"],
-html [data-copilotkit] button[title="Download table"] {
-  display: none;
+.markdown-body blockquote {
+  border-left: 3px solid var(--border);
+  padding: 0.1em 0.9em;
+  color: var(--muted-foreground);
+}
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+}
+.markdown-body th { background: var(--muted); font-weight: 600; }
+
+/* 代码块 chrome：语言标签 + 复制按钮（markdown-content.tsx 注入 data-component/data-slot） */
+.markdown-body [data-component="markdown-code"] {
+  margin: 0.625rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.markdown-body [data-component="markdown-code"] pre {
+  margin: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.markdown-body [data-slot="markdown-code-bar"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.6rem;
+  background: var(--muted);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.markdown-body [data-slot="markdown-code-language"] { font-family: var(--font-mono); }
+.markdown-body [data-slot="markdown-copy-button"] {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+.markdown-body [data-slot="markdown-copy-button"]:hover { color: var(--foreground); }
+/* markdown-content 包裹的表格横向滚动 */
+.markdown-body [data-slot="markdown-table-scroll"] {
+  margin: 0.625rem 0;
+  overflow-x: auto;
 }
 
-/* CopilotChat 容器自带纯白底（cpk 烤死，不走 token），改透明 → 继承 agent-rail 卡片底色。 */
-html [data-copilotkit].copilotKitChat {
-  background: transparent !important;
+/* Shiki 双主题（defaultColor:false）：亮色 --shiki-light，暗色 --shiki-dark */
+.markdown-body .shiki,
+.markdown-body .shiki span {
+  background-color: var(--shiki-light-bg, transparent);
+  color: var(--shiki-light, inherit);
 }
-
-/* AI 输入框（.copilotKitInput）：白底 + 可见边框 + 轻阴影，与全项目输入框（白底带框）统一，
-   靠边框（而非灰底）界定输入区。 */
-html [data-copilotkit] .copilotKitInput {
-  background: var(--background) !important;
-  border: 1px solid var(--border) !important;
-  box-shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05) !important;
-}
-
-/* 发送按钮：cpk 烤死 `cpk:bg-black cpk:dark:bg-white`（不走 token）。强制对齐 --primary，
-   图标走 primary-foreground，禁用态对齐 muted。 */
-html [data-copilotkit] button[data-testid="copilot-send-button"] {
-  background: var(--primary) !important;
-  color: var(--primary-foreground) !important;
-}
-html [data-copilotkit] button[data-testid="copilot-send-button"]:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-html [data-copilotkit] button[data-testid="copilot-send-button"]:disabled {
-  background: var(--muted) !important;
-  color: var(--muted-foreground) !important;
-}
-
-/* 输入条左右内缩（两态一致，不贴卡片边框；与 AI 消息正文同步）。 */
-html [data-copilotkit] *:has(> .copilotKitInput) {
-  padding-inline: 16px !important;
-}
-/* 空/对话两态输入框同宽：清零空状态居中包裹层的额外水平内边距。 */
-html [data-copilotkit] [class*="cpk:flex-1"]:has(.copilotKitInput) {
-  padding-inline: 0 !important;
-}
-
-/* AI 输入框滚动条：彻底隐藏原生条，由 agent-chat.tsx 自绘 .dw-textarea-thumb 指示位置。 */
-html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"] {
-  scrollbar-width: none;
-}
-html [data-copilotkit] textarea[data-testid="copilot-chat-textarea"]::-webkit-scrollbar {
-  display: none;
-}
-
-/* ── AI 消息滚动区：去 Windows 滚动条箭头 + 左右边距对齐输入框 ─────────────────
-   CopilotChat 消息滚动外层（inline style 烤死 `scrollbar-gutter:stable both-edges;
-   overflow:auto`）与内层 `cpk:overflow-y-auto` 容器，都被 CopilotKit 的
-   `[data-copilotkit] ::-webkit-scrollbar` 通配规则逼进 WebKit 自定义滚动条引擎 ——
-   该引擎在 Windows 上恒画上下箭头按钮（去不掉，理由同输入框 textarea）。唯一稳妥：隐藏
-   原生/webkit 滚动条避开箭头，再由 agent-chat.tsx 自绘细 taupe 指示条（.dw-textarea-thumb）
-   反映滚动位置 —— 滚动条「可见但无倒三角」。隐藏后 scrollbar-gutter 预留归零 → 左右留白
-   改由下面 .copilotKitMessages 的 padding 统一控制。 */
-html [data-copilotkit] [style*="scrollbar-gutter"],
-html [data-copilotkit] [class*="overflow-y-auto"] {
-  scrollbar-width: none;
-}
-html [data-copilotkit] [style*="scrollbar-gutter"]::-webkit-scrollbar,
-html [data-copilotkit] [class*="overflow-y-auto"]::-webkit-scrollbar {
-  display: none;
-}
-/* AI 消息正文左右边距对齐输入框（.copilotKitInput 内缩 16px），不贴卡片边框。 */
-html [data-copilotkit] .copilotKitMessages {
-  padding-inline: 16px;
-}
-
-/* 自绘指示条：中性灰，随亮/暗切换；pointer-events:none 不挡输入；只反映位置（不可拖拽）。 */
-.dw-textarea-thumb {
-  position: absolute;
-  width: 4px;
-  border-radius: 9999px;
-  background: oklch(0.556 0 0);
-  opacity: 0.85;
-  pointer-events: none;
-  z-index: 20;
-}
-html.dark .dw-textarea-thumb {
-  background: oklch(0.708 0 0);
+html.dark .markdown-body .shiki,
+html.dark .markdown-body .shiki span {
+  background-color: var(--shiki-dark-bg, transparent) !important;
+  color: var(--shiki-dark, inherit) !important;
 }
 
 /* OverlayScrollbars：尺寸和颜色对齐 .dw-textarea-thumb（4px、中性灰、无 padding）。

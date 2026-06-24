@@ -44,6 +44,8 @@ class DiagnosisServiceTest {
     private DiagnosisAnalyzer analyzer;
     @Mock
     private GatedActionService gatedActionService;
+    @Mock
+    private NodeTelemetryService nodeTelemetry;
 
     private DiagnosisService service;
 
@@ -58,7 +60,7 @@ class DiagnosisServiceTest {
     @BeforeEach
     void setUp() {
         service = new DiagnosisService(instanceRepository, taskDefRepository,
-                nodeRepository, diagnosisRepository, analyzer, gatedActionService, realMessages());
+                nodeRepository, diagnosisRepository, analyzer, gatedActionService, nodeTelemetry, realMessages());
     }
 
     @Test
@@ -71,7 +73,7 @@ class DiagnosisServiceTest {
         TaskDiagnosis result = service.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
 
         assertThat(result).isSameAs(existing);
-        verify(analyzer, never()).analyze(any(), any(), any(), any());
+        verify(analyzer, never()).analyze(any(), any(), any(), any(), any());
         verify(diagnosisRepository, never()).save(any());
     }
 
@@ -95,14 +97,14 @@ class DiagnosisServiceTest {
         task.setId(10L);
         when(taskDefRepository.findById(10L)).thenReturn(Optional.of(task));
 
-        when(analyzer.analyze(eq(instance), eq(node), eq(task), any())).thenReturn(new DiagnosisAnalyzer.Analysis(
+        when(analyzer.analyze(eq(instance), eq(node), eq(task), any(), any())).thenReturn(new DiagnosisAnalyzer.Analysis(
                 "OOM@node-3", "executor 内存溢出", "{\"node\":\"node-3\"}", "[{\"label\":\"调大内存\"}]"));
         when(diagnosisRepository.save(any(TaskDiagnosis.class))).thenAnswer(inv -> inv.getArgument(0));
 
         TaskDiagnosis result = service.diagnoseInstance(java.util.UUID.fromString("01910000-0010-7000-8000-000000000100"));
 
         // 采集了正确的上下文对象
-        verify(analyzer).analyze(eq(instance), eq(node), eq(task), any());
+        verify(analyzer).analyze(eq(instance), eq(node), eq(task), any(), any());
 
         ArgumentCaptor<TaskDiagnosis> cap = ArgumentCaptor.forClass(TaskDiagnosis.class);
         verify(diagnosisRepository).save(cap.capture());

@@ -236,6 +236,35 @@
     "placeholder": "Ask DataWeave Agent",
     "thinking": "Thinking"
   },
+  "chat": {
+    "placeholder": "Ask DataWeave Agent",
+    "send": "Send",
+    "stop": "Stop generating",
+    "emptyHint": "I'm the DataWeave Agent — I can help diagnose failed tasks, inspect cluster nodes, rerun instances, and more.",
+    "interrupted": "Stopped generating",
+    "copyCode": "Copy code",
+    "sessions": "Sessions",
+    "newSession": "New session",
+    "deleteSession": "Delete session",
+    "noSessions": "No sessions",
+    "untitledSession": "New session",
+    "permissionTitle": "Approval required",
+    "approve": "Approve",
+    "reject": "Reject",
+    "permissionAllowed": "Approved",
+    "permissionDenied": "Rejected"
+  },
+  "findings": {
+    "railTitle": "Agent hand-raisers",
+    "railEmpty": "No pending items",
+    "loading": "Loading",
+    "source": "Source",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approved": "Approved and executed",
+    "rejected": "Rejected",
+    "execFailed": "Execution failed"
+  },
   "agentRail": {
     "current": "Current: ",
     "logout": "Log out",

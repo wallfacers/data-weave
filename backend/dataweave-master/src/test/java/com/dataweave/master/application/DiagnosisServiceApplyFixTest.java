@@ -39,6 +39,8 @@ class DiagnosisServiceApplyFixTest {
     private DiagnosisAnalyzer analyzer;
     @Mock
     private GatedActionService gatedActionService;
+    @Mock
+    private NodeTelemetryService nodeTelemetry;
 
     private DiagnosisService diagnosisService;
 
@@ -53,7 +55,7 @@ class DiagnosisServiceApplyFixTest {
     @BeforeEach
     void setUp() {
         diagnosisService = new DiagnosisService(instanceRepository, taskDefRepository,
-                nodeRepository, diagnosisRepository, analyzer, gatedActionService, realMessages());
+                nodeRepository, diagnosisRepository, analyzer, gatedActionService, nodeTelemetry, realMessages());
     }
 
     @Test

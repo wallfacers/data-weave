@@ -1,0 +1,89 @@
+# 实施任务
+
+> **并行切分**：Group 0 是两包共同的契约约定（已冻结于 design.md D5，无需改动，仅对齐认知）。
+> **🅰 后端窗口**做 Group 1–5（只动 `backend/` + `schema.sql`/`data.sql` + `scripts/`）。
+> **🅱 前端窗口**做 Group 6–9（只动 `frontend/`）。
+> 两包仅经 design.md D5 冻结契约耦合；🅱 开发期可 mock `/api/agent/stream` 与 `/api/findings`。
+> 收尾联调（Group 10）两窗口合流后一起做。
+
+## 0. 契约对齐（两包共同前提，不写代码）
+
+- [x] 0.1 双方确认 design.md §D5 冻结契约：`/agui`(不变)、`GET /api/agent/stream`、`GET /api/findings`、`POST /api/findings/{id}/apply`、`/api/agent/sessions*`；`Finding` 与 SSE 事件形状
+- [x] 0.2 约定文件归属：🅰 owns `backend/`+sql+scripts+CLAUDE.md 导航行；🅱 owns `frontend/`+CLAUDE.md 前端栈门小节（不同小节，git 不冲突）
+
+## 1. 🅰 Finding 模型与持久化
+
+- [x] 1.1 `finding` 表加入 `schema.sql`（含顶部 `DROP TABLE IF EXISTS finding;` 幂等；列见 design D1），自检 CREATE/DROP 配对 — 45/45 配对
+- [x] 1.2 `Finding` domain + `FindingRepository`（Spring Data JDBC），字段含 evidenceJson/actionsJson/status/announced
+- [x] 1.3 `data.sql` 视需要播种少量首屏 Finding（或留空由巡检填充，按 D 决策）；H2/PG 两库各验一遍 — 播种 OOM Finding(id=1) 对应现有诊断
+- [x] 1.4 单测：Finding 存取 + status 流转 — 落为 `FindingService`(去重/resolve/markAnnounced) + `FindingServiceTest` 4 通过
+
+## 2. 🅰 Inspector SPI 与失败巡检器
+
+- [x] 2.1 `Inspector` SPI 接口（`source()` + `inspect(): List<Finding>`）
+- [x] 2.2 `TaskFailureInspector`：扫未诊断 FAILED 实例 → 调 `DiagnosisService.diagnoseInstance` → 映射 `TaskDiagnosis`→`Finding`（不重写诊断）；suggestions→actions(key/label/actionType) 映射
+- [x] 2.3 去重：inspect 内 `findingService.exists`(任意状态)跳过已处理目标 + `recordIfNew` 按 (source,targetType,targetId) 对 OPEN/ANNOUNCED 去重（双层）
+- [x] 2.4 单测：未处理 FAILED→映射 Finding；已处理跳过不诊断；mapActions 回退 — TaskFailureInspectorTest 3 通过
+
+## 3. 🅰 巡检调度
+
+- [x] 3.1 `InspectorScheduler`：`@Scheduled(fixedDelay)` 遍历所有 `Inspector` Bean 执行巡检并落库；runOnce 返回本轮新建（供 Group 4 推送）
+- [x] 3.2 失败事件加速触发：`InstanceStateMachine` casTaskTerminal→FAILED 发 `TaskInstanceFailedEvent`，`@Async @EventListener` 加速；定时兜底保底（异步竞态下轮补）；api 加 `@EnableAsync`
+- [x] 3.3 单测：遍历所有 Inspector + 新增第二个 Inspector(DATA_QUALITY)自动纳入 + 单个巡检器抛错隔离 — InspectorSchedulerTest 2 通过
+
+## 4. 🅰 真推通道与 Findings/会话 API
+
+- [x] 4.1 `AgentNotifier`：经现有 `EventBus`(InMemory/Redis 双实现) 广播到 `dw:agent:notify`，信封 `{event,data}`；finding()/message() 两出口
+- [x] 4.2 `GET /api/agent/stream` 持久 SSE 控制器：订阅 EventBus → Flux fan-out `agent.finding`/`agent.message`/`keepalive`(20s)，断线关订阅
+- [x] 4.3 巡检落库后 `AgentNotifier.finding` + 主动开口 `message`(i18n `finding.proactive.announce`) + `markAnnounced` 去重
+- [x] 4.4 `GET /api/findings`(active) + `POST /api/findings/{id}/apply`：`FindingActionService`→`DiagnosisService.submitFix`(抽出返回完整 GateResult)→闸门，EXECUTED 置 RESOLVED；返回 outcome 分流
+- [x] 4.5 多会话持久化：新建 `agent_chat_session`/`agent_chat_message` 两表 + domain/repo/`AgentSessionService` + `AgentSessionController`(增/列/删/历史/追加消息)
+- [x] 4.6 测试：FindingEndpointTest(list+apply 经闸门) + AgentSessionEndpointTest(增→追加→历史→删全链) h2 通过
+
+## 5. 🅰 L1 真采集 + 故障注入脚本
+
+- [x] 5.1 `HeartbeatReporter.sample()` 接 `com.sun.management.OperatingSystemMXBean` 采真实 cpu/mem/disk/load（0-100 百分比），替换硬编码 0.3/0.45/0.5/1.2
+- [x] 5.2 `NodeTelemetryService.concurrentTasks` 按 worker_node_code 聚合 DISPATCHED/RUNNING → 真实 concurrentTasks，经 `DiagnosisAnalyzer.Telemetry` 注入诊断证据（不再信任 worker 上报）
+- [x] 5.3 `NodeTelemetryService.failureCount7d` 近 7 天 task_id×node FAILED 计数 → `history7d` 入诊断 context/Finding evidence
+- [x] 5.4 `scripts/fault-injection.sql` 故障注入脚本：FAILED 实例(OOM 堆栈日志)+拉高 node-3 指标+2 并发争抢；非运行时、prod 不加载、可重跑
+- [x] 5.5 测试：HeartbeatMetricsTest(真采集值非旧常量) + NodeTelemetryServiceTest(并发=2/history=1 真实聚合) 通过
+
+## 6. 🅱 自有聊天台（替换 CopilotKit）
+
+- [x] 6.1 移除 `@copilotkit/*` 聊天用法与 `agent-rail.tsx` 旧实现（参照 `workhorse/workhorse-assistant/src/session/types.ts` 与 `components/chat/`）
+- [x] 6.2 `MessagePart` 联合（text/reasoning/tool_call/permission/error/pending）+ `ChatMessage` + `ChatRuntime` 类型
+- [x] 6.3 聊天台组件：消息列表渲染（markdown/工具块/reasoning）、输入框、流式增量追加
+- [x] 6.4 AG-UI 流消费：`POST /agui` → 解析 SCREAMING_SNAKE_CASE 事件序列 → 追加 parts（RUN_STARTED…RUN_FINISHED）
+- [x] 6.5 CLAUDE.md 前端栈门小节：CopilotKit→自有聊天台，写明偏离理由（指向本 change design）
+
+## 7. 🅱 多会话 store 与侧栏
+
+- [x] 7.1 `runtimes: Map<sessionId, ChatRuntime>` store（zustand，与现有 workspace store 风格一致）
+- [x] 7.2 会话侧栏：新建/切换/删除；切换保留各自缓冲
+- [x] 7.3 持久化：走 `/api/agent/sessions*`；重开会话经 history 端点重水合
+- [x] 7.4 后台并流：非可见会话的流继续接收（参照 SessionProvider「每活会话挂监听」）
+
+## 8. 🅱 真推订阅与主动开口
+
+- [x] 8.1 持久订阅 `GET /api/agent/stream`（EventSource 直连后端 SSE_BASE，避开 Next 代理缓冲；断线指数退避重连）
+- [x] 8.2 收到 `agent.message` → push 进目标会话 runtime（Agent 无人发问主动开口）
+- [x] 8.3 收到 `agent.finding` → 刷新举手台
+
+## 9. 🅱 举手台通用化 + 闸门内联
+
+- [x] 9.1 举手台从 `/api/diagnosis` 改为渲染 `GET /api/findings` 的通用 `Finding[]`（title/severity/rootCause/evidence 卡片）
+- [x] 9.2 一键修复 → `POST /api/findings/{id}/apply`，按 outcome 分流（executed / PENDING_APPROVAL / rejected）
+- [x] 9.3 `permission` part 内联审批：PENDING_APPROVAL 时渲染同意/拒绝并提交决策
+- [x] 9.4 i18n：新增用户可见文案进 `messages/{zh-CN,en-US}.json`（双 bundle 键集一致），无 `…` 进行中态
+
+## 10. 收尾联调（两窗口合流后）
+
+- [x] 10.0 合流 review：发现并修复 4 处前后端接缝漂移（agent.finding 扁平/agent.message markdown→content/apply approvalId 缺失/outcome 大小写）+ history 重水合，集中在 `real.ts` 适配层 + 后端 approvalId（commit `908c5ff`）
+- [x] 10.1 后端 `./mvnw install -DskipTests` 零错 + 14 新测试全绿；前端 `pnpm typecheck` 零错（build 由 🅱 报绿）
+- [x] 10.2 端到端竖切：**全真模式浏览器门 PASS**（干净单后端 :8001 真码 + 前端 dev `NEXT_PUBLIC_CHAT_MOCK=0`/`NEXT_PUBLIC_BACKEND_URL=:8001`，playwright 注入 admin token）——fresh boot 即 `InspectorScheduler 本轮新建 1 条 Finding`，举手台渲染**自主发现** finding id=100（CRITICAL·TASK_FAILURE，真证据 nodeMem95/nodeCpu72/history7d1）+ Agent 主动开口问候 + 自研聊天台真输入框（非分隔线），**console error 0**（4 处接缝修复在实时 UI 站住）；真端点 `POST /api/findings/100/apply{RERUN_MORE_MEMORY}` → `EXECUTED`+approvalId=100+newInstanceId → finding RESOLVED 移出举手台。截图存证后清理
+- [~] 10.3 schema 幂等：H2 已实证（测试 + 8001 fresh boot 加载 schema+data 干净）+ 结构自检 47/47 DROP/CREATE 配对（每 CREATE 前置 DROP IF EXISTS）；**PG 二次启动幂等**本环境 `docker 不可用`无法实跑（硬环境限制，非跳过）——留待有 docker 的环境一条 `docker compose up -d` + 二次 `spring-boot:run` 默认 profile 验证
+- [x] 10.4 CLAUDE.md 导航行（🅰）补 Proactive discovery / 主动播报 / 自有聊天台 / L1 真采集 四入口；浏览器产物无（未做 playwright）；data.sql 加 demo 未诊断 FAILED 实例供 fresh-boot 主动发现演示
+
+### 已知缺口（fast-follow，不阻塞主线）
+- 前端未持久化消息（无 POST `/api/agent/sessions/{id}/messages`）→ reopen 会话为空，7.3「重水合」只读未写（与主动发现 demo 正交）
+- 全真模式浏览器门 + PG 二次启动幂等：需干净单后端环境（独占 8000 或显式改端口）+ docker PG，留待用户环境实跑

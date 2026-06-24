@@ -65,8 +65,10 @@ function walk(dir, acc = []) {
   return acc
 }
 const SCAN_DIRS = ["components", "app", "lib"]
-// 豁免清单：登记刻意保留中文的文件（须附理由）。当前为空——全部用户可见文案已抽 key。
-const ALLOWLIST = new Set()
+// 豁免清单：登记刻意保留中文的文件（须附理由）。
+// - lib/chat/mock.ts：mock provider，模拟后端 AG-UI 回复 + Finding 数据（生产由后端
+//   Messages.get 本地化），仅为开发期替身，非生产 UI 框架文案。
+const ALLOWLIST = new Set(["lib/chat/mock.ts"])
 const offenders = []
 for (const d of SCAN_DIRS) {
   for (const file of walk(join(ROOT, d))) {
