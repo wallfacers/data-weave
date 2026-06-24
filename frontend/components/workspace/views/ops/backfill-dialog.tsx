@@ -5,8 +5,9 @@
  * 提交 POST /api/ops/backfill，按 outcome 三态分流。
  */
 
-import { useState } from "react"
-import { useTranslations } from "next-intl"
+import { useMemo, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
+import { zhCN, enUS } from "date-fns/locale"
 import { toast } from "sonner"
 
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DropdownSelect } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
@@ -59,6 +61,8 @@ export function BackfillDialog({
   initialTargetId = "",
 }: BackfillDialogProps) {
   const t = useTranslations("ops")
+  const locale = useLocale()
+  const dateFnsLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const [targetType, setTargetType] = useState<"task" | "workflow">(initialTargetType)
   const [targetId, setTargetId] = useState<string>(String(initialTargetId ?? ""))
   const [dateStart, setDateStart] = useState("")
@@ -159,13 +163,25 @@ export function BackfillDialog({
               <label className="text-xs font-medium text-muted-foreground">
                 {t("backfillDateStart")}
               </label>
-              <Input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+              <DatePicker
+                value={dateStart || undefined}
+                onChange={setDateStart}
+                placeholder={t("backfillDateStart")}
+                locale={dateFnsLocale}
+                quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 {t("backfillDateEnd")}
               </label>
-              <Input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+              <DatePicker
+                value={dateEnd || undefined}
+                onChange={setDateEnd}
+                placeholder={t("backfillDateEnd")}
+                locale={dateFnsLocale}
+                quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
+              />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
