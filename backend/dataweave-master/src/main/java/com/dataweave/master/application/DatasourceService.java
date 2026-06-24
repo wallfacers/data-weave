@@ -2,6 +2,8 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DatasourceType;
+import com.dataweave.master.domain.DatasourceTypeRepository;
 import com.dataweave.master.domain.DriverJar;
 import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.domain.TaskDefRepository;
@@ -21,18 +23,21 @@ import static com.dataweave.master.application.DatasourceDtos.*;
 public class DatasourceService {
 
     private static final String MASKED_PASSWORD = "******";
-    private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DatasourceRepository datasourceRepository;
+    private final DatasourceTypeRepository datasourceTypeRepository;
     private final TaskDefRepository taskDefRepository;
     private final DriverJarRepository driverJarRepository;
     private final DatasourceEncryptor encryptor;
 
     public DatasourceService(DatasourceRepository datasourceRepository,
+                             DatasourceTypeRepository datasourceTypeRepository,
                              TaskDefRepository taskDefRepository,
                              DriverJarRepository driverJarRepository,
                              DatasourceEncryptor encryptor) {
         this.datasourceRepository = datasourceRepository;
+        this.datasourceTypeRepository = datasourceTypeRepository;
         this.taskDefRepository = taskDefRepository;
         this.driverJarRepository = driverJarRepository;
         this.encryptor = encryptor;
@@ -87,16 +92,27 @@ public class DatasourceService {
         ds.setName(req.name());
         ds.setTypeCode(req.typeCode());
         ds.setHost(req.host());
-        ds.setPort(req.port());
+        // 端口：前端传了就直接用；未传则查 datasource_types.default_port 兜底
+        Integer port = req.port();
+        if (port == null) {
+            port = datasourceTypeRepository.findByCode(req.typeCode())
+                    .map(DatasourceType::getDefaultPort)
+                    .orElse(null);
+        }
+        ds.setPort(port);
         ds.setDatabaseName(req.databaseName());
         ds.setJdbcUrl(req.jdbcUrl());
         ds.setUsername(req.username());
         ds.setDescription(req.description());
         ds.setPropsJson(req.propsJson());
         ds.setStatus("ACTIVE");
+        ds.setConnectionStatus("UNKNOWN");
         ds.setDriverJarId(resolveActiveDriverJar(req.driverJarId()));
         ds.setDeleted(0);
         ds.setVersion(0);
+        LocalDateTime now = LocalDateTime.now();
+        ds.setCreatedAt(now);
+        ds.setUpdatedAt(now);
 
         // Encrypt password
         if (req.password() != null && !req.password().isEmpty()) {
@@ -141,6 +157,8 @@ public class DatasourceService {
         if (req.password() != null && !req.password().isEmpty()) {
             ds.setPasswordEnc(encryptor.encrypt(req.password()));
         }
+
+        ds.setUpdatedAt(LocalDateTime.now());
 
         Datasource saved = datasourceRepository.save(ds);
         return toVO(saved);
@@ -188,6 +206,17 @@ public class DatasourceService {
         return encryptor.decrypt(ds.getPasswordEnc());
     }
 
+    /** 更新数据源连接状态（连通性测试后调用）。 */
+    public void updateConnectionStatus(Long id, boolean connected) {
+        Datasource ds = datasourceRepository.findById(id)
+                .filter(d -> d.getDeleted() == null || d.getDeleted() == 0)
+                .orElseThrow(() ->
+                        new BizException("datasource.not_found", id).withHttpStatus(404));
+        ds.setConnectionStatus(connected ? "CONNECTED" : "DISCONNECTED");
+        ds.setUpdatedAt(LocalDateTime.now());
+        datasourceRepository.save(ds);
+    }
+
     // --- private helpers ---
 
     /** 校验 driverJarId 指向 ACTIVE 资产；null 返回 null（走内置默认）。 */
@@ -206,6 +235,7 @@ public class DatasourceService {
 
     private DatasourceVO toVO(Datasource ds) {
         String driverSource = ds.getDriverJarId() != null ? "uploaded" : "builtin";
+        String connStatus = ds.getConnectionStatus() != null ? ds.getConnectionStatus() : "UNKNOWN";
         return new DatasourceVO(
                 ds.getId(),
                 ds.getTenantId(),
@@ -221,6 +251,7 @@ public class DatasourceService {
                 ds.getPropsJson(),
                 ds.getDescription(),
                 ds.getStatus(),
+                connStatus,
                 ds.getDriverJarId(),
                 driverSource,
                 ds.getCreatedAt() != null ? ds.getCreatedAt().format(DT_FMT) : null,

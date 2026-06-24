@@ -2,6 +2,8 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
+import com.dataweave.master.domain.DatasourceType;
+import com.dataweave.master.domain.DatasourceTypeRepository;
 import com.dataweave.master.domain.DriverJar;
 import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.domain.TaskDefRepository;
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.*;
 class DatasourceServiceTest {
 
     @Mock DatasourceRepository datasourceRepository;
+    @Mock DatasourceTypeRepository datasourceTypeRepository;
     @Mock TaskDefRepository taskDefRepository;
     @Mock DriverJarRepository driverJarRepository;
     @Mock DatasourceEncryptor encryptor;
@@ -34,7 +37,7 @@ class DatasourceServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DatasourceService(datasourceRepository, taskDefRepository, driverJarRepository, encryptor);
+        service = new DatasourceService(datasourceRepository, datasourceTypeRepository, taskDefRepository, driverJarRepository, encryptor);
     }
 
     @Test
@@ -184,6 +187,10 @@ class DatasourceServiceTest {
         jar.setDeleted(0);
         when(driverJarRepository.findById(5L)).thenReturn(Optional.of(jar));
         when(datasourceRepository.existsByProjectIdAndNameAndDeleted(1L, "ds_jar", 0)).thenReturn(false);
+        // port is null → default port fallback
+        DatasourceType mysqlType = new DatasourceType();
+        mysqlType.setDefaultPort(3306);
+        when(datasourceTypeRepository.findByCode("MYSQL")).thenReturn(Optional.of(mysqlType));
         when(datasourceRepository.save(any(Datasource.class))).thenAnswer(inv -> {
             Datasource d = inv.getArgument(0);
             d.setId(20L);
@@ -206,6 +213,10 @@ class DatasourceServiceTest {
         jar.setDeleted(0);
         when(datasourceRepository.existsByProjectIdAndNameAndDeleted(1L, "ds_jar", 0)).thenReturn(false);
         when(driverJarRepository.findById(5L)).thenReturn(Optional.of(jar));
+        // port is null → default port fallback
+        DatasourceType mysqlType = new DatasourceType();
+        mysqlType.setDefaultPort(3306);
+        when(datasourceTypeRepository.findByCode("MYSQL")).thenReturn(Optional.of(mysqlType));
 
         DatasourceCreateRequest req = new DatasourceCreateRequest(
                 "ds_jar", "MYSQL", 1L, null, null, null, null, null, null, null, null, 5L);

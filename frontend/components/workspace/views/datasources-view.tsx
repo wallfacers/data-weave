@@ -118,6 +118,8 @@ export function DatasourcesView() {
       } else {
         toast.error(result.message)
       }
+      // 刷新列表以展示最新的连接状态
+      load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed")
     } finally {
@@ -224,12 +226,25 @@ export function DatasourcesView() {
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{ds.databaseName ?? "—"}</td>
                   <td className="px-3 py-2">
-                    <Badge variant={ds.status === "ACTIVE" ? "default" : "secondary"} className="text-xs">
-                      {ds.status}
+                    <Badge
+                      variant={
+                        ds.connectionStatus === "CONNECTED"
+                          ? "default"
+                          : ds.connectionStatus === "DISCONNECTED"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {ds.connectionStatus === "CONNECTED"
+                        ? t("status.connected")
+                        : ds.connectionStatus === "DISCONNECTED"
+                          ? t("status.disconnected")
+                          : t("status.untested")}
                     </Badge>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground text-xs">
-                    {ds.createdAt ? new Date(ds.createdAt).toLocaleDateString() : "—"}
+                    {ds.createdAt ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button variant="ghost" size="icon" className="size-7" onClick={() => handleEdit(ds)}>
@@ -378,12 +393,12 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
         port: fields.port ? Number(fields.port) : null,
         databaseName: fields.databaseName || null,
         username: fields.username || null,
+        // 密码：用户输入了新密码则传明文；否则传 null，后端编辑模式下会用已保存密码
         password: fields.password || null,
         jdbcUrl: config?.jdbcUrlTemplate ? buildJdbcUrl(selectedType, fields) : null,
       }
-      const result = editing
-        ? await testDatasource(editing.id)
-        : await testDatasourceConfig(req)
+      // 始终用当前表单值测试；编辑时传 datasourceId 让后端复用已保存密码
+      const result = await testDatasourceConfig(req, editing?.id)
       setTestResult(result)
     } catch {
       setTestResult({ success: false, message: "Test failed", latencyMs: 0, serverVersion: null })
@@ -443,7 +458,19 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
                 value={selectedType}
                 onChange={(v) => {
                   setSelectedType(v)
-                  setFields({})
+                  // Initialize fields with default values from config (e.g. MySQL → 3306)
+                  const cfg = DATASOURCE_TYPE_CONFIG[v]
+                  if (cfg) {
+                    const defaults: Record<string, string> = {}
+                    for (const f of cfg.fields) {
+                      if (f.defaultValue != null) {
+                        defaults[f.key] = String(f.defaultValue)
+                      }
+                    }
+                    setFields(defaults)
+                  } else {
+                    setFields({})
+                  }
                   setTestResult(null)
                 }}
                 placeholder={t("form.typePh")}

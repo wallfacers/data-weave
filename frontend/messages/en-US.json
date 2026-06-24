@@ -673,6 +673,11 @@
       "createdAt": "Created",
       "actions": "Actions"
     },
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "untested": "Untested"
+    },
     "cancel": "Cancel",
     "actions": {
       "testConnection": "Test Connection"

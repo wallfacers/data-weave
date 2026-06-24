@@ -397,6 +397,7 @@ export interface DatasourceVO {
   propsJson: string | null
   description: string | null
   status: string
+  connectionStatus: string  // "UNKNOWN" | "CONNECTED" | "DISCONNECTED"
   driverJarId: number | null
   driverSource: string  // "builtin" | "uploaded"
   createdAt: string | null

@@ -89,11 +89,16 @@ public class DatasourceController {
             @RequestHeader(value = "Accept-Language", required = false, defaultValue = "zh-CN") String acceptLang) {
         Datasource ds = datasourceService.getEntityById(id);
         String decryptedPw = datasourceService.decryptPassword(ds);
-        return ApiResponse.ok(connectionTesterFactory.test(ds, decryptedPw, resolveLocale(acceptLang)));
+        ConnectionTestResult result = connectionTesterFactory.test(ds, decryptedPw, resolveLocale(acceptLang));
+        // 持久化连接状态（CONNECTED / DISCONNECTED）
+        datasourceService.updateConnectionStatus(id, result.success());
+        return ApiResponse.ok(result);
     }
 
     @PostMapping("/datasources/test")
-    public ApiResponse<ConnectionTestResult> testConfig(@RequestBody DatasourceCreateRequest req,
+    public ApiResponse<ConnectionTestResult> testConfig(
+            @RequestBody DatasourceCreateRequest req,
+            @RequestParam(required = false) Long datasourceId,
             @RequestHeader(value = "Accept-Language", required = false, defaultValue = "zh-CN") String acceptLang) {
         // Build a transient Datasource from request (not saved to DB)
         Datasource ds = new Datasource();
@@ -105,8 +110,15 @@ public class DatasourceController {
         ds.setJdbcUrl(req.jdbcUrl());
         ds.setUsername(req.username());
         ds.setPropsJson(req.propsJson());
-        // Password is plaintext in the test request — pass directly
-        return ApiResponse.ok(connectionTesterFactory.test(ds, req.password(), resolveLocale(acceptLang)));
+
+        // 密码：表单传了明文就用明文；为空且是编辑（有 datasourceId）→ 用已保存的密码
+        String password = req.password();
+        if ((password == null || password.isEmpty()) && datasourceId != null) {
+            Datasource saved = datasourceService.getEntityById(datasourceId);
+            password = datasourceService.decryptPassword(saved);
+        }
+
+        return ApiResponse.ok(connectionTesterFactory.test(ds, password, resolveLocale(acceptLang)));
     }
 
     /** 解析 Accept-Language 头（取首个 tag）为 Locale；空/异常兜底中文。 */

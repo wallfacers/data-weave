@@ -68,8 +68,10 @@ export async function testDatasource(id: number): Promise<ConnectionTestResult> 
 
 export async function testDatasourceConfig(
   req: DatasourceCreateRequest,
+  datasourceId?: number,
 ): Promise<ConnectionTestResult> {
-  const res = await authFetch(`${API}/api/datasources/test`, {
+  const params = datasourceId != null ? `?datasourceId=${datasourceId}` : ""
+  const res = await authFetch(`${API}/api/datasources/test${params}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

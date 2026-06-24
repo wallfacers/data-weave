@@ -673,6 +673,11 @@
       "createdAt": "创建时间",
       "actions": "操作"
     },
+    "status": {
+      "connected": "已联通",
+      "disconnected": "未联通",
+      "untested": "未测试"
+    },
     "cancel": "取消",
     "actions": {
       "testConnection": "测试连通性"

@@ -22,6 +22,8 @@ public class Datasource {
     private String propsJson;
     private String description;
     private String status;
+    /** 连通性状态：UNKNOWN（未测试） / CONNECTED（已联通） / DISCONNECTED（未联通）。 */
+    private String connectionStatus;
     /** 绑定的上传驱动 jar 资产 id（datasource-driver-isolation）；NULL = 走内置默认驱动。 */
     private Long driverJarId;
     private Long createdBy;
@@ -74,6 +76,9 @@ public class Datasource {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getConnectionStatus() { return connectionStatus; }
+    public void setConnectionStatus(String connectionStatus) { this.connectionStatus = connectionStatus; }
 
     public Long getDriverJarId() { return driverJarId; }
     public void setDriverJarId(Long driverJarId) { this.driverJarId = driverJarId; }

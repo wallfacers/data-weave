@@ -57,6 +57,7 @@ public final class DatasourceDtos {
             String propsJson,
             String description,
             String status,
+            String connectionStatus,
             Long driverJarId,
             String driverSource,
             String createdAt,
