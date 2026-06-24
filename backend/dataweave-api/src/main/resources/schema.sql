@@ -34,6 +34,7 @@ DROP TABLE IF EXISTS task_def;
 DROP TABLE IF EXISTS entity_tag;
 DROP TABLE IF EXISTS tag;
 DROP TABLE IF EXISTS catalog_node;
+DROP TABLE IF EXISTS driver_jars;
 DROP TABLE IF EXISTS datasources;
 DROP TABLE IF EXISTS notification_channels;
 DROP TABLE IF EXISTS project_member;
@@ -46,6 +47,10 @@ DROP TABLE IF EXISTS worker_nodes;
 DROP TABLE IF EXISTS datasource_types;
 DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS tenants;
+-- 表级血缘（table-lineage）：与下方 CREATE 配对，保证 mode=always 在持久库（PG）重启幂等。
+DROP TABLE IF EXISTS task_run_table_io;
+DROP TABLE IF EXISTS task_table_io;
+DROP TABLE IF EXISTS data_table;
 
 -- ============================================================
 -- 域 A · 租户与 RBAC

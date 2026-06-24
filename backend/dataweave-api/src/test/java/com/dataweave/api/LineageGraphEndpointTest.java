@@ -71,4 +71,29 @@ class LineageGraphEndpointTest {
                 .jsonPath("$.data.nodes").isArray()
                 .jsonPath("$.data.edges").isArray();
     }
+
+    @Test
+    void syncSummary_h2聚合最近业务日WRITE行数_含种子186M() {
+        // 6.1 H2 方言验证：syncedRowsLatestDay 的 SUM + 子查询 MAX(biz_date) 在 H2 跑通。
+        // data.sql 种 4 行 task_run_table_io（biz_date 2026-06-24，WRITE 98M+76M+12M=186M）。
+        client.get().uri("/api/lineage/sync-summary")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.syncedRows").isEqualTo(186000000);
+    }
+
+    @Test
+    void etaSummary_h2预测端点契约_运行中实例给出非空ETA() {
+        // 6.1 H2 方言验证：predictLatestEta 的 LIMIT ? + 时长中位数在 H2 跑通。
+        // data.sql 种任务 9101（历史 SUCCESS + 此刻起跑 RUNNING）→ 应有非空预测。
+        client.get().uri("/api/ops/eta-summary")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.remainingSeconds").exists()
+                .jsonPath("$.data.predictedCount").exists();
+    }
 }
