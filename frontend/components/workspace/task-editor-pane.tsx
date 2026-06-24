@@ -13,9 +13,10 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useLocale, useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { FloppyDiskIcon, RocketIcon, StopIcon } from "@hugeicons/core-free-icons"
+import { FloppyDiskIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons"
 
-import { API_BASE, authFetch, type ApiResponse, type TaskDef, type TaskDefVersion, type TaskDetail } from "@/lib/types"
+import { API_BASE, authFetch, type ApiResponse, type LatestInstanceView, type TaskDef, type TaskDefVersion, type TaskDetail } from "@/lib/types"
+import { isTerminalDotState, isTerminalInstanceState, type RunDotState } from "@/lib/workspace/run-dot-state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -124,6 +125,10 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
 
   // 手动运行 + 日志 Tabs（状态/关闭族/拖拽高度收口到公共 hook）
   const [running, setRunning] = useState(false)
+  // 当前运行实例（本次触发或重开续接到的「主实例」）——运行按钮态与「停止」目标的真相源。
+  const [currentRunInstanceId, setCurrentRunInstanceId] = useState<string | null>(null)
+  // RunLogsTabs 上提的每 Tab 圆点态聚合，据 currentRunInstanceId 派生按钮态。
+  const [dotMap, setDotMap] = useState<Record<string, RunDotState>>({})
   const {
     runTabs,
     activeRunTab,
@@ -140,6 +145,11 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
 
   const published = status === "ONLINE"
   const editorLang: CodeEditorLanguage = type === "SQL" ? "sql" : "bash"
+
+  // 运行按钮态真相源：当前运行实例的圆点态。刚开 Tab 圆点未上报(undefined=连接中)视作非终态 → 显示「停止」;
+  // 终态复位为「运行」;Tab 被关闭时下方 effect 会清空 currentRunInstanceId → 同样复位。
+  const currentDot: RunDotState | undefined = currentRunInstanceId ? dotMap[currentRunInstanceId] : undefined
+  const showStop = currentRunInstanceId != null && !isTerminalDotState(currentDot)
 
   // 快捷表达式预设：value 固定，label 经 i18n。
   const expressionPresets = useMemo(
@@ -199,6 +209,36 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       useWorkspaceStore.getState().setTaskDirty(taskId, false)
     }
   }, [taskId, dirty])
+
+  // 重开/刷新续接（run-state-resume）：查后端最近 NORMAL 实例,非终态则设为当前运行实例并续开日志 Tab,
+  // 按钮显示「停止」、SSE 续流。终态/无实例则不开 Tab、按钮保持「运行」。竞态由 logs/stream 历史回放+end 自愈。
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/api/ops/tasks/${taskId}/latest-instance`)
+        const j = (await res.json()) as ApiResponse<LatestInstanceView | null>
+        if (cancelled || j.code !== 0 || !j.data) return
+        const inst = j.data
+        if (!isTerminalInstanceState(inst.state)) {
+          setCurrentRunInstanceId(inst.id)
+          openRunTab({ instanceId: inst.id, taskName: `#${taskId}`, startedAt: new Date().toISOString(), kind: "log" })
+        }
+      } catch {
+        /* 续接失败静默,不影响编辑 */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [taskId, openRunTab])
+
+  // 当前运行实例的日志 Tab 被用户关闭 → 放弃前端跟踪,按钮复位「运行」(后台实例不受影响,刷新可再续接)。
+  useEffect(() => {
+    if (currentRunInstanceId && !runTabs.some((tb) => tb.instanceId === currentRunInstanceId)) {
+      setCurrentRunInstanceId(null)
+    }
+  }, [runTabs, currentRunInstanceId])
 
   async function handlePreview() {
     setPreviewing(true)
@@ -332,6 +372,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           startedAt: new Date().toISOString(),
           kind: "log",
         }
+        setCurrentRunInstanceId(r.resultInstanceId) // 标记为当前运行实例 → 按钮切「停止」
         openRunTab(tab)
         toast.success(t("taskEditor.toastRunTriggered"))
       } else if (r.outcome === "PENDING_APPROVAL") {
@@ -346,13 +387,13 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     }
   }
 
-  // 停止：终止当前激活日志 Tab 对应的运行实例（后端置 STOPPED 并往日志插「手动停止」行）。
+  // 停止：终止「当前运行实例」（而非当前激活查看的历史 Tab；后端置 STOPPED 并往日志插「手动停止」行）。
   const [stopping, setStopping] = useState(false)
   async function handleStop() {
-    if (!activeRunTab) return
+    if (!currentRunInstanceId) return
     setStopping(true)
     try {
-      const res = await authFetch(`${API_BASE}/api/ops/task-instances/${activeRunTab}/kill`, { method: "POST" })
+      const res = await authFetch(`${API_BASE}/api/ops/task-instances/${currentRunInstanceId}/kill`, { method: "POST" })
       const j = (await res.json()) as ApiResponse<unknown>
       if (j.code === 0) toast.success(t("taskEditor.toastStopped"))
       else toast.error(j.message || t("taskEditor.toastStopFailed"))
@@ -462,14 +503,16 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     <div className="flex h-full flex-col">
       {/* 工具栏：运行 / 保存 / 发布 + 状态 */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border p-2">
-        <Button size="sm" onClick={handleRun} disabled={running}>
-          <HugeiconsIcon icon={RocketIcon} className="size-4" />
-          {running ? t("taskEditor.running") : published ? t("taskEditor.run") : t("taskEditor.runTest")}
-        </Button>
-        {activeRunTab && (
+        {/* 单按钮 Run⇄Stop：当前运行实例非终态显示「停止」,否则显示「运行/试跑」（run-state-resume）。 */}
+        {showStop ? (
           <Button size="sm" variant="outline" onClick={handleStop} disabled={stopping}>
             <HugeiconsIcon icon={StopIcon} className="size-4" />
             {stopping ? t("taskEditor.stopping") : t("taskEditor.stop")}
+          </Button>
+        ) : (
+          <Button size="sm" onClick={handleRun} disabled={running}>
+            <HugeiconsIcon icon={PlayIcon} className="size-4" />
+            {published ? t("taskEditor.run") : t("taskEditor.runTest")}
           </Button>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -535,6 +578,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
                   onCloseLeft={closeRunTabsLeft}
                   onCloseAll={closeAllRunTabs}
                   locale={locale}
+                  onDotChange={setDotMap}
                 />
               </div>
             </>

@@ -76,6 +76,24 @@ public class OpsService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 某任务定义按 run_mode 过滤后的最近一个实例（供前端重开/刷新续接运行态）。
+     * runMode 省略/空白默认 NORMAL；无实例返回 null。
+     */
+    public LatestInstanceView latestTaskInstance(Long taskDefId, String runMode) {
+        String mode = (runMode == null || runMode.isBlank()) ? "NORMAL" : runMode;
+        return instanceRepository.findFirstByTaskIdAndRunModeOrderByIdDesc(taskDefId, mode)
+                .map(ti -> new LatestInstanceView(ti.getId(), ti.getState(), ti.getRunMode()))
+                .orElse(null);
+    }
+
+    /** 某工作流定义的最近一个实例（供前端续接）；工作流实例恒 NORMAL；无实例返回 null。 */
+    public LatestInstanceView latestWorkflowInstance(Long workflowId) {
+        return workflowInstanceRepository.findFirstByWorkflowIdOrderByIdDesc(workflowId)
+                .map(wi -> new LatestInstanceView(wi.getId(), wi.getState(), "NORMAL"))
+                .orElse(null);
+    }
+
     /** 失败的正式运行实例（state==FAILED && runMode==NORMAL）。 */
     public List<TaskInstance> failedInstances() {
         return instanceRepository.findByState("FAILED").stream()
@@ -248,6 +266,9 @@ public class OpsService {
     }
 
     public record LogChunk(String content, int totalSize, int offset, boolean hasMore) {}
+
+    /** 最近活跃实例视图：id + 状态 + 运行模式（工作流恒 NORMAL）。供前端按状态决定续接与按钮态。 */
+    public record LatestInstanceView(UUID id, String state, String runMode) {}
 
     public record TaskNodeView(UUID id, Long taskDefId, String taskDefName, String state,
             String workerNodeCode, Integer attempt) {}

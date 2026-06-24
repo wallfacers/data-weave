@@ -45,3 +45,16 @@ export function deriveRunDotState(
   if (connected) return "running"
   return "connecting"
 }
+
+/** 圆点态是否为终态（成功/失败/已停止）——运行按钮据此从「停止」复位为「运行」。 */
+export function isTerminalDotState(s: RunDotState | undefined): boolean {
+  return s === "success" || s === "failed" || s === "stopped"
+}
+
+/**
+ * 实例后端状态字符串是否为终态（与后端 InstanceStates.isTerminal 同口径）。
+ * 用于「重开续接」时判断最近实例是否仍在跑（非终态才续接、显示停止）。
+ */
+export function isTerminalInstanceState(state: string | null | undefined): boolean {
+  return state === "SUCCESS" || state === "FAILED" || state === "STOPPED"
+}

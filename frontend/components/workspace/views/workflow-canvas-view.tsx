@@ -39,6 +39,7 @@ import {
   CircleIcon,
   DatabaseIcon,
   FloppyDiskIcon,
+  PlayIcon,
   RocketIcon,
   Share08Icon,
   StopIcon,
@@ -77,7 +78,9 @@ import {
   type WorkflowDef,
   type WorkflowDefVersion,
   type WorkflowDetail,
+  type LatestInstanceView,
 } from "@/lib/types"
+import { isTerminalInstanceState } from "@/lib/workspace/run-dot-state"
 import { ViewStatus } from "./view-status"
 import { CatalogTree } from "@/components/workspace/catalog-tree"
 import { TaskEditorPane } from "@/components/workspace/task-editor-pane"
@@ -571,6 +574,34 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       .finally(() => setBusy(false))
   }, [workflowId, dirty, t])
 
+  // 接管一个运行实例（首跑与重开续接共用）：订阅事件流、拉详情建「实例UUID↔task_def id」映射、
+  // 初始节点态着色、对运行中节点顶日志。initialStatus 为整体运行徽标初值(首跑 RUNNING / 续接=后端实际态)。
+  const attachRunningInstance = useCallback(async (wiId: string, initialStatus: string) => {
+    setRunWfId(wiId)
+    setRunStatus(initialStatus)
+    setRunStateByTaskDef(new Map())
+    autoOpenedRef.current = new Set() // 重置自动顶日志去重
+    const detail = await authFetch(`${API_BASE}/api/ops/workflow-instances/${wiId}`, { cache: "no-store" })
+      .then((d) => d.json() as Promise<ApiResponse<{ tasks: InstanceTask[] }>>)
+    const idMap = new Map<string, number>()
+    const defMap = new Map<number, string>()
+    const stateMap = new Map<number, string>()
+    for (const it of detail.data?.tasks ?? []) {
+      idMap.set(it.id, it.taskDefId)
+      defMap.set(it.taskDefId, it.id)
+      stateMap.set(it.taskDefId, it.state)
+      // 已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态 / 续接时已在跑）
+      if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id)) {
+        autoOpenedRef.current.add(it.id)
+        const nm = dagNodes.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
+        openRunTab({ instanceId: it.id, taskName: nm, startedAt: new Date().toISOString(), kind: "log" })
+      }
+    }
+    setInstanceToTaskDef(idMap)
+    setTaskDefToInstance(defMap)
+    setRunStateByTaskDef(stateMap)
+  }, [dagNodes, name, openRunTab])
+
   // 手动触发正式实例：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
   // D8：未上线禁用。D9：只盯最近一次（新运行重置状态）。
   const runWorkflow = useCallback(async () => {
@@ -595,38 +626,34 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         }
         return
       }
-      const wiId = r.resultInstanceId
-      setRunWfId(wiId)
-      setRunStatus("RUNNING")
-      setRunStateByTaskDef(new Map())
-      autoOpenedRef.current = new Set() // 新运行重置自动顶日志去重
-      // 拉实例详情建立 实例UUID↔task_def id 映射 + 初始节点状态
-      const detail = await authFetch(`${API_BASE}/api/ops/workflow-instances/${wiId}`, { cache: "no-store" })
-        .then((d) => d.json() as Promise<ApiResponse<{ tasks: InstanceTask[] }>>)
-      const idMap = new Map<string, number>()
-      const defMap = new Map<number, string>()
-      const stateMap = new Map<number, string>()
-      for (const it of detail.data?.tasks ?? []) {
-        idMap.set(it.id, it.taskDefId)
-        defMap.set(it.taskDefId, it.id)
-        stateMap.set(it.taskDefId, it.state)
-        // 拉详情时已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态）
-        if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id)) {
-          autoOpenedRef.current.add(it.id)
-          const nm = dagNodes.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
-          openRunTab({ instanceId: it.id, taskName: nm, startedAt: new Date().toISOString(), kind: "log" })
-        }
-      }
-      setInstanceToTaskDef(idMap)
-      setTaskDefToInstance(defMap)
-      setRunStateByTaskDef(stateMap)
+      await attachRunningInstance(r.resultInstanceId, "RUNNING")
       toast.success(t("toastRunTriggered"))
     } catch {
       toast.error(t("toastRunFailed"))
     } finally {
       setBusy(false)
     }
-  }, [workflowId, t, dagNodes, name, openRunTab])
+  }, [workflowId, t, attachRunningInstance])
+
+  // 重开/刷新续接（run-state-resume）：查后端最近工作流实例,非终态则接管 → 续订阅事件流 + 节点重着色 + 停止按钮恢复。
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/api/ops/workflows/${workflowId}/latest-instance`)
+        const j = (await res.json()) as ApiResponse<LatestInstanceView | null>
+        if (cancelled || j.code !== 0 || !j.data) return
+        if (!isTerminalInstanceState(j.data.state)) {
+          await attachRunningInstance(j.data.id, j.data.state)
+        }
+      } catch {
+        /* 续接失败静默,不影响编辑 */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [workflowId, attachRunningInstance])
 
   // 停止当前工作流运行实例：→ STOPPED（后端各运行中节点置 STOPPED 发事件→节点实时变红 + 插手动停止日志）。
   const stopWorkflow = useCallback(async () => {
@@ -793,12 +820,14 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       <div className="flex flex-wrap items-center gap-2 p-3">
         <HugeiconsIcon icon={Share08Icon} className="text-primary" />
         <h1 className="text-sm font-medium">{name}</h1>
-        <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
-          <HugeiconsIcon icon={RocketIcon} className="size-4" /> {t("run")}
-        </Button>
-        {canStop && (
+        {/* 单按钮 Run⇄Stop：运行实例非终态(canStop)显示「停止」,否则显示「运行」（run-state-resume）。 */}
+        {canStop ? (
           <Button size="sm" variant="outline" onClick={stopWorkflow} disabled={stopping}>
             <HugeiconsIcon icon={StopIcon} className="size-4" /> {stopping ? t("stopping") : t("stop")}
+          </Button>
+        ) : (
+          <Button size="sm" onClick={runWorkflow} disabled={!online || busy}>
+            <HugeiconsIcon icon={PlayIcon} className="size-4" /> {t("run")}
           </Button>
         )}
         {runStatusBadge}

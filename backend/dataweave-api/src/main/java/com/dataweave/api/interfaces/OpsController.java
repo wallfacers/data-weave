@@ -96,6 +96,23 @@ public class OpsController {
         return ApiResponse.ok(opsService.failedInstances());
     }
 
+    /**
+     * 某任务定义的最近一个实例（默认 NORMAL，可 runMode=TEST），供前端重开/刷新续接运行态。
+     * 无实例返回 data=null。仅查询，无写副作用。
+     */
+    @GetMapping("/tasks/{taskDefId}/latest-instance")
+    public ApiResponse<OpsService.LatestInstanceView> latestTaskInstance(
+            @PathVariable Long taskDefId,
+            @RequestParam(required = false) String runMode) {
+        return ApiResponse.ok(opsService.latestTaskInstance(taskDefId, runMode));
+    }
+
+    /** 某工作流定义的最近一个实例，供前端续接；无实例返回 data=null。仅查询。 */
+    @GetMapping("/workflows/{workflowId}/latest-instance")
+    public ApiResponse<OpsService.LatestInstanceView> latestWorkflowInstance(@PathVariable Long workflowId) {
+        return ApiResponse.ok(opsService.latestWorkflowInstance(workflowId));
+    }
+
     // ─── 实例生命周期操作 ─────────────────────────────────
 
     @PostMapping("/instances/{id}/pause")

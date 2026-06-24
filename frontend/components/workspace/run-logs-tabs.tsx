@@ -142,6 +142,7 @@ export function RunLogsTabs({
   onCloseLeft,
   onCloseAll,
   locale,
+  onDotChange,
 }: {
   tabs: RunTab[]
   activeId: string | null
@@ -152,11 +153,20 @@ export function RunLogsTabs({
   onCloseLeft: (id: string) => void
   onCloseAll: () => void
   locale: string
+  /** 每 Tab 圆点态聚合上提，供工具栏运行按钮据当前运行实例态切换 Run⇄Stop（可选，向后兼容）。 */
+  onDotChange?: (dot: Record<string, RunDotState>) => void
 }) {
   const t = useTranslations("taskEditor")
   const ti = useTranslations("instanceTable")
   const [dot, setDot] = useState<Record<string, RunDotState>>({})
   const active = activeId ?? (tabs.length ? tabs[tabs.length - 1].instanceId : null)
+
+  // dot map 变更上提给父级（用 ref 持有回调，避免内联函数引起的多余 effect）
+  const onDotChangeRef = useRef(onDotChange)
+  onDotChangeRef.current = onDotChange
+  useEffect(() => {
+    onDotChangeRef.current?.(dot)
+  }, [dot])
 
   // 圆点 tooltip 文案：复用既有 i18n state 文案（instanceTable.state* + taskEditor.logConnectingShort），无需新增 key。
   // 颜色映射见 run-dot-state.ts 的 runDotColor（语义 token，与 log-panel StatusDot 一致）。
