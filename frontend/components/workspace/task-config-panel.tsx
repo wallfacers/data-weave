@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
+import type { DatasourceVO } from "@/lib/types"
 
 const TYPE_OPTIONS = [
   { value: "SQL", label: "SQL" },
@@ -16,6 +17,7 @@ const TYPE_OPTIONS = [
 ]
 
 const PRESET_PLACEHOLDER = "__preset__"
+const DATASOURCE_NONE = ""
 
 interface ParamRow {
   name: string
@@ -47,6 +49,12 @@ export interface TaskConfigPanelProps {
   retryMax: number
   setRetryMax: (v: number) => void
   onDirty: () => void
+  // 数据源绑定（仅 SQL 任务）
+  datasourceId: number | null
+  setDatasourceId: (v: number | null) => void
+  targetDatasourceId: number | null
+  setTargetDatasourceId: (v: number | null) => void
+  datasources: DatasourceVO[]
 }
 
 export function TaskConfigPanel({
@@ -61,8 +69,21 @@ export function TaskConfigPanel({
   timeoutSec, setTimeoutSec,
   retryMax, setRetryMax,
   onDirty,
+  datasourceId, setDatasourceId,
+  targetDatasourceId, setTargetDatasourceId,
+  datasources,
 }: TaskConfigPanelProps) {
   const t = useTranslations()
+
+  // 数据源下拉选项：空值=未绑定 + 各数据源
+  const datasourceOptions = useMemo(() => {
+    const none = { value: DATASOURCE_NONE, label: t("taskEditor.datasourceNone") }
+    const items = datasources.map((ds) => ({
+      value: String(ds.id),
+      label: `${ds.name} (${ds.typeCode})`,
+    }))
+    return [none, ...items]
+  }, [datasources, t])
 
   const expressionPresets = useMemo(
     () => [
@@ -110,6 +131,28 @@ export function TaskConfigPanel({
           />
         </div>
       </div>
+
+      {/* 数据源绑定（仅 SQL 任务显示） */}
+      {type === "SQL" && (
+        <div className="flex gap-3">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.datasource")}</label>
+            <DropdownSelect
+              value={datasourceId != null ? String(datasourceId) : DATASOURCE_NONE}
+              onChange={(v) => { setDatasourceId(v ? Number(v) : null); onDirty() }}
+              options={datasourceOptions}
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.targetDatasource")}</label>
+            <DropdownSelect
+              value={targetDatasourceId != null ? String(targetDatasourceId) : DATASOURCE_NONE}
+              onChange={(v) => { setTargetDatasourceId(v ? Number(v) : null); onDirty() }}
+              options={datasourceOptions}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 描述 */}
       <div className="flex flex-col gap-1.5">

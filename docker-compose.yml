@@ -18,6 +18,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # MySQL 业务数据库（SQL 任务端到端测试用，与元数据 PG 隔离）
+  # 后端宿主机运行连 localhost:3307；distributed 容器内连 mysql:3306
+  mysql:
+    image: mysql:8
+    container_name: dataweave-mysql
+    environment:
+      MYSQL_DATABASE: dataweave_biz
+      MYSQL_USER: biz
+      MYSQL_PASSWORD: biz
+      MYSQL_ROOT_PASSWORD: biz_root
+    ports:
+      - "3307:3306"
+    volumes:
+      - dataweave-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "biz", "-pbiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     container_name: dataweave-redis
@@ -170,5 +190,6 @@ services:
 
 volumes:
   dataweave-pg:
+  dataweave-mysql:
   dataweave-redis:
   dataweave-minio:

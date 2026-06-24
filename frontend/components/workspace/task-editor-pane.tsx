@@ -16,7 +16,10 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { FloppyDiskIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons"
 
 import { API_BASE, authFetch, type ApiResponse, type LatestInstanceView, type TaskDef, type TaskDefVersion, type TaskDetail } from "@/lib/types"
+import { listDatasources } from "@/lib/datasource-api"
+import type { DatasourceVO } from "@/lib/types"
 import { isTerminalDotState, isTerminalInstanceState, type RunDotState } from "@/lib/workspace/run-dot-state"
+import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -80,12 +83,6 @@ function serializeParams(rows: ParamRow[]): string {
   return Object.keys(obj).length ? JSON.stringify(obj) : ""
 }
 
-function yesterday(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
-}
-
 /** /run 闸门返回的 GateResult（前端只关心 outcome / resultInstanceId / actionId）。 */
 interface RunResult {
   outcome: "EXECUTED" | "PENDING_APPROVAL" | "REJECTED"
@@ -117,8 +114,13 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   const [versions, setVersions] = useState<TaskDefVersion[]>([])
   const [sidebarTab, setSidebarTab] = useState<"config" | "versions">("config")
 
+  // 数据源绑定
+  const [datasourceId, setDatasourceId] = useState<number | null>(null)
+  const [targetDatasourceId, setTargetDatasourceId] = useState<number | null>(null)
+  const [datasources, setDatasources] = useState<DatasourceVO[]>([])
+
   // 替换预览
-  const [previewBizDate, setPreviewBizDate] = useState(yesterday())
+  const [previewBizDate, setPreviewBizDate] = useState(yesterdayBizDate())
   const [previewResult, setPreviewResult] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewing, setPreviewing] = useState(false)
@@ -189,6 +191,8 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
       setStatus(td.status ?? "DRAFT")
       setHasDraft((td.hasDraftChange ?? 0) > 0)
       setParamRows(parseParams(td.paramsJson))
+      setDatasourceId(td.datasourceId ?? null)
+      setTargetDatasourceId(td.targetDatasourceId ?? null)
       setDirty(false) // 加载完成即干净态——后续用户编辑才置脏
     } catch {
       toast.error(t("taskEditor.toastLoadFailed"))
@@ -200,6 +204,11 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
   useEffect(() => {
     loadTask()
   }, [loadTask])
+
+  // 加载数据源列表（供 SQL 任务绑定选择）
+  useEffect(() => {
+    listDatasources().then(setDatasources).catch(() => { /* ignore */ })
+  }, [])
 
   // 同步 dirty 状态到 workspace store（供类目树/Tab 栏显示黄点 + 关闭拦截）
   useEffect(() => {
@@ -273,7 +282,7 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
     try {
       const paramsJson = serializeParams(paramRows)
       const normalizedContent = normalizeNewlines(content)
-      const body = { name, type, content: normalizedContent, description, priority, timeoutSec, retryMax, paramsJson: paramsJson || null }
+      const body = { name, type, content: normalizedContent, description, priority, timeoutSec, retryMax, paramsJson: paramsJson || null, datasourceId, targetDatasourceId }
       await authFetch(`${API_BASE}/api/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -357,6 +366,9 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
           paramsJson: serializeParams(paramRows) || null,
           // 带上业务日期，使 ${yyyymmdd} 等日期占位符可解析（复用编辑器预览用的业务日期，默认昨天）
           bizDate: previewBizDate || null,
+          // SQL 任务运行需要数据源连接信息
+          datasourceId: type === "SQL" ? datasourceId : null,
+          targetDatasourceId: type === "SQL" ? targetDatasourceId : null,
         }),
       })
       const j = (await res.json()) as ApiResponse<RunResult>
@@ -636,6 +648,11 @@ export function TaskEditorPane({ taskId }: TaskEditorPaneProps) {
                 retryMax={retryMax}
                 setRetryMax={(v) => { setRetryMax(v); setDirty(true); }}
                 onDirty={() => setDirty(true)}
+                datasourceId={datasourceId}
+                setDatasourceId={setDatasourceId}
+                targetDatasourceId={targetDatasourceId}
+                setTargetDatasourceId={setTargetDatasourceId}
+                datasources={datasources}
               />
             </div>
             <div style={{ display: sidebarTab === "versions" ? "block" : "none" }}>
