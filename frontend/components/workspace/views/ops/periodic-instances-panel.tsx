@@ -3,6 +3,10 @@
 /**
  * 周期实例面板：筛选 + 分页 + 多选 + 批量操作 + 表格。
  *
+ * 布局（用户要求，勿改回「整个 Tab 一起滚」）：
+ *   筛选栏 shrink-0 固定 → 表格区 flex-1（DwScroll 仅数据行滚动，表头 sticky 固定）→ 分页 shrink-0 固定底栏。
+ *   滚动条走项目规范 OverlayScrollbars(DwScroll)：4px·中性灰·无原生倒三角。
+ *
  * 调契约①：
  *   GET  /api/ops/instances?runMode=&state=&taskId=&bizDate=&page=&size=
  *   POST /api/ops/instances/batch { ids, op } → { code, data: BatchResult, outcome }
@@ -34,15 +38,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownSelect } from "@/components/ui/select"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Pagination } from "@/components/ui/pagination"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { DwScroll } from "@/components/ui/dw-scroll"
 import {
   API_BASE,
   authFetch,
@@ -134,23 +137,6 @@ const STATE_OPTIONS = [
   { value: "KILLED", label: "stateKilled" },
   { value: "PAUSED", label: "statePaused" },
 ] as const
-
-type OpsKey = keyof typeof RUNMODE_OPTIONS[number] extends never
-  ? never
-  :
-      | "filterAll"
-      | "filterRunModePeriodic"
-      | "filterRunModeBackfill"
-      | "filterRunModeManual"
-      | "filterRunModeTest"
-      | "stateRunning"
-      | "stateSuccess"
-      | "stateFailed"
-      | "stateWaiting"
-      | "stateNotRun"
-      | "stateStopped"
-      | "stateKilled"
-      | "statePaused"
 
 export function PeriodicInstancesPanel({
   initialFilter,
@@ -365,9 +351,9 @@ export function PeriodicInstancesPanel({
   }
 
   return (
-    <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-5">
-      {/* 筛选栏 */}
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex h-full flex-col gap-3 p-5">
+      {/* 筛选栏（固定，不随表格滚动） */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <HugeiconsIcon icon={FilterIcon} className="size-4 text-muted-foreground" />
         <DropdownSelect
           value={filters.runMode}
@@ -438,7 +424,7 @@ export function PeriodicInstancesPanel({
         </div>
       </div>
 
-      {/* 表格 */}
+      {/* 表格区：仅数据行滚动（DwScroll·项目规范滚动条），表头 sticky 固定 */}
       {loading && !data ? (
         <div className="flex flex-1 items-center justify-center py-20">
           <p className="text-sm text-muted-foreground">Loading</p>
@@ -453,9 +439,10 @@ export function PeriodicInstancesPanel({
         </div>
       ) : (
         <>
-          <div className="font-sans">
-            <Table>
-              <TableHeader>
+          <DwScroll direction="both" className="flex-1">
+            <table className="w-full caption-bottom text-sm font-sans">
+              {/* 表头 sticky：贴 DwScroll 滚动视口顶部固定，th 加不透明底色遮住下方滚动行 */}
+              <TableHeader className="sticky top-0 z-10 [&_th]:bg-background">
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
@@ -528,21 +515,24 @@ export function PeriodicInstancesPanel({
                   )
                 })}
               </TableBody>
-            </Table>
-          </div>
+            </table>
+          </DwScroll>
 
+          {/* 分页（固定底栏，不随表格滚动） */}
           {totalPages > 1 && (
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              total={total}
-              size={size}
-              onPageChange={setPage}
-              onSizeChange={setSize}
-            />
+            <div className="shrink-0">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                size={size}
+                onPageChange={setPage}
+                onSizeChange={setSize}
+              />
+            </div>
           )}
         </>
       )}
-    </DwScroll>
+    </div>
   )
 }
