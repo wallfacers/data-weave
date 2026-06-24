@@ -60,7 +60,8 @@ public class TaskService {
     public record PageResult(List<TaskDef> content, long totalElements, int totalPages, int page, int size) {}
 
     /** 任务详情（含版本历史）。 */
-    public record TaskDetail(TaskDef task, List<TaskDefVersion> versions) {}
+    public record TaskDetail(TaskDef task, List<TaskDefVersion> versions,
+                             List<String> referencedByOnlineWorkflows) {}
 
     // ─── Create（草稿）─────────────────────────────────────
 
@@ -182,11 +183,16 @@ public class TaskService {
 
     // ─── GetById（含版本历史）─────────────────────────────
 
-    /** 获取任务详情（含版本历史）。 */
+    /** 获取任务详情（含版本历史 + 引用它的 ONLINE 工作流名单，供前端禁用下线按钮）。 */
     public Optional<TaskDetail> getById(Long id) {
         return taskDefRepository.findById(id).map(task -> {
             List<TaskDefVersion> versions = taskDefVersionRepository.findByTaskIdOrderByVersionNoDesc(id);
-            return new TaskDetail(task, versions);
+            List<String> refWorkflows = jdbcTemplate.query(
+                    "SELECT DISTINCT wd.name FROM workflow_node wn "
+                            + "JOIN workflow_def wd ON wd.id = wn.workflow_id "
+                            + "WHERE wn.task_id = ? AND wn.deleted = 0 AND wd.deleted = 0 AND wd.status = 'ONLINE'",
+                    (rs, n) -> rs.getString(1), id);
+            return new TaskDetail(task, versions, refWorkflows);
         });
     }
 
@@ -278,12 +284,21 @@ public class TaskService {
 
     // ─── Offline（ONLINE → DRAFT）────────────────────────
 
-    /** 下线：ONLINE → DRAFT。 */
+    /** 下线：ONLINE → DRAFT。被任一 ONLINE 工作流引用的任务禁止下线（对称「ONLINE 工作流禁删」）。 */
     public TaskDef offline(Long id) {
         TaskDef task = taskDefRepository.findById(id)
                 .orElseThrow(() -> new BizException("task.not_found", id));
         if (!"ONLINE".equals(task.getStatus())) {
             throw new BizException("task.already_offline");
+        }
+        // 引用完整性（ops-center-publish-boundary）：生产任务流脚下跑着的任务不能被单独抽走。
+        List<String> refWorkflows = jdbcTemplate.query(
+                "SELECT DISTINCT wd.name FROM workflow_node wn "
+                        + "JOIN workflow_def wd ON wd.id = wn.workflow_id "
+                        + "WHERE wn.task_id = ? AND wn.deleted = 0 AND wd.deleted = 0 AND wd.status = 'ONLINE'",
+                (rs, n) -> rs.getString(1), id);
+        if (!refWorkflows.isEmpty()) {
+            throw new BizException("task.referenced_by_online_workflow", String.join(", ", refWorkflows));
         }
         task.setStatus("DRAFT");
         task.setUpdatedAt(LocalDateTime.now());

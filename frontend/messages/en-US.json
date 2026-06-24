@@ -169,7 +169,23 @@
     "pageFirst": "First",
     "pageLast": "Last",
     "quickToday": "Today",
-    "quickYesterday": "Yesterday"
+    "quickYesterday": "Yesterday",
+    "tabPeriodicWorkflows": "Periodic Workflows",
+    "tabManualWorkflows": "Manual Workflows",
+    "tabWorkflowInstances": "Workflow Instances",
+    "periodicWfTitle": "Periodic Workflows",
+    "periodicWfEmpty": "No periodic workflows",
+    "periodicWfEmptyHint": "Workflows scheduled with CRON and published online will appear here",
+    "manualWfTitle": "Manual Workflows",
+    "manualWfEmpty": "No manual workflows",
+    "manualWfEmptyHint": "Workflows set to manual schedule and published online can be run once here",
+    "colWorkflowName": "Workflow",
+    "colCron": "Cron",
+    "colVersion": "Version",
+    "viewDag": "View DAG",
+    "runOnce": "Run once",
+    "runOnceSuccess": "Run triggered: {name}",
+    "runFailed": "Run failed: {msg}"
   },
   "views": {
     "cockpit": "Cockpit",
@@ -371,7 +387,8 @@
     "content": "Code",
     "datasource": "Datasource",
     "datasourceNone": "None (unbound)",
-    "targetDatasource": "Target Datasource"
+    "targetDatasource": "Target Datasource",
+    "offlineBlockedByWorkflows": "Referenced by online workflow(s) ({names}); cannot offline. Offline those workflows or remove this task node from their DAG first"
   },
   "versionHistory": {
     "empty": "No published versions",
@@ -600,7 +617,8 @@
     "runScopeFull": "Full run",
     "runScopeToNode": "Run to node",
     "runScopeDownstream": "Run downstream",
-    "runScopeOnlyNode": "Only this node"
+    "runScopeOnlyNode": "Only this node",
+    "nodeUnpublished": "Unpublished"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "No workflow instance ID specified",

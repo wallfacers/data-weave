@@ -108,6 +108,8 @@ interface CanvasNodeData extends Record<string, unknown> {
   label: string
   /** 运行态（来自事件流叠加，仅显示用，不入 DAG 草稿） */
   runState?: string
+  /** 引用任务发布态（ONLINE/DRAFT）：非 ONLINE 即标「未发布」（ops-center-publish-boundary，仅显示用） */
+  taskStatus?: string | null
 }
 type CanvasNode = Node<CanvasNodeData>
 
@@ -179,16 +181,23 @@ function TaskNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const label = data.label || t("nodeTaskFallback")
   const taskId = data.taskId
   const canLog = taskId != null && (actions?.canViewLog(taskId) ?? false)
+  // 未发布标记（ops-center-publish-boundary）：引用 DRAFT 任务的 TASK 节点——发布工作流时后端会拒绝。
+  const unpublished = taskId != null && data.taskStatus != null && data.taskStatus !== "ONLINE"
   return (
     <ContextMenu>
       <ContextMenuTrigger
         className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
-          selected ? "border-primary ring-1 ring-primary" : "border-border"
+          selected ? "border-primary ring-1 ring-primary" : unpublished ? "border-warning border-dashed" : "border-border"
         }`}
       >
         <Handle type="target" position={Position.Left} />
         <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
         <span className="max-w-40 truncate font-medium">{label}</span>
+        {unpublished && (
+          <span className="rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium leading-none text-warning">
+            {t("nodeUnpublished")}
+          </span>
+        )}
         <Handle type="source" position={Position.Right} />
         <RunStateDot state={data.runState} />
       </ContextMenuTrigger>
@@ -253,7 +262,7 @@ function toFlow(dag: DagView): { nodes: CanvasNode[]; edges: Edge[] } {
     id: n.nodeKey,
     type: n.nodeType === "VIRTUAL" ? "virtual" : "task",
     position: { x: n.posX ?? 0, y: n.posY ?? 0 },
-    data: { nodeType: n.nodeType, taskId: n.taskId, label: n.name ?? "" },
+    data: { nodeType: n.nodeType, taskId: n.taskId, label: n.name ?? "", taskStatus: n.taskStatus },
   }))
   // 弱依赖：虚线 + 流动动画做视觉区分（不阻塞语义由后端就绪门按 strength 处理）
   const edges: Edge[] = dag.edges.map((e) => {
@@ -969,6 +978,10 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
             onNodeClick={() => setEdgeMenu(null)}
             onMoveStart={() => setEdgeMenu(null)}
             deleteKeyCode={["Backspace", "Delete"]}
+            // 关掉空格平移：ReactFlow 默认 panActivationKeyCode='Space' 会在 window 上挂
+            // keydown 监听并 preventDefault 空格。本视图 keep-alive 常驻，会导致别的 tab
+            // （如任务代码编辑器 Monaco）在焦点竞态下打不出空格。拖拽平移已够用。
+            panActivationKeyCode={null}
             fitView
             proOptions={{ hideAttribution: true }}
           >

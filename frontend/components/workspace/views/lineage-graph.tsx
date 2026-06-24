@@ -148,6 +148,10 @@ function LineageGraphInner() {
         nodeTypes={NODE_TYPES}
         nodesDraggable={false}
         nodesConnectable={false}
+        // 关掉空格平移：ReactFlow 默认 panActivationKeyCode='Space' 会在 window 上挂
+        // keydown 监听并 preventDefault 空格。cockpit 血缘图默认常驻挂载，会导致任务代码
+        // 编辑器（Monaco）在焦点竞态下概率性打不出空格。本图只读，拖拽平移已够用。
+        panActivationKeyCode={null}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}

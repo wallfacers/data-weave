@@ -80,6 +80,11 @@ public class DataOpsBridgeStub implements DataOpsBridge {
     }
 
     @Override
+    public void setNodeFrozen(Long workflowId, String nodeKey, UUID instanceId, boolean frozen) {
+        throw new UnsupportedOperationException("setNodeFrozen — 待 Stream A 实现");
+    }
+
+    @Override
     public Page<InstanceRow> queryInstances(InstanceQuery q) {
         // 首次调用时额外警告：此桩不做租户过滤，返回全量数据
         if (warnedQuery.compareAndSet(false, true)) {

@@ -36,6 +36,7 @@ public class OpsService {
     private final TaskDefRepository taskDefRepository;
     private final TaskInstanceRepository instanceRepository;
     private final WorkflowInstanceRepository workflowInstanceRepository;
+    private final com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository;
     private final DiagnosisService diagnosisService;
     private final InstanceStateMachine stateMachine;
     private final LogBus logBus;
@@ -45,6 +46,7 @@ public class OpsService {
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
                       WorkflowInstanceRepository workflowInstanceRepository,
+                      com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository,
                       DiagnosisService diagnosisService,
                       InstanceStateMachine stateMachine,
                       LogBus logBus,
@@ -53,6 +55,7 @@ public class OpsService {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
+        this.workflowDefRepository = workflowDefRepository;
         this.diagnosisService = diagnosisService;
         this.stateMachine = stateMachine;
         this.logBus = logBus;
@@ -70,11 +73,36 @@ public class OpsService {
         logBus.append(taskInstanceId, "状态: 已停止 | 操作: 用户手动停止运行");
     }
 
-    /** 所有任务定义，按 id 升序。 */
+    /**
+     * 所有任务定义，按 id 升序。
+     *
+     * @deprecated 运维中心不以任务为主体（ops-center-publish-boundary）：任务只作为任务流节点/任务实例出现。
+     *     周期/手动运维对象改用 {@link #periodicWorkflows()}/{@link #manualWorkflows()}（按 ONLINE 过滤）。
+     *     保留此方法仅供过渡期只读引用，不应作为运维一等列表。
+     */
+    @Deprecated
     public List<TaskDef> tasks() {
         List<TaskDef> list = new ArrayList<>();
         taskDefRepository.findAll().forEach(list::add);
         list.sort(Comparator.comparing(TaskDef::getId, Comparator.nullsLast(Comparator.naturalOrder())));
+        return list;
+    }
+
+    /** 周期任务流列表（运维主体）：仅 status=ONLINE 且 schedule_type=CRON 的已发布工作流，按 id 升序。 */
+    public List<com.dataweave.master.domain.WorkflowDef> periodicWorkflows() {
+        return onlineWorkflowsByScheduleType("CRON");
+    }
+
+    /** 手动任务流列表（运维主体）：仅 status=ONLINE 且 schedule_type=MANUAL 的已发布工作流，按 id 升序。 */
+    public List<com.dataweave.master.domain.WorkflowDef> manualWorkflows() {
+        return onlineWorkflowsByScheduleType("MANUAL");
+    }
+
+    private List<com.dataweave.master.domain.WorkflowDef> onlineWorkflowsByScheduleType(String scheduleType) {
+        List<com.dataweave.master.domain.WorkflowDef> list =
+                workflowDefRepository.findByScheduleTypeAndStatusAndDeleted(scheduleType, "ONLINE", 0);
+        list.sort(Comparator.comparing(com.dataweave.master.domain.WorkflowDef::getId,
+                Comparator.nullsLast(Comparator.naturalOrder())));
         return list;
     }
 

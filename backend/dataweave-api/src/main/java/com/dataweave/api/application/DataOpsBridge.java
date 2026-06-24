@@ -27,8 +27,16 @@ public interface DataOpsBridge {
     /** 置成功：CAS 推进 SUCCESS + 唤醒下游 WAITING。 */
     TaskInstance setSuccess(UUID instanceId);
 
-    /** 冻结/解冻任务定义。 */
+    /** 冻结/解冻任务定义。
+     * @deprecated 任务级冻结退役（ops-center-publish-boundary），改用 {@link #setNodeFrozen}。 */
+    @Deprecated
     TaskDef setFrozen(Long taskDefId, boolean frozen);
+
+    /**
+     * 节点级 DAG 冻结/解冻（ops-center-publish-boundary）。
+     * @param instanceId 空=定义级（后续每个 cron 实例跳该节点）；非空=实例级（仅该实例）
+     */
+    void setNodeFrozen(Long workflowId, String nodeKey, UUID instanceId, boolean frozen);
 
     /** 多维筛选 + 分页查询周期实例。 */
     Page<InstanceRow> queryInstances(InstanceQuery q);

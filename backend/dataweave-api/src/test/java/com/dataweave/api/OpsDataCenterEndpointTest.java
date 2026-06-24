@@ -229,11 +229,11 @@ class OpsDataCenterEndpointTest {
                 .jsonPath("$.code").isEqualTo(0);
     }
 
-    // ─── 3.1.3 POST /tasks/{id}/freeze ───────────────────────
+    // ─── 3.1.3 POST /workflows/{id}/nodes/{nodeKey}/freeze（节点级，取代退役的任务级 freeze）─────
 
     @Test
-    void freezeTask_返回outcome() {
-        client.post().uri("/api/ops/tasks/1/freeze")
+    void freezeNode_定义级_返回outcome() {
+        client.post().uri("/api/ops/workflows/1/nodes/n-1/freeze")
                 .bodyValue(java.util.Map.of("frozen", true))
                 .exchange()
                 .expectStatus().isOk()
@@ -243,8 +243,8 @@ class OpsDataCenterEndpointTest {
     }
 
     @Test
-    void unfreezeTask_返回outcome() {
-        client.post().uri("/api/ops/tasks/1/freeze")
+    void unfreezeNode_返回outcome() {
+        client.post().uri("/api/ops/workflows/1/nodes/n-1/freeze")
                 .bodyValue(java.util.Map.of("frozen", false))
                 .exchange()
                 .expectStatus().isOk()

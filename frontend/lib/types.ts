@@ -195,6 +195,8 @@ export interface TaskDefVersion {
 export interface TaskDetail {
   task: TaskDef
   versions: TaskDefVersion[]
+  /** 引用此任务的 ONLINE 工作流名单（ops-center-publish-boundary）：非空则禁止下线，前端禁用下线按钮。 */
+  referencedByOnlineWorkflows?: string[]
 }
 
 // ─── Catalog 类目树 + 标签 ───────────────────────────────
@@ -294,12 +296,14 @@ export interface DagNode {
   name: string | null
   posX: number | null
   posY: number | null
+  /** 引用任务发布态（ONLINE/DRAFT）：供画布标「未发布」节点；VIRTUAL/缺失为 null（读图返回，保存不回传） */
+  taskStatus?: string | null
 }
 
 /**
  * DAG 边（端点用 nodeKey 引用）。strength=依赖强度：
  *  - STRONG（默认）上游须 SUCCESS 才放行下游；
- *  - WEAK 上游到任意终态（SUCCESS/FAILED/STOPPED）即放行下游。
+ *  - WEAK 上游「自然跑完」（SUCCESS/FAILED）即放行下游；手动停止（STOPPED）不放行（ops-center-publish-boundary）。
  */
 export interface DagEdge {
   fromNodeKey: string

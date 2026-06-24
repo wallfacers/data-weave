@@ -169,7 +169,23 @@
     "pageFirst": "首页",
     "pageLast": "末页",
     "quickToday": "今天",
-    "quickYesterday": "昨天"
+    "quickYesterday": "昨天",
+    "tabPeriodicWorkflows": "周期任务流列表",
+    "tabManualWorkflows": "手动任务流列表",
+    "tabWorkflowInstances": "任务流实例",
+    "periodicWfTitle": "周期任务流",
+    "periodicWfEmpty": "暂无周期任务流",
+    "periodicWfEmptyHint": "数据开发把工作流设为 CRON 调度并发布上线后，将在此出现",
+    "manualWfTitle": "手动任务流",
+    "manualWfEmpty": "暂无手动任务流",
+    "manualWfEmptyHint": "数据开发把工作流设为手动调度并发布上线后，可在此运行一次",
+    "colWorkflowName": "任务流名称",
+    "colCron": "Cron",
+    "colVersion": "版本",
+    "viewDag": "查看 DAG",
+    "runOnce": "运行一次",
+    "runOnceSuccess": "已触发运行：{name}",
+    "runFailed": "运行失败：{msg}"
   },
   "views": {
     "cockpit": "驾驶舱",
@@ -371,7 +387,8 @@
     "content": "代码",
     "datasource": "数据源",
     "datasourceNone": "未绑定",
-    "targetDatasource": "目标数据源"
+    "targetDatasource": "目标数据源",
+    "offlineBlockedByWorkflows": "任务被已上线工作流（{names}）引用，无法下线；请先下线这些工作流或从其 DAG 移除该任务节点"
   },
   "versionHistory": {
     "empty": "暂无发布版本",
@@ -600,7 +617,8 @@
     "runScopeFull": "全量运行",
     "runScopeToNode": "运行到节点",
     "runScopeDownstream": "运行下游",
-    "runScopeOnlyNode": "仅本节点"
+    "runScopeOnlyNode": "仅本节点",
+    "nodeUnpublished": "未发布"
   },
   "workflowInstanceDetail": {
     "noInstanceId": "未指定工作流实例 ID",

@@ -57,7 +57,7 @@ class TaskControllerRunTest {
         t.setId(7L);
         t.setName("订单宽表");
         t.setStatus(status);
-        return new TaskDetail(t, List.of());
+        return new TaskDetail(t, List.of(), List.of());
     }
 
     private ServerWebExchange exchange() {

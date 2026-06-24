@@ -40,10 +40,13 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
 
     private final OpsService opsService;
     private final BackfillService backfillService;
+    private final com.dataweave.master.application.NodeFreezeService nodeFreezeService;
 
-    public DataOpsBridgeRealImpl(OpsService opsService, BackfillService backfillService) {
+    public DataOpsBridgeRealImpl(OpsService opsService, BackfillService backfillService,
+                                 com.dataweave.master.application.NodeFreezeService nodeFreezeService) {
         this.opsService = opsService;
         this.backfillService = backfillService;
+        this.nodeFreezeService = nodeFreezeService;
     }
 
     @Override
@@ -80,8 +83,15 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     }
 
     @Override
+    @Deprecated
     public TaskDef setFrozen(Long taskDefId, boolean frozen) {
         return opsService.setFrozen(taskDefId, frozen);
+    }
+
+    @Override
+    public void setNodeFrozen(Long workflowId, String nodeKey, UUID instanceId, boolean frozen) {
+        // tenant/project 固定 1/1（与现有运维写一致）；actor 透传留痕由 controller 闸门负责。
+        nodeFreezeService.setFrozen(workflowId, nodeKey, instanceId, frozen, 1L, 1L, null);
     }
 
     @Override

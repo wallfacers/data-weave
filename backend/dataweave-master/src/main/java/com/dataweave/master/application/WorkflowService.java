@@ -79,8 +79,19 @@ public class WorkflowService {
     /** 分页结果。 */
     public record PageResult(List<WorkflowDef> content, long totalElements, int totalPages, int page, int size) {}
 
-    /** DAG 节点 DTO（以 node_key 为稳定标识，不暴露自增主键给前端编辑态）。 */
-    public record DagNodeDto(String nodeKey, String nodeType, Long taskId, String name, Integer posX, Integer posY) {}
+    /**
+     * DAG 节点 DTO（以 node_key 为稳定标识，不暴露自增主键给前端编辑态）。
+     * {@code taskStatus} 为该 TASK 节点引用任务的发布态（ONLINE/DRAFT）——供画布标「未发布」节点
+     * （ops-center-publish-boundary）；VIRTUAL 节点或任务缺失时为 null。
+     */
+    public record DagNodeDto(String nodeKey, String nodeType, Long taskId, String name,
+                             Integer posX, Integer posY, String taskStatus) {
+        /** 6 参便捷构造（taskStatus 默认 null）：兼容不关心发布态的旧调用与测试。 */
+        public DagNodeDto(String nodeKey, String nodeType, Long taskId, String name,
+                          Integer posX, Integer posY) {
+            this(nodeKey, nodeType, taskId, name, posX, posY, null);
+        }
+    }
 
     /** DAG 边 DTO（端点用 node_key 引用）。 */
     public record DagEdgeDto(String fromNodeKey, String toNodeKey, String strength) {}
@@ -338,9 +349,12 @@ public class WorkflowService {
         List<DagNodeDto> nodeDtos = new ArrayList<>();
         for (WorkflowNode n : nodes) {
             idToKey.put(n.getId(), n.getNodeKey());
+            // 引用任务发布态（供画布标「未发布」节点）：VIRTUAL 或任务缺失为 null。
+            String taskStatus = n.getTaskId() == null ? null
+                    : taskDefRepository.findById(n.getTaskId()).map(TaskDef::getStatus).orElse(null);
             nodeDtos.add(new DagNodeDto(n.getNodeKey(),
                     n.getNodeType() != null ? n.getNodeType() : "TASK",
-                    n.getTaskId(), n.getName(), n.getPosX(), n.getPosY()));
+                    n.getTaskId(), n.getName(), n.getPosX(), n.getPosY(), taskStatus));
         }
         List<DagEdgeDto> edgeDtos = new ArrayList<>();
         for (WorkflowEdge e : edgeRepository.findByWorkflowIdAndDeleted(id, 0)) {
@@ -500,11 +514,24 @@ public class WorkflowService {
         if (nodes.isEmpty()) {
             throw new BizException("workflow.publish.empty").withHttpStatus(409);
         }
+        List<String> notOnlineNodes = new ArrayList<>();
         for (WorkflowNode n : nodes) {
             boolean virtual = "VIRTUAL".equals(n.getNodeType());
             if (!virtual && n.getTaskId() == null) {
                 throw new BizException("workflow.node.task_unbound", n.getNodeKey());
             }
+            // 引用完整性（ops-center-publish-boundary）：发布即晋级生产，所有 TASK 节点引用的任务必须已发布(ONLINE)。
+            if (!virtual) {
+                boolean online = taskDefRepository.findById(n.getTaskId())
+                        .map(t -> "ONLINE".equals(t.getStatus())).orElse(false);
+                if (!online) {
+                    notOnlineNodes.add(n.getName() != null ? n.getName() : n.getNodeKey());
+                }
+            }
+        }
+        if (!notOnlineNodes.isEmpty()) {
+            throw new BizException("workflow.node_task_not_online", String.join(", ", notOnlineNodes))
+                    .withHttpStatus(409);
         }
         // 无环校验（复用既有校验器，只看未删边）
         graphValidator.validateWorkflowDagAcyclic(id);
@@ -656,9 +683,11 @@ public class WorkflowService {
         DagPayload payload;
         try {
             WorkflowDagSnapshot snap = objectMapper.readValue(ver.getDagSnapshotJson(), WorkflowDagSnapshot.class);
+            // 快照节点为已发布版本回滚源，引用任务在发布时即 ONLINE，taskStatus 记 ONLINE（VIRTUAL 为 null）。
             List<DagNodeDto> nodes = snap.nodes().stream()
                     .map(sn -> new DagNodeDto(sn.nodeKey(), sn.nodeType(), sn.taskId(),
-                            sn.name(), sn.posX(), sn.posY()))
+                            sn.name(), sn.posX(), sn.posY(),
+                            sn.taskId() == null ? null : "ONLINE"))
                     .toList();
             List<DagEdgeDto> edges = snap.edges().stream()
                     .map(se -> new DagEdgeDto(se.fromNodeKey(), se.toNodeKey(), se.strength()))

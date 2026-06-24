@@ -3,7 +3,7 @@
 /**
  * 运维中心视图：顶条今日大盘 + 主舞台 Tab + 右栏 Agent 举手台。
  *
- * 布局参照 cockpit-view 的三段式；主舞台 Tab 切换周期实例 / 补数据 / 手动·测试 / 周期任务。
+ * 布局参照 cockpit-view 的三段式；主舞台 Tab：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
  * 经 `dataweave.ui.open({ view: "ops", params: { tab, filter } })` 召唤时，params 用来预置激活 Tab 与筛选。
  */
 
@@ -12,9 +12,10 @@ import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Loading03Icon,
-  SettingDone02Icon,
+  Calendar03Icon,
   BoxIcon,
   RefreshIcon,
+  CursorMagicSelection02Icon,
   Bug01Icon,
 } from "@hugeicons/core-free-icons"
 
@@ -25,17 +26,19 @@ import type { ViewProps } from "@/lib/workspace/registry"
 import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
 import { BackfillPanel } from "./ops/backfill-panel"
-import { PeriodicTasksPanel } from "./ops/periodic-tasks-panel"
-import { ManualTestsPanel } from "./ops/manual-tests-panel"
+import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
+import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
 import { OpsAlertCard } from "./ops/ops-alert-card"
 
-type TabId = "instances" | "backfill" | "manual" | "tasks"
+// 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
+// 「手动·测试」Tab 已移除：测试实例归开发态，手动触发是实例视图里的动作。
+type TabId = "periodicWf" | "manualWf" | "instances" | "backfill"
 
 const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
-  { id: "instances", labelKey: "tabPeriodicInstances", icon: RefreshIcon },
+  { id: "periodicWf", labelKey: "tabPeriodicWorkflows", icon: Calendar03Icon },
+  { id: "manualWf", labelKey: "tabManualWorkflows", icon: CursorMagicSelection02Icon },
+  { id: "instances", labelKey: "tabWorkflowInstances", icon: RefreshIcon },
   { id: "backfill", labelKey: "tabBackfillInstances", icon: Loading03Icon },
-  { id: "manual", labelKey: "tabManualTests", icon: BoxIcon },
-  { id: "tasks", labelKey: "tabPeriodicTasks", icon: SettingDone02Icon },
 ]
 
 /** 开发/测试用 mock alert 注入：`window.__MOCK_OPS_ALERT__` 存在时自动推入 store */
@@ -70,8 +73,8 @@ export function OpsView({ params }: ViewProps) {
 
   // 初始 Tab / 筛选来自 ui.open 的 params
   const initialTab = useMemo<TabId>(() => {
-    const p = (params?.tab as string) ?? "instances"
-    return (TAB_ORDER.some((tb) => tb.id === p) ? p : "instances") as TabId
+    const p = (params?.tab as string) ?? "periodicWf"
+    return (TAB_ORDER.some((tb) => tb.id === p) ? p : "periodicWf") as TabId
   }, [params?.tab])
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
@@ -98,12 +101,12 @@ export function OpsView({ params }: ViewProps) {
         <main className="flex min-w-0 flex-1 flex-col border-r">
           <OpsTabBar active={activeTab} onChange={setActiveTab} />
           <div className="flex min-h-0 flex-1">
+            {activeTab === "periodicWf" && <PeriodicWorkflowsPanel />}
+            {activeTab === "manualWf" && <ManualWorkflowsPanel />}
             {activeTab === "instances" && (
               <PeriodicInstancesPanel initialFilter={initialFilter} />
             )}
             {activeTab === "backfill" && <BackfillPanel />}
-            {activeTab === "manual" && <ManualTestsPanel />}
-            {activeTab === "tasks" && <PeriodicTasksPanel />}
           </div>
         </main>
 

@@ -95,10 +95,27 @@ public class OpsController {
         return ApiResponse.ok(opsService.summary());
     }
 
-    /** 所有任务定义。 */
+    /**
+     * 所有任务定义。
+     * @deprecated 运维不以任务为主体（ops-center-publish-boundary）：改用 {@code /periodic-workflows} /
+     *     {@code /manual-workflows}。保留供过渡期只读引用。
+     */
+    @Deprecated
     @GetMapping("/tasks")
     public ApiResponse<List<TaskDef>> tasks() {
         return ApiResponse.ok(opsService.tasks());
+    }
+
+    /** 周期任务流列表（运维主体）：仅 ONLINE & schedule_type=CRON 的已发布工作流。 */
+    @GetMapping("/periodic-workflows")
+    public ApiResponse<List<WorkflowDef>> periodicWorkflows() {
+        return ApiResponse.ok(opsService.periodicWorkflows());
+    }
+
+    /** 手动任务流列表（运维主体）：仅 ONLINE & schedule_type=MANUAL 的已发布工作流。 */
+    @GetMapping("/manual-workflows")
+    public ApiResponse<List<WorkflowDef>> manualWorkflows() {
+        return ApiResponse.ok(opsService.manualWorkflows());
     }
 
     /**
@@ -361,21 +378,27 @@ public class OpsController {
     }
 
     /**
-     * 冻结/解冻任务 — 契约①。
+     * 节点级 DAG 冻结/解冻（ops-center-publish-boundary，取代退役的任务级 /tasks/{id}/freeze）。
+     * instanceId 省略=定义级（后续每个 cron 实例跳该节点及其传递下游）；非空=实例级（仅该实例）。
+     * 冻结状态存运维侧 overlay，不写入发布快照。写操作经闸门留痕。
      */
-    @PostMapping("/tasks/{taskId}/freeze")
-    public ApiResponse<Map<String, Object>> freeze(@PathVariable Long taskId,
-                                                    @RequestBody Map<String, Object> body,
-                                                    ServerWebExchange exchange) {
+    @PostMapping("/workflows/{workflowId}/nodes/{nodeKey}/freeze")
+    public ApiResponse<Map<String, Object>> freezeNode(@PathVariable Long workflowId,
+                                                       @PathVariable String nodeKey,
+                                                       @RequestBody Map<String, Object> body,
+                                                       ServerWebExchange exchange) {
         boolean frozen = Boolean.TRUE.equals(body.get("frozen"));
+        UUID instanceId = body.get("instanceId") != null
+                ? UUID.fromString(String.valueOf(body.get("instanceId"))) : null;
         var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
 
         ActionRequest actionReq = ActionRequest.builder()
-                .toolName("freeze_task").actionType("FREEZE_TASK")
-                .targetType("TASK").targetId(String.valueOf(taskId))
+                .toolName("freeze_node").actionType("FREEZE_NODE")
+                .targetType("WORKFLOW_NODE").targetId(workflowId + "/" + nodeKey)
                 .actor("ui").actorSource("UI")
-                .summary(opsMessages.get("ops.approval.freeze", locale) + " #" + taskId)
+                .summary(opsMessages.get("ops.approval.freeze_node", locale) + " " + workflowId + "/" + nodeKey)
                 .param("frozen", frozen)
+                .param("instanceId", instanceId == null ? null : instanceId.toString())
                 .build();
 
         GateResult gr = gatedActionService.submit(actionReq, locale);
@@ -384,11 +407,12 @@ public class OpsController {
 
         if (gr.executed()) {
             try {
-                TaskDef td = dataOpsBridge.setFrozen(taskId, frozen);
-                result.put("task", Map.of("id", td.getId(), "name", td.getName(), "frozen", frozen));
+                dataOpsBridge.setNodeFrozen(workflowId, nodeKey, instanceId, frozen);
+                result.put("node", Map.of("workflowId", workflowId, "nodeKey", nodeKey,
+                        "scope", instanceId == null ? "DEFINITION" : "INSTANCE", "frozen", frozen));
             } catch (UnsupportedOperationException e) {
                 result.put("message", "闸门通过，领域执行待 Stream A 实现");
-                result.put("task", null);
+                result.put("node", null);
             }
         } else {
             result.put("message", gr.message());

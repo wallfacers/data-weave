@@ -16,6 +16,8 @@ public final class InstanceStates {
     public static final String STOPPED = "STOPPED";
     public static final String PREEMPTED = "PREEMPTED";
     public static final String PAUSED = "PAUSED";
+    /** 节点被冻结跳过（ops-center-publish-boundary）：终态、非失败，不下发不占槽；冻结节点及其传递下游（含弱依赖边）。 */
+    public static final String SKIPPED = "SKIPPED";
 
     /** 唤醒频道：发布即请求一轮调度（跨 master 广播 / 进程内直达）。 */
     public static final String WAKE_CHANNEL = "dw:wake";
@@ -24,6 +26,7 @@ public final class InstanceStates {
     }
 
     public static boolean isTerminal(String state) {
-        return SUCCESS.equals(state) || FAILED.equals(state) || STOPPED.equals(state);
+        return SUCCESS.equals(state) || FAILED.equals(state)
+                || STOPPED.equals(state) || SKIPPED.equals(state);
     }
 }

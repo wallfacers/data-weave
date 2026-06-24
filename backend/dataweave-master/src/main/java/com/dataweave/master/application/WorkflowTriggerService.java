@@ -16,6 +16,8 @@ import com.dataweave.master.domain.WorkflowInstanceRepository;
 import com.dataweave.master.domain.WorkflowEdge;
 import com.dataweave.master.domain.WorkflowEdgeRepository;
 import com.dataweave.master.domain.WorkflowNode;
+import com.dataweave.master.domain.WorkflowNodeFreeze;
+import com.dataweave.master.domain.WorkflowNodeFreezeRepository;
 import com.dataweave.master.domain.WorkflowNodeRepository;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
@@ -59,6 +61,8 @@ public class WorkflowTriggerService {
     private final TaskInstanceRepository taskInstanceRepository;
     private final TaskDefRepository taskDefRepository;
     private final WorkflowDefVersionRepository workflowDefVersionRepository;
+    private final WorkflowNodeFreezeRepository nodeFreezeRepository;
+    private final WorkflowStateService workflowStateService;
     private final EventBus eventBus;
     private final ObjectMapper objectMapper;
 
@@ -68,6 +72,8 @@ public class WorkflowTriggerService {
                                   TaskInstanceRepository taskInstanceRepository,
                                   TaskDefRepository taskDefRepository,
                                   WorkflowDefVersionRepository workflowDefVersionRepository,
+                                  WorkflowNodeFreezeRepository nodeFreezeRepository,
+                                  WorkflowStateService workflowStateService,
                                   EventBus eventBus,
                                   ObjectMapper objectMapper) {
         this.nodeRepository = nodeRepository;
@@ -76,6 +82,8 @@ public class WorkflowTriggerService {
         this.taskInstanceRepository = taskInstanceRepository;
         this.taskDefRepository = taskDefRepository;
         this.workflowDefVersionRepository = workflowDefVersionRepository;
+        this.nodeFreezeRepository = nodeFreezeRepository;
+        this.workflowStateService = workflowStateService;
         this.eventBus = eventBus;
         this.objectMapper = objectMapper;
     }
@@ -191,9 +199,16 @@ public class WorkflowTriggerService {
         }
         LocalDateTime now = LocalDateTime.now();
 
-        // 虚拟节点（zero-load）物化即 SUCCESS，计入已完成数。
+        // 定义级节点冻结（ops-center-publish-boundary）：叠加 overlay，冻结节点及其传递下游（含弱依赖边）→ SKIPPED。
+        // 实例级冻结在 NodeFreezeService 于实例已存在后追加，不在物化期处理。
+        Set<String> frozenSeeds = nodeFreezeRepository.findDefinitionFrozen(wf.getId())
+                .stream().map(WorkflowNodeFreeze::getNodeKey).collect(Collectors.toSet());
+        Set<String> frozenClosure = frozenSeeds.isEmpty()
+                ? Set.of() : downstreamClosure(frozenSeeds, forward);
+
+        // 虚拟节点（zero-load）物化即 SUCCESS，计入已完成数（被冻结的虚拟节点改记 SKIPPED，不计此）。
         int virtualCount = (int) subNodes.stream()
-                .filter(m -> "VIRTUAL".equals(m.nodeType())).count();
+                .filter(m -> "VIRTUAL".equals(m.nodeType()) && !frozenClosure.contains(m.nodeKey())).count();
 
         WorkflowInstance wi = new WorkflowInstance();
         wi.setTenantId(wf.getTenantId());
@@ -225,20 +240,33 @@ public class WorkflowTriggerService {
             ti.setBackfillHeld(backfillHeld);   // 整张 DAG 同 held（晋升以 bizDate 为单位，design D2）
             ti.setEnv(Envs.PROD);
             ti.setBizDate(bizDate);
+            boolean frozen = frozenClosure.contains(m.nodeKey());
             if ("VIRTUAL".equals(m.nodeType())) {
-                // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽。
+                // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽；被冻结则记 SKIPPED。
                 ti.setTaskId(null);
                 ti.setTaskVersionNo(null);
-                ti.setState(InstanceStates.SUCCESS);
+                ti.setState(frozen ? InstanceStates.SKIPPED : InstanceStates.SUCCESS);
                 ti.setStartedAt(now);
                 ti.setFinishedAt(now);
             } else {
                 Integer versionNo = m.taskVersionNo();
                 ti.setTaskId(m.taskId());
                 ti.setTaskVersionNo(versionNo != null && versionNo > 0 ? versionNo : null);
-                ti.setState(InstanceStates.WAITING);
+                if (frozen) {
+                    // 冻结节点（及其传递下游）：物化即 SKIPPED，不下发不占槽。
+                    ti.setState(InstanceStates.SKIPPED);
+                    ti.setStartedAt(now);
+                    ti.setFinishedAt(now);
+                } else {
+                    ti.setState(InstanceStates.WAITING);
+                }
             }
             taskInstanceRepository.save(ti);
+        }
+
+        // 含冻结跳过时重算聚合态/进度：全节点终态（全 SKIPPED/SUCCESS）的实例据此落 SUCCESS，不悬挂 RUNNING。
+        if (!frozenClosure.isEmpty()) {
+            workflowStateService.computeAndUpdate(savedWi.getId());
         }
 
         wake();
@@ -296,6 +324,23 @@ public class WorkflowTriggerService {
             String cur = queue.poll();
             if (result.add(cur)) {
                 queue.addAll(graph.getOrDefault(cur, List.of()));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 冻结级联闭包（ops-center-publish-boundary）：从冻结种子节点沿后继边 BFS 取传递下游闭包，
+     * **含弱依赖边**（冻结优先于依赖强弱，下游一律跳过）。{@code forward} 为全量 fromKey→[toKey]。
+     * 返回含种子自身的全部应 SKIPPED 节点 key 集合。
+     */
+    static Set<String> downstreamClosure(Set<String> seeds, Map<String, List<String>> forward) {
+        Set<String> result = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>(seeds);
+        while (!queue.isEmpty()) {
+            String cur = queue.poll();
+            if (result.add(cur)) {
+                queue.addAll(forward.getOrDefault(cur, List.of()));
             }
         }
         return result;

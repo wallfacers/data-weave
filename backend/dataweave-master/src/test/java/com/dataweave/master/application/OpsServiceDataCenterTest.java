@@ -43,13 +43,15 @@ class OpsServiceDataCenterTest {
         instanceRepository = mock(TaskInstanceRepository.class);
         taskDefRepository = mock(TaskDefRepository.class);
         WorkflowInstanceRepository workflowInstanceRepository = mock(WorkflowInstanceRepository.class);
+        com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository =
+                mock(com.dataweave.master.domain.WorkflowDefRepository.class);
         DiagnosisService diagnosisService = mock(DiagnosisService.class);
         stateMachine = mock(InstanceStateMachine.class);
         LogBus logBus = mock(LogBus.class);
         eventBus = mock(EventBus.class);
         jdbc = mock(JdbcTemplate.class);
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
-                diagnosisService, stateMachine, logBus, eventBus, jdbc);
+                workflowDefRepository, diagnosisService, stateMachine, logBus, eventBus, jdbc);
     }
 
     private TaskInstance instance(String state) {

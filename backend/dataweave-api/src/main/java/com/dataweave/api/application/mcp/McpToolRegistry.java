@@ -524,7 +524,12 @@ public class McpToolRegistry {
                     return Map.of("requested", uuids.size(), "accepted", accepted, "results", results);
                 });
 
-        register("freeze_task", "冻结/解冻任务定义（经策略闸门）",
+        // TODO(ops-center-publish-boundary, 全局统一重写时处理): 任务级 freeze 已退役——调度门已移除、
+        // REST `/api/ops/tasks/{id}/freeze` 已换成节点级 `/workflows/{id}/nodes/{nodeKey}/freeze`。
+        // 此 MCP 工具仍走 deprecated `dataOpsBridge.setFrozen`（仅写 task_def.frozen 列，已无调度效果）。
+        // 待全局 MCP 工具梳理时：改注册 `freeze_node`（参数 workflowId/nodeKey/instanceId?/frozen），
+        // handler 调 `dataOpsBridge.setNodeFrozen`，与 REST 对齐。暂留以免破坏 workhorse 现有工具列表。
+        register("freeze_task", "冻结/解冻任务定义（经策略闸门）【已退役，待全局重写为 freeze_node】",
                 schema(req("taskId", "integer", "任务定义 id"),
                         req("frozen", "boolean", "true=冻结 false=解冻")),
                 ctx -> {

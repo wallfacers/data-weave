@@ -65,7 +65,9 @@ public class WorkflowStateService {
                 case "RUNNING" -> hasRunning = true;
                 case "FAILED" -> hasFailed = true;
                 case "WAITING" -> hasWaiting = true;
-                case "SUCCESS" -> hasSuccess = true;
+                // SKIPPED（冻结跳过）是终态、非失败，与 SUCCESS 同归「已结算」桶参与聚合：
+                // 不阻塞收尾、不算失败。区别仅在 task_instance.state 层面对 UI 可见（ops-center-publish-boundary）。
+                case "SUCCESS", "SKIPPED" -> hasSuccess = true;
                 case "STOPPED" -> { hasStopped = true; stoppedCount++; }
                 default -> hasNotRun = true; // NOT_RUN
             }
@@ -112,7 +114,8 @@ public class WorkflowStateService {
         List<TaskInstance> nodes = taskInstanceRepository.findByWorkflowInstanceId(workflowInstanceId);
         String state = aggregate(nodes);
         // 进度计数与聚合态同源：只数 NORMAL 节点（TEST 试跑不计，与 total_tasks 口径一致）。
-        int completed = countByState(nodes, "SUCCESS");
+        // SKIPPED（冻结跳过）计入已完成，使进度条能抵达 total（终态、非失败）。
+        int completed = countByState(nodes, "SUCCESS") + countByState(nodes, "SKIPPED");
         int failed = countByState(nodes, "FAILED");
         boolean changed = !state.equals(wi.getState())
                 || !Integer.valueOf(completed).equals(wi.getCompletedTasks())

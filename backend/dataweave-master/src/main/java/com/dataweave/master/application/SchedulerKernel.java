@@ -260,9 +260,9 @@ public class SchedulerKernel {
                     + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode IN ('NORMAL','BACKFILL') AND ti.deleted=0 "
-                    // 冻结门（data-ops-center）：跳过已冻结 task_def 的实例（task_id 为空的 VIRTUAL 节点 COALESCE→0 不跳）。
-                    + "AND COALESCE((SELECT td.frozen FROM task_def td WHERE td.id=ti.task_id),0)=0 "
-                    // 节流门（backfill-parallelism-throttle）：被持有的补数据实例不可认领；与 frozen 同构旁路标志，
+                    // 任务级 frozen 门已退役（ops-center-publish-boundary）：冻结改为节点级 overlay，
+                    // 在实例物化阶段标 SKIPPED（见 NodeFreezeService），不再于认领期按 task_def.frozen 过滤。
+                    // 节流门（backfill-parallelism-throttle）：被持有的补数据实例不可认领；旁路标志，
                     // 由 BackfillPromoter 完成即晋升（held 1→0）。NORMAL 实例 held 默认 0 不受影响。
                     + "AND COALESCE(ti.backfill_held,0)=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
@@ -271,8 +271,10 @@ public class SchedulerKernel {
                     + "   JOIN task_instance pred ON pred.workflow_instance_id=ti.workflow_instance_id "
                     + "        AND pred.workflow_node_id=e.from_node_id AND pred.deleted=0 "
                     + "   WHERE e.to_node_id=ti.workflow_node_id AND e.deleted=0 "
+                    // 弱依赖就绪：仅上游「自然跑完」(SUCCESS含手动置成功 / FAILED)放行下游；
+                    // 手动停止(STOPPED/MANUAL_STOP)是中止而非跑完，不放行弱依赖下游（ops-center-publish-boundary）。
                     + "        AND ( (COALESCE(e.strength,'STRONG')='WEAK' "
-                    + "               AND pred.state NOT IN ('SUCCESS','FAILED','STOPPED')) "
+                    + "               AND pred.state NOT IN ('SUCCESS','FAILED')) "
                     + "              OR (COALESCE(e.strength,'STRONG')<>'WEAK' AND pred.state<>'SUCCESS') ) ) "
                     + "ORDER BY ti.updated_at ASC "
                     + "LIMIT " + claimBatchSize + " FOR UPDATE SKIP LOCKED";

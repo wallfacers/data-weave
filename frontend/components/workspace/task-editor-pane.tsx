@@ -109,6 +109,8 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   const [retryMax, setRetryMax] = useState(0)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
+  // 引用此任务的 ONLINE 工作流（ops-center-publish-boundary）：非空则后端禁止下线，前端禁用按钮并提示。
+  const [refOnlineWorkflows, setRefOnlineWorkflows] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
   const [paramRows, setParamRows] = useState<ParamRow[]>([])
   const [saving, setSaving] = useState(false)
@@ -183,6 +185,7 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
       if (!detail?.task) return
       const td = detail.task
       setVersions(detail.versions ?? [])
+      setRefOnlineWorkflows(detail.referencedByOnlineWorkflows ?? [])
       setName(td.name ?? "")
       setType(td.type ?? "SQL")
       setContent(td.content ?? "")
@@ -549,7 +552,17 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
             {t("taskEditor.publish")}
           </Button>
           {published && (
-            <Button size="sm" variant="outline" onClick={handleOffline} disabled={saving}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleOffline}
+              disabled={saving || refOnlineWorkflows.length > 0}
+              title={
+                refOnlineWorkflows.length > 0
+                  ? t("taskEditor.offlineBlockedByWorkflows", { names: refOnlineWorkflows.join(", ") })
+                  : undefined
+              }
+            >
               {t("taskEditor.offline")}
             </Button>
           )}
