@@ -368,7 +368,8 @@
     "versionsTab": "Versions",
     "content": "Code",
     "datasource": "Datasource",
-    "datasourceNone": "None (unbound)"
+    "datasourceNone": "None (unbound)",
+    "targetDatasource": "Target Datasource"
   },
   "versionHistory": {
     "empty": "No published versions",
