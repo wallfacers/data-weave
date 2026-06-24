@@ -8,6 +8,8 @@ import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.api.infrastructure.OpsMessages;
 import com.dataweave.api.interfaces.dto.*;
+// 显式单类型导入消歧：dto.BackfillRun 与 master.domain.BackfillRun 同名，控制器用的是 dto（data-ops-center 集成）。
+import com.dataweave.api.interfaces.dto.BackfillRun;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
@@ -578,10 +580,12 @@ public class OpsController {
 
     /** 构造批量操作请求（每个 instance 独立一个 ActionRequest，逐经闸门）。 */
     private ActionRequest buildBatchActionRequest(UUID instanceId, BatchOp op) {
+        // 运维中心批量针对单个 task_instance —— 用独立 OPS_* 动作类型，避免与既有
+        // TASK_RERUN（按 taskId 新建）/KILL_INSTANCE（杀工作流实例）语义混淆（data-ops-center 集成对齐）。
         String actionType = switch (op) {
-            case RERUN -> "TASK_RERUN";
-            case KILL -> "KILL_INSTANCE";
-            case SET_SUCCESS -> "SET_SUCCESS";
+            case RERUN -> "OPS_RERUN_INSTANCE";
+            case KILL -> "OPS_KILL_INSTANCE";
+            case SET_SUCCESS -> "OPS_SET_SUCCESS";
         };
         String summary = switch (op) {
             case RERUN -> "重跑实例 #" + instanceId;
