@@ -20,10 +20,10 @@
 
 ## 2. 🅰 Inspector SPI 与失败巡检器
 
-- [ ] 2.1 `Inspector` SPI 接口（`source()` + `inspect(): List<Finding>`）
-- [ ] 2.2 `TaskFailureInspector`：扫未诊断 FAILED 实例 → 调 `DiagnosisService.diagnoseInstance` → 映射 `TaskDiagnosis`→`Finding`（不重写诊断）
-- [ ] 2.3 去重：落库前按 `(source,targetType,targetId)` 跳过已 OPEN/ANNOUNCED
-- [ ] 2.4 单测：注入故障后 inspect 产出 Finding；重复 inspect 不重复建
+- [x] 2.1 `Inspector` SPI 接口（`source()` + `inspect(): List<Finding>`）
+- [x] 2.2 `TaskFailureInspector`：扫未诊断 FAILED 实例 → 调 `DiagnosisService.diagnoseInstance` → 映射 `TaskDiagnosis`→`Finding`（不重写诊断）；suggestions→actions(key/label/actionType) 映射
+- [x] 2.3 去重：inspect 内 `findingService.exists`(任意状态)跳过已处理目标 + `recordIfNew` 按 (source,targetType,targetId) 对 OPEN/ANNOUNCED 去重（双层）
+- [x] 2.4 单测：未处理 FAILED→映射 Finding；已处理跳过不诊断；mapActions 回退 — TaskFailureInspectorTest 3 通过
 
 ## 3. 🅰 巡检调度
 

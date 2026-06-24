@@ -15,4 +15,7 @@ public interface FindingRepository extends CrudRepository<Finding, Long> {
             String source, String targetType, String targetId, List<String> statuses);
 
     List<Finding> findByStatus(String status);
+
+    /** 是否已存在该 (source,targetType,targetId) 的任意发现（含已 RESOLVED）——巡检器据此跳过已处理目标。 */
+    boolean existsBySourceAndTargetTypeAndTargetId(String source, String targetType, String targetId);
 }

@@ -65,6 +65,11 @@ public class FindingService {
         return repository.findByStatusInOrderByIdDesc(ACTIVE);
     }
 
+    /** 该目标是否已有任意发现（含已 RESOLVED）——巡检器据此跳过已处理目标，避免修复后重复举手。 */
+    public boolean exists(String source, String targetType, String targetId) {
+        return repository.existsBySourceAndTargetTypeAndTargetId(source, targetType, targetId);
+    }
+
     public Optional<Finding> get(Long id) {
         return repository.findById(id);
     }
