@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.WorkflowInstance;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
@@ -28,11 +29,14 @@ public class WorkflowStateService {
 
     private final TaskInstanceRepository taskInstanceRepository;
     private final WorkflowInstanceRepository workflowInstanceRepository;
+    private final EventBus eventBus;
 
     public WorkflowStateService(TaskInstanceRepository taskInstanceRepository,
-                                WorkflowInstanceRepository workflowInstanceRepository) {
+                                WorkflowInstanceRepository workflowInstanceRepository,
+                                EventBus eventBus) {
         this.taskInstanceRepository = taskInstanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -119,8 +123,27 @@ public class WorkflowStateService {
             wi.setFailedTasks(failed);
             wi.setUpdatedAt(LocalDateTime.now());
             workflowInstanceRepository.save(wi);
+            // 聚合态变化即向画布事件频道补发 workflowState：自然完成（SUCCESS/FAILED）也能让前端 runStatus
+            // 翻到终态，停止按钮收起（此前只有显式 STOP 路径发 workflowState，自然聚合从不发，按钮常驻）。
+            publishWorkflowState(workflowInstanceId, state);
         }
         return Optional.of(state);
+    }
+
+    /**
+     * 向工作流实例事件频道补发整体态（与 {@code InstanceStateMachine.publishWorkflowState} 同格式）。
+     * 事件仅作 UI 辅助，发布失败或总线缺省（单测传 null）不影响状态推进。
+     */
+    private void publishWorkflowState(UUID workflowInstanceId, String state) {
+        if (eventBus == null) {
+            return;
+        }
+        try {
+            eventBus.publish("dw:evt:" + workflowInstanceId,
+                    "{\"workflowState\":\"" + state + "\"}");
+        } catch (Exception e) {
+            // 忽略：事件辅助 UI，不阻断聚合落库。
+        }
     }
 
     private static int countByState(List<TaskInstance> nodes, String state) {

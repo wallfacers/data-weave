@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstance;
@@ -12,7 +13,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -20,7 +24,7 @@ import static org.mockito.Mockito.when;
  */
 class WorkflowStateServiceTest {
 
-    private final WorkflowStateService service = new WorkflowStateService(null, null);
+    private final WorkflowStateService service = new WorkflowStateService(null, null, null);
 
     private static TaskInstance node(String state, String runMode) {
         TaskInstance t = new TaskInstance();
@@ -104,7 +108,7 @@ class WorkflowStateServiceTest {
                 .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("SUCCESS")));
         when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        String state = new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid).orElseThrow();
+        String state = new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid).orElseThrow();
 
         assertThat(state).isEqualTo("SUCCESS");
         assertThat(wi.getCompletedTasks()).isEqualTo(5);
@@ -128,7 +132,7 @@ class WorkflowStateServiceTest {
                 .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), n("SUCCESS"), n("FAILED")));
         when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        String state = new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid).orElseThrow();
+        String state = new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid).orElseThrow();
 
         assertThat(state).isEqualTo("FAILED");
         assertThat(wi.getCompletedTasks()).isEqualTo(3);
@@ -152,9 +156,55 @@ class WorkflowStateServiceTest {
                 .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), node("SUCCESS", "TEST")));
         when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        new WorkflowStateService(tiRepo, wiRepo).computeAndUpdate(wid);
+        new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid);
 
         // TEST 试跑节点不参与计数，completed 只数两个 NORMAL SUCCESS
         assertThat(wi.getCompletedTasks()).isEqualTo(2);
+    }
+
+    @Test
+    void computeAndUpdate_自然完成_补发workflowState事件_停止按钮方能收起() {
+        // 回归 stop-button-stuck：自然聚合到 SUCCESS 时也须向 dw:evt:{id} 发 workflowState，
+        // 否则前端 runStatus 永不到终态、停止按钮常驻。
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(1);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        EventBus bus = mock(EventBus.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid)).thenReturn(List.of(n("SUCCESS"), n("SUCCESS")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo, bus).computeAndUpdate(wid);
+
+        verify(bus).publish(eq("dw:evt:" + wid), eq("{\"workflowState\":\"SUCCESS\"}"));
+    }
+
+    @Test
+    void computeAndUpdate_聚合态未变_不发事件() {
+        // 已是 SUCCESS 再算一次（无变化）→ 不重复发，避免无谓事件。
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("SUCCESS");
+        wi.setCompletedTasks(2);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        EventBus bus = mock(EventBus.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid)).thenReturn(List.of(n("SUCCESS"), n("SUCCESS")));
+
+        new WorkflowStateService(tiRepo, wiRepo, bus).computeAndUpdate(wid);
+
+        verify(bus, never()).publish(any(), any());
     }
 }
