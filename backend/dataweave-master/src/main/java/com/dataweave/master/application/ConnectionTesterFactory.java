@@ -1,11 +1,12 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.application.DatasourceDtos.ConnectionTestResult;
 import com.dataweave.master.domain.Datasource;
-import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Factory that routes connection test requests to the appropriate {@link ConnectionTester}
@@ -27,8 +28,6 @@ public class ConnectionTesterFactory {
     public ConnectionTester getTester(String typeCode) {
         return testers.stream()
                 .filter(t -> t.supports(typeCode))
-                // Prefer non-fallback testers (JdbcConnectionTester.supports returns true only for JDBC types)
-                // UnsupportedConnectionTester.supports returns true for everything (fallback)
                 .filter(t -> !(t instanceof com.dataweave.master.infrastructure.UnsupportedConnectionTester))
                 .findFirst()
                 .orElseGet(() -> testers.stream()
@@ -37,11 +36,13 @@ public class ConnectionTesterFactory {
                         .orElseThrow(() -> new BizException("datasource.test_unsupported", typeCode)));
     }
 
-    /**
-     * Test connectivity for a datasource (by ID).
-     */
-    public DatasourceDtos.ConnectionTestResult test(Datasource ds, String decryptedPassword) {
-        ConnectionTester tester = getTester(ds.getTypeCode());
-        return tester.test(ds, decryptedPassword);
+    /** Test connectivity for a datasource (by ID), default Chinese locale. */
+    public ConnectionTestResult test(Datasource ds, String decryptedPassword) {
+        return getTester(ds.getTypeCode()).test(ds, decryptedPassword);
+    }
+
+    /** Test connectivity for a datasource, localizing result message by the given locale. */
+    public ConnectionTestResult test(Datasource ds, String decryptedPassword, Locale locale) {
+        return getTester(ds.getTypeCode()).test(ds, decryptedPassword, locale);
     }
 }

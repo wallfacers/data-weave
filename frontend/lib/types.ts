@@ -397,6 +397,8 @@ export interface DatasourceVO {
   propsJson: string | null
   description: string | null
   status: string
+  driverJarId: number | null
+  driverSource: string  // "builtin" | "uploaded"
   createdAt: string | null
   updatedAt: string | null
 }
@@ -429,6 +431,7 @@ export interface DatasourceCreateRequest {
   password?: string | null
   propsJson?: string | null
   description?: string | null
+  driverJarId?: number | null
 }
 
 /** 更新数据源请求体（所有字段可选）。 */
@@ -444,4 +447,17 @@ export interface DatasourceUpdateRequest {
   propsJson?: string | null
   description?: string | null
   status?: string | null
+  driverJarId?: number | null
+}
+
+/** 驱动 jar 资产（GET/POST /api/driver-jars）。sha256 仅展示短摘要。 */
+export interface DriverJarVO {
+  id: number
+  typeCode: string
+  driverClass: string | null
+  originalName: string | null
+  sha256Short: string | null
+  storageType: string | null
+  sizeBytes: number | null
+  status: string
 }

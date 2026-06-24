@@ -21,7 +21,8 @@ public final class DatasourceDtos {
             String username,
             String password,
             String propsJson,
-            String description
+            String description,
+            Long driverJarId
     ) {}
 
     /** Request body for updating a datasource (all fields optional — null means "keep existing"). */
@@ -36,7 +37,8 @@ public final class DatasourceDtos {
             String password,
             String propsJson,
             String description,
-            String status
+            String status,
+            Long driverJarId
     ) {}
 
     /** Response VO for datasource (password always masked). */
@@ -55,6 +57,8 @@ public final class DatasourceDtos {
             String propsJson,
             String description,
             String status,
+            Long driverJarId,
+            String driverSource,
             String createdAt,
             String updatedAt
     ) {}
@@ -72,5 +76,17 @@ public final class DatasourceDtos {
             String message,
             int latencyMs,
             String serverVersion
+    ) {}
+
+    /** Response VO for a driver jar asset (sha256 仅展示前 12 位短摘要)。 */
+    public record DriverJarVO(
+            Long id,
+            String typeCode,
+            String driverClass,
+            String originalName,
+            String sha256Short,
+            String storageType,
+            Long sizeBytes,
+            String status
     ) {}
 }

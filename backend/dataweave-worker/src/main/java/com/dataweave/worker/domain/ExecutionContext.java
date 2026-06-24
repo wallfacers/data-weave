@@ -36,13 +36,22 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
     /**
      * 业务数据源连接引用（已解析，不含未解密密文）。
      *
-     * @param name     数据源名（启动日志展示）
-     * @param typeCode 类型编码（MYSQL/POSTGRESQL/…，启动日志展示）
-     * @param jdbcUrl  JDBC URL
-     * @param username 用户名
-     * @param password 口令（已解密明文）
+     * @param name        数据源名（启动日志展示）
+     * @param typeCode    类型编码（MYSQL/POSTGRESQL/…，启动日志展示）
+     * @param jdbcUrl     JDBC URL
+     * @param username    用户名
+     * @param password    口令（已解密明文）
+     * @param driverJarId 绑定的上传驱动 jar 资产 id（datasource-driver-isolation）；null=走内置默认驱动
+     * @param driverClass 上传 jar 的驱动类名（隔离加载用）；null=内置
+     * @param storageKey  上传 jar 的存储 key（worker 据此从存储后端取 jar 隔离加载）；null=内置
      */
     public record DataSourceRef(String name, String typeCode, String jdbcUrl,
-                                String username, String password) {
+                                String username, String password,
+                                Long driverJarId, String driverClass, String storageKey) {
+        /** 向后兼容：无上传驱动 jar（走内置默认驱动）。 */
+        public DataSourceRef(String name, String typeCode, String jdbcUrl,
+                             String username, String password) {
+            this(name, typeCode, jdbcUrl, username, password, null, null, null);
+        }
     }
 }

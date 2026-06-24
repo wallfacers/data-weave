@@ -11,6 +11,7 @@ import {
   Delete02Icon,
   CheckmarkCircle01Icon,
   Cancel01Icon,
+  Upload04Icon,
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -32,10 +33,13 @@ import {
   deleteDatasource,
   testDatasource,
   testDatasourceConfig,
+  listDriverJars,
+  uploadDriverJar,
 } from "@/lib/datasource-api"
 import type {
   DatasourceVO,
   DatasourceType,
+  DriverJarVO,
   ConnectionTestResult,
   DatasourceCreateRequest,
 } from "@/lib/types"
@@ -309,6 +313,9 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
   const [fields, setFields] = useState<Record<string, string>>({})
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
+  const [driverJars, setDriverJars] = useState<DriverJarVO[]>([])
+  const [driverJarId, setDriverJarId] = useState<number | null>(editing?.driverJarId ?? null)
+  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -325,11 +332,39 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
     }
   }, [editing])
 
+  // 选类型变化时加载该类型的已上传驱动 jar 资产
+  useEffect(() => {
+    if (!selectedType) {
+      setDriverJars([])
+      return
+    }
+    listDriverJars(selectedType)
+      .then(setDriverJars)
+      .catch(() => setDriverJars([]))
+  }, [selectedType])
+
   const config = selectedType ? DATASOURCE_TYPE_CONFIG[selectedType] : null
 
   const updateField = (key: string, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }))
     setTestResult(null)
+  }
+
+  const handleUpload = async (file: File) => {
+    if (!selectedType) return
+    setUploading(true)
+    try {
+      const vo = await uploadDriverJar(selectedType, file)
+      // 去重后置顶（后端按 sha256 去重，可能返回既有资产）
+      setDriverJars((prev) => [vo, ...prev.filter((d) => d.id !== vo.id)])
+      setDriverJarId(vo.id)
+      setTestResult(null)
+      toast.success(t("form.driverUploaded"))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("form.uploadFailed"))
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleTest = async () => {
@@ -372,6 +407,7 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
         password: fields.password || null,
         jdbcUrl: config?.jdbcUrlTemplate ? buildJdbcUrl(selectedType, fields) : null,
         description: description || null,
+        driverJarId,
       }
       await onSave(req)
     } catch (e) {
@@ -448,6 +484,56 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
               />
             </div>
           ))}
+
+          {/* 驱动 jar（可选，覆盖内置默认驱动；应对老数据库版本兼容） */}
+          <div className="grid gap-1">
+            <label className="text-sm font-medium">{t("form.driverJar")}</label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={driverJarId ? "default" : "outline"} className="text-xs">
+                {driverJarId ? t("form.driverSourceUploaded") : t("form.driverSourceBuiltin")}
+              </Badge>
+              <label
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                  uploading || !selectedType ? "pointer-events-none opacity-60" : "hover:bg-muted"
+                }`}
+              >
+                <HugeiconsIcon icon={Upload04Icon} className="size-3.5" />
+                <span>{uploading ? t("form.uploading") : t("form.upload")}</span>
+                <input
+                  type="file"
+                  accept=".jar"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) handleUpload(f)
+                    e.target.value = ""
+                  }}
+                />
+              </label>
+              {driverJarId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setDriverJarId(null)
+                    setTestResult(null)
+                  }}
+                >
+                  {t("form.unbind")}
+                </Button>
+              )}
+            </div>
+            {driverJarId &&
+              (() => {
+                const jar = driverJars.find((d) => d.id === driverJarId)
+                return jar ? (
+                  <p className="text-xs text-muted-foreground">
+                    {jar.driverClass ?? jar.originalName} · {jar.sha256Short}
+                  </p>
+                ) : null
+              })()}
+          </div>
 
           {/* Test result */}
           {testResult && (

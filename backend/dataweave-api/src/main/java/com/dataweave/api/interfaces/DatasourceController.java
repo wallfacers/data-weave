@@ -11,6 +11,7 @@ import com.dataweave.master.domain.DatasourceTypeRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 数据源管理 REST 端点：CRUD + 连通性测试 + 类型查询。
@@ -75,17 +76,25 @@ public class DatasourceController {
         return ApiResponse.ok(datasourceService.delete(id));
     }
 
+    /** 解绑数据源的上传驱动 jar（回退内置默认驱动）。 */
+    @DeleteMapping("/datasources/{id}/driver-jar")
+    public ApiResponse<DatasourceVO> unbindDriverJar(@PathVariable Long id) {
+        return ApiResponse.ok(datasourceService.unbindDriverJar(id));
+    }
+
     // ===== Connection Test =====
 
     @PostMapping("/datasources/{id}/test")
-    public ApiResponse<ConnectionTestResult> testSaved(@PathVariable Long id) {
+    public ApiResponse<ConnectionTestResult> testSaved(@PathVariable Long id,
+            @RequestHeader(value = "Accept-Language", required = false, defaultValue = "zh-CN") String acceptLang) {
         Datasource ds = datasourceService.getEntityById(id);
         String decryptedPw = datasourceService.decryptPassword(ds);
-        return ApiResponse.ok(connectionTesterFactory.test(ds, decryptedPw));
+        return ApiResponse.ok(connectionTesterFactory.test(ds, decryptedPw, resolveLocale(acceptLang)));
     }
 
     @PostMapping("/datasources/test")
-    public ApiResponse<ConnectionTestResult> testConfig(@RequestBody DatasourceCreateRequest req) {
+    public ApiResponse<ConnectionTestResult> testConfig(@RequestBody DatasourceCreateRequest req,
+            @RequestHeader(value = "Accept-Language", required = false, defaultValue = "zh-CN") String acceptLang) {
         // Build a transient Datasource from request (not saved to DB)
         Datasource ds = new Datasource();
         ds.setName(req.name());
@@ -97,7 +106,21 @@ public class DatasourceController {
         ds.setUsername(req.username());
         ds.setPropsJson(req.propsJson());
         // Password is plaintext in the test request — pass directly
-        return ApiResponse.ok(connectionTesterFactory.test(ds, req.password()));
+        return ApiResponse.ok(connectionTesterFactory.test(ds, req.password(), resolveLocale(acceptLang)));
+    }
+
+    /** 解析 Accept-Language 头（取首个 tag）为 Locale；空/异常兜底中文。 */
+    private static Locale resolveLocale(String acceptLanguage) {
+        if (acceptLanguage == null || acceptLanguage.isBlank()) {
+            return Locale.SIMPLIFIED_CHINESE;
+        }
+        String tag = acceptLanguage.split(",")[0].trim();
+        try {
+            Locale locale = Locale.forLanguageTag(tag);
+            return locale.getLanguage().isEmpty() ? Locale.SIMPLIFIED_CHINESE : locale;
+        } catch (Exception e) {
+            return Locale.SIMPLIFIED_CHINESE;
+        }
     }
 
     private static Long currentTenantId() {

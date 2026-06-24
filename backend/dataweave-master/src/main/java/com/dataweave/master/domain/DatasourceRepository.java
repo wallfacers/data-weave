@@ -12,4 +12,7 @@ public interface DatasourceRepository extends CrudRepository<Datasource, Long> {
     boolean existsByProjectIdAndNameAndDeletedAndIdNot(Long projectId, String name, Integer deleted, Long id);
 
     boolean existsByProjectIdAndNameAndDeleted(Long projectId, String name, Integer deleted);
+
+    /** 统计绑定某驱动 jar 的数据源数（删除 driver_jars 资产前引用校验）。 */
+    long countByDriverJarIdAndDeleted(Long driverJarId, Integer deleted);
 }

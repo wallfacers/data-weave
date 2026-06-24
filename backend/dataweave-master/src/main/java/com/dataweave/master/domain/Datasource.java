@@ -22,6 +22,8 @@ public class Datasource {
     private String propsJson;
     private String description;
     private String status;
+    /** 绑定的上传驱动 jar 资产 id（datasource-driver-isolation）；NULL = 走内置默认驱动。 */
+    private Long driverJarId;
     private Long createdBy;
     private Long updatedBy;
     private LocalDateTime createdAt;
@@ -72,6 +74,9 @@ public class Datasource {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public Long getDriverJarId() { return driverJarId; }
+    public void setDriverJarId(Long driverJarId) { this.driverJarId = driverJarId; }
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }

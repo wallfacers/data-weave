@@ -3,18 +3,36 @@ package com.dataweave.master.infrastructure;
 import com.dataweave.master.application.ConnectionTester;
 import com.dataweave.master.application.DatasourceDtos.ConnectionTestResult;
 import com.dataweave.master.domain.Datasource;
+import com.dataweave.master.domain.DatasourceType;
+import com.dataweave.master.domain.DatasourceTypeRepository;
+import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.domain.DriverJarRepository;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 
 /**
  * JDBC-family connection tester. Tests connectivity by establishing a real JDBC connection
  * and executing a validation query.
+ *
+ * <p>驱动来源优先级（datasource-driver-isolation）：
+ * <ol>
+ *   <li>数据源绑定上传 jar（{@code driver_jar_id} 非 NULL 且资产 {@code ACTIVE}）
+ *       → 隔离 {@code URLClassLoader} 加载，直接 {@code driver.connect}（绕过 {@code DriverManager}）</li>
+ *   <li>内置默认驱动在 classpath → {@code DriverManager.getConnection}（SPI 自动发现）</li>
+ *   <li>两者均不可用 → 「驱动未安装」</li>
+ * </ol>
+ * 驱动类名优先取 {@code datasource_types.driver} 字段，缺失则内置兜底。
+ * 文案经 {@link Messages} 按 locale 本地化（i18n 规则②）。
  */
 @Component
 public class JdbcConnectionTester implements ConnectionTester {
@@ -26,48 +44,64 @@ public class JdbcConnectionTester implements ConnectionTester {
             "HIVE", "IMPALA", "CLICKHOUSE", "STARROCKS", "DORIS"
     );
 
+    private final DatasourceTypeRepository datasourceTypeRepository;
+    private final DriverJarRepository driverJarRepository;
+    private final IsolatedDriverLoader isolatedLoader;
+    private final Messages messages;
+
+    public JdbcConnectionTester(DatasourceTypeRepository datasourceTypeRepository,
+                                DriverJarRepository driverJarRepository,
+                                IsolatedDriverLoader isolatedLoader,
+                                Messages messages) {
+        this.datasourceTypeRepository = datasourceTypeRepository;
+        this.driverJarRepository = driverJarRepository;
+        this.isolatedLoader = isolatedLoader;
+        this.messages = messages;
+    }
+
     @Override
     public boolean supports(String typeCode) {
         return JDBC_TYPES.contains(typeCode);
     }
 
     @Override
-    public ConnectionTestResult test(Datasource ds, String decryptedPassword) {
+    public ConnectionTestResult test(Datasource ds, String decryptedPassword, Locale locale) {
         String typeCode = ds.getTypeCode();
         String jdbcUrl = ds.getJdbcUrl();
-        String driver = resolveDriver(typeCode);
-
-        // Check driver availability
-        try {
-            Class.forName(driver);
-        } catch (ClassNotFoundException e) {
-            return new ConnectionTestResult(
-                    false,
-                    "驱动未安装: " + driver + "，请添加对应驱动 jar",
-                    0,
-                    null
-            );
-        }
-
-        // Build JDBC URL if not explicitly set
         if (jdbcUrl == null || jdbcUrl.isBlank()) {
             jdbcUrl = buildJdbcUrl(typeCode, ds.getHost(), ds.getPort(), ds.getDatabaseName());
         }
 
+        // 驱动来源优先级 ①：绑定上传 jar（ACTIVE）→ 隔离加载；否则走内置默认。
+        Optional<DriverJar> boundJar = resolveBoundJar(ds);
+        boolean uploaded = boundJar.isPresent();
+
+        Properties props = new Properties();
+        if (ds.getUsername() != null) props.setProperty("user", ds.getUsername());
+        if (decryptedPassword != null) props.setProperty("password", decryptedPassword);
+        props.setProperty("connectTimeout", String.valueOf(DEFAULT_TIMEOUT_SECONDS * 1000));
+
         long startTime = System.currentTimeMillis();
-        int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
-
         try {
-            DriverManager.setLoginTimeout(timeoutSeconds);
+            DriverManager.setLoginTimeout(DEFAULT_TIMEOUT_SECONDS);
 
-            Properties props = new Properties();
-            if (ds.getUsername() != null) props.setProperty("user", ds.getUsername());
-            if (decryptedPassword != null) props.setProperty("password", decryptedPassword);
-            props.setProperty("connectTimeout", String.valueOf(timeoutSeconds * 1000));
+            Connection conn;
+            if (uploaded) {
+                conn = isolatedLoader.connect(boundJar.get(), jdbcUrl, props);
+            } else {
+                String driver = resolveDriver(typeCode);
+                try {
+                    Class.forName(driver);
+                } catch (ClassNotFoundException e) {
+                    return new ConnectionTestResult(false,
+                            messages.get("datasource.test.driver_missing", locale, driver), 0, null);
+                }
+                conn = DriverManager.getConnection(jdbcUrl, props);
+            }
 
-            try (Connection conn = DriverManager.getConnection(jdbcUrl, props)) {
+            try (Connection c = conn) {
                 String validationQuery = resolveValidationQuery(typeCode);
-                try (Statement stmt = conn.createStatement();
+                try (Statement stmt = c.createStatement();
                      ResultSet rs = stmt.executeQuery(validationQuery)) {
                     rs.next();
                 }
@@ -75,27 +109,46 @@ public class JdbcConnectionTester implements ConnectionTester {
                 int latencyMs = (int) (System.currentTimeMillis() - startTime);
                 String serverVersion = null;
                 try {
-                    serverVersion = conn.getMetaData().getDatabaseProductName()
-                            + " " + conn.getMetaData().getDatabaseProductVersion();
+                    serverVersion = c.getMetaData().getDatabaseProductName()
+                            + " " + c.getMetaData().getDatabaseProductVersion();
                 } catch (Exception ignored) {
                     // version info is optional
                 }
-
-                return new ConnectionTestResult(true, "连接成功", latencyMs, serverVersion);
+                String sourceKey = uploaded ? "datasource.test.success_uploaded" : "datasource.test.success_builtin";
+                return new ConnectionTestResult(true, messages.get(sourceKey, locale), latencyMs, serverVersion);
             }
-        } catch (java.sql.SQLException e) {
+        } catch (SQLException e) {
             int latencyMs = (int) (System.currentTimeMillis() - startTime);
-            if (latencyMs >= timeoutSeconds * 1000 - 100) {
-                return new ConnectionTestResult(false, "连接超时 (" + timeoutSeconds + "s)", latencyMs, null);
+            if (latencyMs >= DEFAULT_TIMEOUT_SECONDS * 1000 - 100) {
+                return new ConnectionTestResult(false,
+                        messages.get("datasource.test.timeout", locale, DEFAULT_TIMEOUT_SECONDS), latencyMs, null);
             }
-            return new ConnectionTestResult(false, "连接失败: " + extractRootCause(e), latencyMs, null);
+            return new ConnectionTestResult(false,
+                    messages.get("datasource.test.failed", locale, extractRootCause(e)), latencyMs, null);
         } catch (Exception e) {
             int latencyMs = (int) (System.currentTimeMillis() - startTime);
-            return new ConnectionTestResult(false, "连接异常: " + e.getMessage(), latencyMs, null);
+            return new ConnectionTestResult(false,
+                    messages.get("datasource.test.error", locale, extractRootCause(e)), latencyMs, null);
         }
     }
 
+    private Optional<DriverJar> resolveBoundJar(Datasource ds) {
+        if (ds.getDriverJarId() == null) {
+            return Optional.empty();
+        }
+        return driverJarRepository.findById(ds.getDriverJarId())
+                .filter(j -> "ACTIVE".equals(j.getStatus()))
+                .filter(j -> j.getDeleted() == null || j.getDeleted() == 0);
+    }
+
     private String resolveDriver(String typeCode) {
+        return datasourceTypeRepository.findByCode(typeCode)
+                .map(DatasourceType::getDriver)
+                .filter(d -> d != null && !d.isBlank())
+                .orElseGet(() -> builtinFallbackDriver(typeCode));
+    }
+
+    private String builtinFallbackDriver(String typeCode) {
         return switch (typeCode) {
             case "MYSQL", "STARROCKS", "DORIS" -> "com.mysql.cj.jdbc.Driver";
             case "POSTGRES" -> "org.postgresql.Driver";
