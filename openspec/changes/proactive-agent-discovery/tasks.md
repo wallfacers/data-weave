@@ -80,8 +80,8 @@
 
 - [x] 10.0 合流 review：发现并修复 4 处前后端接缝漂移（agent.finding 扁平/agent.message markdown→content/apply approvalId 缺失/outcome 大小写）+ history 重水合，集中在 `real.ts` 适配层 + 后端 approvalId（commit `908c5ff`）
 - [x] 10.1 后端 `./mvnw install -DskipTests` 零错 + 14 新测试全绿；前端 `pnpm typecheck` 零错（build 由 🅱 报绿）
-- [~] 10.2 端到端竖切：**后端真链路 curl 实证通过**（worktree :8001 真码）——种子未诊断 FAILED `...000b` → InspectorScheduler **自主发现** finding id=100 → 真证据(concurrentTasks/history7d 实时聚合) → apply 经闸门 `EXECUTED`+approvalId+newInstanceId → RESOLVED 收口。**未尽**：全真模式浏览器 UI 跑（环境摩擦：8000 主仓残留占用 + spring-boot:run 取 m2 旧 master jar 的 Run-vs-Compile 坑），SSE 实时推送靠 InspectorSchedulerTest + EventBus→Controller 桥接覆盖、未活捕获
-- [~] 10.3 schema 幂等：H2 已实证（测试 + 8001 启动加载 schema+data 干净）+ 结构自检 47/47 DROP/CREATE 配对；**PG 二次启动**需 docker（本环境未起）未实跑
+- [x] 10.2 端到端竖切：**全真模式浏览器门 PASS**（干净单后端 :8001 真码 + 前端 dev `NEXT_PUBLIC_CHAT_MOCK=0`/`NEXT_PUBLIC_BACKEND_URL=:8001`，playwright 注入 admin token）——fresh boot 即 `InspectorScheduler 本轮新建 1 条 Finding`，举手台渲染**自主发现** finding id=100（CRITICAL·TASK_FAILURE，真证据 nodeMem95/nodeCpu72/history7d1）+ Agent 主动开口问候 + 自研聊天台真输入框（非分隔线），**console error 0**（4 处接缝修复在实时 UI 站住）；真端点 `POST /api/findings/100/apply{RERUN_MORE_MEMORY}` → `EXECUTED`+approvalId=100+newInstanceId → finding RESOLVED 移出举手台。截图存证后清理
+- [~] 10.3 schema 幂等：H2 已实证（测试 + 8001 fresh boot 加载 schema+data 干净）+ 结构自检 47/47 DROP/CREATE 配对（每 CREATE 前置 DROP IF EXISTS）；**PG 二次启动幂等**本环境 `docker 不可用`无法实跑（硬环境限制，非跳过）——留待有 docker 的环境一条 `docker compose up -d` + 二次 `spring-boot:run` 默认 profile 验证
 - [x] 10.4 CLAUDE.md 导航行（🅰）补 Proactive discovery / 主动播报 / 自有聊天台 / L1 真采集 四入口；浏览器产物无（未做 playwright）；data.sql 加 demo 未诊断 FAILED 实例供 fresh-boot 主动发现演示
 
 ### 已知缺口（fast-follow，不阻塞主线）
