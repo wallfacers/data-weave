@@ -261,6 +261,7 @@
     "searching": "加载中",
     "uploading": "上传中",
     "uploadFailed": "附件上传失败",
+    "fileTooLarge": "文件超过 {max} 上限，请压缩或拆分后重试。",
     "emptyHint": "我是 DataWeave Agent，可以帮你诊断失败任务、查看集群节点、重跑实例等。",
     "interrupted": "已停止生成",
     "copyCode": "复制代码",

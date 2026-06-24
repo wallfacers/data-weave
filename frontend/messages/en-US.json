@@ -261,6 +261,7 @@
     "searching": "Loading",
     "uploading": "Uploading",
     "uploadFailed": "Attachment upload failed",
+    "fileTooLarge": "File exceeds the {max} limit. Please compress or split it.",
     "emptyHint": "I'm the DataWeave Agent — I can help diagnose failed tasks, inspect cluster nodes, rerun instances, and more.",
     "interrupted": "Stopped generating",
     "copyCode": "Copy code",

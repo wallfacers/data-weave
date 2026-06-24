@@ -56,6 +56,9 @@ const ENTITY_TABS: { type: EntityRefType; icon: IconSvgElement; key: string }[] 
   { type: "datasource", icon: Database01Icon, key: "entityDatasource" },
 ]
 
+/** 单文件上限 10MB（与后端 ChatFileService.MAX_BYTES 一致）。 */
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+
 const attKey = (a: ChatAttachment): string =>
   a.kind === "file" ? `file:${a.fileId}` : `entity:${a.refType}:${a.refId}`
 
@@ -165,6 +168,14 @@ export function ChatInput({ context }: { context?: AgentPageContext }) {
   const onFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return
+      // 前端预检文件大小，避免大文件在上传中途才发现超限。
+      for (const file of Array.from(files)) {
+        if (file.size > MAX_FILE_BYTES) {
+          toast.error(t("fileTooLarge", { max: "10MB" }))
+          if (fileRef.current) fileRef.current.value = ""
+          return
+        }
+      }
       setPickerOpen(false)
       setUploading(true)
       try {

@@ -54,6 +54,9 @@ public class ChatFileService {
         }
 
         String storageKey = sha256;
+        // 先落盘再写库：若 put 成功但 save 失败，文件在存储中成为孤儿；
+        // 但 sha256 内容寻址保证下次同内容上传会命中 dedup 并复用该文件，
+        // 属最终一致——不引入分布式事务的复杂度。
         storage.put(storageKey, bytes);
 
         ChatFile f = new ChatFile();

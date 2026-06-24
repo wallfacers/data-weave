@@ -6,8 +6,11 @@ import com.dataweave.master.application.ChatFileService;
 import com.dataweave.master.application.ChatFileService.ChatFileVO;
 import com.dataweave.master.application.ChatFileService.Loaded;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
@@ -25,6 +28,8 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/chat/files")
 public class ChatFileController {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatFileController.class);
 
     private final ChatFileService chatFileService;
 
@@ -56,9 +61,7 @@ public class ChatFileController {
     public ResponseEntity<byte[]> download(@PathVariable String id) {
         Loaded loaded = chatFileService.load(id);
         ChatFileVO meta = loaded.meta();
-        MediaType mt = meta.mime() != null
-                ? MediaType.parseMediaType(meta.mime())
-                : MediaType.APPLICATION_OCTET_STREAM;
+        MediaType mt = resolveMediaType(meta.mime());
         ContentDisposition cd = ContentDisposition.attachment()
                 .filename(meta.name(), StandardCharsets.UTF_8)
                 .build();
@@ -71,5 +74,16 @@ public class ChatFileController {
     private static Long currentTenantId() {
         Long tenantId = TenantContext.tenantId();
         return tenantId != null ? tenantId : 1L;
+    }
+
+    /** 安全解析 media type，DB 中若 mime 格式损坏则降级为二进制流。 */
+    private static MediaType resolveMediaType(String mime) {
+        if (mime == null) return MediaType.APPLICATION_OCTET_STREAM;
+        try {
+            return MediaType.parseMediaType(mime);
+        } catch (InvalidMediaTypeException e) {
+            log.warn("聊天附件 mime 格式无效 '{}'，降级为 octet-stream", mime);
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 }

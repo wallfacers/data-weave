@@ -1,8 +1,6 @@
 package com.dataweave.master.infrastructure;
 
 import com.dataweave.master.i18n.BizException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -24,8 +22,6 @@ import java.nio.file.Paths;
 @ConditionalOnProperty(name = "chatfile.storage.type", havingValue = "local", matchIfMissing = true)
 public class LocalChatFileStorage implements ChatFileStorage {
 
-    private static final Logger log = LoggerFactory.getLogger(LocalChatFileStorage.class);
-
     private final Path dir;
 
     public LocalChatFileStorage(@Value("${chatfile.local.dir:data/chat-files}") String dir) {
@@ -33,7 +29,9 @@ public class LocalChatFileStorage implements ChatFileStorage {
         try {
             Files.createDirectories(this.dir);
         } catch (IOException e) {
-            log.warn("创建聊天附件本地目录失败 {}: {}", this.dir.toAbsolutePath(), e.getMessage());
+            throw new BizException("chat.file.store_failed",
+                    "无法创建聊天附件本地目录 " + this.dir.toAbsolutePath() + ": " + e.getMessage())
+                    .withHttpStatus(500);
         }
     }
 

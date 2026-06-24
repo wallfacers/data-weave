@@ -430,7 +430,8 @@ function entityListPath(refType: EntityRefType): string {
     case "finding":
       return "/api/findings"
     case "datasource":
-      return "/api/datasources?projectId=1"
+      // projectId 由后端默认（defaultValue=1），后续多项目时透传 workspace 上下文
+      return "/api/datasources"
   }
 }
 
