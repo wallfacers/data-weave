@@ -100,6 +100,10 @@ data-weave/
 - **断点恢复 + 整流重跑**：SUCCESS 节点跳过，FAILED→RUNNING 再入，同一套实现。
 - **闸门**：cron 例行不进 PolicyEngine；人/Agent 发起的运行（TEST/手动触发/rerun/恢复/抢占 kill）经 `GatedActionService`。
 - **TEST 模式**：下发草稿内容、跳过依赖检查、不入正式统计与 SLA，预留专属槽位。
+- **工作流依赖语义**（workflow-dependency-modes）：
+  - **同周期强/弱依赖**：DAG 边 `strength` 分叉就绪门——STRONG（默认）上游须 SUCCESS 才放行下游；WEAK 上游到任意终态（SUCCESS/FAILED/STOPPED）即放行。弱依赖边在画布以虚线标识。
+  - **跨周期依赖**（`workflow_dependency`，独立于 DAG 快照）：节点可依赖自身/上游的**上一周期**（`date_offset=LAST_DAY`）；`earliest_biz_date` 给首周期豁免（`biz_date<earliest` 时不等上一周期直跑）。仅 `trigger_type=CRON` 实例检查（手动/TEST 天然豁免）；自依赖合法，跨流依赖做全局环检测；就绪判定在认领事务内 Java 层过滤（`SchedulerKernel.crossCycleReady`），避开 H2/PG 日期减法方言差异。
+  - **手动运行范围**：手动触发携带 `scope`（FULL/TO_NODE/DOWNSTREAM/ONLY_NODE）+ `targetNodeKey`，按发布快照边算闭包子图物化（TO_NODE=前驱闭包、DOWNSTREAM=后继闭包），子图外前驱无实例自然不阻塞；ONLY_NODE 走单任务运行。范围编码进 `command`（`TriggerCommand`），向后兼容纯 bizDate。
 
 ### 实时管道（Phase 4）
 
