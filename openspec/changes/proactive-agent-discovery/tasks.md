@@ -78,7 +78,12 @@
 
 ## 10. 收尾联调（两窗口合流后）
 
-- [ ] 10.1 后端 `./mvnw install -DskipTests` + 各模块 `compile` 零错；前端 `pnpm typecheck` 零错
-- [ ] 10.2 端到端竖切（浏览器门，真跑）：故障注入脚本 → 巡检发现 → 真证据诊断 → 举手台冒泡 + 左栏主动开口 → 点修复 → 闸门执行/审批分流
-- [ ] 10.3 H2/PG 双库各启一遍（schema 幂等、PG 二次启动不撞表）
-- [ ] 10.4 浏览器验证产物入 `tmp/`，验完清理；CLAUDE.md 导航行（🅰）补 Finding/巡检/主动发现入口
+- [x] 10.0 合流 review：发现并修复 4 处前后端接缝漂移（agent.finding 扁平/agent.message markdown→content/apply approvalId 缺失/outcome 大小写）+ history 重水合，集中在 `real.ts` 适配层 + 后端 approvalId（commit `908c5ff`）
+- [x] 10.1 后端 `./mvnw install -DskipTests` 零错 + 14 新测试全绿；前端 `pnpm typecheck` 零错（build 由 🅱 报绿）
+- [~] 10.2 端到端竖切：**后端真链路 curl 实证通过**（worktree :8001 真码）——种子未诊断 FAILED `...000b` → InspectorScheduler **自主发现** finding id=100 → 真证据(concurrentTasks/history7d 实时聚合) → apply 经闸门 `EXECUTED`+approvalId+newInstanceId → RESOLVED 收口。**未尽**：全真模式浏览器 UI 跑（环境摩擦：8000 主仓残留占用 + spring-boot:run 取 m2 旧 master jar 的 Run-vs-Compile 坑），SSE 实时推送靠 InspectorSchedulerTest + EventBus→Controller 桥接覆盖、未活捕获
+- [~] 10.3 schema 幂等：H2 已实证（测试 + 8001 启动加载 schema+data 干净）+ 结构自检 47/47 DROP/CREATE 配对；**PG 二次启动**需 docker（本环境未起）未实跑
+- [x] 10.4 CLAUDE.md 导航行（🅰）补 Proactive discovery / 主动播报 / 自有聊天台 / L1 真采集 四入口；浏览器产物无（未做 playwright）；data.sql 加 demo 未诊断 FAILED 实例供 fresh-boot 主动发现演示
+
+### 已知缺口（fast-follow，不阻塞主线）
+- 前端未持久化消息（无 POST `/api/agent/sessions/{id}/messages`）→ reopen 会话为空，7.3「重水合」只读未写（与主动发现 demo 正交）
+- 全真模式浏览器门 + PG 二次启动幂等：需干净单后端环境（独占 8000 或显式改端口）+ docker PG，留待用户环境实跑

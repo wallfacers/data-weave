@@ -173,6 +173,12 @@ INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, work
 -- 试跑：脱离工作流、跑草稿版(task_version_no=NULL)、run_mode=TEST，不计入生产
 ('01910000-0010-7000-8000-00000000000a', 1, 1, NULL, NULL, 1, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
 
+-- demo（proactive-discovery）：一条「未诊断」的 FAILED 实例（无对应 finding/diagnosis），
+-- 供 InspectorScheduler 启动后实时发现 → 自动诊断（真证据：node-3 mem 95%）→ 举手台冒出新卡片
+-- → Agent 主动开口。fresh boot 即可演示主动发现链路，无需 PG/故障注入脚本。
+INSERT INTO task_instance (id, tenant_id, project_id, task_id, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, exit_code, failure_reason, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0010-7000-8000-00000000000b', 1, 1, 4, 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+
 -- ===== 域 D · 指标体系 =====
 INSERT INTO dimensions (id, tenant_id, project_id, code, name, data_type, expr, created_by, updated_by, created_at, updated_at, deleted, version)
 VALUES (1, 1, 1, 'city', '城市', 'STRING', 'orders.city', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);

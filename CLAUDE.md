@@ -153,6 +153,10 @@ This file is the map; details live elsewhere:
 | Table lineage (build-as-you-create) | `backend/dataweave-master/.../application/LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局图/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite 解析 reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
 | Situational cockpit (lineage) view | `frontend/components/workspace/views/cockpit-view.tsx` (顶条聚合: 健康/同步量/ETA + 主舞台活血缘图 + 右栏 Agent 举手台) + `lineage-graph.tsx` (ReactFlow 只读, layer 列布局, CONFLICT/UNVERIFIED 边标记) |
 | ETA prediction         | `backend/dataweave-master/.../application/SlaService.java` (`durationMedianMs` 历史时长中位数 + `predictLatestEta` 运行中实例最迟完成) → `GET /api/ops/eta-summary` |
+| Proactive discovery (Inspector→Finding) | `backend/dataweave-master/.../application/` `Inspector`(SPI) + `TaskFailureInspector`(复用 DiagnosisService 映射 Finding) + `InspectorScheduler`(@Scheduled 兜底 + `TaskInstanceFailedEvent` @Async 加速) + `FindingService`(去重/状态) + `FindingActionService`(闸门修复) · `Finding` 窄腰模型 `domain/Finding.java` |
+| Agent 主动播报 (真推 SSE) | `AgentNotifier`(master, 经 `EventBus` `dw:agent:notify`) → `AgentStreamController` `GET /api/agent/stream`(api, `agent.finding`/`agent.message`/`keepalive`) ; 前端 `frontend/lib/chat/real.ts` `subscribeAgentStream`(EventSource 直连 SSE_BASE) |
+| 自有多会话聊天台 (替 CopilotKit) | `frontend/lib/chat/`(`provider`real+mock / `store` zustand runtimes Map / `real.ts` AG-UI 流消费+适配层 / `types.ts`) + `components/chat/` + `components/cockpit/findings-rail.tsx`(通用举手台) ; 后端会话持久化 `AgentSessionController` `/api/agent/sessions*` |
+| L1 真采集 + 故障注入 | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean 真指标) + `NodeTelemetryService`(master, 并发/history 聚合 → `DiagnosisAnalyzer.Telemetry`) · `scripts/fault-injection.sql`(测试期手动注入真实失败素材) |
 | How to run             | [README.md](README.md)                                      |
 
 ## Working Rules
