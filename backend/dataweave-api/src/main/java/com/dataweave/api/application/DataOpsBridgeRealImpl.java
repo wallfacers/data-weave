@@ -125,7 +125,8 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         return new InstanceRow(r.id(), r.taskDefId(), r.taskDefName(),
                 null, // workflowId（workflow_def Long）：master 行携带的是实例 UUID，M1 暂不映射
                 r.runMode(), r.state(), r.bizDate(),
-                parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs());
+                parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
+                r.cronExpression());
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {

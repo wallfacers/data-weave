@@ -17,10 +17,11 @@ public final class OpsContracts {
     /** 批量操作类型。Stream C 按 op 映射到单实例领域方法：RERUN→rerunInstance / KILL→killTask / SET_SUCCESS→setSuccess。 */
     public enum BatchOp { RERUN, KILL, SET_SUCCESS }
 
-    /** 周期实例行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。 */
+    /** 周期实例行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。cronExpression 来自关联工作流定义（独立实例为 null）。 */
     public record InstanceRow(UUID id, Long taskDefId, String taskDefName, UUID workflowInstanceId,
                               String runMode, String state, String bizDate,
-                              String startedAt, String finishedAt, Long durationMs) {}
+                              String startedAt, String finishedAt, Long durationMs,
+                              String cronExpression) {}
 
     /** 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。 */
     public record InstanceQuery(String runMode, String state, Long taskId, String bizDate,

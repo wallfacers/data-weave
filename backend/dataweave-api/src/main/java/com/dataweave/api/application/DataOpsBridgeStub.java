@@ -156,7 +156,8 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getBizDate(),
                 ti.getStartedAt(),
                 ti.getFinishedAt(),
-                durationMs
+                durationMs,
+                null // cronExpression: stub 不提供
         );
     }
 }

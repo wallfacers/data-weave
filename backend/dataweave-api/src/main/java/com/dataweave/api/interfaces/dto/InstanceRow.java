@@ -16,5 +16,6 @@ public record InstanceRow(
         String bizDate,
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
-        Long durationMs
+        Long durationMs,
+        String cronExpression
 ) {}

@@ -72,13 +72,15 @@ VALUES (1, 1, 1, 'orders_mysql', 'MYSQL', '10.0.0.20', 3306, 'shop', 'jdbc:mysql
 INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (1, 1, 1, 'GMV 统计',     'SQL', 'select sum(order_amount) from orders', 1, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (2, 1, 1, '订单宽表加工', 'SQL', 'insert into dwd_orders select * from orders', 1, 1, NULL, 1800, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-05 00:00:00', TIMESTAMP '2026-06-05 00:00:00', 0, 0),
-(3, 1, 1, '用户画像聚合', 'SQL', 'insert into dws_user_profile select ...', 1, 1, NULL, 1800, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0);
+(3, 1, 1, '用户画像聚合', 'SQL', 'insert into dws_user_profile select ...', 1, 1, NULL, 1800, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0),
+(4, 1, 1, '实时流量统计', 'SQL', 'select count(*) from access_log', 1, NULL, NULL, 300, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-10 00:00:00', TIMESTAMP '2026-06-10 00:00:00', 0, 0);
 
 -- 任务定义已发布版本快照（v1）
 INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
 (1, 1, 1, 1, 1, 'GMV 统计',     'SQL', 'select sum(order_amount) from orders', 1, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00'),
 (2, 1, 1, 2, 1, '订单宽表加工', 'SQL', 'insert into dwd_orders select * from orders', 1, 1, NULL, 1800, 1, '首次发布', 1, TIMESTAMP '2026-06-05 00:00:00', TIMESTAMP '2026-06-05 00:00:00'),
-(3, 1, 1, 3, 1, '用户画像聚合', 'SQL', 'insert into dws_user_profile select ...', 1, 1, NULL, 1800, 1, '首次发布', 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00');
+(3, 1, 1, 3, 1, '用户画像聚合', 'SQL', 'insert into dws_user_profile select ...', 1, 1, NULL, 1800, 1, '首次发布', 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00'),
+(4, 1, 1, 4, 1, '实时流量统计', 'SQL', 'select count(*) from access_log', 1, NULL, NULL, 300, 1, '首次发布', 1, TIMESTAMP '2026-06-10 00:00:00', TIMESTAMP '2026-06-10 00:00:00');
 
 INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (1, 1, 1, '每日 GMV 工作流', '订单宽表 → GMV 统计 / 用户画像', 'CRON', '0 0 2 * * ?', TIMESTAMP '2026-06-06 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0),

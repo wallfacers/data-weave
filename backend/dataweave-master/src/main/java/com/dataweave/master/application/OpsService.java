@@ -353,7 +353,10 @@ public class OpsService {
         List<InstanceRow> items = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name "
+                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name, "
+                        + "(SELECT wd.cron FROM workflow_instance wi "
+                        + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
+                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr "
                         + "FROM task_instance ti" + where
                         + "ORDER BY ti.id DESC LIMIT ? OFFSET ?",
                 (rs, n) -> {
@@ -368,7 +371,7 @@ public class OpsService {
                             rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
-                            durationMs);
+                            durationMs, rs.getString("cron_expr"));
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);

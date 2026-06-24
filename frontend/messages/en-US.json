@@ -81,6 +81,7 @@
     "colTaskName": "Task Name",
     "colState": "State",
     "colBizDate": "Biz Date",
+    "colSchedule": "Schedule",
     "colStartedAt": "Started At",
     "colFinishedAt": "Finished At",
     "colDuration": "Duration",

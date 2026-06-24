@@ -63,6 +63,7 @@ interface InstanceRow {
   startedAt?: string | null
   finishedAt?: string | null
   durationMs?: number | null
+  cronExpression?: string | null
 }
 
 interface InstancesResponse {
@@ -341,6 +342,28 @@ export function PeriodicInstancesPanel({
     return `${h}h ${m}m`
   }
 
+  /** cron → 简短可读形式（仅处理标准 6 段 Quartz cron） */
+  function humanizeCron(cron: string | null | undefined): string {
+    if (!cron) return "—"
+    const parts = cron.trim().split(/\s+/)
+    if (parts.length < 6) return cron
+    const [sec, min, hour, dom, , dow] = parts
+    // "0 0 2 * * ?" → "每天 02:00"
+    if (sec === "0" && dom === "*" && dow === "?") {
+      if (min === "0") return `每天 ${hour.padStart(2, "0")}:00`
+      return `每天 ${hour.padStart(2, "0")}:${min.padStart(2, "0")}`
+    }
+    // "0 30 8 * * 1-5" → "工作日 08:30"
+    if (sec === "0" && dom === "*" && dow === "1-5") {
+      return `工作日 ${hour.padStart(2, "0")}:${min.padStart(2, "0")}`
+    }
+    // "0 0 0 1 * ?" → "每月 1 日 00:00"
+    if (sec === "0" && min === "0" && dom !== "*" && dow === "?") {
+      return `每月${dom}日 ${hour.padStart(2, "0")}:00`
+    }
+    return cron
+  }
+
   return (
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-5">
       {/* 筛选栏 */}
@@ -444,6 +467,7 @@ export function PeriodicInstancesPanel({
                   <TableHead className="w-24 font-mono">{t("colInstance")}</TableHead>
                   <TableHead className="w-40">{t("colTaskName")}</TableHead>
                   <TableHead className="w-24">{t("colState")}</TableHead>
+                  <TableHead className="w-28">{t("colSchedule")}</TableHead>
                   <TableHead className="w-28">{t("colBizDate")}</TableHead>
                   <TableHead className="w-36">{t("colStartedAt")}</TableHead>
                   <TableHead className="w-36">{t("colFinishedAt")}</TableHead>
@@ -462,13 +486,20 @@ export function PeriodicInstancesPanel({
                       <TableCell className="font-mono tabular-nums text-xs">
                         {inst.id.slice(0, 8)}
                       </TableCell>
-                      <TableCell className="max-w-0 truncate" title={inst.taskDefName}>
-                        <div className="truncate font-medium">{inst.taskDefName}</div>
+                      <TableCell className="max-w-0 truncate" title={inst.taskDefName || `#${inst.taskDefId}`}>
+                        <div className="truncate font-medium">
+                          {inst.taskDefName || `任务 #${inst.taskDefId}`}
+                        </div>
                         <div className="truncate text-xs text-muted-foreground">
-                          #{inst.taskDefId}
+                          {inst.runMode === "PERIODIC" && inst.cronExpression
+                            ? `${humanizeCron(inst.cronExpression)} · #${inst.taskDefId}`
+                            : `#${inst.taskDefId}`}
                         </div>
                       </TableCell>
                       <TableCell>{stateBadge(inst.state)}</TableCell>
+                      <TableCell className="tabular-nums text-xs">
+                        {humanizeCron(inst.cronExpression)}
+                      </TableCell>
                       <TableCell className="tabular-nums text-xs">{inst.bizDate}</TableCell>
                       <TableCell className="tabular-nums text-xs">
                         {formatDateTime(inst.startedAt ?? null, locale)}

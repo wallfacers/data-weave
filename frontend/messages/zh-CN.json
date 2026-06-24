@@ -81,6 +81,7 @@
     "colTaskName": "任务名称",
     "colState": "状态",
     "colBizDate": "业务日期",
+    "colSchedule": "定时",
     "colStartedAt": "开始时间",
     "colFinishedAt": "结束时间",
     "colDuration": "时长",

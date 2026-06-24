@@ -154,7 +154,10 @@ public class BackfillService {
         List<InstanceRow> instances = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name "
+                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name, "
+                        + "(SELECT wd.cron FROM workflow_instance wi "
+                        + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
+                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr "
                         + "FROM task_instance ti WHERE ti.backfill_run_id=? AND ti.deleted=0 "
                         + "ORDER BY ti.biz_date ASC, ti.id ASC",
                 (rs, n) -> mapInstanceRow(rs), runId);
@@ -253,6 +256,7 @@ public class BackfillService {
         return new InstanceRow(id, taskId, rs.getString("task_name"), wiId,
                 rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                 startedAt != null ? startedAt.toString() : null,
-                finishedAt != null ? finishedAt.toString() : null, durationMs);
+                finishedAt != null ? finishedAt.toString() : null, durationMs,
+                rs.getString("cron_expr"));
     }
 }
