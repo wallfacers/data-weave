@@ -211,7 +211,7 @@ export function ChatInput({ context }: { context?: AgentPageContext }) {
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !isStreaming
 
   return (
-    <div className="shrink-0 border-t p-3">
+    <div className="shrink-0 p-3">
       <div className="relative flex flex-col gap-2 rounded-xl border bg-card px-3 py-2.5 focus-within:ring-1 focus-within:ring-ring">
         <textarea
           ref={taRef}
