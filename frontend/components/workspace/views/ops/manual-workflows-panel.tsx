@@ -158,7 +158,7 @@ export function ManualWorkflowsPanel() {
   )
 
   return (
-    <div className="flex h-full min-w-0 flex-col gap-3 p-5">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-5">
       <div className="flex shrink-0 items-center gap-2">
         <HugeiconsIcon icon={CursorMagicSelection02Icon} className="size-4 text-primary" />
         <h3 className="text-sm font-semibold tracking-tight">{t("manualWfTitle")}</h3>
