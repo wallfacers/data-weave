@@ -54,6 +54,8 @@ interface DataTableProps<T> {
   selectable?: boolean
   /** 选中行时渲染的批量操作；reload 用于操作后刷新 */
   bulkActions?: (selectedIds: string[], reload: () => void) => ReactNode
+  /** toolbar 右侧自定义操作区（始终渲染，不受 selectable 控制） */
+  toolbarActions?: ReactNode
 
   emptyIcon?: IconSvgElement
   emptyTitle?: string
@@ -80,6 +82,7 @@ export function DataTable<T>({
   pageSizeOptions,
   selectable = false,
   bulkActions,
+  toolbarActions,
   emptyIcon = InboxIcon,
   emptyTitle,
   emptyHint,
@@ -179,7 +182,7 @@ export function DataTable<T>({
   const alignClass = (a?: "left" | "right" | "center") =>
     a === "right" ? "text-right" : a === "center" ? "text-center" : undefined
 
-  const hasToolbar = filters.length > 0 || (presets && presets.length > 0) || (selectable && !!bulkActions)
+  const hasToolbar = filters.length > 0 || (presets && presets.length > 0) || (selectable && !!bulkActions) || !!toolbarActions
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3", className)}>
@@ -192,12 +195,17 @@ export function DataTable<T>({
           presets={presets}
           onApplyPreset={applyPreset}
           rightSlot={
-            selectable && bulkActions ? (
+            (selectable && bulkActions) || toolbarActions ? (
               <div className="flex items-center gap-1">
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {t("selected", { count: selectedIds.length })}
-                </span>
-                {bulkActions(selectedIds, reload)}
+                {selectable && bulkActions && (
+                  <>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {t("selected", { count: selectedIds.length })}
+                    </span>
+                    {bulkActions(selectedIds, reload)}
+                  </>
+                )}
+                {toolbarActions}
               </div>
             ) : undefined
           }

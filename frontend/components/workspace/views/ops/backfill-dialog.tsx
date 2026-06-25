@@ -141,6 +141,7 @@ export function BackfillDialog({
             <DropdownSelect
               value={targetType}
               onChange={(v) => setTargetType(v as "task" | "workflow")}
+              triggerClassName="w-auto"
               options={[
                 { value: "task", label: t("backfillTargetTypeTask") },
                 { value: "workflow", label: t("backfillTargetTypeWorkflow") },

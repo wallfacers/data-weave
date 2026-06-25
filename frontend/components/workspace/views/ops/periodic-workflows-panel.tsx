@@ -10,7 +10,7 @@
 import { useMemo } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Calendar03Icon, Share08Icon } from "@hugeicons/core-free-icons"
+import { Share08Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -130,12 +130,7 @@ export function PeriodicWorkflowsPanel() {
         key: "name",
         header: t("colWorkflowName"),
         widthPct: 26,
-        cell: (w) => (
-          <div title={w.name}>
-            <div className="truncate font-medium">{w.name}</div>
-            {w.description && <div className="truncate text-xs text-muted-foreground">{w.description}</div>}
-          </div>
-        ),
+        cell: (w) => <div className="truncate font-medium" title={w.name}>{w.name}</div>,
       },
       {
         key: "cron",
@@ -202,11 +197,7 @@ export function PeriodicWorkflowsPanel() {
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-5">
-      <div className="flex shrink-0 items-center gap-2">
-        <HugeiconsIcon icon={Calendar03Icon} className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold tracking-tight">{t("periodicWfTitle")}</h3>
-      </div>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
       <DataTable<WorkflowRow>
         columns={columns}
         getRowId={(w) => String(w.id)}

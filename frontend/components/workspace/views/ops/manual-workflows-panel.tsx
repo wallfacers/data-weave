@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { CursorMagicSelection02Icon, PlayIcon, Share08Icon } from "@hugeicons/core-free-icons"
+import { PlayIcon, Share08Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -86,12 +86,7 @@ export function ManualWorkflowsPanel() {
         key: "name",
         header: t("colWorkflowName"),
         widthPct: 28,
-        cell: (w) => (
-          <div title={w.name}>
-            <div className="truncate font-medium">{w.name}</div>
-            {w.description && <div className="truncate text-xs text-muted-foreground">{w.description}</div>}
-          </div>
-        ),
+        cell: (w) => <div className="truncate font-medium" title={w.name}>{w.name}</div>,
       },
       {
         key: "recentTriggerResult",
@@ -158,11 +153,7 @@ export function ManualWorkflowsPanel() {
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-5">
-      <div className="flex shrink-0 items-center gap-2">
-        <HugeiconsIcon icon={CursorMagicSelection02Icon} className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold tracking-tight">{t("manualWfTitle")}</h3>
-      </div>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
       <DataTable<WorkflowRow>
         columns={columns}
         getRowId={(w) => String(w.id)}

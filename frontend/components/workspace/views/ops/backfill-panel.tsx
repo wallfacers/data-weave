@@ -9,7 +9,7 @@
 import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Loading03Icon, Add01Icon, ArrowDown02Icon } from "@hugeicons/core-free-icons"
+import { Add01Icon, ArrowDown02Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -203,17 +203,7 @@ export function BackfillPanel() {
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-5">
-      <div className="flex shrink-0 items-center gap-2">
-        <HugeiconsIcon icon={Loading03Icon} className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold tracking-tight">{t("backfillTabTitle")}</h3>
-        <div className="flex-1" />
-        <Button size="sm" className="h-8" onClick={() => setDialogOpen(true)}>
-          <HugeiconsIcon icon={Add01Icon} className="size-4" />
-          {t("backfillTrigger")}
-        </Button>
-      </div>
-
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
       <DataTable<BackfillRun>
         key={reloadKey}
         columns={columns}
@@ -224,6 +214,12 @@ export function BackfillPanel() {
         presets={presets}
         emptyTitle={t("backfillEmpty")}
         emptyHint={t("backfillEmptyHint")}
+        toolbarActions={
+          <Button size="sm" className="h-7 text-xs" onClick={() => setDialogOpen(true)}>
+            <HugeiconsIcon icon={Add01Icon} className="size-3.5" />
+            {t("backfillTrigger")}
+          </Button>
+        }
       />
 
       {drillRunId && (
