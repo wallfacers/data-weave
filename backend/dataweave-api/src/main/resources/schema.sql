@@ -312,6 +312,8 @@ CREATE TABLE workflow_def (
     current_version_no INTEGER DEFAULT 0,   -- 最后发布版本号（0=未发布）
     has_draft_change   SMALLINT DEFAULT 1,  -- 有未发布改动
     last_fire_time  TIMESTAMP,               -- 上次调度触发时间（防重复触发）
+    next_trigger_time TIMESTAMP,             -- 下一次计划触发时间（单值持久化；扫描以 next_trigger_time≤now+lookahead 捞取；NULL=首轮回填）
+    schedule_interval_ms BIGINT,             -- FIXED_RATE/FIXED_DELAY 周期（毫秒）；CRON 为空
     priority        INTEGER DEFAULT 5,       -- 工作流优先级（0=最高，9=最低）
     preemptible     SMALLINT DEFAULT 0,      -- 可被高优任务软抢占（默认否；典型用途补数类可重跑任务）
     timeout_sec     INTEGER,                 -- 工作流级超时（秒）
@@ -323,6 +325,9 @@ CREATE TABLE workflow_def (
     version       INTEGER DEFAULT 0,
     catalog_node_id BIGINT                   -- 所属类目文件夹（NULL=未分类；见 catalog_node）
 );
+
+-- cron 扫描索引：按类型+状态+下次触发时间范围捞取（distributed-cron-trigger）
+CREATE INDEX IF NOT EXISTS idx_workflow_def_scan ON workflow_def (deleted, schedule_type, status, next_trigger_time);
 
 -- 任务流定义已发布版本快照：dag_snapshot_json 冻结整张 DAG（节点+边+各节点 task 版本号）
 CREATE TABLE workflow_def_version (

@@ -66,6 +66,9 @@ public class SchedulerMetrics {
     private final Counter wakePoll;
     private final Counter dispatchCount;
     private final Counter leaseReclaims;
+    private final Timer cronTriggerLatency;
+    private final Counter cronMisfireFireOnce;
+    private final Counter cronMisfireSkip;
     private final AtomicLong queueDepth = new AtomicLong(0);
     private final AtomicLong oldestAgeSeconds = new AtomicLong(0);
     private final AtomicLong slotUtilization = new AtomicLong(0);
@@ -126,6 +129,23 @@ public class SchedulerMetrics {
                 .description("Lease expiry reclaims (WORKER_LOST / WORKER_RESTART)")
                 .register(registry);
 
+        this.cronTriggerLatency = Timer.builder("dw.cron.trigger.latency")
+                .description("Cron scheduled fire time -> instance created latency")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .publishPercentileHistogram(true)
+                .sla(Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2))
+                .register(registry);
+
+        this.cronMisfireFireOnce = Counter.builder("dw.cron.misfire.count")
+                .tag("policy", "fire_once")
+                .description("Overdue cron points compensated by firing once")
+                .register(registry);
+
+        this.cronMisfireSkip = Counter.builder("dw.cron.misfire.count")
+                .tag("policy", "skip")
+                .description("Overdue cron points skipped (base advanced only)")
+                .register(registry);
+
         Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
                 .description("Current WAITING queue depth")
                 .register(registry);
@@ -161,6 +181,20 @@ public class SchedulerMetrics {
 
     public void recordDeliveryLatency(Duration d) {
         deliveryLatency.record(d);
+    }
+
+    /** cron 触发点 → 实例创建延迟（FR-002 / SC-001 / SC-005）。 */
+    public void recordCronTriggerLatency(Duration d) {
+        cronTriggerLatency.record(d.isNegative() ? Duration.ZERO : d);
+    }
+
+    /** misfire 补偿计数（SC-003）：fire_once=补触发一次，skip=仅推进基准。 */
+    public void markCronMisfire(boolean fireOnce) {
+        if (fireOnce) {
+            cronMisfireFireOnce.increment();
+        } else {
+            cronMisfireSkip.increment();
+        }
     }
 
     public Timer.Sample startRound() {

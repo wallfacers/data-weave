@@ -20,6 +20,8 @@ public class WorkflowDef {
     private Integer currentVersionNo;
     private Integer hasDraftChange;
     private LocalDateTime lastFireTime;
+    private LocalDateTime nextTriggerTime;
+    private Long scheduleIntervalMs;
     private Integer priority;
     private Integer preemptible;
     private Integer timeoutSec;
@@ -71,6 +73,12 @@ public class WorkflowDef {
 
     public LocalDateTime getLastFireTime() { return lastFireTime; }
     public void setLastFireTime(LocalDateTime lastFireTime) { this.lastFireTime = lastFireTime; }
+
+    public LocalDateTime getNextTriggerTime() { return nextTriggerTime; }
+    public void setNextTriggerTime(LocalDateTime nextTriggerTime) { this.nextTriggerTime = nextTriggerTime; }
+
+    public Long getScheduleIntervalMs() { return scheduleIntervalMs; }
+    public void setScheduleIntervalMs(Long scheduleIntervalMs) { this.scheduleIntervalMs = scheduleIntervalMs; }
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }

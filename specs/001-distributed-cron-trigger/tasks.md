@@ -26,9 +26,9 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 **Purpose**: 配置键与新组件骨架
 
-- [ ] T001 [P] 在 `backend/dataweave-api/src/main/resources/application.yml` 的 `scheduler.*` 增加 `cron-scan-interval-ms`(默认 15000)与 `cron-lookahead-ms`(默认 30000)
-- [ ] T002 [P] 新建 `TimingStrategy` 策略接口骨架 `backend/dataweave-master/src/main/java/com/dataweave/master/application/TimingStrategy.java`(方法 `next(wf, base, now)` + `supports(scheduleType)`,见 contracts/trigger-engine.md)
-- [ ] T003 [P] 新建 `TriggerEngine` 接口骨架 `backend/dataweave-master/src/main/java/com/dataweave/master/application/TriggerEngine.java`(`scanAndArm(now)` + `refresh(workflowId)`)
+- [X] T001 [P] 在 `backend/dataweave-api/src/main/resources/application.yml` 的 `scheduler.*` 增加 `cron-scan-interval-ms`(默认 15000)与 `cron-lookahead-ms`(默认 30000)
+- [X] T002 [P] 新建 `TimingStrategy` 策略接口骨架 `backend/dataweave-master/src/main/java/com/dataweave/master/application/TimingStrategy.java`(方法 `next(wf, base, now)` + `supports(scheduleType)`,见 contracts/trigger-engine.md)
+- [X] T003 [P] 新建 `TriggerEngine` 接口骨架 `backend/dataweave-master/src/main/java/com/dataweave/master/application/TriggerEngine.java`(`scanAndArm(now)` + `refresh(workflowId)`)
 
 ---
 
@@ -38,11 +38,11 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 **⚠️ CRITICAL**: 本阶段完成前任何用户故事不能开工
 
-- [ ] T004 在 `backend/dataweave-api/src/main/resources/schema.sql` 的 `workflow_def` 加列 `next_trigger_time TIMESTAMP NULL` + `schedule_interval_ms BIGINT NULL`,并新增索引 `idx_workflow_def_scan (deleted, schedule_type, status, next_trigger_time)`(H2,DDL 须 PG 双兼容)
+- [X] T004 在 `backend/dataweave-api/src/main/resources/schema.sql` 的 `workflow_def` 加列 `next_trigger_time TIMESTAMP NULL` + `schedule_interval_ms BIGINT NULL`,并新增索引 `idx_workflow_def_scan (deleted, schedule_type, status, next_trigger_time)`(H2,DDL 须 PG 双兼容)
 - [ ] T005 [P] 新建 PG 迁移 `backend/dataweave-api/src/main/resources/db/migration/V__add-next-trigger-pg.sql`:`ALTER TABLE workflow_def ADD COLUMN next_trigger_time/schedule_interval_ms` + 创建同名索引
-- [ ] T006 `WorkflowDef` 实体加 `nextTriggerTime` / `scheduleIntervalMs` 字段映射 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDef.java`
+- [X] T006 `WorkflowDef` 实体加 `nextTriggerTime` / `scheduleIntervalMs` 字段映射 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDef.java`
 - [ ] T007 `WorkflowDefRepository` 加扫描查询 `findScannable(scheduleTypes, status, nextTriggerTimeLe[, shardCount, shardIndex])` `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDefRepository.java`(分片参数本阶段先留可选,Batch B 启用)
-- [ ] T045 **[G1 / FR-010]** 统一时间真相来源为 DB 服务端时间:新增 `now()` 取数封装(`SELECT CURRENT_TIMESTAMP`,JdbcTemplate,H2/PG 兼容),`TriggerEngine` 的扫描捞取与逾期判定以此为基准而非各 master `LocalDateTime.now()`,降低多 master 时钟漂移导致的延迟/补偿偏差 `backend/dataweave-master/src/main/java/com/dataweave/master/application/SchedulerClock.java`
+- [X] T045 **[G1 / FR-010]** 统一时间真相来源为 DB 服务端时间:新增 `now()` 取数封装(`SELECT CURRENT_TIMESTAMP`,JdbcTemplate,H2/PG 兼容),`TriggerEngine` 的扫描捞取与逾期判定以此为基准而非各 master `LocalDateTime.now()`,降低多 master 时钟漂移导致的延迟/补偿偏差 `backend/dataweave-master/src/main/java/com/dataweave/master/application/SchedulerClock.java`
 
 **Checkpoint**: 编译通过(`./dev-install.sh -pl dataweave-master -am`)后,用户故事可开工
 
@@ -64,12 +64,12 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Implementation for User Story 1
 
-- [ ] T010 [P] [US1] 实现 CRON 计时策略 `CronTimingStrategy`(`CronExpression.parse(cron).next(base)`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/CronTimingStrategy.java`
-- [ ] T011 [US1] 实现 `DefaultTriggerEngine.scanAndArm`:扫 `next_trigger_time ≤ now + lookahead`,按 `due-now`(过期取 0)装入 `ScheduledExecutorService` 精确触发器;幂等去重同一 (workflowId, due) `backend/dataweave-master/src/main/java/com/dataweave/master/application/DefaultTriggerEngine.java`
-- [ ] T012 [US1] 在 `DefaultTriggerEngine` 实现到点 `fire` 内部序列:生效期校验 → `cron_fire` 护栏 `save`(去重)→ `WorkflowTriggerService.trigger(wf,"CRON",bizDate,priority,locale)`(**签名不变**)→ 回填 `cron_fire` + `TimingStrategy.next` 重算并持久化 `next_trigger_time`(同文件,依赖 T011)
-- [ ] T013 [US1] 重构 `CronScheduler.tick()`:`fixedRate` 60000→`${scheduler.cron-scan-interval-ms}`,委派 `triggerEngine.scanAndArm(now)`;`tryFire` 简化但保留护栏+下游(`backend/dataweave-master/src/main/java/com/dataweave/master/application/CronScheduler.java`)
-- [ ] T014 [US1] 首轮 `next_trigger_time` 回填:NULL 时据 `last_fire_time`/`created_at` 计算并落库(在 `DefaultTriggerEngine.refresh`/scan 路径)
-- [ ] T015 [US1] 接 `dw.cron.trigger.latency` Timer via `SchedulerMetrics`(记录 cron 时刻→实例创建延迟)
+- [X] T010 [P] [US1] 实现 CRON 计时策略 `CronTimingStrategy`(`CronExpression.parse(cron).next(base)`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/CronTimingStrategy.java`
+- [X] T011 [US1] 实现 `DefaultTriggerEngine.scanAndArm`:扫 `next_trigger_time ≤ now + lookahead`,按 `due-now`(过期取 0)装入 `ScheduledExecutorService` 精确触发器;幂等去重同一 (workflowId, due) `backend/dataweave-master/src/main/java/com/dataweave/master/application/DefaultTriggerEngine.java`
+- [X] T012 [US1] 在 `DefaultTriggerEngine` 实现到点 `fire` 内部序列:生效期校验 → `cron_fire` 护栏 `save`(去重)→ `WorkflowTriggerService.trigger(wf,"CRON",bizDate,priority,locale)`(**签名不变**)→ 回填 `cron_fire` + `TimingStrategy.next` 重算并持久化 `next_trigger_time`(同文件,依赖 T011)
+- [X] T013 [US1] 重构 `CronScheduler.tick()`:`fixedRate` 60000→`${scheduler.cron-scan-interval-ms}`,委派 `triggerEngine.scanAndArm(now)`;`tryFire` 简化但保留护栏+下游(`backend/dataweave-master/src/main/java/com/dataweave/master/application/CronScheduler.java`)
+- [X] T014 [US1] 首轮 `next_trigger_time` 回填:NULL 时据 `last_fire_time`/`created_at` 计算并落库(在 `DefaultTriggerEngine.refresh`/scan 路径)
+- [X] T015 [US1] 接 `dw.cron.trigger.latency` Timer via `SchedulerMetrics`(记录 cron 时刻→实例创建延迟)
 
 **Checkpoint**: US1 独立可用 —— 分钟级 cron 准点触发达标,现有工作流零改动兼容
 
@@ -108,8 +108,8 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] misfire 归一逻辑:算得 `next ≤ now` → 立即触发(delay=0)+ 再 `next(now,…)` 推进到未来最近点(默认 `fire_once`);`skip` 仅推进基准不触发(`DefaultTriggerEngine.java` + `TimingStrategy` 配合)
-- [ ] T023 [US3] 复用现有 `scheduler.cron-misfire`(fire_once/skip)配置;接 `dw.cron.misfire.count` Counter(tag policy)via `SchedulerMetrics`
+- [X] T022 [US3] misfire 归一逻辑:算得 `next ≤ now` → 立即触发(delay=0)+ 再 `next(now,…)` 推进到未来最近点(默认 `fire_once`);`skip` 仅推进基准不触发(`DefaultTriggerEngine.java` + `TimingStrategy` 配合)
+- [X] T023 [US3] 复用现有 `scheduler.cron-misfire`(fire_once/skip)配置;接 `dw.cron.misfire.count` Counter(tag policy)via `SchedulerMetrics`
 - [ ] T024 [US3] 重启恢复:确认启动后首轮 `scanAndArm` 即覆盖 `next_trigger_time ≤ now` 的点,无需独立补偿轮(在 `DefaultTriggerEngine`/`CronScheduler` 启动路径验证)
 
 **Checkpoint**: US1 + US2 + US3 独立通过;停机恢复无静默丢失、无补偿风暴
@@ -129,7 +129,7 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Implementation for User Story 4
 
-- [ ] T027 [P] [US4] 确认 `CronTimingStrategy` 秒级生效(6 字段),补秒级单测;**不引入 cron-utils**(research D4)
+- [X] T027 [P] [US4] 确认 `CronTimingStrategy` 秒级生效(6 字段),补秒级单测;**不引入 cron-utils**(research D4)
 - [ ] T028 [P] [US4] 实现 `FixedRateTimingStrategy`(`next = prevScheduledFire + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedRateTimingStrategy.java`
 - [ ] T029 [P] [US4] 实现 `FixedDelayTimingStrategy`(`next = lastCompletion + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedDelayTimingStrategy.java`。**[U1 钉死]** `lastCompletion` 来源 = 重算 next 时查该工作流最近一条已完成 `workflow_instance` 的完成时刻(`WorkflowInstanceRepository` 查询,非实例完成事件回填);无历史完成则用工作流创建时刻为基准
 - [ ] T030 [US4] `schedule_type` 扩展取值 `FIXED_RATE`/`FIXED_DELAY`,`TriggerEngine` 按 type 经 `supports()` 选策略并使用 `schedule_interval_ms`(`DefaultTriggerEngine.java`)
