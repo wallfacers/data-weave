@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions xmlns="http://maven.apache.org/EXTENSIONS/1.1.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/EXTENSIONS/1.1.0 https://maven.apache.org/xsd/core-extensions-1.1.0.xsd">
+    <!-- Maven 增量构建缓存：按 源码+依赖+插件配置 算 hash，未改动模块直接命中缓存跳过编译/打包。
+         不影响正确性（hash 输入完整），开发期把增量构建从 ~27s 压到 ~10s 内。配置见 maven-build-cache-config.xml。 -->
+    <extension>
+        <groupId>org.apache.maven.extensions</groupId>
+        <artifactId>maven-build-cache-extension</artifactId>
+        <version>1.2.3</version>
+    </extension>
+</extensions>

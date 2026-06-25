@@ -42,6 +42,26 @@ cd backend
 ```
 > 单模块 `spring-boot:run` 需要 sibling 模块的 jar，故先 `install`。
 
+#### 本地构建提速（可选，但强烈推荐）
+
+四模块全量编译较慢。本仓库已内置两项 **零配置共享** 的加速（`git pull` 即生效，无需各自配置）：
+
+- **构建缓存** `backend/.mvn/extensions.xml`（Maven build-cache extension）：未改动的模块按内容 hash 命中缓存直接复用，不重编。任何人用 `mvnw`/`mvnd` 都自动启用（首次会从 Maven 仓库拉取该 extension）。
+- **快速安装脚本** `backend/dev-install.sh`：自动优先用 mvnd（若已安装），跳过测试编译与 fat jar 打包。
+
+```bash
+cd backend
+./dev-install.sh                            # 全量装四模块
+./dev-install.sh -pl dataweave-master -am   # 只装改动的模块及其上游(更快)
+mvnd -pl dataweave-api spring-boot:run      # 跑(未装 mvnd 用 ./mvnw)
+```
+
+**额外提速（各自本机装一次）**：装 [mvnd](https://github.com/apache/maven-mvnd)（Maven 守护进程，常驻 JVM 省冷启动 + 多核并行）——下载对应平台二进制解压、软链进 `PATH` 即可；mvnd 用 `JAVA_HOME` 选 JDK，可在 `~/.m2/mvnd.properties` 写 `java.home=<JDK25 路径>` 锁定 25。`dev-install.sh` 会自动探测到 mvnd 并使用，没装则回退 mvnw。
+
+实测（12 核 / JDK25）：全量 `clean install` **76s → 12s**，增量改核心模块约 **18s**。
+
+> ⚠️ `dev-install.sh` 的 skip 参数仅用于本地开发。**CI / 打部署包用 `./mvnw install`**（需跑测试 + 生成可执行 fat jar）。
+
 ### 前端
 ```bash
 cd frontend
