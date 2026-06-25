@@ -14,7 +14,8 @@ import { DocumentCodeIcon } from "@hugeicons/core-free-icons"
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
 import "overlayscrollbars/overlayscrollbars.css"
 
-import { API_BASE, formatDateTime } from "@/lib/types"
+import { API_BASE } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { deriveRunDotState, parseEndState, runDotColor, type RunDotState } from "@/lib/workspace/run-dot-state"
@@ -141,7 +142,6 @@ export function RunLogsTabs({
   onCloseRight,
   onCloseLeft,
   onCloseAll,
-  locale,
   onDotChange,
 }: {
   tabs: RunTab[]
@@ -152,12 +152,12 @@ export function RunLogsTabs({
   onCloseRight: (id: string) => void
   onCloseLeft: (id: string) => void
   onCloseAll: () => void
-  locale: string
   /** 每 Tab 圆点态聚合上提，供工具栏运行按钮据当前运行实例态切换 Run⇄Stop（可选，向后兼容）。 */
   onDotChange?: (dot: Record<string, RunDotState>) => void
 }) {
   const t = useTranslations("taskEditor")
   const ti = useTranslations("instanceTable")
+  const formatDateTime = useFormatDateTime()
   const [dot, setDot] = useState<Record<string, RunDotState>>({})
   const active = activeId ?? (tabs.length ? tabs[tabs.length - 1].instanceId : null)
 
@@ -182,7 +182,7 @@ export function RunLogsTabs({
     const ds = dot[tb.instanceId] ?? "connecting"
     return {
       id: tb.instanceId,
-      label: `${tb.taskName} · ${formatDateTime(tb.startedAt, locale)}`,
+      label: `${tb.taskName} · ${formatDateTime(tb.startedAt)}`,
       icon: DocumentCodeIcon,
       indicator: (
         <span title={dotLabel[ds]} className={cn("mr-1 size-1.5 rounded-full", runDotColor[ds])} />

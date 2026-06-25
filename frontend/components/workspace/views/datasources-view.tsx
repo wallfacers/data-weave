@@ -45,9 +45,11 @@ import type {
   DatasourceCreateRequest,
 } from "@/lib/types"
 import { DATASOURCE_TYPE_CONFIG, CATEGORY_ORDER, buildJdbcUrl } from "@/lib/datasource-type-config"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 export function DatasourcesView() {
   const t = useTranslations("datasources")
+  const formatDateTime = useFormatDateTime()
   const [datasources, setDatasources] = useState<DatasourceVO[]>([])
   const [types, setTypes] = useState<DatasourceType[]>([])
   const [loading, setLoading] = useState(true)
@@ -245,7 +247,7 @@ export function DatasourcesView() {
                     </Badge>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground text-xs">
-                    {ds.createdAt ?? "—"}
+                    {formatDateTime(ds.createdAt)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <Button variant="ghost" size="icon" className="size-7" onClick={() => handleEdit(ds)}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 
@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatDateTime, type TaskDef, type TaskInstance } from "@/lib/types"
+import { type TaskDef, type TaskInstance } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useApi } from "@/lib/workspace/use-api"
 import { ViewStatus } from "./view-status"
 import { DwScroll } from "@/components/ui/dw-scroll"
@@ -47,7 +48,7 @@ interface Row {
 /** 数据新鲜度（最小版）：按任务实例最近成功时间推各任务产出时效，时效最差居前 */
 export function FreshnessView() {
   const t = useTranslations("freshness")
-  const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const instances = useApi<TaskInstance[]>("/api/ops/instances")
   const tasks = useApi<TaskDef[]>("/api/ops/tasks")
 
@@ -108,7 +109,7 @@ export function FreshnessView() {
                   <TableCell>{row.name}</TableCell>
                   <TableCell>{freshnessBadge(row.lastSuccess, t)}</TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">
-                    {formatDateTime(row.lastSuccess, locale)}
+                    {formatDateTime(row.lastSuccess)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {row.lastSuccess ? ageLabel(row.lastSuccess, t) : "—"}

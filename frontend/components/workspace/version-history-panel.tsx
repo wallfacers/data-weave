@@ -8,6 +8,7 @@ import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 export interface VersionInfo {
   versionNo: number
@@ -32,6 +33,7 @@ export function VersionHistoryPanel({
   onDiff,
 }: VersionHistoryPanelProps) {
   const t = useTranslations()
+  const formatDateTime = useFormatDateTime()
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
   if (versions.length === 0) {
@@ -111,7 +113,7 @@ export function VersionHistoryPanel({
                 </Badge>
               )}
               <span className="ml-auto text-[10px] text-muted-foreground">
-                {v.publishedAt?.slice(0, 16)}
+                {formatDateTime(v.publishedAt)}
               </span>
             </div>
             {v.remark && (

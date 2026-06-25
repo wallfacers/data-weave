@@ -8,7 +8,8 @@ import { OverlayScrollbarsComponent } from "overlayscrollbars-react"
 import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
 
 import { Button } from "@/components/ui/button"
-import { formatDateTime, API_BASE, authFetch, type ApiResponse } from "@/lib/types"
+import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 const CHUNK_SIZE = 65536
 
@@ -20,6 +21,7 @@ export interface SidePanelViewProps {
 export function LogViewerPanel({ params, onClose }: SidePanelViewProps) {
   const t = useTranslations("logViewer")
   const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const instanceId = params?.instanceId as number
   const taskId = params?.taskId as number | undefined
   const startedAt = params?.startedAt as string | undefined
@@ -78,8 +80,8 @@ export function LogViewerPanel({ params, onClose }: SidePanelViewProps) {
           {t("bytes", { size: totalSize.toLocaleString(locale) })}
         </span>
         {taskId && <span>{t("taskLabel", { id: taskId })}</span>}
-        {startedAt && <span>{t("startedLabel", { time: formatDateTime(startedAt, locale) })}</span>}
-        {finishedAt && <span>{t("finishedLabel", { time: formatDateTime(finishedAt, locale) })}</span>}
+        {startedAt && <span>{t("startedLabel", { time: formatDateTime(startedAt) })}</span>}
+        {finishedAt && <span>{t("finishedLabel", { time: formatDateTime(finishedAt) })}</span>}
       </div>
 
       <OverlayScrollbarsComponent

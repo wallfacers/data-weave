@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { CheckListIcon, BoxIcon } from "@hugeicons/core-free-icons"
 
@@ -15,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type TaskDef, formatDateTime, API_BASE, authFetch } from "@/lib/types"
+import { type TaskDef, API_BASE, authFetch } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 interface TaskDefListProps {
   tasks: TaskDef[]
@@ -29,7 +30,7 @@ interface TaskDefListProps {
 
 export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit, onRefresh }: TaskDefListProps) {
   const t = useTranslations("taskDefList")
-  const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const [, setRefresh] = useState(0)
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -100,7 +101,7 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
                     <TableCell>{statusBadge(task.status)}</TableCell>
                     <TableCell className="text-right tabular-nums">{task.priority ?? 5}</TableCell>
                     <TableCell className="text-right tabular-nums">v{task.currentVersionNo}</TableCell>
-                    <TableCell className="tabular-nums">{formatDateTime(task.createdAt, locale)}</TableCell>
+                    <TableCell className="tabular-nums">{formatDateTime(task.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(task)}>{t("btnEdit")}</Button>

@@ -182,6 +182,11 @@
     "colWorkflowName": "Workflow",
     "colCron": "Cron",
     "colVersion": "Version",
+    "colLastFireTime": "Last Run",
+    "colPriority": "Priority",
+    "colTimeout": "Timeout",
+    "colCreatedAt": "Created",
+    "draftChange": "Draft",
     "viewDag": "View DAG",
     "runOnce": "Run once",
     "runOnceSuccess": "Run triggered: {name}",
@@ -426,7 +431,7 @@
   "settings": {
     "open": "Settings",
     "title": "Settings",
-    "description": "Configure theme and interface language",
+    "description": "Configure theme, interface language, and date format",
     "appearance": "Appearance",
     "themeLight": "Light",
     "themeDark": "Dark",
@@ -435,7 +440,11 @@
     "uiLanguage": "Interface language",
     "langZh": "中文",
     "langEn": "English",
-    "close": "Close"
+    "close": "Close",
+    "dateTime": "Date & Time",
+    "dateTimeFormat": "Date & time format",
+    "dateFormat_dash": "Dash",
+    "dateFormat_slash": "Slash"
   },
   "cockpit": {
     "title": "Cockpit",

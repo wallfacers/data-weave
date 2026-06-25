@@ -11,6 +11,9 @@
  *  - POST /api/diagnosis/{id}/fix?action=... → FixResult
  */
 
+import { format as dateFnsFormat } from "date-fns"
+import { dateFormatStore, resolveDateFormatPattern } from "./date-format-store"
+
 export const API_BASE = "";
 
 /**
@@ -239,6 +242,7 @@ export interface WorkflowDef {
   status: "ONLINE" | "DRAFT"
   currentVersionNo: number
   hasDraftChange: number
+  lastFireTime: string | null
   priority: number | null
   preemptible: number | null
   timeoutSec: number | null
@@ -389,26 +393,21 @@ export function safeJsonParse<T>(json: string | null | undefined): T | null {
 }
 
 /**
- * 按 UI locale 格式化日期时间（D9）。locale 由调用方经 next-intl `useLocale()` 传入；
- * 缺省时退回运行时默认 locale。zh-CN → `2026/06/18 14:30:00`，en-US → `06/18/2026, 14:30:00`。
+ * 按用户偏好格式化日期时间。读取 `dateFormatStore` 的偏好（dash/slash）用 `date-fns` 格式化。
+ *
+ * React 组件应改用 `useFormatDateTime()` hook（`hooks/use-format-date-time.ts`），
+ * 以便在偏好变更时自动重渲染；此函数供非 React 上下文或一次性调用使用。
  */
 export function formatDateTime(
   iso: string | null | undefined,
-  locale?: string,
+  _locale?: string,
 ): string {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return new Intl.DateTimeFormat(locale, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).format(d);
+    const pattern = resolveDateFormatPattern(dateFormatStore.getState().format);
+    return dateFnsFormat(d, pattern);
   } catch {
     return iso;
   }

@@ -11,6 +11,8 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { dateFormatStore, DATE_FORMAT_OPTIONS, type DateFormatKey } from "@/lib/date-format-store"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 function SegmentedButton({
   active,
@@ -38,6 +40,9 @@ export function SettingsTrigger() {
   const { theme, setTheme } = useTheme()
   const locale = useLocale()
   const router = useRouter()
+  const dateFormat = dateFormatStore((s) => s.format)
+  const setDateFormat = dateFormatStore((s) => s.setFormat)
+  const formatDateTime = useFormatDateTime()
 
   const themeOptions = [
     { value: "light", label: t("settings.themeLight") },
@@ -49,6 +54,9 @@ export function SettingsTrigger() {
     { value: "zh-CN", label: t("settings.langZh") },
     { value: "en-US", label: t("settings.langEn") },
   ]
+
+  // 实时预览：用当前时间展示所选日期格式
+  const previewIso = new Date().toISOString()
 
   // 写 cookie `NEXT_LOCALE`（i18n/request.ts 据此选 bundle）+ router.refresh() 重渲染
   // server components（layout 重新 getLocale/getMessages），界面语言即时切换、刷新后保持。
@@ -123,6 +131,28 @@ export function SettingsTrigger() {
                     </SegmentedButton>
                   ))}
                 </div>
+              </div>
+            </section>
+
+            {/* 日期格式（偏好持久化到 localStorage，所有时间展示处统一生效） */}
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">{t("settings.dateTime")}</h3>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{t("settings.dateTimeFormat")}</span>
+                <div className="flex gap-2">
+                  {DATE_FORMAT_OPTIONS.map((opt) => (
+                    <SegmentedButton
+                      key={opt.key}
+                      active={dateFormat === opt.key}
+                      onClick={() => setDateFormat(opt.key)}
+                    >
+                      {t(`settings.dateFormat_${opt.key}` as Parameters<typeof t>[0])}
+                    </SegmentedButton>
+                  ))}
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">
+                  {formatDateTime(previewIso)}
+                </p>
               </div>
             </section>
           </div>

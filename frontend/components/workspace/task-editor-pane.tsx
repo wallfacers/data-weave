@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { FloppyDiskIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons"
 
@@ -99,7 +99,6 @@ export interface TaskEditorPaneProps {
 
 export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   const t = useTranslations()
-  const locale = useLocale()
   const [name, setName] = useState("")
   const [type, setType] = useState("SQL")
   const [content, setContent] = useState("")
@@ -605,7 +604,6 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
                   onCloseRight={closeRunTabsRight}
                   onCloseLeft={closeRunTabsLeft}
                   onCloseAll={closeAllRunTabs}
-                  locale={locale}
                   onDotChange={setDotMap}
                 />
               </div>

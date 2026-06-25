@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { BoxIcon } from "@hugeicons/core-free-icons"
@@ -17,7 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type TaskInstance, formatDateTime, API_BASE, authFetch } from "@/lib/types"
+import { type TaskInstance, API_BASE, authFetch } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 
 // 活跃态脉冲圆点：继承 Badge 文字色（bg-current），随徽章语义色一起变
@@ -56,7 +57,7 @@ const ACTION_LABEL_KEY: Record<string, string> = {
 
 export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
   const t = useTranslations("instanceTable")
-  const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const [, setRefresh] = useState(0)
 
   function stateBadge(state: string) {
@@ -146,8 +147,8 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
                 )}
               </TableCell>
               <TableCell className="font-mono text-xs">{inst.workerNodeCode ?? "—"}</TableCell>
-              <TableCell className="tabular-nums">{formatDateTime(inst.startedAt, locale)}</TableCell>
-              <TableCell className="tabular-nums">{formatDateTime(inst.finishedAt, locale)}</TableCell>
+              <TableCell className="tabular-nums">{formatDateTime(inst.startedAt)}</TableCell>
+              <TableCell className="tabular-nums">{formatDateTime(inst.finishedAt)}</TableCell>
               <TableCell className="text-right tabular-nums">{inst.attempt}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">

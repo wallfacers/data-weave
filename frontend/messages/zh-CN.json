@@ -182,6 +182,11 @@
     "colWorkflowName": "任务流名称",
     "colCron": "Cron",
     "colVersion": "版本",
+    "colLastFireTime": "上次运行",
+    "colPriority": "优先级",
+    "colTimeout": "超时",
+    "colCreatedAt": "创建时间",
+    "draftChange": "有草稿",
     "viewDag": "查看 DAG",
     "runOnce": "运行一次",
     "runOnceSuccess": "已触发运行：{name}",
@@ -426,7 +431,7 @@
   "settings": {
     "open": "项目设置",
     "title": "项目设置",
-    "description": "配置主题与界面语言",
+    "description": "配置主题、界面语言与日期格式",
     "appearance": "外观",
     "themeLight": "浅色",
     "themeDark": "深色",
@@ -435,7 +440,11 @@
     "uiLanguage": "界面语言",
     "langZh": "中文",
     "langEn": "English",
-    "close": "关闭"
+    "close": "关闭",
+    "dateTime": "日期与时间",
+    "dateTimeFormat": "日期时间格式",
+    "dateFormat_dash": "横线",
+    "dateFormat_slash": "斜线"
   },
   "cockpit": {
     "title": "驾驶舱",

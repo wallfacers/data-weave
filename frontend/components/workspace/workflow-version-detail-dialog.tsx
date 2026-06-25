@@ -6,6 +6,7 @@
 import { useTranslations } from "next-intl"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { WorkflowDefVersion } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 export interface WorkflowVersionDetailDialogProps {
   open: boolean
@@ -15,6 +16,7 @@ export interface WorkflowVersionDetailDialogProps {
 
 export function WorkflowVersionDetailDialog({ open, onClose, version }: WorkflowVersionDetailDialogProps) {
   const t = useTranslations()
+  const formatDateTime = useFormatDateTime()
 
   if (!version) return null
 
@@ -50,7 +52,7 @@ export function WorkflowVersionDetailDialog({ open, onClose, version }: Workflow
             </div>
           )}
           <div className="text-[10px] text-muted-foreground">
-            {t("versionHistory.publishedBy")}: {version.publishedBy ?? "-"} · {version.publishedAt?.slice(0, 16)}
+            {t("versionHistory.publishedBy")}: {version.publishedBy ?? "-"} · {formatDateTime(version.publishedAt)}
           </div>
         </div>
       </DialogContent>

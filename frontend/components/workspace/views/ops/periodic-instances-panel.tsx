@@ -49,10 +49,10 @@ import {
 import {
   API_BASE,
   authFetch,
-  formatDateTime,
   type ApiResponse,
 } from "@/lib/types"
 import { useWorkspaceStore } from "@/lib/workspace/store"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 /** 契约① InstanceRow */
 interface InstanceRow {
@@ -164,6 +164,7 @@ export function PeriodicInstancesPanel({
 }) {
   const t = useTranslations("ops")
   const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const dateFnsLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const open = useWorkspaceStore((s) => s.open)
 
@@ -518,10 +519,10 @@ export function PeriodicInstancesPanel({
                       </TableCell>
                       <TableCell className="overflow-hidden tabular-nums text-xs">{inst.bizDate}</TableCell>
                       <TableCell className="overflow-hidden tabular-nums text-xs">
-                        {formatDateTime(inst.startedAt ?? null, locale)}
+                        {formatDateTime(inst.startedAt ?? null)}
                       </TableCell>
                       <TableCell className="overflow-hidden tabular-nums text-xs">
-                        {formatDateTime(inst.finishedAt ?? null, locale)}
+                        {formatDateTime(inst.finishedAt ?? null)}
                       </TableCell>
                       <TableCell className="text-right overflow-hidden tabular-nums text-xs">
                         {formatDuration(inst.durationMs)}

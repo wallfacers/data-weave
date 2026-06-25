@@ -11,7 +11,7 @@
  * 运行 = 手动触发正式实例（POST /api/workflows/{id}/run），D8：未上线禁用并提示需先发布。
  */
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { useMotionValue, useTransform, motion } from "motion/react"
 import {
   ReactFlow,
@@ -314,7 +314,6 @@ interface InstanceTask {
 
 function CanvasInner({ workflowId, name }: { workflowId: number; name: string }) {
   const t = useTranslations("workflowCanvas")
-  const locale = useLocale()
   const [dagVersion, setDagVersion] = useState<number | null>(null)
   const [status, setStatus] = useState<string>("DRAFT")
   const [hasDraft, setHasDraft] = useState(false)
@@ -1120,7 +1119,6 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
               onCloseRight={closeRunTabsRight}
               onCloseLeft={closeRunTabsLeft}
               onCloseAll={closeAllRunTabs}
-              locale={locale}
             />
           </div>
         </>

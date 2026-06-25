@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   BoxIcon,
@@ -26,7 +26,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { DwScroll } from "@/components/ui/dw-scroll"
-import { authFetch, API_BASE, formatDateTime, type ApiResponse } from "@/lib/types"
+import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { BackfillDialog } from "./backfill-dialog"
 
 interface BackfillRun {
@@ -57,7 +58,7 @@ const STATE_VARIANT: Record<string, "success" | "destructive" | "warning" | "inf
 export function BackfillPanel() {
   const t = useTranslations("ops")
   const tc = useTranslations("common")
-  const locale = useLocale()
+  const formatDateTime = useFormatDateTime()
   const [runs, setRuns] = useState<BackfillRun[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -177,7 +178,7 @@ export function BackfillPanel() {
                   </TableCell>
                   <TableCell>{stateBadge(run.state)}</TableCell>
                   <TableCell className="tabular-nums text-xs">
-                    {formatDateTime(run.createdAt, locale)}
+                    {formatDateTime(run.createdAt)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
