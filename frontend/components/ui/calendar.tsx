@@ -40,6 +40,7 @@ function Calendar({
         ),
         day: cn(
           "size-8 rounded-md text-sm font-normal transition-colors",
+          "leading-8 text-center align-middle",
           "hover:bg-muted",
           "aria-selected:bg-primary aria-selected:text-primary-foreground",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
