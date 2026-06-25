@@ -1,43 +1,162 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { CheckListIcon, BoxIcon } from "@hugeicons/core-free-icons"
+import { BoxIcon, PlayIcon, StopIcon, Edit02Icon, Delete02Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { type TaskDef, API_BASE, authFetch } from "@/lib/types"
+import { DataTable } from "@/components/ui/data-table"
+import { type ColumnDef, type FilterDef, type FilterPreset, type FetchQuery, type PageResult, toQueryParams } from "@/lib/data-table"
+import { type TaskDef, API_BASE, authFetch, type ApiResponse } from "@/lib/types"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 interface TaskDefListProps {
-  tasks: TaskDef[]
-  total: number
-  page: number
-  pageSize: number
-  onPageChange: (page: number) => void
-  onEdit: (task: TaskDef) => void
-  onRefresh: () => void
+  onEdit?: (task: TaskDef) => void
 }
 
-export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit, onRefresh }: TaskDefListProps) {
+interface DatasourceOption { id: number; name: string }
+interface TagOption { id: number; name: string }
+
+export function TaskDefList({ onEdit }: TaskDefListProps) {
   const t = useTranslations("taskDefList")
   const formatDateTime = useFormatDateTime()
-  const [, setRefresh] = useState(0)
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [datasourceOpts, setDatasourceOpts] = useState<DatasourceOption[]>([])
+  const [tagOpts, setTagOpts] = useState<TagOption[]>([])
 
-  function statusBadge(status: string) {
-    if (status === "ONLINE") return <Badge variant="success">{t("statusOnline")}</Badge>
-    return <Badge variant="outline" className="text-muted-foreground">{t("statusDraft")}</Badge>
-  }
+  // 加载数据源/标签选项（高级筛选下拉用）
+  useEffect(() => {
+    authFetch(`${API_BASE}/api/datasources?projectId=1`)
+      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse<unknown>>) : Promise.resolve(null)))
+      .then((json) => {
+        if (!json || json.code !== 0) return
+        const arr = Array.isArray(json.data) ? json.data : []
+        setDatasourceOpts(
+          arr.map((d: Record<string, unknown>) => ({ id: d.id as number, name: d.name as string })),
+        )
+      })
+      .catch(() => {})
+    authFetch(`${API_BASE}/api/tags`)
+      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse<unknown>>) : Promise.resolve(null)))
+      .then((json) => {
+        if (!json || json.code !== 0) return
+        const arr = Array.isArray(json.data) ? json.data : []
+        setTagOpts(
+          arr.map((tg: Record<string, unknown>) => ({ id: tg.id as number, name: tg.name as string })),
+        )
+      })
+      .catch(() => {})
+  }, [])
+
+  const filters = useMemo<FilterDef[]>(
+    () => [
+      { key: "keyword", label: t("filterName"), kind: "search", placeholder: t("filterNamePh"), width: "w-44" },
+      {
+        key: "status",
+        label: t("filterStatus"),
+        kind: "segmented",
+        width: "w-36",
+        options: [
+          { value: "", label: t("statusAll") },
+          { value: "DRAFT", label: t("statusDraft") },
+          { value: "ONLINE", label: t("statusOnline") },
+        ],
+      },
+      {
+        key: "type",
+        label: t("filterType"),
+        kind: "multiSelect",
+        width: "w-36",
+        options: [
+          { value: "SQL", label: "SQL" },
+          { value: "SHELL", label: "Shell" },
+          { value: "PYTHON", label: "Python" },
+          { value: "ECHO", label: "Echo" },
+        ],
+      },
+      { key: "ownerId", label: t("filterMine"), kind: "toggle" },
+      {
+        key: "tagId",
+        label: t("filterTag"),
+        kind: "select",
+        tier: "advanced",
+        width: "w-36",
+        options: tagOpts.map((tg) => ({ value: String(tg.id), label: tg.name })),
+      },
+      {
+        key: "datasourceId",
+        label: t("filterDatasource"),
+        kind: "select",
+        tier: "advanced",
+        width: "w-40",
+        options: datasourceOpts.map((ds) => ({ value: String(ds.id), label: ds.name })),
+      },
+      { key: "frozen", label: t("filterFrozen"), kind: "toggle", tier: "advanced" },
+    ],
+    [t, tagOpts, datasourceOpts],
+  )
+
+  const presets = useMemo<FilterPreset[]>(
+    () => [
+      {
+        key: "myDrafts",
+        label: t("presetMyDrafts"),
+        set: { status: "DRAFT", ownerId: true, keyword: "", type: [], tagId: "", datasourceId: "", frozen: false },
+      },
+      {
+        key: "frozenTasks",
+        label: t("presetFrozen"),
+        set: { frozen: true, keyword: "", status: "", type: [], ownerId: false, tagId: "", datasourceId: "" },
+      },
+    ],
+    [t],
+  )
+
+  const defaultFilters = useMemo(
+    () => ({
+      keyword: "",
+      status: "",
+      type: [] as string[],
+      ownerId: false as boolean | string,
+      tagId: "",
+      datasourceId: "",
+      frozen: false as boolean | string,
+    }),
+    [],
+  )
+
+  const fetcher = useCallback(
+    async (query: FetchQuery): Promise<PageResult<TaskDef>> => {
+      const qs = toQueryParams(query, filters)
+      // ownerId toggle → 特殊值 "me"（toQueryParams 写为 "true"，需替换）
+      if (query.filters.ownerId === true) {
+        qs.set("ownerId", "me")
+      }
+      // frozen toggle → 值 "1"
+      if (query.filters.frozen === true) {
+        qs.set("frozen", "1")
+      }
+      const res = await authFetch(`${API_BASE}/api/tasks?${qs.toString()}`)
+      if (!res.ok) return { items: [], total: 0, page: query.page, size: query.size }
+      const json = (await res.json()) as ApiResponse<unknown>
+      if (json.code !== 0 || !json.data) return { items: [], total: 0, page: query.page, size: query.size }
+      const d = json.data as Record<string, unknown>
+      if (Array.isArray(d.content)) {
+        return {
+          items: d.content as TaskDef[],
+          total: (d.totalElements as number) ?? (d.content as unknown[]).length,
+          page: ((d.number as number) ?? 0) + 1,
+          size: (d.size as number) ?? query.size,
+        }
+      }
+      return { items: [], total: 0, page: query.page, size: query.size }
+    },
+    [filters],
+  )
+
+  const reload = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   async function doAction(task: TaskDef, action: string) {
     try {
@@ -48,93 +167,137 @@ export function TaskDefList({ tasks, total, page, pageSize, onPageChange, onEdit
       } else if (action === "delete") {
         await authFetch(`${API_BASE}/api/tasks/${task.id}`, { method: "DELETE" })
       }
-      setRefresh(n => n + 1)
-      onRefresh()
-    } catch { /* ignore */ }
+      reload()
+    } catch {
+      /* ignore */
+    }
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <HugeiconsIcon icon={CheckListIcon} className="text-primary" />
-        <h2 className="text-sm font-medium">{t("title")}</h2>
-        <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
-          {total}
-        </span>
-      </div>
-
-      {tasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <HugeiconsIcon icon={BoxIcon} className="size-6" />
-          </div>
-          <p className="text-sm text-muted-foreground">{t("emptyTitle")}</p>
-          <p className="max-w-sm text-xs text-muted-foreground">
-            {t("emptyHint")}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="font-sans">
-            <Table className="table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-44">{t("colName")}</TableHead>
-                  <TableHead className="w-20">{t("colType")}</TableHead>
-                  <TableHead className="w-20">{t("colStatus")}</TableHead>
-                  <TableHead className="w-14 text-right">{t("colPriority")}</TableHead>
-                  <TableHead className="w-16 text-right">{t("colVersion")}</TableHead>
-                  <TableHead className="w-40">{t("colCreatedAt")}</TableHead>
-                  <TableHead className="w-40 text-right">{t("colActions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tasks.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell className="w-44 max-w-0 truncate font-medium" title={task.name}>
-                      {task.name}
-                      {task.description && (
-                        <div className="truncate text-xs font-normal text-muted-foreground">{task.description}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{task.type}</TableCell>
-                    <TableCell>{statusBadge(task.status)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{task.priority ?? 5}</TableCell>
-                    <TableCell className="text-right tabular-nums">v{task.currentVersionNo}</TableCell>
-                    <TableCell className="tabular-nums">{formatDateTime(task.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onEdit(task)}>{t("btnEdit")}</Button>
-                        {task.status === "DRAFT" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => doAction(task, "publish")}>{t("btnPublish")}</Button>
-                        )}
-                        {task.status === "ONLINE" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(task, "offline")}>{t("btnOffline")}</Button>
-                        )}
-                        {task.status === "DRAFT" && (
-                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-destructive" onClick={() => doAction(task, "delete")}>{t("btnDelete")}</Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs text-muted-foreground">
-                {t("pageInfo", { total, page: page + 1, totalPages })}
-              </span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => onPageChange(page - 1)}>{t("prevPage")}</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page >= totalPages - 1} onClick={() => onPageChange(page + 1)}>{t("nextPage")}</Button>
-              </div>
+  const columns = useMemo<ColumnDef<TaskDef>[]>(
+    () => [
+      {
+        key: "name",
+        header: t("colName"),
+        widthPct: 28,
+        cell: (r) => (
+          <div className="align-top">
+            <div className="truncate font-medium" title={r.name}>
+              {r.name}
             </div>
-          )}
-        </>
-      )}
-    </div>
+            {r.description && (
+              <div className="truncate text-xs text-muted-foreground" title={r.description}>
+                {r.description}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      { key: "type", header: t("colType"), widthPct: 8, cellClassName: "font-mono text-xs" },
+      {
+        key: "status",
+        header: t("colStatus"),
+        widthPct: 8,
+        cell: (r) =>
+          r.status === "ONLINE" ? (
+            <Badge variant="success">{t("statusOnline")}</Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              {t("statusDraft")}
+            </Badge>
+          ),
+      },
+      {
+        key: "priority",
+        header: t("colPriority"),
+        widthPct: 6,
+        align: "right",
+        cellClassName: "tabular-nums",
+        cell: (r) => String(r.priority ?? 5),
+      },
+      {
+        key: "version",
+        header: t("colVersion"),
+        widthPct: 6,
+        align: "right",
+        cellClassName: "tabular-nums",
+        cell: (r) => `v${r.currentVersionNo}`,
+      },
+      {
+        key: "createdAt",
+        header: t("colCreatedAt"),
+        widthPct: 14,
+        cellClassName: "tabular-nums text-xs",
+        cell: (r) => formatDateTime(r.createdAt),
+      },
+      {
+        key: "actions",
+        header: t("colActions"),
+        widthPct: 14,
+        align: "right",
+        cell: (r) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => onEdit?.(r)}
+            >
+              <HugeiconsIcon icon={Edit02Icon} className="size-3" />
+              {t("btnEdit")}
+            </Button>
+            {r.status === "DRAFT" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => doAction(r, "publish")}
+              >
+                <HugeiconsIcon icon={PlayIcon} className="size-3" />
+                {t("btnPublish")}
+              </Button>
+            )}
+            {r.status === "ONLINE" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-destructive"
+                onClick={() => doAction(r, "offline")}
+              >
+                <HugeiconsIcon icon={StopIcon} className="size-3" />
+                {t("btnOffline")}
+              </Button>
+            )}
+            {r.status === "DRAFT" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-destructive"
+                onClick={() => doAction(r, "delete")}
+              >
+                <HugeiconsIcon icon={Delete02Icon} className="size-3" />
+                {t("btnDelete")}
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [t, formatDateTime, onEdit, reload],
+  )
+
+  return (
+    <DataTable<TaskDef>
+      key={refreshKey}
+      columns={columns}
+      getRowId={(r) => String(r.id)}
+      mode="server"
+      fetcher={fetcher}
+      filters={filters}
+      presets={presets}
+      defaultFilters={defaultFilters}
+      emptyIcon={BoxIcon}
+      emptyTitle={t("emptyTitle")}
+      emptyHint={t("emptyHint")}
+    />
   )
 }

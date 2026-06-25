@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
@@ -54,7 +55,7 @@ public class TaskController {
         return ApiResponse.ok(taskService.create(body));
     }
 
-    /** 分页搜索任务（可选类目/标签过滤；无新参数时行为与既有一致）。 */
+    /** 分页搜索任务（可选类目/标签/负责人/冻结/数据源过滤；无新参数时行为与既有一致）。 */
     @GetMapping
     public ApiResponse<PageResult> search(
             @RequestParam(required = false) String keyword,
@@ -65,13 +66,28 @@ public class TaskController {
             @RequestParam(required = false) Long catalogNodeId,
             @RequestParam(defaultValue = "false") boolean uncategorized,
             @RequestParam(required = false) Long tagId,
+            @RequestParam(required = false) String ownerId,
+            @RequestParam(required = false) Integer frozen,
+            @RequestParam(required = false) Long datasourceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         LocalDateTime start = parseDateTime(startTime);
         LocalDateTime end = parseDateTime(endTime);
+        // ownerId=me 解析为当前用户 ID
+        Long resolvedOwnerId = null;
+        if ("me".equalsIgnoreCase(ownerId)) {
+            resolvedOwnerId = TenantContext.userId();
+        } else if (ownerId != null && !ownerId.isBlank()) {
+            try {
+                resolvedOwnerId = Long.parseLong(ownerId);
+            } catch (NumberFormatException ignored) {
+                // 非数字忽略，不按 owner 过滤
+            }
+        }
         return ApiResponse.ok(taskService.search(keyword, type, status, start, end,
-                catalogNodeId, uncategorized, tagId, page, size));
+                catalogNodeId, uncategorized, tagId, resolvedOwnerId, frozen, datasourceId,
+                page, size));
     }
 
     /**

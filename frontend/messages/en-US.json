@@ -543,7 +543,14 @@
     "colTaskName": "Task Name",
     "colFreshness": "Freshness",
     "colLastSuccess": "Last Success",
-    "colAge": "Age"
+    "colAge": "Age",
+    "emptyTitle": "No freshness records",
+    "emptyHint": "Freshness data will appear after tasks succeed.",
+    "filterTier": "Tier",
+    "filterTaskName": "Task name",
+    "filterTaskNamePh": "Search task name",
+    "presetStale": "Stale",
+    "presetNeverSucceeded": "Never succeeded"
   },
   "reports": {
     "title": "Business Reports",
@@ -809,7 +816,18 @@
     "btnDelete": "Delete",
     "pageInfo": "{total} total, page {page}/{totalPages}",
     "prevPage": "Prev",
-    "nextPage": "Next"
+    "nextPage": "Next",
+    "statusAll": "All",
+    "filterName": "Name",
+    "filterNamePh": "Search task name",
+    "filterStatus": "Status",
+    "filterType": "Type",
+    "filterMine": "Mine",
+    "filterTag": "Tag",
+    "filterDatasource": "Datasource",
+    "filterFrozen": "Frozen",
+    "presetMyDrafts": "My Drafts",
+    "presetFrozen": "Frozen"
   },
   "taskSearchBar": {
     "allTypes": "All types",

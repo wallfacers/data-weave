@@ -543,7 +543,14 @@
     "colTaskName": "任务名",
     "colFreshness": "时效",
     "colLastSuccess": "最近成功",
-    "colAge": "距今"
+    "colAge": "距今",
+    "emptyTitle": "暂无数据新鲜度记录",
+    "emptyHint": "任务成功执行后，新鲜度数据将自动展示。",
+    "filterTier": "时效分档",
+    "filterTaskName": "任务名",
+    "filterTaskNamePh": "搜索任务名",
+    "presetStale": "陈旧",
+    "presetNeverSucceeded": "从未成功"
   },
   "reports": {
     "title": "业务报表",
@@ -809,7 +816,18 @@
     "btnDelete": "删除",
     "pageInfo": "共 {total} 条，第 {page}/{totalPages} 页",
     "prevPage": "上一页",
-    "nextPage": "下一页"
+    "nextPage": "下一页",
+    "statusAll": "全部",
+    "filterName": "名称",
+    "filterNamePh": "搜索任务名",
+    "filterStatus": "状态",
+    "filterType": "类型",
+    "filterMine": "我的",
+    "filterTag": "标签",
+    "filterDatasource": "数据源",
+    "filterFrozen": "冻结",
+    "presetMyDrafts": "我的草稿",
+    "presetFrozen": "已冻结"
   },
   "taskSearchBar": {
     "allTypes": "全部类型",

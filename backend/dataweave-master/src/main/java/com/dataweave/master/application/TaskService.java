@@ -88,7 +88,7 @@ public class TaskService {
     public PageResult search(String keyword, String type, String status,
                              LocalDateTime startTime, LocalDateTime endTime,
                              int page, int size) {
-        return search(keyword, type, status, startTime, endTime, null, false, null, page, size);
+        return search(keyword, type, status, startTime, endTime, null, false, null, null, null, null, page, size);
     }
 
     /**
@@ -101,6 +101,25 @@ public class TaskService {
     public PageResult search(String keyword, String type, String status,
                              LocalDateTime startTime, LocalDateTime endTime,
                              Long catalogNodeId, boolean uncategorized, Long tagId,
+                             int page, int size) {
+        return search(keyword, type, status, startTime, endTime, catalogNodeId, uncategorized, tagId,
+                null, null, null, page, size);
+    }
+
+    /**
+     * 分页搜索任务定义，支持类目/标签/负责人/冻结/数据源过滤。
+     *
+     * @param catalogNodeId 归属文件夹过滤（null 且 uncategorized=false 时不过滤）
+     * @param uncategorized true 仅返回未归类（catalog_node_id IS NULL）
+     * @param tagId         标签过滤（null 不过滤）
+     * @param ownerId       负责人过滤（null 不过滤）
+     * @param frozen        冻结过滤（null 不过滤；1=冻结，0=未冻结）
+     * @param datasourceId  数据源过滤（null 不过滤）
+     */
+    public PageResult search(String keyword, String type, String status,
+                             LocalDateTime startTime, LocalDateTime endTime,
+                             Long catalogNodeId, boolean uncategorized, Long tagId,
+                             Long ownerId, Integer frozen, Long datasourceId,
                              int page, int size) {
         StringBuilder where = new StringBuilder("WHERE deleted = 0");
         List<Object> params = new ArrayList<>();
@@ -135,6 +154,18 @@ public class TaskService {
             where.append(" AND id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'TASK')");
             params.add(tagId);
         }
+        if (ownerId != null) {
+            where.append(" AND owner_id = ?");
+            params.add(ownerId);
+        }
+        if (frozen != null) {
+            where.append(" AND frozen = ?");
+            params.add(frozen);
+        }
+        if (datasourceId != null) {
+            where.append(" AND datasource_id = ?");
+            params.add(datasourceId);
+        }
 
         // Count
         Long total = jdbcTemplate.queryForObject(
@@ -166,6 +197,7 @@ public class TaskService {
             t.setCurrentVersionNo(rs.getObject("current_version_no") != null ? rs.getInt("current_version_no") : null);
             t.setHasDraftChange(rs.getObject("has_draft_change") != null ? rs.getInt("has_draft_change") : null);
             t.setPriority(rs.getObject("priority") != null ? rs.getInt("priority") : null);
+            t.setFrozen(rs.getObject("frozen") != null ? rs.getInt("frozen") : null);
             t.setDescription(rs.getString("description"));
             t.setOwnerId(rs.getObject("owner_id") != null ? rs.getLong("owner_id") : null);
             t.setCreatedBy(rs.getObject("created_by") != null ? rs.getLong("created_by") : null);

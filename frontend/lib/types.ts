@@ -169,6 +169,7 @@ export interface TaskDef {
   paramsJson: string | null
   timeoutSec: number | null
   retryMax: number | null
+  frozen: number | null         // 0=正常 1=冻结
   catalogNodeId: number | null // 所属类目文件夹（null=未分类）
   createdAt: string
   updatedAt: string | null
