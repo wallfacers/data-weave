@@ -10,6 +10,7 @@ import com.dataweave.master.domain.DatasourceType;
 import com.dataweave.master.domain.DatasourceTypeRepository;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -49,8 +50,25 @@ public class DatasourceController {
     // ===== Datasource CRUD =====
 
     @GetMapping("/datasources")
-    public ApiResponse<List<DatasourceVO>> list(@RequestParam(defaultValue = "1") Long projectId) {
+    public ApiResponse<Object> list(
+            @RequestParam(defaultValue = "1") Long projectId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String typeCode,
+            @RequestParam(required = false) String connectionStatus,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         Long tenantId = currentTenantId();
+        // 有筛选/分页参数 → 动态查询返回分页结果
+        if (search != null || typeCode != null || connectionStatus != null || page != null) {
+            List<String> typeCodes = (typeCode != null && !typeCode.isBlank())
+                    ? Arrays.asList(typeCode.split(","))
+                    : null;
+            int p = page != null ? Math.max(1, page) : 1;
+            int s = size != null ? Math.max(1, Math.min(size, 100)) : 20;
+            return ApiResponse.ok(datasourceService.query(tenantId, projectId,
+                    search, typeCodes, connectionStatus, p, s));
+        }
+        // 无参 → 旧版全量返回（向后兼容）
         return ApiResponse.ok(datasourceService.listByProject(tenantId, projectId));
     }
 

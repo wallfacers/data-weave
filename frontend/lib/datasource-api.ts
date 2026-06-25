@@ -10,6 +10,7 @@ import type {
   DatasourceCreateRequest,
   DatasourceUpdateRequest,
 } from "@/lib/types"
+import type { PageResult, FetchQuery, FilterDef, toQueryParams } from "@/lib/data-table"
 
 const API = "" // same-origin
 
@@ -28,6 +29,31 @@ export async function listDatasourceTypes(category?: string): Promise<Datasource
 export async function listDatasources(projectId = 1): Promise<DatasourceVO[]> {
   const res = await authFetch(`${API}/api/datasources?projectId=${projectId}`)
   return unwrap<DatasourceVO[]>(res)
+}
+
+/** DataTable server fetcher: 拼接筛选参数 + 分页，调用后端并归一化为 PageResult。 */
+export async function fetchDatasources(
+  query: FetchQuery,
+  defs: FilterDef[],
+  projectId: number,
+  toQueryParamsFn: typeof import("@/lib/data-table").toQueryParams,
+): Promise<PageResult<DatasourceVO>> {
+  const qs = toQueryParamsFn(query, defs)
+  qs.set("projectId", String(projectId))
+  const res = await authFetch(`${API}/api/datasources?${qs.toString()}`)
+  const json = (await res.json()) as ApiResponse<unknown>
+  if (json.code !== 0) throw new Error(json.message || "API error")
+  const data = json.data as Record<string, unknown>
+  // 后端返回 PageResult 格式 {items, total, page, size} 或旧版数组
+  if (Array.isArray(data)) {
+    return { items: data as DatasourceVO[], total: (data as DatasourceVO[]).length, page: 1, size: (data as DatasourceVO[]).length }
+  }
+  return {
+    items: (data.items ?? data.content ?? []) as DatasourceVO[],
+    total: (data.total ?? data.totalElements ?? 0) as number,
+    page: (data.page ?? (data.number != null ? (data.number as number) + 1 : 1)) as number,
+    size: (data.size ?? 20) as number,
+  }
 }
 
 export async function getDatasource(id: number): Promise<DatasourceVO> {

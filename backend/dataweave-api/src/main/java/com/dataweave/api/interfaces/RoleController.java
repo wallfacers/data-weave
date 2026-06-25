@@ -7,11 +7,11 @@ import com.dataweave.master.domain.RolePermission;
 import com.dataweave.master.domain.RolePermissionRepository;
 import com.dataweave.master.domain.RoleRepository;
 import com.dataweave.master.i18n.BizException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 角色管理 CRUD + 权限分配。
@@ -22,18 +22,79 @@ public class RoleController {
 
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public RoleController(RoleRepository roleRepository,
-                          RolePermissionRepository rolePermissionRepository) {
+                          RolePermissionRepository rolePermissionRepository,
+                          JdbcTemplate jdbcTemplate) {
         this.roleRepository = roleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping
-    public ApiResponse<List<Role>> list() {
+    public ApiResponse<Object> list(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
+        // 有筛选/分页参数 → 动态查询返回分页结果
+        if (search != null || page != null) {
+            return ApiResponse.ok(query(tenantId, search, page, size));
+        }
+        // 无参 → 旧版全量返回
         return ApiResponse.ok(roleRepository.findByTenantId(tenantId));
+    }
+
+    private Map<String, Object> query(Long tenantId, String search,
+                                       Integer page, Integer size) {
+        StringBuilder where = new StringBuilder("WHERE tenant_id = ? AND deleted = 0");
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId);
+
+        if (search != null && !search.isBlank()) {
+            where.append(" AND (code LIKE ? OR name LIKE ?)");
+            String like = "%" + search.trim() + "%";
+            params.add(like);
+            params.add(like);
+        }
+
+        int p = page != null ? Math.max(1, page) : 1;
+        int s = size != null ? Math.max(1, Math.min(size, 100)) : 20;
+
+        // Count
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM roles " + where, Long.class, params.toArray());
+        long totalElements = total != null ? total : 0;
+
+        // Page
+        int offset = (p - 1) * s;
+        String sql = "SELECT * FROM roles " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        List<Object> pageParams = new ArrayList<>(params);
+        pageParams.add(s);
+        pageParams.add(offset);
+
+        List<Role> content = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Role r = new Role();
+            r.setId(rs.getLong("id"));
+            r.setTenantId(rs.getLong("tenant_id"));
+            r.setCode(rs.getString("code"));
+            r.setName(rs.getString("name"));
+            r.setDescription(rs.getString("description"));
+            r.setCreatedBy(rs.getObject("created_by") != null ? rs.getLong("created_by") : null);
+            r.setUpdatedBy(rs.getObject("updated_by") != null ? rs.getLong("updated_by") : null);
+            r.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null);
+            r.setUpdatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null);
+            return r;
+        }, pageParams.toArray());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", content);
+        result.put("total", totalElements);
+        result.put("page", p);
+        result.put("size", s);
+        return result;
     }
 
     @GetMapping("/{id}")

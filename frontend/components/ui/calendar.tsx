@@ -33,16 +33,15 @@ function Calendar({
         head_cell:
           "size-8 text-[0.8rem] font-normal text-muted-foreground flex items-center justify-center",
         row: "flex w-full mt-1",
-        cell: cn(
-          "size-8 text-center text-sm p-0 relative flex items-center justify-center",
-          "[&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50",
-          "[&:has([aria-selected].day-range-end)]:rounded-r-md"
-        ),
         day: cn(
-          "size-8 rounded-md text-sm font-normal transition-colors",
-          "leading-8 text-center align-middle",
+          // v9: <td role="gridcell"> 单元格本体，承载 aria-selected 与布局尺寸
+          "group/day size-8 p-0 relative text-center text-sm"
+        ),
+        day_button: cn(
+          // v9: 单元格内的 <button>，铺满整个格子 → 灰色悬停区全可点击
+          "size-full flex items-center justify-center rounded-md text-sm font-normal cursor-pointer transition-colors",
           "hover:bg-muted",
-          "aria-selected:bg-primary aria-selected:text-primary-foreground",
+          "group-aria-selected/day:bg-primary group-aria-selected/day:text-primary-foreground group-aria-selected/day:hover:bg-primary",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         ),
         day_today: "bg-muted font-semibold",

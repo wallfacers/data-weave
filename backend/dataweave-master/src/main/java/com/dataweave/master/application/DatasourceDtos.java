@@ -79,6 +79,14 @@ public final class DatasourceDtos {
             String serverVersion
     ) {}
 
+    /** Paginated query result. */
+    public record PageResult(
+            java.util.List<DatasourceVO> items,
+            long total,
+            int page,
+            int size
+    ) {}
+
     /** Response VO for a driver jar asset (sha256 仅展示前 12 位短摘要)。 */
     public record DriverJarVO(
             Long id,

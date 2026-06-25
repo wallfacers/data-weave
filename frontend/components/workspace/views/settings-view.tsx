@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { DwScroll } from "@/components/ui/dw-scroll"
+import { DataTable } from "@/components/ui/data-table"
+import { type ColumnDef, type FilterDef, type FetchQuery, type PageResult, toQueryParams } from "@/lib/data-table"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -69,57 +70,30 @@ type ProjectDialogState =
   | { mode: "edit"; id: number }
 
 /* ------------------------------------------------------------------ */
-/*  Generic fetch + CRUD helpers                                       */
+/*  Generic fetcher helper for server-mode DataTable                    */
 /* ------------------------------------------------------------------ */
 
-function useCrud<T extends { id: number }>(basePath: string) {
-  const api = useApi()
-  const [items, setItems] = useState<T[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await api(basePath)
-      const json = (await res.json()) as ApiResponse<T[]>
-      if (json.code === 0 && json.data) setItems(json.data)
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false)
-    }
-  }, [api, basePath])
-
-  useEffect(() => { void load() }, [load])
-
-  async function create(body: Record<string, string>) {
-    const res = await api(basePath, {
-      method: "POST",
-      body: JSON.stringify(body),
-    })
-    const json = (await res.json()) as ApiResponse<unknown>
-    if (json.code === 0) await load()
-    return res
+async function fetchPage<T>(
+  basePath: string,
+  query: FetchQuery,
+  defs: FilterDef[],
+  api: (path: string, init?: RequestInit) => Promise<Response>,
+): Promise<PageResult<T>> {
+  const qs = toQueryParams(query, defs)
+  const res = await api(`${basePath}?${qs.toString()}`)
+  const json = (await res.json()) as ApiResponse<unknown>
+  if (json.code !== 0) throw new Error(json.message || "API error")
+  const data = json.data as Record<string, unknown> | T[]
+  if (Array.isArray(data)) {
+    const arr = data as T[]
+    return { items: arr, total: arr.length, page: 1, size: arr.length }
   }
-
-  async function update(id: number, body: Record<string, string>) {
-    const res = await api(`${basePath}/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    })
-    const json = (await res.json()) as ApiResponse<unknown>
-    if (json.code === 0) await load()
-    return res
+  return {
+    items: (data.items ?? data.content ?? []) as T[],
+    total: (data.total ?? data.totalElements ?? 0) as number,
+    page: (data.page ?? (data.number != null ? (data.number as number) + 1 : 1)) as number,
+    size: (data.size ?? 20) as number,
   }
-
-  async function remove(id: number) {
-    const res = await api(`${basePath}/${id}`, { method: "DELETE" })
-    const json = (await res.json()) as ApiResponse<unknown>
-    if (json.code === 0) await load()
-    return res
-  }
-
-  return { items, loading, load, create, update, remove }
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,7 +105,7 @@ function FormField({
   children,
 }: {
   label: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -147,10 +121,10 @@ function FormField({
 
 function UsersTab() {
   const t = useTranslations("settingsView")
-  const { items, loading, create, update, remove } = useCrud<User>("/api/users")
+  const api = useApi()
   const [dialog, setDialog] = useState<UserDialogState>({ mode: "closed" })
 
-  /* form fields — separate from dialog state so edits survive re-renders */
+  /* form fields */
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -177,16 +151,98 @@ function UsersTab() {
   const submit = async () => {
     if (dialog.mode === "create") {
       if (!username.trim() || !password.trim()) return
-      await create({ username, password, displayName, email })
+      await api("/api/users", {
+        method: "POST",
+        body: JSON.stringify({ username, password, displayName, email }),
+      })
     } else if (dialog.mode === "edit") {
       const body: Record<string, string> = { username, displayName, email }
       if (password.trim()) body.password = password
-      await update(dialog.id, body)
+      await api(`/api/users/${dialog.id}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      })
     }
     closeDialog()
   }
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+  const toggleStatus = async (u: User) => {
+    const newStatus = u.status === "ACTIVE" ? "DISABLED" : "ACTIVE"
+    await api(`/api/users/${u.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ status: newStatus }),
+    })
+  }
+
+  const deleteUser = async (id: number) => {
+    await api(`/api/users/${id}`, { method: "DELETE" })
+  }
+
+  // Filters
+  const filters = useMemo<FilterDef[]>(() => [
+    {
+      key: "search",
+      label: t("filterSearchUser"),
+      kind: "search",
+      placeholder: t("filterSearchUser"),
+      width: "w-56",
+    },
+    {
+      key: "status",
+      label: t("filterStatus"),
+      kind: "segmented",
+      options: [
+        { value: "ACTIVE", label: t("statusActive") },
+        { value: "DISABLED", label: t("statusDisabled") },
+      ],
+    },
+    {
+      key: "roleId",
+      label: t("filterRole"),
+      kind: "select",
+      options: [], // 后端 roles 接口返回全量后再填充；此处留空占位
+    },
+  ], [t])
+
+  const fetcher = useCallback(
+    (q: FetchQuery) => fetchPage<User>("/api/users", q, filters, api),
+    [filters, api],
+  )
+
+  const columns = useMemo<ColumnDef<User>[]>(() => [
+    { key: "username", header: t("colUsername"), widthPct: 16, cellClassName: "font-mono text-xs" },
+    { key: "displayName", header: t("colDisplayName"), widthPct: 16 },
+    { key: "email", header: t("colEmail"), widthPct: 22, cell: (row) => <span className="text-muted-foreground">{row.email || "—"}</span> },
+    {
+      key: "status",
+      header: t("colStatus"),
+      widthPct: 12,
+      cell: (row) => (
+        <Badge variant={row.status === "ACTIVE" ? "success" : "destructive"}>
+          {row.status === "ACTIVE" ? t("statusActive") : t("statusDisabled")}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      header: t("colActions"),
+      widthPct: 34,
+      align: "right",
+      cell: (row) => (
+        <div className="flex justify-end gap-0.5">
+          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={async () => { await toggleStatus(row) }}
+          >
+            {row.status === "ACTIVE" ? t("disable") : t("enable")}
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => { void deleteUser(row.id) }}>{t("delete")}</Button>
+        </div>
+      ),
+    },
+  ], [t])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -194,71 +250,19 @@ function UsersTab() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>
-          {t("addUser")}
-        </Button>
+        <Button size="sm" onClick={openCreate}>{t("addUser")}</Button>
       </div>
 
-      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">{t("colUsername")}</th>
-              <th className="px-3 py-2 font-medium">{t("colDisplayName")}</th>
-              <th className="px-3 py-2 font-medium">{t("colEmail")}</th>
-              <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
-              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.map((u) => (
-              <tr key={u.id} className="hover:bg-muted/30">
-                <td className="px-3 py-2 font-mono text-xs">{u.username}</td>
-                <td className="px-3 py-2">{u.displayName}</td>
-                <td className="px-3 py-2 text-muted-foreground">{u.email || "—"}</td>
-                <td className="px-3 py-2">
-                  <Badge variant={u.status === "ACTIVE" ? "success" : "destructive"}>
-                    {u.status === "ACTIVE" ? t("statusActive") : t("statusDisabled")}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => openEdit(u)}
-                  >
-                    {t("edit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={async () => {
-                      const newStatus = u.status === "ACTIVE" ? "DISABLED" : "ACTIVE"
-                      await update(u.id, { status: newStatus })
-                    }}
-                  >
-                    {u.status === "ACTIVE" ? t("disable") : t("enable")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => void remove(u.id)}
-                  >
-                    {t("delete")}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                  {t("emptyUsers")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </DwScroll>
+      <DataTable<User>
+        columns={columns}
+        getRowId={(r) => String(r.id)}
+        mode="server"
+        fetcher={fetcher}
+        filters={filters}
+        emptyTitle={t("emptyTitleUsers")}
+        pageSize={15}
+        className="min-h-[300px]"
+      />
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
@@ -327,7 +331,7 @@ function UsersTab() {
 
 function RolesTab() {
   const t = useTranslations("settingsView")
-  const { items, loading, create, update, remove } = useCrud<Role>("/api/roles")
+  const api = useApi()
   const [dialog, setDialog] = useState<RoleDialogState>({ mode: "closed" })
 
   const [code, setCode] = useState("")
@@ -354,14 +358,56 @@ function RolesTab() {
   const submit = async () => {
     if (dialog.mode === "create") {
       if (!code.trim() || !name.trim()) return
-      await create({ code, name, description })
+      await api("/api/roles", {
+        method: "POST",
+        body: JSON.stringify({ code, name, description }),
+      })
     } else if (dialog.mode === "edit") {
-      await update(dialog.id, { name, description })
+      await api(`/api/roles/${dialog.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, description }),
+      })
     }
     closeDialog()
   }
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+  const deleteRole = async (id: number) => {
+    await api(`/api/roles/${id}`, { method: "DELETE" })
+  }
+
+  // Filters: only search (克制)
+  const filters = useMemo<FilterDef[]>(() => [
+    {
+      key: "search",
+      label: t("filterSearchRole"),
+      kind: "search",
+      placeholder: t("filterSearchRole"),
+      width: "w-48",
+    },
+  ], [t])
+
+  const fetcher = useCallback(
+    (q: FetchQuery) => fetchPage<Role>("/api/roles", q, filters, api),
+    [filters, api],
+  )
+
+  const columns = useMemo<ColumnDef<Role>[]>(() => [
+    { key: "code", header: t("colCode"), widthPct: 20, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 20 },
+    { key: "description", header: t("colDescription"), widthPct: 32, cell: (row) => <span className="text-muted-foreground">{row.description || "—"}</span> },
+    {
+      key: "actions",
+      header: t("colActions"),
+      widthPct: 28,
+      align: "right",
+      cell: (row) => (
+        <div className="flex justify-end gap-0.5">
+          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
+          <Button size="xs" variant="ghost" onClick={() => { void deleteRole(row.id) }}>{t("delete")}</Button>
+        </div>
+      ),
+    },
+  ], [t])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -369,57 +415,19 @@ function RolesTab() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>
-          {t("addRole")}
-        </Button>
+        <Button size="sm" onClick={openCreate}>{t("addRole")}</Button>
       </div>
 
-      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">{t("colCode")}</th>
-              <th className="px-3 py-2 font-medium">{t("colName")}</th>
-              <th className="px-3 py-2 font-medium">{t("colDescription")}</th>
-              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.map((r) => (
-              <tr key={r.id} className="hover:bg-muted/30">
-                <td className="px-3 py-2 font-mono text-xs">{r.code}</td>
-                <td className="px-3 py-2">{r.name}</td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {r.description || "—"}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => openEdit(r)}
-                  >
-                    {t("edit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => void remove(r.id)}
-                  >
-                    {t("delete")}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                  {t("emptyRoles")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </DwScroll>
+      <DataTable<Role>
+        columns={columns}
+        getRowId={(r) => String(r.id)}
+        mode="server"
+        fetcher={fetcher}
+        filters={filters}
+        emptyTitle={t("emptyTitleRoles")}
+        pageSize={15}
+        className="min-h-[300px]"
+      />
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>
@@ -476,7 +484,7 @@ function RolesTab() {
 
 function ProjectsTab() {
   const t = useTranslations("settingsView")
-  const { items, loading, create, update, remove } = useCrud<Project>("/api/projects")
+  const api = useApi()
   const [dialog, setDialog] = useState<ProjectDialogState>({ mode: "closed" })
 
   const [code, setCode] = useState("")
@@ -501,14 +509,74 @@ function ProjectsTab() {
   const submit = async () => {
     if (dialog.mode === "create") {
       if (!code.trim() || !name.trim()) return
-      await create({ code, name })
+      await api("/api/projects", {
+        method: "POST",
+        body: JSON.stringify({ code, name }),
+      })
     } else if (dialog.mode === "edit") {
-      await update(dialog.id, { name })
+      await api(`/api/projects/${dialog.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name }),
+      })
     }
     closeDialog()
   }
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t("loading")}</p>
+  const deleteProject = async (id: number) => {
+    await api(`/api/projects/${id}`, { method: "DELETE" })
+  }
+
+  // Filters
+  const filters = useMemo<FilterDef[]>(() => [
+    {
+      key: "search",
+      label: t("filterSearchProject"),
+      kind: "search",
+      placeholder: t("filterSearchProject"),
+      width: "w-48",
+    },
+    {
+      key: "status",
+      label: t("filterStatusProject"),
+      kind: "segmented",
+      options: [
+        { value: "ACTIVE", label: t("statusProjectActive") },
+        { value: "ARCHIVED", label: t("statusProjectArchived") },
+      ],
+    },
+  ], [t])
+
+  const fetcher = useCallback(
+    (q: FetchQuery) => fetchPage<Project>("/api/projects", q, filters, api),
+    [filters, api],
+  )
+
+  const columns = useMemo<ColumnDef<Project>[]>(() => [
+    { key: "code", header: t("colCode"), widthPct: 20, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 22 },
+    {
+      key: "status",
+      header: t("colStatus"),
+      widthPct: 14,
+      cell: (row) => (
+        <Badge variant={row.status === "ACTIVE" ? "success" : "secondary"}>
+          {row.status === "ACTIVE" ? t("statusProjectActive") : (row.status === "ARCHIVED" ? t("statusProjectArchived") : row.status)}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      header: t("colActions"),
+      widthPct: 44,
+      align: "right",
+      cell: (row) => (
+        <div className="flex justify-end gap-0.5">
+          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
+          <Button size="xs" variant="ghost" onClick={() => { void deleteProject(row.id) }}>{t("delete")}</Button>
+        </div>
+      ),
+    },
+  ], [t])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -516,59 +584,19 @@ function ProjectsTab() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>
-          {t("addProject")}
-        </Button>
+        <Button size="sm" onClick={openCreate}>{t("addProject")}</Button>
       </div>
 
-      <DwScroll direction="horizontal" className="rounded-[var(--radius-lg)] border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2 font-medium">{t("colCode")}</th>
-              <th className="px-3 py-2 font-medium">{t("colName")}</th>
-              <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
-              <th className="px-3 py-2 font-medium text-right">{t("colActions")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {items.map((p) => (
-              <tr key={p.id} className="hover:bg-muted/30">
-                <td className="px-3 py-2 font-mono text-xs">{p.code}</td>
-                <td className="px-3 py-2">{p.name}</td>
-                <td className="px-3 py-2">
-                  <Badge variant={p.status === "ACTIVE" ? "success" : "secondary"}>
-                    {p.status === "ACTIVE" ? t("statusProjectActive") : p.status}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => openEdit(p)}
-                  >
-                    {t("edit")}
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => void remove(p.id)}
-                  >
-                    {t("delete")}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
-                  {t("emptyProjects")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </DwScroll>
+      <DataTable<Project>
+        columns={columns}
+        getRowId={(r) => String(r.id)}
+        mode="server"
+        fetcher={fetcher}
+        filters={filters}
+        emptyTitle={t("emptyTitleProjects")}
+        pageSize={15}
+        className="min-h-[300px]"
+      />
 
       {/* ---- Dialog ---- */}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeDialog() }}>

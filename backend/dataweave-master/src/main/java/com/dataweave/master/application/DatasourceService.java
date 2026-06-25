@@ -8,10 +8,12 @@ import com.dataweave.master.domain.DriverJar;
 import com.dataweave.master.domain.DriverJarRepository;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.i18n.BizException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 import static com.dataweave.master.application.DatasourceDtos.*;
@@ -30,17 +32,20 @@ public class DatasourceService {
     private final TaskDefRepository taskDefRepository;
     private final DriverJarRepository driverJarRepository;
     private final DatasourceEncryptor encryptor;
+    private final JdbcTemplate jdbcTemplate;
 
     public DatasourceService(DatasourceRepository datasourceRepository,
                              DatasourceTypeRepository datasourceTypeRepository,
                              TaskDefRepository taskDefRepository,
                              DriverJarRepository driverJarRepository,
-                             DatasourceEncryptor encryptor) {
+                             DatasourceEncryptor encryptor,
+                             JdbcTemplate jdbcTemplate) {
         this.datasourceRepository = datasourceRepository;
         this.datasourceTypeRepository = datasourceTypeRepository;
         this.taskDefRepository = taskDefRepository;
         this.driverJarRepository = driverJarRepository;
         this.encryptor = encryptor;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** List all active datasources for a project, with passwords masked. */
@@ -50,6 +55,72 @@ public class DatasourceService {
                 .stream()
                 .map(this::toVO)
                 .toList();
+    }
+
+    /** 动态筛选+分页查询数据源。 */
+    public PageResult query(Long tenantId, Long projectId,
+                            String search, List<String> typeCodes,
+                            String connectionStatus,
+                            int page, int size) {
+        StringBuilder where = new StringBuilder("WHERE d.tenant_id = ? AND d.project_id = ? AND d.deleted = 0");
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId);
+        params.add(projectId);
+
+        if (search != null && !search.isBlank()) {
+            where.append(" AND (d.name LIKE ? OR d.host LIKE ?)");
+            String like = "%" + search.trim() + "%";
+            params.add(like);
+            params.add(like);
+        }
+        if (typeCodes != null && !typeCodes.isEmpty()) {
+            where.append(" AND d.type_code IN (");
+            for (int i = 0; i < typeCodes.size(); i++) {
+                if (i > 0) where.append(",");
+                where.append("?");
+                params.add(typeCodes.get(i));
+            }
+            where.append(")");
+        }
+        if (connectionStatus != null && !connectionStatus.isBlank()) {
+            where.append(" AND d.connection_status = ?");
+            params.add(connectionStatus);
+        }
+
+        // Count
+        String countSql = "SELECT COUNT(*) FROM datasources d " + where;
+        Long total = jdbcTemplate.queryForObject(countSql, Long.class, params.toArray());
+        long totalElements = total != null ? total : 0;
+
+        // Page
+        int offset = (page - 1) * size;
+        String sql = "SELECT d.* FROM datasources d " + where + " ORDER BY d.created_at DESC LIMIT ? OFFSET ?";
+        List<Object> pageParams = new ArrayList<>(params);
+        pageParams.add(size);
+        pageParams.add(offset);
+
+        List<Datasource> content = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Datasource ds = new Datasource();
+            ds.setId(rs.getLong("id"));
+            ds.setTenantId(rs.getLong("tenant_id"));
+            ds.setProjectId(rs.getLong("project_id"));
+            ds.setName(rs.getString("name"));
+            ds.setTypeCode(rs.getString("type_code"));
+            ds.setHost(rs.getString("host"));
+            ds.setPort(rs.getObject("port") != null ? rs.getInt("port") : null);
+            ds.setDatabaseName(rs.getString("database_name"));
+            ds.setJdbcUrl(rs.getString("jdbc_url"));
+            ds.setUsername(rs.getString("username"));
+            ds.setDescription(rs.getString("description"));
+            ds.setStatus(rs.getString("status"));
+            ds.setConnectionStatus(rs.getString("connection_status"));
+            ds.setDriverJarId(rs.getObject("driver_jar_id") != null ? rs.getLong("driver_jar_id") : null);
+            ds.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null);
+            ds.setUpdatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null);
+            return ds;
+        }, pageParams.toArray());
+
+        return new PageResult(content.stream().map(this::toVO).toList(), totalElements, page, size);
     }
 
     /** Get datasource by ID with password masked. Throws if not found. */

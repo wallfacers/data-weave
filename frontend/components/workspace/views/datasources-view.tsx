@@ -25,9 +25,9 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { DropdownSelect } from "@/components/ui/select"
-import { DwScroll } from "@/components/ui/dw-scroll"
+import { DataTable } from "@/components/ui/data-table"
+import { type ColumnDef, type FilterDef, type FilterPreset, type FetchQuery, toQueryParams } from "@/lib/data-table"
 import {
-  listDatasources,
   listDatasourceTypes,
   createDatasource,
   updateDatasource,
@@ -36,6 +36,7 @@ import {
   testDatasourceConfig,
   listDriverJars,
   uploadDriverJar,
+  fetchDatasources,
 } from "@/lib/datasource-api"
 import type {
   DatasourceVO,
@@ -50,66 +51,21 @@ import { useFormatDateTime } from "@/hooks/use-format-date-time"
 export function DatasourcesView() {
   const t = useTranslations("datasources")
   const formatDateTime = useFormatDateTime()
-  const [datasources, setDatasources] = useState<DatasourceVO[]>([])
   const [types, setTypes] = useState<DatasourceType[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filterCategory, setFilterCategory] = useState<string>("ALL")
-  const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingDs, setEditingDs] = useState<DatasourceVO | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DatasourceVO | null>(null)
   const [testingId, setTestingId] = useState<number | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [dsList, typeList] = await Promise.all([
-        listDatasources(1),
-        listDatasourceTypes(),
-      ])
-      setDatasources(dsList)
-      setTypes(typeList)
-    } catch {
-      // error handled by UI
-    } finally {
-      setLoading(false)
-    }
+  useEffect(() => {
+    listDatasourceTypes().then(setTypes).catch(() => setTypes([]))
   }, [])
 
-  useEffect(() => { load() }, [load])
-
-  // Filter datasources by category and search
-  const filtered = useMemo(() => {
-    let result = datasources
-    if (filterCategory !== "ALL") {
-      const typeCodes = types
-        .filter((t) => t.category === filterCategory)
-        .map((t) => t.code)
-      result = result.filter((ds) => typeCodes.includes(ds.typeCode))
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      result = result.filter(
-        (ds) =>
-          ds.name.toLowerCase().includes(q) ||
-          ds.typeCode.toLowerCase().includes(q) ||
-          (ds.host ?? "").toLowerCase().includes(q),
-      )
-    }
-    return result
-  }, [datasources, types, filterCategory, search])
+  const reload = useCallback(() => setReloadKey((n) => n + 1), [])
 
   const typeName = (code: string) => types.find((t) => t.code === code)?.name ?? code
-  const categoryOf = (code: string) => types.find((t) => t.code === code)?.category ?? ""
 
-  const handleNew = () => {
-    setEditingDs(null)
-    setDialogOpen(true)
-  }
-  const handleEdit = (ds: DatasourceVO) => {
-    setEditingDs(ds)
-    setDialogOpen(true)
-  }
   const handleTestConnection = async (ds: DatasourceVO) => {
     setTestingId(ds.id)
     try {
@@ -121,24 +77,25 @@ export function DatasourcesView() {
       } else {
         toast.error(result.message)
       }
-      // 刷新列表以展示最新的连接状态
-      load()
+      reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed")
     } finally {
       setTestingId(null)
     }
   }
+
   const handleDelete = async () => {
     if (!deleteConfirm) return
     try {
       await deleteDatasource(deleteConfirm.id)
       setDeleteConfirm(null)
-      load()
+      reload()
     } catch {
       // error handled
     }
   }
+
   const handleSave = async (req: DatasourceCreateRequest) => {
     try {
       if (editingDs) {
@@ -147,13 +104,145 @@ export function DatasourcesView() {
         await createDatasource(req)
       }
       setDialogOpen(false)
-      load()
+      reload()
     } catch {
       throw new Error("Save failed")
     }
   }
 
-  // Group types by category for the selector
+  // Type options for multiSelect filter
+  const typeOptions = useMemo(() => {
+    return types.map((dt) => ({ value: dt.code, label: dt.name }))
+  }, [types])
+
+  // Columns
+  const columns = useMemo<ColumnDef<DatasourceVO>[]>(() => [
+    { key: "name", header: t("col.name"), widthPct: 16 },
+    {
+      key: "typeCode",
+      header: t("col.type"),
+      widthPct: 12,
+      cell: (row) => (
+        <Badge variant="outline" className="text-xs">{typeName(row.typeCode)}</Badge>
+      ),
+    },
+    {
+      key: "host",
+      header: t("col.host"),
+      widthPct: 14,
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {row.host ?? "—"}{row.port ? `:${row.port}` : ""}
+        </span>
+      ),
+    },
+    {
+      key: "databaseName",
+      header: t("col.database"),
+      widthPct: 10,
+      cell: (row) => <span className="text-muted-foreground">{row.databaseName ?? "—"}</span>,
+    },
+    {
+      key: "connectionStatus",
+      header: t("col.status"),
+      widthPct: 10,
+      cell: (row) => (
+        <Badge
+          variant={
+            row.connectionStatus === "CONNECTED"
+              ? "default"
+              : row.connectionStatus === "DISCONNECTED"
+                ? "destructive"
+                : "secondary"
+          }
+          className="text-xs"
+        >
+          {row.connectionStatus === "CONNECTED"
+            ? t("status.connected")
+            : row.connectionStatus === "DISCONNECTED"
+              ? t("status.disconnected")
+              : t("status.untested")}
+        </Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: t("col.createdAt"),
+      widthPct: 14,
+      cell: (row) => (
+        <span className="text-muted-foreground text-xs">{formatDateTime(row.createdAt)}</span>
+      ),
+    },
+    {
+      key: "actions",
+      header: t("col.actions"),
+      widthPct: 24,
+      align: "right",
+      cell: (row) => (
+        <div className="flex justify-end gap-0.5">
+          <Button variant="ghost" size="icon" className="size-7" onClick={() => { setEditingDs(row); setDialogOpen(true) }}>
+            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            title={t("actions.testConnection")}
+            disabled={testingId !== null}
+            onClick={() => handleTestConnection(row)}
+          >
+            <HugeiconsIcon
+              icon={ConnectIcon}
+              className={`size-3.5 ${testingId === row.id ? "animate-spin" : ""}`}
+            />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-7" onClick={() => setDeleteConfirm(row)}>
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+          </Button>
+        </div>
+      ),
+    },
+  ], [t, typeName, formatDateTime, testingId])
+
+  // Filters
+  const filters = useMemo<FilterDef[]>(() => [
+    {
+      key: "search",
+      label: t("filterSearch"),
+      kind: "search",
+      placeholder: t("searchPlaceholder"),
+      width: "w-48",
+    },
+    {
+      key: "typeCode",
+      label: t("filterType"),
+      kind: "multiSelect",
+      options: typeOptions,
+      width: "w-36",
+    },
+    {
+      key: "connectionStatus",
+      label: t("filterStatus"),
+      kind: "segmented",
+      options: [
+        { value: "CONNECTED", label: t("status.connected") },
+        { value: "DISCONNECTED", label: t("status.disconnected") },
+        { value: "UNKNOWN", label: t("status.untested") },
+      ],
+    },
+  ], [t, typeOptions])
+
+  // Presets
+  const presets = useMemo<FilterPreset[]>(() => [
+    { key: "disconnected", label: t("presetDisconnected"), set: { connectionStatus: "DISCONNECTED" } },
+  ], [t])
+
+  const fetcher = useCallback(
+    (q: FetchQuery) => fetchDatasources(q, filters, 1, toQueryParams),
+    [filters],
+  )
+
+  // Types by category for dialog
   const typesByCategory = useMemo(() => {
     const map: Record<string, DatasourceType[]> = {}
     for (const cat of CATEGORY_ORDER) {
@@ -163,119 +252,29 @@ export function DatasourcesView() {
   }, [types])
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder={t("searchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        <div className="flex gap-1">
-          {["ALL", ...CATEGORY_ORDER].map((cat) => (
-            <Badge
-              key={cat}
-              variant={filterCategory === cat ? "default" : "outline"}
-              className="cursor-pointer"
-              onClick={() => setFilterCategory(cat)}
-            >
-              {cat === "ALL" ? t("all") : t(`category.${cat}`)}
-            </Badge>
-          ))}
-        </div>
+    <div className="flex h-full flex-col gap-3 p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
         <div className="flex-1" />
-        <Button size="sm" onClick={handleNew}>
+        <Button size="sm" onClick={() => { setEditingDs(null); setDialogOpen(true) }}>
           <HugeiconsIcon icon={Add01Icon} className="mr-1 size-4" />
           {t("newDatasource")}
         </Button>
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          {t("loading")}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
-          <HugeiconsIcon icon={Database01Icon} className="size-10 opacity-30" />
-          <p>{t("empty")}</p>
-        </div>
-      ) : (
-        <DwScroll className="flex-1 rounded border">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40">
-              <tr>
-                <th className="px-3 py-2 text-left">{t("col.name")}</th>
-                <th className="px-3 py-2 text-left">{t("col.type")}</th>
-                <th className="px-3 py-2 text-left">{t("col.host")}</th>
-                <th className="px-3 py-2 text-left">{t("col.database")}</th>
-                <th className="px-3 py-2 text-left">{t("col.status")}</th>
-                <th className="px-3 py-2 text-left">{t("col.createdAt")}</th>
-                <th className="px-3 py-2 text-right">{t("col.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((ds) => (
-                <tr key={ds.id} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-3 py-2 font-medium">{ds.name}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant="outline" className="text-xs">
-                      {typeName(ds.typeCode)}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {ds.host ?? "—"}{ds.port ? `:${ds.port}` : ""}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{ds.databaseName ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <Badge
-                      variant={
-                        ds.connectionStatus === "CONNECTED"
-                          ? "default"
-                          : ds.connectionStatus === "DISCONNECTED"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {ds.connectionStatus === "CONNECTED"
-                        ? t("status.connected")
-                        : ds.connectionStatus === "DISCONNECTED"
-                          ? t("status.disconnected")
-                          : t("status.untested")}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground text-xs">
-                    {formatDateTime(ds.createdAt)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button variant="ghost" size="icon" className="size-7" onClick={() => handleEdit(ds)}>
-                      <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      title={t("actions.testConnection")}
-                      disabled={testingId !== null}
-                      onClick={() => handleTestConnection(ds)}
-                    >
-                      <HugeiconsIcon
-                        icon={ConnectIcon}
-                        className={`size-3.5 ${testingId === ds.id ? "animate-spin" : ""}`}
-                      />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="size-7" onClick={() => setDeleteConfirm(ds)}>
-                      <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </DwScroll>
-      )}
+      {/* DataTable */}
+      <DataTable<DatasourceVO>
+        columns={columns}
+        getRowId={(r) => String(r.id)}
+        mode="server"
+        fetcher={fetcher}
+        filters={filters}
+        presets={presets}
+        emptyIcon={Database01Icon}
+        emptyTitle={t("emptyTitle")}
+        emptyHint={t("emptyHint")}
+        key={reloadKey}
+      />
 
       {/* Create/Edit Dialog */}
       {dialogOpen && (

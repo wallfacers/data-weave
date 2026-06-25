@@ -4,11 +4,11 @@ import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.*;
 import com.dataweave.master.i18n.BizException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 项目管理 CRUD + 成员管理。
@@ -19,18 +19,90 @@ public class ProjectController {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public ProjectController(ProjectRepository projectRepository,
-                             ProjectMemberRepository projectMemberRepository) {
+                             ProjectMemberRepository projectMemberRepository,
+                             JdbcTemplate jdbcTemplate) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping
-    public ApiResponse<List<Project>> list() {
+    public ApiResponse<Object> list(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long ownerId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
+        // 有筛选/分页参数 → 动态查询返回分页结果
+        if (search != null || status != null || ownerId != null || page != null) {
+            return ApiResponse.ok(query(tenantId, search, status, ownerId, page, size));
+        }
+        // 无参 → 旧版全量返回
         return ApiResponse.ok(projectRepository.findByTenantId(tenantId));
+    }
+
+    private Map<String, Object> query(Long tenantId, String search, String status,
+                                       Long ownerId, Integer page, Integer size) {
+        StringBuilder where = new StringBuilder("WHERE tenant_id = ? AND deleted = 0");
+        List<Object> params = new ArrayList<>();
+        params.add(tenantId);
+
+        if (search != null && !search.isBlank()) {
+            where.append(" AND (code LIKE ? OR name LIKE ?)");
+            String like = "%" + search.trim() + "%";
+            params.add(like);
+            params.add(like);
+        }
+        if (status != null && !status.isBlank()) {
+            where.append(" AND status = ?");
+            params.add(status);
+        }
+        if (ownerId != null) {
+            where.append(" AND owner_id = ?");
+            params.add(ownerId);
+        }
+
+        int p = page != null ? Math.max(1, page) : 1;
+        int s = size != null ? Math.max(1, Math.min(size, 100)) : 20;
+
+        // Count
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM projects " + where, Long.class, params.toArray());
+        long totalElements = total != null ? total : 0;
+
+        // Page
+        int offset = (p - 1) * s;
+        String sql = "SELECT * FROM projects " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        List<Object> pageParams = new ArrayList<>(params);
+        pageParams.add(s);
+        pageParams.add(offset);
+
+        List<Project> content = jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Project proj = new Project();
+            proj.setId(rs.getLong("id"));
+            proj.setTenantId(rs.getLong("tenant_id"));
+            proj.setCode(rs.getString("code"));
+            proj.setName(rs.getString("name"));
+            proj.setOwnerId(rs.getObject("owner_id") != null ? rs.getLong("owner_id") : null);
+            proj.setStatus(rs.getString("status"));
+            proj.setCreatedBy(rs.getObject("created_by") != null ? rs.getLong("created_by") : null);
+            proj.setUpdatedBy(rs.getObject("updated_by") != null ? rs.getLong("updated_by") : null);
+            proj.setCreatedAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null);
+            proj.setUpdatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null);
+            return proj;
+        }, pageParams.toArray());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", content);
+        result.put("total", totalElements);
+        result.put("page", p);
+        result.put("size", s);
+        return result;
     }
 
     @GetMapping("/{id}")
