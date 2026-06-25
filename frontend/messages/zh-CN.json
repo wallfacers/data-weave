@@ -219,7 +219,15 @@
     "presetBackfillRunning": "进行中",
     "presetBackfillPartial": "部分失败",
     "filterWorkerNode": "执行节点",
-    "filterFailureReason": "失败原因"
+    "filterFailureReason": "失败原因",
+    "dagViewer": {
+      "title": "任务流 DAG - {name}",
+      "empty": "该任务流发布版本不包含任何节点",
+      "error": "加载 DAG 失败",
+      "retry": "重试",
+      "versionInfo": "发布版本 v{versionNo}，{publishedAt}",
+      "close": "关闭"
+    }
   },
   "views": {
     "cockpit": "驾驶舱",

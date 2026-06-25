@@ -145,6 +145,12 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.readDag(id));
     }
 
+    /** 读取已发布版本 DAG 快照（运维查看线上拓扑）。仅 ONLINE 时有数据。 */
+    @GetMapping("/{id}/published-dag")
+    public ApiResponse<DagView> readPublishedDag(@PathVariable Long id) {
+        return ApiResponse.ok(workflowService.readPublishedDag(id));
+    }
+
     /** 整图保存 DAG（对账 upsert + 软删差集；version 冲突返回 409）。 */
     @PutMapping("/{id}/dag")
     public ApiResponse<DagView> saveDag(@PathVariable Long id, @RequestBody DagPayload body) {

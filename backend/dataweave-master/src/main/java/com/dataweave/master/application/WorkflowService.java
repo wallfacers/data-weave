@@ -367,6 +367,58 @@ public class WorkflowService {
         return new DagView(wf.getId(), wf.getVersion(), wf.getHasDraftChange(), wf.getStatus(), nodeDtos, edgeDtos);
     }
 
+    // ─── Read Published DAG ──────────────────────────────────
+
+    /**
+     * 读取已发布版本的 DAG 快照（运维查看线上拓扑），从 {@code workflow_def_version.dag_snapshot_json} 反序列化。
+     * 仅 ONLINE 且有发布版本时可用；DRAFT 或未发布抛异常。
+     */
+    public DagView readPublishedDag(Long id) {
+        WorkflowDef wf = requireWorkflow(id);
+        if (!"ONLINE".equals(wf.getStatus()) || wf.getCurrentVersionNo() == null || wf.getCurrentVersionNo() == 0) {
+            throw new BizException("workflow.not_online_or_unpublished").withHttpStatus(404);
+        }
+        WorkflowDefVersion ver = workflowDefVersionRepository
+                .findByWorkflowIdAndVersionNo(id, wf.getCurrentVersionNo())
+                .orElseThrow(() -> new BizException("workflow.not_online_or_unpublished").withHttpStatus(404));
+        WorkflowDagSnapshot snap;
+        try {
+            snap = objectMapper.readValue(ver.getDagSnapshotJson(), WorkflowDagSnapshot.class);
+        } catch (Exception e) {
+            log.error("Failed to deserialize dagSnapshotJson for workflow {}", id, e);
+            throw new BizException("workflow.dag_snapshot_corrupt").withHttpStatus(500);
+        }
+        // 构建 nodeKey → 当前 WorkflowNode 映射，用于快照字段为空时的 fallback
+        Map<String, WorkflowNode> liveNodeByKey = new HashMap<>();
+        for (WorkflowNode ln : nodeRepository.findByWorkflowIdAndDeleted(id, 0)) {
+            liveNodeByKey.put(ln.getNodeKey(), ln);
+        }
+
+        List<DagNodeDto> nodeDtos = new ArrayList<>();
+        if (snap.nodes() != null) {
+            for (WorkflowDagSnapshot.Node n : snap.nodes()) {
+                WorkflowNode live = liveNodeByKey.get(n.nodeKey());
+                // 快照缺失显示字段时，fallback 到当前 workflow_node 表数据
+                String name = n.name() != null ? n.name() : (live != null ? live.getName() : null);
+                Integer posX = n.posX() != null ? n.posX() : (live != null ? live.getPosX() : null);
+                Integer posY = n.posY() != null ? n.posY() : (live != null ? live.getPosY() : null);
+                String taskStatus = n.taskId() == null ? null
+                        : taskDefRepository.findById(n.taskId()).map(TaskDef::getStatus).orElse(null);
+                nodeDtos.add(new DagNodeDto(n.nodeKey(), n.nodeType(), n.taskId(),
+                        name, posX, posY, taskStatus));
+            }
+        }
+        List<DagEdgeDto> edgeDtos = new ArrayList<>();
+        if (snap.edges() != null) {
+            for (WorkflowDagSnapshot.Edge e : snap.edges()) {
+                edgeDtos.add(new DagEdgeDto(e.fromNodeKey(), e.toNodeKey(),
+                        e.strength() != null ? e.strength() : "STRONG"));
+            }
+        }
+        return new DagView(wf.getId(), Long.valueOf(ver.getVersionNo()), wf.getHasDraftChange(),
+                wf.getStatus(), nodeDtos, edgeDtos);
+    }
+
     // ─── Save DAG（整图对账保存）──────────────────────────
 
     @Transactional

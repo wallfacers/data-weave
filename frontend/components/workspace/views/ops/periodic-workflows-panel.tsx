@@ -7,7 +7,7 @@
  * 冻结改为节点级——点「查看 DAG」进入画布对节点冻结/解冻。
  */
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Share08Icon } from "@hugeicons/core-free-icons"
@@ -24,8 +24,8 @@ import {
   toQueryParams,
 } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
-import { useWorkspaceStore } from "@/lib/workspace/store"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
 
 /** 后端 WorkflowListRow 投影（GET /api/ops/periodic-workflows） */
 export interface WorkflowRow {
@@ -87,7 +87,7 @@ export function recentResultBadge(
 export function PeriodicWorkflowsPanel() {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
-  const open = useWorkspaceStore((s) => s.open)
+  const [dagWorkflow, setDagWorkflow] = useState<WorkflowRow | null>(null)
 
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -180,34 +180,47 @@ export function PeriodicWorkflowsPanel() {
         header: t("colActions"),
         widthPct: 12,
         align: "right",
-        cell: (w) => (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => open("workflow-canvas", { workflowId: w.id, name: w.name })}
-          >
-            <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
-            {t("viewDag")}
-          </Button>
-        ),
+        cell: (w) => {
+          if (w.status !== "ONLINE") return null
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setDagWorkflow(w)}
+            >
+              <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
+              {t("viewDag")}
+            </Button>
+          )
+        },
       },
     ],
-    [t, formatDateTime, open],
+    [t, formatDateTime],
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
-      <DataTable<WorkflowRow>
-        columns={columns}
-        getRowId={(w) => String(w.id)}
-        mode="server"
-        fetcher={(q) => fetchWorkflowPage("periodic-workflows", q, filters)}
-        filters={filters}
-        presets={presets}
-        emptyTitle={t("periodicWfEmpty")}
-        emptyHint={t("periodicWfEmptyHint")}
-      />
-    </div>
+    <>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
+        <DataTable<WorkflowRow>
+          columns={columns}
+          getRowId={(w) => String(w.id)}
+          mode="server"
+          fetcher={(q) => fetchWorkflowPage("periodic-workflows", q, filters)}
+          filters={filters}
+          presets={presets}
+          emptyTitle={t("periodicWfEmpty")}
+          emptyHint={t("periodicWfEmptyHint")}
+        />
+      </div>
+      {dagWorkflow && (
+        <DagViewerDialog
+          workflowId={dagWorkflow.id}
+          workflowName={dagWorkflow.name}
+          open={!!dagWorkflow}
+          onOpenChange={(v) => { if (!v) setDagWorkflow(null) }}
+        />
+      )}
+    </>
   )
 }

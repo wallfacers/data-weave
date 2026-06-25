@@ -219,7 +219,15 @@
     "presetBackfillRunning": "Running",
     "presetBackfillPartial": "Partial failure",
     "filterWorkerNode": "Worker node",
-    "filterFailureReason": "Failure reason"
+    "filterFailureReason": "Failure reason",
+    "dagViewer": {
+      "title": "Workflow DAG - {name}",
+      "empty": "This workflow's published version contains no nodes",
+      "error": "Failed to load DAG",
+      "retry": "Retry",
+      "versionInfo": "Published v{versionNo}, {publishedAt}",
+      "close": "Close"
+    }
   },
   "views": {
     "cockpit": "Cockpit",

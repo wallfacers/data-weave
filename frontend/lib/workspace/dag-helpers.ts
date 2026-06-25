@@ -28,3 +28,30 @@ export function wouldCreateCycle(
   }
   return false
 }
+
+/**
+ * 将后端 DagView 映射为 ReactFlow nodes + edges（供 canvas 与 dag-viewer-dialog 共用）。
+ */
+export function dagViewToFlow(
+  dag: { nodes: { nodeKey: string; nodeType: string; taskId: number | null;
+    name: string | null; posX: number | null; posY: number | null; taskStatus?: string | null }[];
+    edges: { fromNodeKey: string; toNodeKey: string; strength?: string }[] },
+): { nodes: import("@/components/workspace/nodes/canvas-node-types").CanvasNode[]; edges: import("@xyflow/react").Edge[] } {
+  const nodes: import("@/components/workspace/nodes/canvas-node-types").CanvasNode[] = dag.nodes.map((n) => ({
+    id: n.nodeKey,
+    type: n.nodeType === "VIRTUAL" ? "virtual" : "task",
+    position: { x: n.posX ?? 0, y: n.posY ?? 0 },
+    data: { nodeType: (n.nodeType as "TASK" | "VIRTUAL"), taskId: n.taskId, label: n.name ?? "", taskStatus: n.taskStatus ?? null },
+  }))
+  const edges: import("@xyflow/react").Edge[] = dag.edges.map((e) => {
+    const strength = e.strength ?? "STRONG"
+    return {
+      id: `${e.fromNodeKey}->${e.toNodeKey}`,
+      source: e.fromNodeKey,
+      target: e.toNodeKey,
+      data: { strength },
+      ...(strength === "WEAK" ? { animated: true, style: { strokeDasharray: "6 4" } } : {}),
+    }
+  })
+  return { nodes, edges }
+}

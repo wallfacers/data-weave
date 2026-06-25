@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { type ColumnDef, type FilterDef } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
-import { useWorkspaceStore } from "@/lib/workspace/store"
+import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { authFetch, API_BASE } from "@/lib/types"
 import { type WorkflowRow, fetchWorkflowPage, recentResultBadge } from "./periodic-workflows-panel"
@@ -30,9 +30,9 @@ interface RunResponse {
 
 export function ManualWorkflowsPanel() {
   const t = useTranslations("ops")
-  const open = useWorkspaceStore((s) => s.open)
   const formatDateTime = useFormatDateTime()
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [dagWorkflow, setDagWorkflow] = useState<WorkflowRow | null>(null)
 
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -131,15 +131,17 @@ export function ManualWorkflowsPanel() {
         align: "right",
         cell: (w) => (
           <div className="flex items-center justify-end gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => open("workflow-canvas", { workflowId: w.id, name: w.name })}
-            >
-              <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
-              {t("viewDag")}
-            </Button>
+            {w.status === "ONLINE" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setDagWorkflow(w)}
+              >
+                <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
+                {t("viewDag")}
+              </Button>
+            )}
             <Button size="sm" className="h-7 text-xs" disabled={busyId === w.id} onClick={() => runOnce(w)}>
               <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
               {t("runOnce")}
@@ -149,20 +151,30 @@ export function ManualWorkflowsPanel() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, formatDateTime, open, busyId],
+    [t, formatDateTime, busyId],
   )
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
-      <DataTable<WorkflowRow>
-        columns={columns}
-        getRowId={(w) => String(w.id)}
-        mode="server"
-        fetcher={(q) => fetchWorkflowPage("manual-workflows", q, filters)}
-        filters={filters}
-        emptyTitle={t("manualWfEmpty")}
-        emptyHint={t("manualWfEmptyHint")}
-      />
-    </div>
+    <>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
+        <DataTable<WorkflowRow>
+          columns={columns}
+          getRowId={(w) => String(w.id)}
+          mode="server"
+          fetcher={(q) => fetchWorkflowPage("manual-workflows", q, filters)}
+          filters={filters}
+          emptyTitle={t("manualWfEmpty")}
+          emptyHint={t("manualWfEmptyHint")}
+        />
+      </div>
+      {dagWorkflow && (
+        <DagViewerDialog
+          workflowId={dagWorkflow.id}
+          workflowName={dagWorkflow.name}
+          open={!!dagWorkflow}
+          onOpenChange={(v) => { if (!v) setDagWorkflow(null) }}
+        />
+      )}
+    </>
   )
 }

@@ -214,4 +214,49 @@ class WorkflowServiceTest {
         assertThat(nodeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).isEmpty();
         assertThat(edgeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0)).isEmpty();
     }
+
+    // ─── readPublishedDag（ops-center-dag-viewer）─────────────────
+
+    @Test
+    void readPublishedDag_returnsSnapshotAfterPublish() {
+        // 创建草稿 → 建 DAG → 发布
+        WorkflowDef wf = newDraft("运维DAG测试-已发布");
+        workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
+                List.of(new DagNodeDto("v0", "VIRTUAL", null, "开始", 0, 0),
+                        new DagNodeDto("t1", "TASK", 1L, "任务1", 100, 0),
+                        new DagNodeDto("t2", "TASK", 2L, "任务2", 200, 0)),
+                List.of(new DagEdgeDto("v0", "t1", "STRONG"),
+                        new DagEdgeDto("t1", "t2", "WEAK"))));
+        workflowService.publish(wf.getId(), "首发");
+
+        DagView dag = workflowService.readPublishedDag(wf.getId());
+        assertThat(dag.nodes()).hasSize(3);
+        assertThat(dag.edges()).hasSize(2);
+        assertThat(dag.status()).isEqualTo("ONLINE");
+        assertThat(dag.version()).isEqualTo(1L);
+        // 快照发布时记录了 WEAK 依赖
+        assertThat(dag.edges()).anyMatch(e -> "WEAK".equals(e.strength()));
+    }
+
+    @Test
+    void readPublishedDag_rejectsDraftWorkflow() {
+        WorkflowDef wf = newDraft("运维DAG测试-草稿");
+        assertThatThrownBy(() -> workflowService.readPublishedDag(wf.getId()))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("not_online_or_unpublished");
+    }
+
+    @Test
+    void readPublishedDag_singleNodeDag() {
+        // 单节点 DAG
+        WorkflowDef wf = newDraft("运维DAG测试-单节点");
+        workflowService.saveDag(wf.getId(), new DagPayload(wf.getVersion(),
+                List.of(new DagNodeDto("v0", "VIRTUAL", null, "入口", 0, 0)),
+                List.of()));
+        workflowService.publish(wf.getId(), "单节点发布");
+
+        DagView dag = workflowService.readPublishedDag(wf.getId());
+        assertThat(dag.nodes()).hasSize(1);
+        assertThat(dag.edges()).isEmpty();
+    }
 }

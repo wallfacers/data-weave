@@ -14,11 +14,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useTranslations } from "next-intl"
 import { useMotionValue, useTransform, motion } from "motion/react"
 import {
-  ReactFlow,
   ReactFlowProvider,
-  Background,
-  Controls,
-  MiniMap,
   Handle,
   Position,
   addEdge,
@@ -30,14 +26,12 @@ import {
   type Connection,
   type NodeChange,
   type EdgeChange,
-  type NodeProps,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   CircleIcon,
-  DatabaseIcon,
   FloppyDiskIcon,
   PlayIcon,
   RocketIcon,
@@ -102,38 +96,8 @@ import { useWorkspaceStore } from "@/lib/workspace/store"
 
 // ─── 节点数据类型 ──────────────────────────────────────────
 
-interface CanvasNodeData extends Record<string, unknown> {
-  nodeType: "TASK" | "VIRTUAL"
-  taskId: number | null
-  label: string
-  /** 运行态（来自事件流叠加，仅显示用，不入 DAG 草稿） */
-  runState?: string
-  /** 引用任务发布态（ONLINE/DRAFT）：非 ONLINE 即标「未发布」（ops-center-publish-boundary，仅显示用） */
-  taskStatus?: string | null
-}
-type CanvasNode = Node<CanvasNodeData>
-
-/**
- * 节点右键菜单动作（由 CanvasInner 注入，节点组件经 context 消费）。
- * 用 context 而非把回调塞进 node.data，避免污染草稿 payload 与触发多余重渲染。
- */
-interface NodeActions {
-  /** 查看该 TASK 节点对应实例日志（需已有运行实例，否则 canViewLog=false）。 */
-  onViewLog: (taskDefId: number, label: string) => void
-  /** 单独运行该 TASK 节点（脱离工作流，复用 /api/tasks/{id}/run）。 */
-  onRunNode: (taskId: number, label: string) => void
-  /** 运行到该节点（TO_NODE：本节点 + 其全部前驱闭包）。 */
-  onRunToNode: (nodeKey: string) => void
-  /** 运行该节点的全部下游（DOWNSTREAM 后继闭包）。 */
-  onRunDownstream: (nodeKey: string) => void
-  /** 工作流是否已上线（未上线时禁用子图运行菜单）。 */
-  online: boolean
-  /** 删除节点（及其关联边）。 */
-  onDeleteNode: (id: string) => void
-  /** 该 TASK 节点是否已有可看日志的运行实例。 */
-  canViewLog: (taskDefId: number) => boolean
-}
-const NodeActionsContext = createContext<NodeActions | null>(null)
+import { type CanvasNode, type CanvasNodeData } from "@/components/workspace/nodes/canvas-node-types"
+import { NodeActionsContext, type NodeActions } from "@/components/workspace/nodes/node-actions-context"
 
 // 画布运行日志区高度持久化键（高度逻辑在 useRunLogTabs 内）
 const CANVAS_LOG_HEIGHT_KEY = "dw.workflowCanvas.logHeight"
@@ -143,140 +107,15 @@ const shortId = () =>
     ? crypto.randomUUID().slice(0, 8)
     : Math.floor(Math.random() * 1e9).toString(36))
 
-/** 节点运行态 → 状态点颜色（语义 token，不掩盖类型/选中态）。 */
-function runStateDot(state?: string): string {
-  switch (state) {
-    case "SUCCESS":
-      return "bg-success"
-    case "RUNNING":
-    case "DISPATCHED":
-      return "bg-info animate-pulse"
-    case "FAILED":
-    case "KILLED":
-    case "STOPPED":
-      return "bg-destructive"
-    case "WAITING":
-    case "WAIT_RETRY":
-      return "bg-warning animate-pulse"
-    default:
-      return "bg-muted-foreground/40"
-  }
-}
-
 // ─── 自定义节点组件 ────────────────────────────────────────
 
-function RunStateDot({ state }: { state?: string }) {
-  if (!state) return null
-  return (
-    <span
-      title={state}
-      className={`absolute -right-1 -top-1 size-2 rounded-full ring-2 ring-card ${runStateDot(state)}`}
-    />
-  )
-}
-
-function TaskNode({ id, data, selected }: NodeProps<CanvasNode>) {
-  const t = useTranslations("workflowCanvas")
-  const actions = useContext(NodeActionsContext)
-  const label = data.label || t("nodeTaskFallback")
-  const taskId = data.taskId
-  const canLog = taskId != null && (actions?.canViewLog(taskId) ?? false)
-  // 未发布标记（ops-center-publish-boundary）：引用 DRAFT 任务的 TASK 节点——发布工作流时后端会拒绝。
-  const unpublished = taskId != null && data.taskStatus != null && data.taskStatus !== "ONLINE"
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        className={`relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs shadow-sm ${
-          selected ? "border-primary ring-1 ring-primary" : unpublished ? "border-warning border-dashed" : "border-border"
-        }`}
-      >
-        <Handle type="target" position={Position.Left} />
-        <HugeiconsIcon icon={DatabaseIcon} className="size-4 text-primary" />
-        <span className="max-w-40 truncate font-medium">{label}</span>
-        {unpublished && (
-          <span className="rounded bg-warning/15 px-1 py-0.5 text-[10px] font-medium leading-none text-warning">
-            {t("nodeUnpublished")}
-          </span>
-        )}
-        <Handle type="source" position={Position.Right} />
-        <RunStateDot state={data.runState} />
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          disabled={!canLog}
-          onClick={() => taskId != null && actions?.onViewLog(taskId, label)}
-        >
-          {t("nodeMenuViewLog")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={taskId == null}
-          onClick={() => taskId != null && actions?.onRunNode(taskId, label)}
-        >
-          {t("nodeMenuRunNode")}
-        </ContextMenuItem>
-        <ContextMenuItem disabled={!actions?.online} onClick={() => actions?.onRunToNode(id)}>
-          {t("nodeMenuRunToNode")}
-        </ContextMenuItem>
-        <ContextMenuItem disabled={!actions?.online} onClick={() => actions?.onRunDownstream(id)}>
-          {t("nodeMenuRunDownstream")}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onClick={() => actions?.onDeleteNode(id)}>
-          {t("nodeMenuDelete")}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
-}
-
-function VirtualNode({ id, data, selected }: NodeProps<CanvasNode>) {
-  const t = useTranslations("workflowCanvas")
-  const actions = useContext(NodeActionsContext)
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        className={`relative flex items-center gap-2 rounded-full border border-dashed bg-muted px-3 py-2 text-xs ${
-          selected ? "border-primary ring-1 ring-primary" : "border-muted-foreground/40"
-        }`}
-      >
-        <Handle type="target" position={Position.Left} />
-        <HugeiconsIcon icon={CircleIcon} className="size-4 text-muted-foreground" />
-        <span className="max-w-40 truncate text-muted-foreground">{data.label || t("nodeVirtualFallback")}</span>
-        <Handle type="source" position={Position.Right} />
-        <RunStateDot state={data.runState} />
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        {/* VIRTUAL 节点无任务：仅保留删除 */}
-        <ContextMenuItem variant="destructive" onClick={() => actions?.onDeleteNode(id)}>
-          {t("nodeMenuDelete")}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  )
-}
+import { TaskNode } from "@/components/workspace/nodes/task-node"
+import { VirtualNode } from "@/components/workspace/nodes/virtual-node"
+import { DagRenderer } from "@/components/workspace/dag-renderer"
 
 // ─── DagView ↔ ReactFlow 映射 ─────────────────────────────
 
-function toFlow(dag: DagView): { nodes: CanvasNode[]; edges: Edge[] } {
-  const nodes: CanvasNode[] = dag.nodes.map((n) => ({
-    id: n.nodeKey,
-    type: n.nodeType === "VIRTUAL" ? "virtual" : "task",
-    position: { x: n.posX ?? 0, y: n.posY ?? 0 },
-    data: { nodeType: n.nodeType, taskId: n.taskId, label: n.name ?? "", taskStatus: n.taskStatus },
-  }))
-  // 弱依赖：虚线 + 流动动画做视觉区分（不阻塞语义由后端就绪门按 strength 处理）
-  const edges: Edge[] = dag.edges.map((e) => {
-    const strength = e.strength ?? "STRONG"
-    return {
-      id: `${e.fromNodeKey}->${e.toNodeKey}`,
-      source: e.fromNodeKey,
-      target: e.toNodeKey,
-      data: { strength },
-      ...(strength === "WEAK" ? { animated: true, style: { strokeDasharray: "6 4" } } : {}),
-    }
-  })
-  return { nodes, edges }
-}
+import { dagViewToFlow as toFlow } from "@/lib/workspace/dag-helpers"
 
 function toPayload(version: number | null, nodes: CanvasNode[], edges: Edge[]): DagPayload {
   const dagNodes: DagNode[] = nodes.map((n) => ({
@@ -961,11 +800,12 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       <div className="flex min-h-0 flex-1">
       <div className="relative min-h-0 flex-1" ref={wrapperRef} onDrop={onDrop} onDragOver={onDragOver}>
         <NodeActionsContext.Provider value={nodeActions}>
-          <ReactFlow
-            id={`canvas-${workflowId}`}
+          <DagRenderer
+            rfId={`canvas-${workflowId}`}
             nodes={displayNodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            showMiniMap
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -976,18 +816,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
             onPaneClick={() => setEdgeMenu(null)}
             onNodeClick={() => setEdgeMenu(null)}
             onMoveStart={() => setEdgeMenu(null)}
-            deleteKeyCode={["Backspace", "Delete"]}
-            // 关掉空格平移：ReactFlow 默认 panActivationKeyCode='Space' 会在 window 上挂
-            // keydown 监听并 preventDefault 空格。本视图 keep-alive 常驻，会导致别的 tab
-            // （如任务代码编辑器 Monaco）在焦点竞态下打不出空格。拖拽平移已够用。
-            panActivationKeyCode={null}
-            fitView
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background />
-            <Controls />
-            <MiniMap pannable zoomable />
-          </ReactFlow>
+          />
         </NodeActionsContext.Provider>
 
         {/* 边右键菜单浮层（click-away 关闭）：切换强/弱依赖 + 删除 */}
