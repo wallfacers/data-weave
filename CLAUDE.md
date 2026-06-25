@@ -28,8 +28,7 @@ backend/                           # Spring Boot 4.0 + Java 25, Maven multi-modu
 cli/                               # dw, single Go binary (thin shell over master REST, built separately, binary not in git)
 deploy/workhorse/                  # workhorse-agent deploy config (config.yaml + mcp.json, provisional)
 docs/architecture.md               # architecture source of truth
-openspec/                          # OpenSpec SDD: changes / specs / archive
-  changes/<name>/                  # one change per directory (proposal + design + specs + tasks)
+openspec/                          # change proposals, specs, and archive (one change per directory)
 docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile); backend connects to this PG by default
 ```
 
@@ -48,7 +47,7 @@ docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile); b
 | Tools/Permissions | DataWeave MCP Server (`/mcp`, Bearer) exposes platform tools; all writes pass `PolicyEngine` L0–L4 gates + 4 audit tables |
 | CLI      | `dw` (single Go binary, `cli/`): `task list/show/instances/rerun`, `logs cat`, calls master REST |
 | Design system | `@google/design.md` (token source of truth + lint/export)              |
-| Spec     | OpenSpec (spec-driven, `/opsx:*`)                                            |
+| Spec     | Methodology-agnostic — any SDD/TDD approach may be used                     |
 
 ## Build & Run
 
@@ -107,28 +106,9 @@ Entry points: frontend `http://localhost:4000`, backend `http://localhost:8000`;
 - **Spring Boot 4 notes**: ① Jackson 3 — `ObjectMapper` is in `tools.jackson.databind.*`, annotations stay in `com.fasterxml.jackson.annotation.*`; ② no `WebClient.Builder` auto-config, build your own `@Bean` (see `WebClientConfig`); ③ some test/auto-config annotations moved packages, fix import errors per the actual package.
 - **Java 25**: this machine uses a symlink swap so non-interactive shells transparently use JDK 25.
 
-## OpenSpec Workflow (SDD)
+## Development Methodology
 
-DataWeave uses **OpenSpec (spec-driven schema)** as the main workflow for proposal, design, implementation, and archive. Requirement/MVP docs belong in `openspec/`; **do not add new requirement docs to `docs/`** (`docs/` holds only references like the architecture source of truth).
-
-| Command | Purpose |
-|---------|---------|
-| `/opsx:explore [topic]` | Open-ended exploration — think, compare, diagram. No artifacts, no code. |
-| `/opsx:propose <change-name>` | Create a change: proposal.md + design.md + specs/ + tasks.md |
-| `/opsx:apply [change]` | Implement tasks.md checkbox by checkbox |
-| `/opsx:archive [change]` | Merge delta specs into base specs, move change to `changes/archive/YYYY-MM-DD-<name>/` |
-
-```
-/opsx:explore "idea"   → think it through (no artifacts)
-   ↓
-/opsx:propose <name>   → generate proposal + design + specs + tasks
-   ↓ review
-/opsx:apply            → implement item by item
-   ↓ all done
-/opsx:archive          → merge delta, archive
-```
-
-The first change `dataweave-mvp` is in place (`openspec status --change dataweave-mvp`).
+This project is **methodology-agnostic**. Any SDD (Specification-Driven Development) and TDD (Test-Driven Development) approach may be used — choose the workflow that best fits the task at hand. There is no mandated spec format or change-management tool. Requirement and design documents may live wherever the team finds appropriate.
 
 ## Knowledge Base Navigation
 
@@ -136,11 +116,7 @@ This file is the map; details live elsewhere:
 
 | Looking for…           | Go to                                                       |
 |------------------------|-------------------------------------------------------------|
-| Active change proposals | `openspec/changes/` (`openspec list`)                      |
-| System behavior specs  | `openspec/specs/`                                           |
-| Archived changes       | `openspec/changes/archive/`                                 |
 | Architecture & layering | [docs/architecture.md](docs/architecture.md)               |
-| MVP requirements & acceptance | `openspec/changes/dataweave-mvp/`                    |
 | Frontend design-system source | [frontend/DESIGN.md](frontend/DESIGN.md)             |
 | Effective theme CSS variables | `frontend/app/globals.css`                           |
 | AG-UI endpoint impl    | `backend/dataweave-api/.../interfaces/AguiController.java`  |
@@ -205,8 +181,8 @@ Before writing or changing any `frontend/` code:
 
 ### Exploration & Brainstorming
 
-- New ideas, design discussion, troubleshooting: prefer `/opsx:explore` (carries OpenSpec context, writes no code).
-- Major architecture changes (new module, cross-DDD-layer refactor, AG-UI protocol change) **must** run `superpowers:brainstorming` before `/opsx:propose`. Regular features just use `/opsx:explore`.
+- New ideas, design discussion, troubleshooting: explore freely — think, compare, diagram. No artifacts required upfront.
+- Major architecture changes (new module, cross-DDD-layer refactor, AG-UI protocol change) **must** run `superpowers:brainstorming` before proposing a design.
 
 ### Clarify Before Acting
 
@@ -221,3 +197,8 @@ Before writing or changing any `frontend/` code:
 ### Response Style
 
 - Concise and direct, no filler. Report faithfully: if a test fails, say so and paste the output; if a step was skipped, say it was skipped.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
