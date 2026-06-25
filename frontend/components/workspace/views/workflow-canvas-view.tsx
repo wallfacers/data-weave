@@ -388,27 +388,24 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
 
   const saveDraft = useCallback(() => {
     setBusy(true)
-    const payload = toPayload(dagVersion, dagNodes, edges)
-    // 并行保存 DAG + 配置
-    Promise.all([
-      authFetch(`${API_BASE}/api/workflows/${workflowId}/dag`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }).then((r) => r.json() as Promise<ApiResponse<DagView>>),
-      authFetch(`${API_BASE}/api/workflows/${workflowId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const dag = toPayload(dagVersion, dagNodes, edges)
+    // 配置 + DAG 一次提交、后端同事务落库（避免两次独立 PUT 的非原子保存）
+    authFetch(`${API_BASE}/api/workflows/${workflowId}/draft`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        config: {
           name: wfName,
           description: wfDesc || null,
           scheduleType: wfScheduleType,
           cron: wfScheduleType === "CRON" ? wfCron : null,
           priority: wfPriority,
-        }),
-      }).then((r) => r.json() as Promise<ApiResponse<WorkflowDef>>),
-    ])
-      .then(([dagJ, _]) => {
+        },
+        dag,
+      }),
+    })
+      .then((r) => r.json() as Promise<ApiResponse<DagView>>)
+      .then((dagJ) => {
         if (dagJ.code === 0 && dagJ.data) {
           setDagVersion(dagJ.data.version)
           setHasDraft(dagJ.data.hasDraftChange === 1)

@@ -5,6 +5,8 @@ import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.WorkflowDagSnapshot;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.domain.TaskDefVersion;
+import com.dataweave.master.domain.TaskDefVersionRepository;
 import com.dataweave.master.domain.WorkflowDefVersion;
 import com.dataweave.master.domain.WorkflowDefVersionRepository;
 import com.dataweave.master.domain.WorkflowEdge;
@@ -50,6 +52,7 @@ public class WorkflowService {
     private final WorkflowEdgeRepository edgeRepository;
     private final WorkflowDependencyRepository dependencyRepository;
     private final TaskDefRepository taskDefRepository;
+    private final TaskDefVersionRepository taskDefVersionRepository;
     private final WorkflowGraphValidator graphValidator;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -60,6 +63,7 @@ public class WorkflowService {
                            WorkflowEdgeRepository edgeRepository,
                            WorkflowDependencyRepository dependencyRepository,
                            TaskDefRepository taskDefRepository,
+                           TaskDefVersionRepository taskDefVersionRepository,
                            WorkflowGraphValidator graphValidator,
                            JdbcTemplate jdbcTemplate,
                            ObjectMapper objectMapper) {
@@ -69,6 +73,7 @@ public class WorkflowService {
         this.edgeRepository = edgeRepository;
         this.dependencyRepository = dependencyRepository;
         this.taskDefRepository = taskDefRepository;
+        this.taskDefVersionRepository = taskDefVersionRepository;
         this.graphValidator = graphValidator;
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -84,12 +89,12 @@ public class WorkflowService {
      * {@code taskStatus} 为该 TASK 节点引用任务的发布态（ONLINE/DRAFT）——供画布标「未发布」节点
      * （ops-center-publish-boundary）；VIRTUAL 节点或任务缺失时为 null。
      */
-    public record DagNodeDto(String nodeKey, String nodeType, Long taskId, String name,
-                             Integer posX, Integer posY, String taskStatus) {
-        /** 6 参便捷构造（taskStatus 默认 null）：兼容不关心发布态的旧调用与测试。 */
+    public record DagNodeDto(String nodeKey, String nodeType, Long taskId, Integer taskVersionNo,
+                             String name, Integer posX, Integer posY, String taskStatus) {
+        /** 6 参便捷构造（taskVersionNo/taskStatus 默认 null）：兼容不关心发布态与版本的旧调用与测试。 */
         public DagNodeDto(String nodeKey, String nodeType, Long taskId, String name,
                           Integer posX, Integer posY) {
-            this(nodeKey, nodeType, taskId, name, posX, posY, null);
+            this(nodeKey, nodeType, taskId, null, name, posX, posY, null);
         }
     }
 
@@ -102,6 +107,18 @@ public class WorkflowService {
 
     /** 整图保存载荷：version 为客户端读到的乐观锁版本（可空=不校验）。 */
     public record DagPayload(Long version, List<DagNodeDto> nodes, List<DagEdgeDto> edges) {}
+
+    /**
+     * DAG 节点任务版本详情（003-node-detail-panel）。
+     * 从已发布 DAG 快照中根据 nodeKey 定位节点，再按 taskId + taskVersionNo 查询
+     * {@code task_def_version} 表返回发布时冻结的任务配置。
+     * {@code hasCode} 由任务类型元数据推导；{@code deleted} 标记关联任务是否已被删除。
+     */
+    public record NodeTaskDetail(String nodeKey, Long taskId, String taskName, String taskType,
+                                  Integer versionNo, String content, String paramsJson,
+                                  Long datasourceId, Long targetDatasourceId,
+                                  Integer timeoutSec, Integer retryMax,
+                                  String publishedAt, boolean hasCode, boolean deleted) {}
 
     /** 工作流详情（含版本历史），与 TaskService.TaskDetail 对称。 */
     public record WorkflowDetail(WorkflowDef workflow, List<WorkflowDefVersion> versions) {}
@@ -288,6 +305,13 @@ public class WorkflowService {
     /** 编辑工作流（调度配置等）；置 has_draft_change=1。 */
     public WorkflowDef update(Long id, WorkflowDef patch) {
         WorkflowDef wf = requireWorkflow(id);
+        applyConfigPatch(wf, patch);
+        wf.setUpdatedAt(LocalDateTime.now());
+        return workflowDefRepository.save(wf);
+    }
+
+    /** 字段级 patch（非空才覆盖），不落库、不改 DAG version；供 {@link #update} 与 {@link #saveDraft} 复用。 */
+    private void applyConfigPatch(WorkflowDef wf, WorkflowDef patch) {
         if (patch.getName() != null) wf.setName(patch.getName());
         if (patch.getDescription() != null) wf.setDescription(patch.getDescription());
         if (patch.getScheduleType() != null) wf.setScheduleType(patch.getScheduleType());
@@ -298,8 +322,23 @@ public class WorkflowService {
         if (patch.getPreemptible() != null) wf.setPreemptible(patch.getPreemptible());
         if (patch.getTimeoutSec() != null) wf.setTimeoutSec(patch.getTimeoutSec());
         wf.setHasDraftChange(1);
-        wf.setUpdatedAt(LocalDateTime.now());
-        return workflowDefRepository.save(wf);
+    }
+
+    /**
+     * 草稿整体保存（save-draft-atomic）：配置 patch + DAG 整图保存在**同一事务**内。
+     * DAG 乐观锁冲突（409）或节点/边校验失败时整体回滚——避免「配置存了、DAG 没存」的不一致。
+     * config 可空（仅存图）；返回最新 {@link DagView}。
+     */
+    @Transactional
+    public DagView saveDraft(Long id, WorkflowDef config, DagPayload payload) {
+        if (config != null) {
+            WorkflowDef wf = requireWorkflow(id);
+            applyConfigPatch(wf, config);
+            wf.setUpdatedAt(LocalDateTime.now());
+            workflowDefRepository.save(wf);
+        }
+        // saveDag 末尾会 +1 DAG version 并再存 wf；与上面的配置 patch 同处一个事务。
+        return saveDag(id, payload);
     }
 
     // ─── SoftDelete / Offline ──────────────────────────────
@@ -354,7 +393,7 @@ public class WorkflowService {
                     : taskDefRepository.findById(n.getTaskId()).map(TaskDef::getStatus).orElse(null);
             nodeDtos.add(new DagNodeDto(n.getNodeKey(),
                     n.getNodeType() != null ? n.getNodeType() : "TASK",
-                    n.getTaskId(), n.getName(), n.getPosX(), n.getPosY(), taskStatus));
+                    n.getTaskId(), null, n.getName(), n.getPosX(), n.getPosY(), taskStatus));
         }
         List<DagEdgeDto> edgeDtos = new ArrayList<>();
         for (WorkflowEdge e : edgeRepository.findByWorkflowIdAndDeleted(id, 0)) {
@@ -405,7 +444,7 @@ public class WorkflowService {
                 String taskStatus = n.taskId() == null ? null
                         : taskDefRepository.findById(n.taskId()).map(TaskDef::getStatus).orElse(null);
                 nodeDtos.add(new DagNodeDto(n.nodeKey(), n.nodeType(), n.taskId(),
-                        name, posX, posY, taskStatus));
+                        n.taskVersionNo(), name, posX, posY, taskStatus));
             }
         }
         List<DagEdgeDto> edgeDtos = new ArrayList<>();
@@ -417,6 +456,85 @@ public class WorkflowService {
         }
         return new DagView(wf.getId(), Long.valueOf(ver.getVersionNo()), wf.getHasDraftChange(),
                 wf.getStatus(), nodeDtos, edgeDtos);
+    }
+
+    /**
+     * 获取 DAG 节点关联任务的发布版本详情（003-node-detail-panel）。
+     * 从已发布快照中根据 nodeKey 定位节点，读取 taskId + taskVersionNo，
+     * 再从 {@code task_def_version} 查询发布时冻结的任务配置。
+     */
+    public NodeTaskDetail getNodeDetail(Long workflowId, String nodeKey) {
+        WorkflowDef wf = requireWorkflow(workflowId);
+        if (!"ONLINE".equals(wf.getStatus()) || wf.getCurrentVersionNo() == null || wf.getCurrentVersionNo() == 0) {
+            throw new BizException("workflow.not_online_or_unpublished").withHttpStatus(404);
+        }
+        WorkflowDefVersion ver = workflowDefVersionRepository
+                .findByWorkflowIdAndVersionNo(workflowId, wf.getCurrentVersionNo())
+                .orElseThrow(() -> new BizException("workflow.not_online_or_unpublished").withHttpStatus(404));
+        WorkflowDagSnapshot snap;
+        try {
+            snap = objectMapper.readValue(ver.getDagSnapshotJson(), WorkflowDagSnapshot.class);
+        } catch (Exception e) {
+            log.error("Failed to deserialize dagSnapshotJson for workflow {}", workflowId, e);
+            throw new BizException("workflow.dag_snapshot_corrupt").withHttpStatus(500);
+        }
+        // 在快照中定位节点
+        WorkflowDagSnapshot.Node foundNode = null;
+        if (snap.nodes() != null) {
+            for (WorkflowDagSnapshot.Node n : snap.nodes()) {
+                if (n.nodeKey().equals(nodeKey)) {
+                    foundNode = n;
+                    break;
+                }
+            }
+        }
+        if (foundNode == null) {
+            throw new BizException("workflow.node_not_found_in_snapshot").withHttpStatus(404);
+        }
+        if (!"TASK".equals(foundNode.nodeType())) {
+            throw new BizException("node_detail.virtual_no_task").withHttpStatus(400);
+        }
+        if (foundNode.taskId() == null) {
+            throw new BizException("node_detail.virtual_no_task").withHttpStatus(400);
+        }
+
+        // 查询发布时冻结的任务版本
+        TaskDefVersion taskVer = taskDefVersionRepository
+                .findByTaskIdAndVersionNo(foundNode.taskId(), foundNode.taskVersionNo())
+                .orElse(null);
+
+        boolean deleted = taskVer == null;
+        String taskName = foundNode.name();
+        String taskType = null;
+        String content = null;
+        String paramsJson = null;
+        Long datasourceId = null;
+        Long targetDatasourceId = null;
+        Integer timeoutSec = null;
+        Integer retryMax = null;
+        String publishedAt = null;
+
+        if (taskVer != null) {
+            taskName = taskVer.getName() != null ? taskVer.getName() : taskName;
+            taskType = taskVer.getType();
+            content = taskVer.getContent();
+            paramsJson = taskVer.getParamsJson();
+            datasourceId = taskVer.getDatasourceId();
+            targetDatasourceId = taskVer.getTargetDatasourceId();
+            timeoutSec = taskVer.getTimeoutSec();
+            retryMax = taskVer.getRetryMax();
+            publishedAt = taskVer.getPublishedAt() != null ? taskVer.getPublishedAt().toString() : null;
+        }
+
+        boolean hasCode = taskType != null && !"DATA_SYNC".equalsIgnoreCase(taskType);
+
+        return new NodeTaskDetail(nodeKey, foundNode.taskId(), taskName,
+                taskType != null ? taskType : "UNKNOWN",
+                foundNode.taskVersionNo(), content, paramsJson,
+                datasourceId, targetDatasourceId,
+                timeoutSec != null ? timeoutSec : 3600,
+                retryMax != null ? retryMax : 3,
+                publishedAt, hasCode, deleted);
     }
 
     // ─── Save DAG（整图对账保存）──────────────────────────
@@ -738,7 +856,7 @@ public class WorkflowService {
             // 快照节点为已发布版本回滚源，引用任务在发布时即 ONLINE，taskStatus 记 ONLINE（VIRTUAL 为 null）。
             List<DagNodeDto> nodes = snap.nodes().stream()
                     .map(sn -> new DagNodeDto(sn.nodeKey(), sn.nodeType(), sn.taskId(),
-                            sn.name(), sn.posX(), sn.posY(),
+                            sn.taskVersionNo(), sn.name(), sn.posX(), sn.posY(),
                             sn.taskId() == null ? null : "ONLINE"))
                     .toList();
             List<DagEdgeDto> edges = snap.edges().stream()
