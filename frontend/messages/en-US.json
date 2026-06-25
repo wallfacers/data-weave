@@ -997,5 +997,17 @@
       "driverUploaded": "Driver jar uploaded",
       "uploadFailed": "Driver jar upload failed"
     }
+  },
+  "dataTable": {
+    "allLabel": "All",
+    "clear": "Clear {count} filters",
+    "emptyTitle": "No data",
+    "loading": "Loading",
+    "more": "More filters",
+    "quick": "Quick",
+    "searchPlaceholder": "Search",
+    "selected": "{count} selected",
+    "today": "Today",
+    "yesterday": "Yesterday"
   }
 }

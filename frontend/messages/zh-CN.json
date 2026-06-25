@@ -997,5 +997,17 @@
       "driverUploaded": "驱动 jar 上传成功",
       "uploadFailed": "驱动 jar 上传失败"
     }
+  },
+  "dataTable": {
+    "allLabel": "全部",
+    "clear": "清除 {count} 个筛选",
+    "emptyTitle": "暂无数据",
+    "loading": "加载中",
+    "more": "更多筛选",
+    "quick": "快捷",
+    "searchPlaceholder": "搜索",
+    "selected": "已选 {count} 项",
+    "today": "今天",
+    "yesterday": "昨天"
   }
 }

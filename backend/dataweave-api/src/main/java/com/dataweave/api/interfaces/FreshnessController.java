@@ -40,13 +40,13 @@ public class FreshnessController {
             @RequestParam(required = false) String taskName,
             @RequestParam(required = false) String tiers,
             @RequestParam(defaultValue = "worst_first") String sort,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         List<String> tierList = (tiers != null && !tiers.isBlank())
                 ? Arrays.asList(tiers.split(","))
                 : Collections.emptyList();
 
-        return ApiResponse.ok(freshnessService.query(taskName, tierList, sort, page, size));
+        return ApiResponse.ok(freshnessService.query(taskName, tierList, sort, page - 1, size));
     }
 }
