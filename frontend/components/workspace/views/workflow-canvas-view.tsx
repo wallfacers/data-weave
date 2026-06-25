@@ -172,6 +172,10 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   const [diffVersions, setDiffVersions] = useState<[WorkflowDefVersion, WorkflowDefVersion] | null>(null)
   const [rolling, setRolling] = useState(false)
   const [dagNodes, setDagNodes] = useState<CanvasNode[]>([])
+  // 拖拽时 dagNodes 每帧变更；attachRunningInstance 仅需读最新节点取标签，经 ref 读取以保持回调稳定，
+  // 否则续接 effect 会随 attachRunningInstance 重建而疯狂重拉 latest-instance。
+  const dagNodesRef = useRef<CanvasNode[]>([])
+  dagNodesRef.current = dagNodes
   const [edges, setEdges] = useState<Edge[]>([])
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -470,14 +474,14 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       // 已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态 / 续接时已在跑）
       if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id)) {
         autoOpenedRef.current.add(it.id)
-        const nm = dagNodes.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
+        const nm = dagNodesRef.current.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
         openRunTab({ instanceId: it.id, taskName: nm, startedAt: new Date().toISOString(), kind: "log" })
       }
     }
     setInstanceToTaskDef(idMap)
     setTaskDefToInstance(defMap)
     setRunStateByTaskDef(stateMap)
-  }, [dagNodes, name, openRunTab])
+  }, [name, openRunTab])
 
   // 手动触发正式实例（带运行范围）：L1 直执行返回 workflowInstanceId → 订阅事件流给节点变色；
   // D8：未上线禁用（后端 409，前端 toast）。D9：只盯最近一次（新运行重置状态）。
