@@ -63,6 +63,16 @@ class OpsWorkflowFilterEndpointTest {
                 id, targetType, targetId, targetName, dateStart, dateEnd, state, now, now);
     }
 
+    void insertInstanceFull(UUID id, long taskId, String state, String bizDate,
+                            String workerNode, String failureReason) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update(
+                "INSERT INTO task_instance (id, tenant_id, project_id, task_id, run_mode, state, biz_date, "
+                        + "attempt, worker_node_code, failure_reason, started_at, created_at, updated_at, deleted, version) "
+                        + "VALUES (?, 1, 1, ?, 'NORMAL', ?, ?, 0, ?, ?, ?, ?, ?, 0, 0)",
+                id, taskId, state, bizDate, workerNode, failureReason, now, now, now);
+    }
+
     @BeforeEach
     void setUp() {
         client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
@@ -242,6 +252,78 @@ class OpsWorkflowFilterEndpointTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.items.length()").isEqualTo(1)
                 .jsonPath("$.data.items[0].targetName").isEqualTo("datekw_in");
+    }
+
+    // ─── 任务流实例：扩展维度（state 多选 / failureReason / workerNode / bizDate 区间） ──────────────────────
+
+    @Test
+    void instances_按stateIn多选筛选() {
+        long tid = 95001L;
+        insertInstanceFull(uuid(950011), tid, "FAILED", "2026-09-01", "w-a", "TIMEOUT");
+        insertInstanceFull(uuid(950012), tid, "KILLED", "2026-09-01", "w-a", null);
+        insertInstanceFull(uuid(950013), tid, "SUCCESS", "2026-09-01", "w-b", null);
+
+        client.get().uri(b -> b.path("/api/ops/instances")
+                        .queryParam("taskId", tid).queryParam("stateIn", "FAILED,KILLED")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(2);
+    }
+
+    @Test
+    void instances_按failureReason模糊筛选() {
+        long tid = 95011L;
+        insertInstanceFull(uuid(950111), tid, "FAILED", "2026-09-02", "w-a", "OOM_KILLED");
+        insertInstanceFull(uuid(950112), tid, "FAILED", "2026-09-02", "w-a", "EXIT_NONZERO");
+
+        client.get().uri(b -> b.path("/api/ops/instances")
+                        .queryParam("taskId", tid).queryParam("failureReason", "OOM")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(1);
+    }
+
+    @Test
+    void instances_按workerNode和bizDate区间筛选() {
+        long tid = 95021L;
+        insertInstanceFull(uuid(950211), tid, "SUCCESS", "2026-10-05", "node-x", null);
+        insertInstanceFull(uuid(950212), tid, "SUCCESS", "2026-10-20", "node-y", null);
+
+        client.get().uri(b -> b.path("/api/ops/instances")
+                        .queryParam("taskId", tid).queryParam("workerNodeCode", "node-x")
+                        .queryParam("bizDateFrom", "2026-10-01").queryParam("bizDateTo", "2026-10-10")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(1)
+                .jsonPath("$.data.items[0].bizDate").isEqualTo("2026-10-05");
+    }
+
+    @Test
+    void instances_未成功优先排序() {
+        long tid = 95031L;
+        insertInstanceFull(uuid(950311), tid, "SUCCESS", "2026-11-01", "w", null);
+        insertInstanceFull(uuid(950312), tid, "FAILED", "2026-11-01", "w", "TIMEOUT");
+        insertInstanceFull(uuid(950313), tid, "RUNNING", "2026-11-01", "w", null);
+
+        // 默认排序：失败档优先 → 运行档 → 成功档
+        client.get().uri(b -> b.path("/api/ops/instances")
+                        .queryParam("taskId", tid)
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items[0].state").isEqualTo("FAILED")
+                .jsonPath("$.data.items[2].state").isEqualTo("SUCCESS");
     }
 
     // ─── 鉴权 ──────────────────────

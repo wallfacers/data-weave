@@ -179,14 +179,26 @@ public class OpsController {
             @RequestParam(required = false) String state,
             @RequestParam(required = false) Long taskId,
             @RequestParam(required = false) String bizDate,
+            @RequestParam(required = false) String stateIn,
+            @RequestParam(required = false) String bizDateFrom,
+            @RequestParam(required = false) String bizDateTo,
+            @RequestParam(required = false) String startedAtFrom,
+            @RequestParam(required = false) String startedAtTo,
+            @RequestParam(required = false) String workerNodeCode,
+            @RequestParam(required = false) String failureReason,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 新签名：有筛选/分页参数时走契约①
+        // 新签名：有任一筛选/分页参数时走契约①
         boolean hasFilter = runMode != null || state != null || taskId != null || bizDate != null
+                || stateIn != null || bizDateFrom != null || bizDateTo != null
+                || startedAtFrom != null || startedAtTo != null
+                || workerNodeCode != null || failureReason != null
                 || page > 1; // page>1 表示调用方明确要分页
         if (hasFilter) {
-            InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate, page, size);
+            InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
+                    stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
+                    workerNodeCode, failureReason, page, size);
             Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
             return ApiResponse.ok(result);
         }

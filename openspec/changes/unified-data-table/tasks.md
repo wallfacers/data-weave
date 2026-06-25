@@ -15,7 +15,7 @@
 
 ## 3. 后端就绪端点补维度(任务实例 / 任务定义)
 
-- [ ] 3.1 `GET /api/ops/instances` 补 state 多选、业务日期区间、起止时间区间、`workerNodeCode`、失败原因搜索;默认今天+未成功优先;WebTestClient(带 JWT)测
+- [x] 3.1 `GET /api/ops/instances` 补 state 多选、业务日期区间、起止时间区间、`workerNodeCode`、失败原因搜索;默认今天+未成功优先;WebTestClient(带 JWT)测
 - [x] 3.2 `GET /api/tasks` 补 owner、frozen、datasourceId 筛选维度;测
 - [x] 3.3 前端 `instance-table`、`task-def-list` 迁移到 `DataTable`(server 模式),配筛选 + 预设(我的草稿/已冻结)
 

@@ -23,9 +23,21 @@ public final class OpsContracts {
                               String startedAt, String finishedAt, Long durationMs,
                               String cronExpression) {}
 
-    /** 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。 */
+    /**
+     * 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。
+     * stateIn 为状态多选 CSV（与 state 单值并存，二者都给则都生效）；bizDate/startedAt 区间在对应列上闭区间过滤；
+     * workerNodeCode 精确；failureReason 模糊。
+     */
     public record InstanceQuery(String runMode, String state, Long taskId, String bizDate,
-                                int page, int size) {}
+                                String stateIn, String bizDateFrom, String bizDateTo,
+                                String startedAtFrom, String startedAtTo,
+                                String workerNodeCode, String failureReason,
+                                int page, int size) {
+        /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
+        public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
+            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, page, size);
+        }
+    }
 
     /** 分页结果通用包。 */
     public record PageResult<T>(List<T> items, long total, int page, int size) {}

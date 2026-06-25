@@ -209,7 +209,9 @@
     "backfillFilterTarget": "目标",
     "backfillFilterBizDate": "业务日期",
     "presetBackfillRunning": "进行中",
-    "presetBackfillPartial": "部分失败"
+    "presetBackfillPartial": "部分失败",
+    "filterWorkerNode": "执行节点",
+    "filterFailureReason": "失败原因"
   },
   "views": {
     "cockpit": "驾驶舱",

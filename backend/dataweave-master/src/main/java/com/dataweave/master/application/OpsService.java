@@ -442,6 +442,37 @@ public class OpsService {
             where.append("AND ti.biz_date=? ");
             args.add(q.bizDate());
         }
+        // 扩展维度：状态多选（CSV）/ 业务日期区间 / 起止时间区间 / 执行节点 / 失败原因模糊
+        if (q.stateIn() != null && !q.stateIn().isBlank()) {
+            String[] states = q.stateIn().split(",");
+            String ph = String.join(",", java.util.Collections.nCopies(states.length, "?"));
+            where.append("AND ti.state IN (").append(ph).append(") ");
+            for (String st : states) args.add(st.trim());
+        }
+        if (q.bizDateFrom() != null && !q.bizDateFrom().isBlank()) {
+            where.append("AND ti.biz_date >= ? ");
+            args.add(q.bizDateFrom().trim());
+        }
+        if (q.bizDateTo() != null && !q.bizDateTo().isBlank()) {
+            where.append("AND ti.biz_date <= ? ");
+            args.add(q.bizDateTo().trim());
+        }
+        if (q.startedAtFrom() != null && !q.startedAtFrom().isBlank()) {
+            where.append("AND ti.started_at >= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.startedAtFrom().trim())));
+        }
+        if (q.startedAtTo() != null && !q.startedAtTo().isBlank()) {
+            where.append("AND ti.started_at <= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.startedAtTo().trim())));
+        }
+        if (q.workerNodeCode() != null && !q.workerNodeCode().isBlank()) {
+            where.append("AND ti.worker_node_code=? ");
+            args.add(q.workerNodeCode().trim());
+        }
+        if (q.failureReason() != null && !q.failureReason().isBlank()) {
+            where.append("AND ti.failure_reason LIKE CONCAT('%', ?, '%') ");
+            args.add(q.failureReason().trim());
+        }
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());
         long totalCount = total == null ? 0L : total;
@@ -456,7 +487,11 @@ public class OpsService {
                         + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
                         + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr "
                         + "FROM task_instance ti" + where
-                        + "ORDER BY ti.id DESC LIMIT ? OFFSET ?",
+                        // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
+                        + "ORDER BY CASE "
+                        + "  WHEN ti.state IN ('FAILED','KILLED','STOPPED','PREEMPTED') THEN 0 "
+                        + "  WHEN ti.state IN ('RUNNING','DISPATCHED','WAITING','WAIT_RETRY') THEN 1 "
+                        + "  ELSE 2 END, ti.id DESC LIMIT ? OFFSET ?",
                 (rs, n) -> {
                     UUID id = rs.getObject("id", UUID.class);
                     UUID wiId = rs.getObject("workflow_instance_id", UUID.class);

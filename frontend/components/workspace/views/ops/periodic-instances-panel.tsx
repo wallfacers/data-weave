@@ -163,23 +163,27 @@ export function PeriodicInstancesPanel({
         options: RUNMODE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
       },
       {
-        key: "state",
+        key: "stateIn",
         label: t("filterState"),
-        kind: "select",
+        kind: "multiSelect",
         width: "w-32",
         options: STATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
       },
       { key: "taskId", label: t("filterTaskId"), kind: "search", width: "w-32", placeholder: t("filterTaskId") },
       { key: "bizDate", label: t("filterBizDate"), kind: "date", width: "w-40" },
+      // 高级：排障定位维度，收进「更多筛选」
+      { key: "workerNodeCode", label: t("filterWorkerNode"), kind: "search", tier: "advanced", placeholder: t("filterWorkerNode") },
+      { key: "failureReason", label: t("filterFailureReason"), kind: "search", tier: "advanced", placeholder: t("filterFailureReason") },
     ],
     [t],
   )
 
   const presets = useMemo<FilterPreset[]>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
+    const empty = { runMode: "", taskId: "", bizDate: "", workerNodeCode: "", failureReason: "" }
     return [
-      { key: "todayFailed", label: t("presetTodayFailed"), set: { bizDate: today, state: "FAILED", runMode: "", taskId: "" } },
-      { key: "running", label: t("presetRunning"), set: { state: "RUNNING", bizDate: "", runMode: "", taskId: "" } },
+      { key: "todayFailed", label: t("presetTodayFailed"), set: { ...empty, bizDate: today, stateIn: ["FAILED"] } },
+      { key: "running", label: t("presetRunning"), set: { ...empty, stateIn: ["RUNNING"] } },
     ]
   }, [t])
 

@@ -8,11 +8,23 @@ public record InstanceQuery(
         String state,
         Long taskId,
         String bizDate,
+        String stateIn,
+        String bizDateFrom,
+        String bizDateTo,
+        String startedAtFrom,
+        String startedAtTo,
+        String workerNodeCode,
+        String failureReason,
         int page,
         int size
 ) {
     public InstanceQuery {
         if (page <= 0) page = 1;
         if (size <= 0) size = 20;
+    }
+
+    /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
+    public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
+        this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, page, size);
     }
 }

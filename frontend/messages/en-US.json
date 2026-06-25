@@ -209,7 +209,9 @@
     "backfillFilterTarget": "Target",
     "backfillFilterBizDate": "Business date",
     "presetBackfillRunning": "Running",
-    "presetBackfillPartial": "Partial failure"
+    "presetBackfillPartial": "Partial failure",
+    "filterWorkerNode": "Worker node",
+    "filterFailureReason": "Failure reason"
   },
   "views": {
     "cockpit": "Cockpit",
