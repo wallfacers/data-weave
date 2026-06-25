@@ -107,6 +107,76 @@ public class OpsService {
     }
 
     /**
+     * 任务流列表多维筛选 + 分页（运维主体）：仅 status=ONLINE 且指定 schedule_type 的已发布工作流。
+     * 名称模糊 / hasDraftChange / 最近触发结果(关联最近实例 state) / 目录 / 创建人，任一为空即不约束。
+     * 最近触发结果用相关子查询求最近 workflow_instance.state（UUIDv7 时间有序，按 id 降序取首）。
+     */
+    public OpsContracts.PageResult<OpsContracts.WorkflowListRow> queryWorkflows(OpsContracts.WorkflowQuery q) {
+        int page = Math.max(0, q.page());
+        int size = Math.min(Math.max(1, q.size()), 200);
+        // 最近触发结果子查询（H2/PG 通用：ORDER BY id DESC LIMIT 1）
+        String recentSub = "(SELECT wi.state FROM workflow_instance wi WHERE wi.workflow_id=wd.id "
+                + "ORDER BY wi.id DESC LIMIT 1)";
+        StringBuilder where = new StringBuilder(
+                " WHERE wd.deleted=0 AND wd.status='ONLINE' AND wd.schedule_type=? ");
+        List<Object> args = new ArrayList<>();
+        args.add(q.scheduleType());
+        if (q.keyword() != null && !q.keyword().isBlank()) {
+            where.append("AND wd.name LIKE CONCAT('%', ?, '%') ");
+            args.add(q.keyword().trim());
+        }
+        if (q.hasDraftChange() != null) {
+            where.append("AND wd.has_draft_change=? ");
+            args.add(q.hasDraftChange());
+        }
+        if (q.catalogNodeId() != null) {
+            where.append("AND wd.catalog_node_id=? ");
+            args.add(q.catalogNodeId());
+        }
+        if (q.createdBy() != null) {
+            where.append("AND wd.created_by=? ");
+            args.add(q.createdBy());
+        }
+        if (q.recentResult() != null && !q.recentResult().isBlank()) {
+            if ("NEVER".equalsIgnoreCase(q.recentResult())) {
+                where.append("AND NOT EXISTS (SELECT 1 FROM workflow_instance wi WHERE wi.workflow_id=wd.id) ");
+            } else {
+                where.append("AND ").append(recentSub).append("=? ");
+                args.add(q.recentResult());
+            }
+        }
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM workflow_def wd" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(size);
+        pageArgs.add((long) page * size);
+        List<OpsContracts.WorkflowListRow> items = jdbc.query(
+                "SELECT wd.id, wd.name, wd.description, wd.cron, wd.status, wd.current_version_no, "
+                        + "wd.has_draft_change, wd.last_fire_time, wd.priority, wd.timeout_sec, "
+                        + "wd.updated_at, wd.updated_by, wd.catalog_node_id, "
+                        + recentSub + " AS recent_result "
+                        + "FROM workflow_def wd" + where
+                        + "ORDER BY wd.id LIMIT ? OFFSET ?",
+                (rs, n) -> {
+                    LocalDateTime lastFire = rs.getObject("last_fire_time", LocalDateTime.class);
+                    LocalDateTime updatedAt = rs.getObject("updated_at", LocalDateTime.class);
+                    return new OpsContracts.WorkflowListRow(
+                            (Long) rs.getObject("id"), rs.getString("name"), rs.getString("description"),
+                            rs.getString("cron"), rs.getString("status"),
+                            (Integer) rs.getObject("current_version_no"),
+                            (Integer) rs.getObject("has_draft_change"),
+                            lastFire != null ? lastFire.toString() : null,
+                            (Integer) rs.getObject("priority"), (Integer) rs.getObject("timeout_sec"),
+                            updatedAt != null ? updatedAt.toString() : null,
+                            (Long) rs.getObject("updated_by"), (Long) rs.getObject("catalog_node_id"),
+                            rs.getString("recent_result"));
+                },
+                pageArgs.toArray());
+        return new OpsContracts.PageResult<>(items, totalCount, page, size);
+    }
+
+    /**
      * 按 id 查单个任务实例（含 TEST 试跑）——日志流判定是否已结束用，不能用 {@link #instances()}（其排除 TEST）。
      */
     public java.util.Optional<TaskInstance> findInstance(UUID id) {

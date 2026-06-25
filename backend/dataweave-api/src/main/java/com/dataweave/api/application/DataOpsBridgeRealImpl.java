@@ -120,6 +120,17 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     }
 
     @Override
+    public Page<BackfillRun> queryBackfillRuns(String state, String targetName, String targetType,
+                                               String bizDateFrom, String bizDateTo, Long createdBy,
+                                               int page, int size) {
+        OpsContracts.PageResult<OpsContracts.BackfillRunView> pr = backfillService.queryBackfillRuns(
+                state, targetName, targetType, bizDateFrom, bizDateTo, createdBy,
+                Math.max(0, page - 1), size);
+        List<BackfillRun> rows = pr.items().stream().map(DataOpsBridgeRealImpl::toDtoRun).toList();
+        return new Page<>(rows, pr.total(), page, size);
+    }
+
+    @Override
     public List<InstanceRow> backfillRunInstances(UUID runId) {
         try {
             return backfillService.backfillRun(runId).instances().stream()

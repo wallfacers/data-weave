@@ -1,120 +1,222 @@
 "use client"
 
 /**
- * 周期任务流列表 Tab（ops-center-publish-boundary）：运维主体。
- * 仅展示已发布(ONLINE) 且 schedule_type=CRON 的工作流（GET /api/ops/periodic-workflows）。
- * 任务与任务流概念分离：这里不再列任务，也不提供任务级 freeze；冻结改为节点级——
- * 点「查看 DAG」进入画布/实例视图，在 DAG 里对任意节点冻结/解冻。
+ * 周期任务流列表 Tab（ops-center-publish-boundary）：运维主体，统一 DataTable 渲染。
+ * 仅展示已发布(ONLINE) 且 schedule_type=CRON 的工作流（GET /api/ops/periodic-workflows，server 分页+筛选）。
+ * 筛选：名称搜索 + 草稿改动段控 + 最近触发结果；预设：有未发布改动 / 最近触发失败。
+ * 冻结改为节点级——点「查看 DAG」进入画布对节点冻结/解冻。
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { useMemo } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Calendar03Icon, BoxIcon, Share08Icon } from "@hugeicons/core-free-icons"
+import { Calendar03Icon, Share08Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DataTable } from "@/components/ui/data-table"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { DwScroll } from "@/components/ui/dw-scroll"
+  type ColumnDef,
+  type FilterDef,
+  type FilterPreset,
+  type FetchQuery,
+  type PageResult,
+  toQueryParams,
+} from "@/lib/data-table"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useWorkspaceStore } from "@/lib/workspace/store"
-import { authFetch, API_BASE, type ApiResponse, type WorkflowDef } from "@/lib/types"
+import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+
+/** 后端 WorkflowListRow 投影（GET /api/ops/periodic-workflows） */
+export interface WorkflowRow {
+  id: number
+  name: string
+  description: string | null
+  cron: string | null
+  status: string
+  currentVersionNo: number | null
+  hasDraftChange: number | null
+  lastFireTime: string | null
+  priority: number | null
+  timeoutSec: number | null
+  updatedAt: string | null
+  updatedBy: number | null
+  catalogNodeId: number | null
+  recentTriggerResult: string | null
+}
+
+/** server 取数：拼 query 打 /api/ops/{path}，归一 Page 信封 */
+export async function fetchWorkflowPage(
+  path: string,
+  query: FetchQuery,
+  filters: FilterDef[],
+): Promise<PageResult<WorkflowRow>> {
+  const qs = toQueryParams(query, filters)
+  const res = await authFetch(`${API_BASE}/api/ops/${path}?${qs.toString()}`)
+  const empty = { items: [], total: 0, page: query.page, size: query.size }
+  if (!res.ok) return empty
+  const json = (await res.json()) as ApiResponse<unknown>
+  if (json.code !== 0 || !json.data) return empty
+  const o = json.data as Record<string, unknown>
+  if (Array.isArray(o.items)) {
+    return {
+      items: o.items as WorkflowRow[],
+      total: (o.total as number) ?? (o.items as unknown[]).length,
+      page: (o.page as number) ?? query.page,
+      size: (o.size as number) ?? query.size,
+    }
+  }
+  if (Array.isArray(json.data)) {
+    const arr = json.data as WorkflowRow[]
+    return { items: arr, total: arr.length, page: 1, size: arr.length || query.size }
+  }
+  return empty
+}
+
+/** 最近触发结果 Badge：成功/失败/从未触发 */
+export function recentResultBadge(
+  result: string | null,
+  t: (k: string) => string,
+): React.ReactNode {
+  if (!result) return <Badge variant="outline" className="text-muted-foreground">{t("recentNever")}</Badge>
+  if (result === "SUCCESS") return <Badge variant="success">{t("stateSuccess")}</Badge>
+  if (result === "FAILED") return <Badge variant="destructive">{t("stateFailed")}</Badge>
+  return <Badge variant="info">{result}</Badge>
+}
 
 export function PeriodicWorkflowsPanel() {
   const t = useTranslations("ops")
+  const formatDateTime = useFormatDateTime()
   const open = useWorkspaceStore((s) => s.open)
-  const [workflows, setWorkflows] = useState<WorkflowDef[]>([])
-  const [loading, setLoading] = useState(true)
 
-  const fetchWorkflows = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await authFetch(`${API_BASE}/api/ops/periodic-workflows`)
-      if (!res.ok) return
-      const json = (await res.json()) as ApiResponse<WorkflowDef[]>
-      if (json.code === 0 && json.data) setWorkflows(json.data)
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const filters = useMemo<FilterDef[]>(
+    () => [
+      { key: "keyword", label: t("filterWfName"), kind: "search", width: "w-56", placeholder: t("filterWfName") },
+      {
+        key: "hasDraftChange",
+        label: t("filterDraft"),
+        kind: "segmented",
+        options: [
+          { value: "1", label: t("draftOnly") },
+          { value: "0", label: t("draftNone") },
+        ],
+      },
+      {
+        key: "recentResult",
+        label: t("filterRecentResult"),
+        kind: "select",
+        width: "w-36",
+        options: [
+          { value: "SUCCESS", label: t("stateSuccess") },
+          { value: "FAILED", label: t("stateFailed") },
+          { value: "NEVER", label: t("recentNever") },
+        ],
+      },
+    ],
+    [t],
+  )
 
-  useEffect(() => {
-    fetchWorkflows()
-  }, [fetchWorkflows])
+  const presets = useMemo<FilterPreset[]>(
+    () => [
+      { key: "draft", label: t("presetDraftChange"), set: { hasDraftChange: "1", keyword: "", recentResult: "" } },
+      { key: "recentFailed", label: t("presetRecentFailed"), set: { recentResult: "FAILED", keyword: "", hasDraftChange: "" } },
+    ],
+    [t],
+  )
+
+  const columns = useMemo<ColumnDef<WorkflowRow>[]>(
+    () => [
+      {
+        key: "name",
+        header: t("colWorkflowName"),
+        widthPct: 26,
+        cell: (w) => (
+          <div title={w.name}>
+            <div className="truncate font-medium">{w.name}</div>
+            {w.description && <div className="truncate text-xs text-muted-foreground">{w.description}</div>}
+          </div>
+        ),
+      },
+      {
+        key: "cron",
+        header: t("colCron"),
+        widthPct: 16,
+        cellClassName: "font-mono text-xs text-muted-foreground",
+        cell: (w) => w.cron ?? "—",
+      },
+      {
+        key: "recentTriggerResult",
+        header: t("colRecentResult"),
+        widthPct: 12,
+        cell: (w) => recentResultBadge(w.recentTriggerResult, t),
+      },
+      {
+        key: "status",
+        header: t("colStatus"),
+        widthPct: 10,
+        cell: () => <Badge variant="success">{t("statusOnline")}</Badge>,
+      },
+      {
+        key: "lastFireTime",
+        header: t("colLastFireTime"),
+        widthPct: 16,
+        cellClassName: "font-mono text-xs tabular-nums text-muted-foreground",
+        cell: (w) => formatDateTime(w.lastFireTime),
+      },
+      {
+        key: "currentVersionNo",
+        header: t("colVersion"),
+        widthPct: 8,
+        align: "right",
+        cellClassName: "font-mono text-xs tabular-nums",
+        cell: (w) => (
+          <span>
+            v{w.currentVersionNo ?? 0}
+            {w.hasDraftChange === 1 && (
+              <Badge variant="outline" className="ml-1 h-4 border-amber-500/50 px-1 text-[10px] leading-none text-amber-500">
+                {t("draftChange")}
+              </Badge>
+            )}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        header: t("colActions"),
+        widthPct: 12,
+        align: "right",
+        cell: (w) => (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => open("workflow-canvas", { workflowId: w.id, name: w.name })}
+          >
+            <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
+            {t("viewDag")}
+          </Button>
+        ),
+      },
+    ],
+    [t, formatDateTime, open],
+  )
 
   return (
-    <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-5">
-      <div className="flex items-center gap-2">
+    <div className="flex h-full min-w-0 flex-col gap-3 p-5">
+      <div className="flex shrink-0 items-center gap-2">
         <HugeiconsIcon icon={Calendar03Icon} className="size-4 text-primary" />
         <h3 className="text-sm font-semibold tracking-tight">{t("periodicWfTitle")}</h3>
-        <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular-nums">
-          {workflows.length}
-        </span>
       </div>
-
-      {workflows.length === 0 && !loading ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <HugeiconsIcon icon={BoxIcon} className="size-6" />
-          </div>
-          <p className="text-sm text-muted-foreground">{t("periodicWfEmpty")}</p>
-          <p className="max-w-sm text-xs text-muted-foreground">{t("periodicWfEmptyHint")}</p>
-        </div>
-      ) : (
-        <div className="font-sans">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("colWorkflowName")}</TableHead>
-                <TableHead className="w-44">{t("colCron")}</TableHead>
-                <TableHead className="w-24">{t("colStatus")}</TableHead>
-                <TableHead className="w-20 text-right">{t("colVersion")}</TableHead>
-                <TableHead className="w-28 text-right">{t("colActions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workflows.map((wf) => (
-                <TableRow key={wf.id}>
-                  <TableCell className="max-w-0 truncate">
-                    <div className="truncate font-medium">{wf.name}</div>
-                    {wf.description && (
-                      <div className="truncate text-xs text-muted-foreground">{wf.description}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-mono text-xs text-muted-foreground">{wf.cron ?? "—"}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="success">{t("statusOnline")}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs tabular-nums">
-                    v{wf.currentVersionNo}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => open("workflow-canvas", { workflowId: wf.id, name: wf.name })}
-                    >
-                      <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
-                      {t("viewDag")}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </DwScroll>
+      <DataTable<WorkflowRow>
+        columns={columns}
+        getRowId={(w) => String(w.id)}
+        mode="server"
+        fetcher={(q) => fetchWorkflowPage("periodic-workflows", q, filters)}
+        filters={filters}
+        presets={presets}
+        emptyTitle={t("periodicWfEmpty")}
+        emptyHint={t("periodicWfEmptyHint")}
+      />
+    </div>
   )
 }

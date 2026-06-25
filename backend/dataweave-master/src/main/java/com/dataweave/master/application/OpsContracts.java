@@ -55,4 +55,22 @@ public final class OpsContracts {
 
     /** 批量操作汇总。requested=请求项数；accepted=进入执行/待批的项数（排除非法/未找到）。 */
     public record BatchResult(int requested, int accepted, List<BatchItemResult> results) {}
+
+    /**
+     * 任务流列表行（周期/手动运维列表投影）：定义字段 + 运行健康衍生。
+     * recentTriggerResult 为该工作流最近一次实例状态（SUCCESS/FAILED/...，从未触发为 null）。
+     * 时间字段为 ISO 字符串（未设为 null）。
+     */
+    public record WorkflowListRow(Long id, String name, String description, String cron, String status,
+                                  Integer currentVersionNo, Integer hasDraftChange, String lastFireTime,
+                                  Integer priority, Integer timeoutSec, String updatedAt, Long updatedBy,
+                                  Long catalogNodeId, String recentTriggerResult) {}
+
+    /**
+     * 任务流列表筛选 + 分页条件（任一为空即不约束该维度）。page 从 0 起；size 上限由 service 夹取。
+     * scheduleType 必填（CRON=周期 / MANUAL=手动）。recentResult ∈ SUCCESS|FAILED|NEVER（NEVER=从未触发）。
+     */
+    public record WorkflowQuery(String scheduleType, String keyword, Integer hasDraftChange,
+                                String recentResult, Long catalogNodeId, Long createdBy,
+                                int page, int size) {}
 }

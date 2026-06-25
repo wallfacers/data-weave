@@ -147,6 +147,60 @@ public class BackfillService {
         return views;
     }
 
+    /**
+     * 补数据批次多维筛选 + 分页 + 各自聚合进度。
+     * state CSV 多选（IN）；targetName 模糊；targetType 精确；bizDate 区间在 [date_start,date_end] 上重叠
+     * （date_end≥from AND date_start≤to）；createdBy 精确。任一为空即不约束。
+     */
+    public OpsContracts.PageResult<BackfillRunView> queryBackfillRuns(
+            String stateCsv, String targetName, String targetType,
+            String bizDateFrom, String bizDateTo, Long createdBy, int page, int size) {
+        int p = Math.max(0, page);
+        int s = Math.min(Math.max(1, size), 200);
+        StringBuilder where = new StringBuilder(" WHERE deleted=0 ");
+        List<Object> args = new ArrayList<>();
+        if (stateCsv != null && !stateCsv.isBlank()) {
+            String[] states = stateCsv.split(",");
+            String ph = String.join(",", java.util.Collections.nCopies(states.length, "?"));
+            where.append("AND state IN (").append(ph).append(") ");
+            for (String st : states) args.add(st.trim());
+        }
+        if (targetName != null && !targetName.isBlank()) {
+            where.append("AND target_name LIKE CONCAT('%', ?, '%') ");
+            args.add(targetName.trim());
+        }
+        if (targetType != null && !targetType.isBlank()) {
+            where.append("AND target_type=? ");
+            args.add(targetType.trim());
+        }
+        if (bizDateFrom != null && !bizDateFrom.isBlank()) {
+            where.append("AND date_end >= ? ");
+            args.add(bizDateFrom.trim());
+        }
+        if (bizDateTo != null && !bizDateTo.isBlank()) {
+            where.append("AND date_start <= ? ");
+            args.add(bizDateTo.trim());
+        }
+        if (createdBy != null) {
+            where.append("AND created_by=? ");
+            args.add(createdBy);
+        }
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM backfill_run" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(s);
+        pageArgs.add((long) p * s);
+        List<BackfillRun> runs = jdbc.query(
+                "SELECT * FROM backfill_run" + where + "ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                (rs, n) -> mapRun(rs), pageArgs.toArray());
+        List<BackfillRunView> views = new ArrayList<>(runs.size());
+        for (BackfillRun r : runs) {
+            views.add(toView(r));
+        }
+        return new OpsContracts.PageResult<>(views, totalCount, p, s);
+    }
+
     /** 单批次详情 + 其全部子实例。 */
     public BackfillRunDetail backfillRun(UUID runId) {
         BackfillRun run = backfillRunRepository.findById(runId)

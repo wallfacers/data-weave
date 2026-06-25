@@ -47,6 +47,11 @@ public interface DataOpsBridge {
     /** 分页查询补数据运行列表。 */
     List<BackfillRun> backfillRuns(int page, int size);
 
+    /** 多维筛选 + 分页查询补数据运行列表（state CSV 多选 / targetName 模糊 / targetType / bizDate 区间 / createdBy）。 */
+    Page<BackfillRun> queryBackfillRuns(String state, String targetName, String targetType,
+                                        String bizDateFrom, String bizDateTo, Long createdBy,
+                                        int page, int size);
+
     /** 补数据运行关联的子实例列表。 */
     List<InstanceRow> backfillRunInstances(UUID runId);
 }

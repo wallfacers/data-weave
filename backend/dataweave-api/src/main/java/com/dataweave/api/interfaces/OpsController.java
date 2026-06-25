@@ -13,6 +13,7 @@ import com.dataweave.api.interfaces.dto.BackfillRun;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
+import com.dataweave.master.application.OpsContracts;
 import com.dataweave.master.application.OpsService;
 import com.dataweave.master.application.RecoveryService;
 import com.dataweave.master.application.SchedulerMetrics;
@@ -106,16 +107,53 @@ public class OpsController {
         return ApiResponse.ok(opsService.tasks());
     }
 
-    /** 周期任务流列表（运维主体）：仅 ONLINE & schedule_type=CRON 的已发布工作流。 */
+    /**
+     * 周期任务流列表（运维主体）：仅 ONLINE & schedule_type=CRON 的已发布工作流。
+     * 支持名称模糊/草稿改动/最近触发结果/目录/创建人筛选 + 分页，返回 {@link Page} 信封。
+     * 无任何筛选/分页参数时返回首页全量兼容（旧调用）。
+     */
     @GetMapping("/periodic-workflows")
-    public ApiResponse<List<WorkflowDef>> periodicWorkflows() {
-        return ApiResponse.ok(opsService.periodicWorkflows());
+    public ApiResponse<?> periodicWorkflows(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer hasDraftChange,
+            @RequestParam(required = false) String recentResult,
+            @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(required = false) Long createdBy,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return workflowPage("CRON", keyword, hasDraftChange, recentResult, catalogNodeId, createdBy, page, size,
+                opsService::periodicWorkflows);
     }
 
-    /** 手动任务流列表（运维主体）：仅 ONLINE & schedule_type=MANUAL 的已发布工作流。 */
+    /**
+     * 手动任务流列表（运维主体）：仅 ONLINE & schedule_type=MANUAL 的已发布工作流。
+     * 支持名称模糊/最近触发结果/创建人/目录筛选 + 分页，返回 {@link Page} 信封。
+     */
     @GetMapping("/manual-workflows")
-    public ApiResponse<List<WorkflowDef>> manualWorkflows() {
-        return ApiResponse.ok(opsService.manualWorkflows());
+    public ApiResponse<?> manualWorkflows(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String recentResult,
+            @RequestParam(required = false) Long createdBy,
+            @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return workflowPage("MANUAL", keyword, null, recentResult, catalogNodeId, createdBy, page, size,
+                opsService::manualWorkflows);
+    }
+
+    /**
+     * 任务流列表筛选分页公共逻辑：统一走 {@link OpsService#queryWorkflows} 返回 {@link Page} 信封
+     * （含 recentTriggerResult 衍生列，始终分页，避免首屏与筛选后列不一致）。
+     * {@code legacy} 全量方法保留供其它只读引用，此处不再走它。
+     */
+    private ApiResponse<?> workflowPage(String scheduleType, String keyword, Integer hasDraftChange,
+                                        String recentResult, Long catalogNodeId, Long createdBy,
+                                        int page, int size,
+                                        java.util.function.Supplier<List<WorkflowDef>> legacy) {
+        OpsContracts.PageResult<OpsContracts.WorkflowListRow> pr = opsService.queryWorkflows(
+                new OpsContracts.WorkflowQuery(scheduleType, keyword, hasDraftChange, recentResult,
+                        catalogNodeId, createdBy, Math.max(0, page - 1), size));
+        return ApiResponse.ok(new Page<>(pr.items(), pr.total(), page, size));
     }
 
     /**
@@ -335,24 +373,25 @@ public class OpsController {
     }
 
     /**
-     * 查询补数据运行列表 — 契约①。
+     * 查询补数据运行列表 — 契约①。多维筛选 + 分页，返回 {@link Page} 信封。
+     * state CSV 多选（含 PARTIAL 部分失败）/ targetName 模糊 / targetType / bizDate 区间 / createdBy。
      */
     @GetMapping("/backfill")
-    public ApiResponse<Map<String, Object>> backfillList(
+    public ApiResponse<?> backfillList(
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String targetName,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) String bizDateFrom,
+            @RequestParam(required = false) String bizDateTo,
+            @RequestParam(required = false) Long createdBy,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         try {
-            List<BackfillRun> runs = dataOpsBridge.backfillRuns(page, size);
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("items", runs);
-            result.put("total", runs.size());
+            Page<BackfillRun> result = dataOpsBridge.queryBackfillRuns(
+                    state, targetName, targetType, bizDateFrom, bizDateTo, createdBy, page, size);
             return ApiResponse.ok(result);
         } catch (UnsupportedOperationException e) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("items", List.of());
-            result.put("total", 0);
-            result.put("note", "待 Stream A 实现");
-            return ApiResponse.ok(result);
+            return ApiResponse.ok(new Page<>(List.of(), 0, page, size));
         }
     }
 
