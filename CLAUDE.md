@@ -1,35 +1,31 @@
 # DataWeave
 
-AI-Agent-native data platform — **weave data with Agents**. Users state data needs in natural language; the Agent autonomously drives the full lifecycle: task development, scheduling, metrics, lineage. Chat connects to the backend directly over the **AG-UI protocol**, with an Agent orchestration engine driving each platform module.
+AI-Agent-native data platform — **weave data with Agents**. Users state data needs in natural language; the Agent drives the full lifecycle (task dev, scheduling, metrics, lineage). Chat talks to the backend directly over the **AG-UI protocol**, with an Agent orchestration engine driving each module.
 
 ## Architecture
 
-Two independent projects: **Next.js frontend (CopilotKit v2)** → HTTP/SSE (AG-UI protocol) → **Spring Boot backend (WebFlux + four-module DDD)**. Full design in [docs/architecture.md](docs/architecture.md).
+**Next.js frontend** → HTTP/SSE (AG-UI protocol) → **Spring Boot backend (WebFlux + four-module DDD)**. Two independent projects. Full design: [docs/architecture.md](docs/architecture.md).
 
 ## Repository Layout
 
 ```
-frontend/                          # Next.js 16 (App Router) + React 19 + shadcn/ui + CopilotKit v2
-  app/page.tsx                     # `/` is the Workspace (left chat cockpit + right multi-tab workspace)
-  app/{tasks,ops,fleet,...}/       # legacy routes → redirect("/?open=<view>") deep-link fallback
-  components/agent-rail.tsx        # left Agent cockpit (CopilotChat → backend AG-UI, draggable width)
-  components/workspace/            # tab bar (Pinned/Ephemeral + "+" launcher) + view container + views/
-  lib/workspace/                   # zustand store (source of truth) / view registry / session persistence
+frontend/                          # Next.js 16 (App Router) + React 19 + shadcn/ui
+  app/page.tsx                     # `/` = Workspace (left chat cockpit + right multi-tab workspace)
+  app/{tasks,ops,fleet,...}/       # legacy routes → redirect("/?open=<view>")
+  components/chat/ + lib/chat/      # self-built multi-session chat shell (replaces CopilotKit)
+  components/workspace/ + lib/workspace/  # tab bar + view container/registry + zustand store
   DESIGN.md                        # design-system source of truth (@google/design.md format)
   app/globals.css                  # effective oklch theme variables (preset-generated)
-
-backend/                           # Spring Boot 4.0 + Java 25, Maven multi-module (root package com.dataweave)
-  dataweave-api/                   # entry point; WebFlux; AG-UI /agui + MCP /mcp endpoints; bridge layer; CORS/WebClient config
-  dataweave-master/                # scheduler + workflow + metrics/task/lineage domains + PolicyEngine/4 audit tables (Spring Data JDBC)
-  dataweave-worker/                # task executor + controlled command execution (ControlledCommandExecutor)
-  dataweave-alert/                 # alert rules + notification channels (skeleton)
-  # DDD four layers per module: interfaces / application / domain / infrastructure
-
-cli/                               # dw, single Go binary (thin shell over master REST, built separately, binary not in git)
+backend/                           # Spring Boot 4.0 + Java 25, Maven multi-module (com.dataweave)
+  dataweave-api/                   # entry; WebFlux; AG-UI /agui + MCP /mcp; bridge; CORS/WebClient config
+  dataweave-master/                # scheduler + workflow + metrics/task/lineage + PolicyEngine/4 audit tables
+  dataweave-worker/                # task executor + ControlledCommandExecutor
+  dataweave-alert/                 # alert rules + channels (skeleton)
+  # DDD layers per module: interfaces / application / domain / infrastructure
+cli/                               # dw, single Go binary over master REST (binary not in git)
 deploy/workhorse/                  # workhorse-agent deploy config (config.yaml + mcp.json, provisional)
-docs/architecture.md               # architecture source of truth
-openspec/                          # change proposals, specs, and archive (one change per directory)
-docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile); backend connects to this PG by default
+openspec/                          # change proposals, specs, archive (one change per dir)
+docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile)
 ```
 
 ## Tech Stack
@@ -37,78 +33,72 @@ docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile); b
 | Layer    | Stack                                                                       |
 |----------|------------------------------------------------------------------------------|
 | Frontend | Next.js 16 (App Router, Turbopack), React 19, shadcn/ui (base style / hugeicons), next-themes |
-| Chat     | CopilotKit **v2** (`@copilotkit/react-core/v2`) + `@ag-ui/client` `HttpAgent`, direct to AG-UI, **no Node Runtime** |
+| Chat     | Self-built multi-session shell — `EventSource` direct to AG-UI, **no CopilotKit, no Node Runtime** |
 | Backend  | Java 25, Spring Boot 4.0 / Spring Framework 7 (**Jackson 3**), WebFlux (AG-UI SSE), Maven multi-module |
 | Data access | Spring Data JDBC + JdbcTemplate                                           |
-| Storage  | **PostgreSQL (default)** · H2 (`-Dspring-boot.run.profiles=h2` in-memory, used without Docker, DDL-compatible) · Redis (EventBus/LogBus) · MinIO (log archive) |
+| Storage  | **PostgreSQL (default)** · H2 (`profiles=h2` in-memory, no Docker, DDL-compatible) · Redis (EventBus/LogBus) · MinIO (log archive) |
 | Scheduling | Peer masters + SKIP LOCKED claim + event-driven + soft preemption + cron guard table for dedup, `scheduler.mode=all-in-one\|distributed` |
-| Metrics  | Micrometer + Actuator, four metric tiers (performance/resource/pipeline/SLA), `/api/ops/metrics` + `/actuator/prometheus` |
-| Agent    | Dual mode `agent.mode=mock\|workhorse` (default mock=`IntentRouter`; workhorse=real LLM brain via bridge layer) |
-| Tools/Permissions | DataWeave MCP Server (`/mcp`, Bearer) exposes platform tools; all writes pass `PolicyEngine` L0–L4 gates + 4 audit tables |
-| CLI      | `dw` (single Go binary, `cli/`): `task list/show/instances/rerun`, `logs cat`, calls master REST |
+| Metrics  | Micrometer + Actuator, four tiers (performance/resource/pipeline/SLA), `/api/ops/metrics` + `/actuator/prometheus` |
+| Agent    | `agent.mode=mock\|workhorse` (mock=`IntentRouter`; workhorse=real LLM brain via bridge) |
+| Tools/Perms | MCP Server (`/mcp`, Bearer) exposes platform tools; all writes pass `PolicyEngine` L0–L4 + 4 audit tables |
+| CLI      | `dw` Go binary (`cli/`): `task list/show/instances/rerun`, `logs cat` |
 | Design system | `@google/design.md` (token source of truth + lint/export)              |
-| Spec     | Methodology-agnostic — any SDD/TDD approach may be used                     |
+| Spec     | Methodology-agnostic — any SDD/TDD approach                                  |
 
 ## Build & Run
 
 ```bash
-# Backend (connects to PostgreSQL by default; start the Docker DB first)
+# Backend (PostgreSQL by default; start Docker DB first)
 cd backend
-docker compose up -d                               # PostgreSQL + Redis (default localhost:5432)
+docker compose up -d                               # PostgreSQL + Redis (localhost:5432)
 ./dev-install.sh                                    # fast local build (mvnd + cache, skip tests/fat jar)
 ./mvnw -pl dataweave-api spring-boot:run            # port 8000; AG-UI: POST /agui; health: GET /api/health
 
 # Frontend
-cd frontend
-pnpm install
-pnpm dev                                           # http://localhost:4000 (left chat cockpit + right Workspace)
+cd frontend && pnpm install && pnpm dev             # http://localhost:4000
 
-# Zero external deps (H2 in-memory, no Docker)
+# Zero external deps (H2 in-memory)
 cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=h2
 ```
 
-Entry points: frontend `http://localhost:4000`, backend `http://localhost:8000`; frontend connects via `NEXT_PUBLIC_AGENT_URL` (default `http://localhost:8000/agui`).
+Frontend `:4000`, backend `:8000`; frontend connects via `NEXT_PUBLIC_AGENT_URL` (default `http://localhost:8000/agui`).
 
 ### Scheduling & Metrics Endpoints
 
-- **Scheduling mode**: `scheduler.mode=all-in-one` (default) single JVM all-in-one; `distributed` separate master/worker + PG + Redis + MinIO.
-- **System metrics**: `GET /api/ops/metrics` (JSON snapshot), `GET /actuator/metrics` (Micrometer detail), `GET /actuator/prometheus` (Prometheus format).
-- **Realtime SSE**: log stream `GET /api/ops/instances/{id}/logs/stream`, status stream `GET /api/ops/workflow-instances/{id}/events/stream`.
+- **Mode**: `scheduler.mode=all-in-one` (default, single JVM) | `distributed` (separate master/worker + PG + Redis + MinIO).
+- **Metrics**: `GET /api/ops/metrics` (JSON snapshot), `/actuator/metrics` (Micrometer), `/actuator/prometheus`.
+- **SSE**: logs `GET /api/ops/instances/{id}/logs/stream`; DAG status `GET /api/ops/workflow-instances/{id}/events/stream`.
 
 ### Agent Brain Modes (agent-fabric-m1)
 
-- **`agent.mode=mock` (default, zero deps)**: `IntentRouter` rule routing; runs on CI / fresh clone.
-- **`agent.mode=workhorse`**: connects workhorse-agent (real LLM brain). `AguiController` forwards workhorse session SSE → AG-UI events via the bridge layer.
+- **`mock` (default, zero deps)**: `IntentRouter` rule routing; runs on CI / fresh clone.
+- **`workhorse`**: connects workhorse-agent (real LLM brain); `AguiController` forwards its session SSE → AG-UI events via the bridge.
   ```bash
-  # 1) Start workhorse (deploy config in deploy/workhorse/, needs ANTHROPIC_API_KEY/OPENAI_API_KEY)
-  docker compose --profile workhorse up -d workhorse
-  # 2) Switch backend to workhorse mode
+  docker compose --profile workhorse up -d workhorse   # config in deploy/workhorse/, needs ANTHROPIC/OPENAI key
   cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.arguments=--agent.mode=workhorse
   ```
-- **MCP endpoint**: `POST /mcp` (JSON-RPC: initialize/tools/list/tools/call, Bearer `mcp.auth.token`). workhorse connects via `deploy/workhorse/mcp.json`; tokens must match on both sides.
-- **dw CLI**: `cd cli && ./build.sh`; `DW_API` (default `:8000`), `DW_TOKEN` (write ops send `X-DW-Token`, maps to `cli.auth.token`).
+- **MCP**: `POST /mcp` (JSON-RPC initialize/tools.list/tools.call, Bearer `mcp.auth.token`); workhorse connects via `deploy/workhorse/mcp.json`, tokens must match.
+- **dw CLI**: `cd cli && ./build.sh`; `DW_API` (default `:8000`), `DW_TOKEN` (write ops send `X-DW-Token` → `cli.auth.token`).
 - **Audit replay**: every run records `agent_session/agent_run/agent_step/agent_action`; both modes leave the same trail.
 
 ## Key Conventions
 
-- **Dependency direction**: domain ← application ← infrastructure ← interfaces (outer depends on inner, never reverse).
-- **Adding Agent capability**: mock mode adds an intent branch in `IntentRouter`; real-brain mode registers a platform tool in `McpToolRegistry` (queries go straight to master domain services, writes pass the `GatedActionService` gate). Both modes emit isomorphic AG-UI events through the same `AguiEvents` exit.
-- **Side-effect ops must pass the gate**: any write tool (incl. `node_exec`, CLI `rerun`, `applyFix`) builds an `ActionRequest` → `GatedActionService.submit` → `PolicyEngine` ruling (L0/L1 execute directly, L2/L3 create an approval and return `PENDING_APPROVAL`, L4 reject) + `agent_action` trail, **no bypass path**. Grading rules are data-driven (`policy_rules` table).
-- **Adding an MCP tool**: register in `McpToolRegistry.registerTools()` (name + JSON Schema + handler); query tools reuse domain services, write tools pass the gate. `node_exec` command-string safe parsing lives in `PolicyEngine` (redirect/separator/subcommand → escalate to L2).
-- **AG-UI event sequence** (`/agui`, `text/event-stream`, `type` in SCREAMING_SNAKE_CASE): `RUN_STARTED → TEXT_MESSAGE_START → N×TEXT_MESSAGE_CONTENT(markdown) → TEXT_MESSAGE_END → [CUSTOM(name="dataweave.result")] → [CUSTOM(name="dataweave.ui.open")] → RUN_FINISHED`. Text goes via Markdown (CopilotChat native render); structured results via `CUSTOM` events; view summoning via `CUSTOM(dataweave.ui.open)` (payload `{view, params?}`, frontend Workspace dedupes and activates, unknown view ignored).
-- **Scheduler deadlock-defense invariants** (hard): ① claim only via SKIP LOCKED; ② all state advances via optimistic CAS (`WHERE state=?` guard); ③ fixed lock order task→workflow; ④ inside the transaction only persist state, HTTP dispatch happens outside it. Waiting holds no resources.
-- **SSE endpoints** (Phase 4 realtime-streams): ① `GET /api/ops/instances/{id}/logs/stream` (live log stream, Last-Event-ID resume); ② `GET /api/ops/workflow-instances/{id}/events/stream` (DAG status stream, nodes recolor live).
-- **System metrics endpoints**: `GET /api/ops/metrics` (four-tier snapshot, for the frontend dashboard); `/actuator/metrics` + `/actuator/prometheus` (Prometheus scrape). The `SchedulerMetrics` service owns all instrumentation.
-- **Metric definitions are immutable**: changing a definition → add an incremented `version` in `metrics`, never UPDATE an old version.
-- **i18n ownership — three rules** (must hold for any new/changed user-visible copy; see [docs/architecture.md](docs/architecture.md) i18n section + [docs/i18n-error-codes.md](docs/i18n-error-codes.md)): ① **Static UI copy** (buttons/tabs/form labels/empty states/toasts) → frontend next-intl key table, ICU `{name}` placeholders, **by UI locale**; ② **Backend-generated** (AG-UI markdown, MCP tool descriptions, diagnostic suggestions, approval reasons) → backend `Messages.get`, MessageFormat `{0}` placeholders, **by agent locale**; ③ **Errors/exceptions** (`throw`, `ApiResponse.err`) → backend `BizException(code, args)` + `GlobalExceptionHandler` localization, **by UI locale**. Frontend toasts trust the backend-localized message, no more `|| "Chinese fallback"`.
-- **i18n key naming**: frontend messages (`frontend/messages/{zh-CN,en-US}.json`) are namespaced by area at the top level (`common`/`workspace`/`ops` + one per view such as `cockpit`/`metrics`/`instanceTable`…), `views.*` holds only tab titles; **both bundles must have identical key sets** (CI/script checks zh-only/en-only are empty, every `t("key")` statically resolvable); non-default locales deep-merge zh-CN fallback for missing keys via `i18n/request.ts`. Backend codes are named `<domain>.<semantic>` (kebab/snake consistent, e.g. `workflow.not_online`), **stable and never reused**; data-platform terms (cron/DAG/SLA/lineage/OOM) keep their English form; `data.sql` business seed data is i18n-exempt (keeps Chinese).
-- **No ellipsis for in-progress states**: user-visible copy (loading states, buttons, placeholders, menu items, etc.) **must not use `…` to mean "in progress / loading"**. The text already conveys the state (e.g. "Loading", "Connecting", "Thinking"), no extra symbol needed. The only allowed ellipsis: **text truncation in code** (e.g. ID truncation `id.slice(0,13) + "…"`), which correctly signals clipped content.
-- **Spring Boot 4 notes**: ① Jackson 3 — `ObjectMapper` is in `tools.jackson.databind.*`, annotations stay in `com.fasterxml.jackson.annotation.*`; ② no `WebClient.Builder` auto-config, build your own `@Bean` (see `WebClientConfig`); ③ some test/auto-config annotations moved packages, fix import errors per the actual package.
+- **Dependency direction**: domain ← application ← infrastructure ← interfaces (outer→inner only).
+- **Adding Agent capability**: mock = intent branch in `IntentRouter`; real-brain = register a tool in `McpToolRegistry` (queries → master domain services, writes → `GatedActionService` gate). Both emit isomorphic AG-UI events via the same `AguiEvents` exit.
+- **Side-effect ops must pass the gate**: any write tool (`node_exec`, CLI `rerun`, `applyFix`…) → `ActionRequest` → `GatedActionService.submit` → `PolicyEngine` (L0/L1 run; L2/L3 → approval + `PENDING_APPROVAL`; L4 reject) + `agent_action` trail, **no bypass**. Rules are data-driven (`policy_rules` table).
+- **Adding an MCP tool**: register in `McpToolRegistry.registerTools()` (name + JSON Schema + handler); queries reuse domain services, writes pass the gate. `node_exec` command-string safe parsing lives in `PolicyEngine` (redirect/separator/subcommand → escalate to L2).
+- **AG-UI event sequence** (`/agui`, `text/event-stream`, `type` SCREAMING_SNAKE_CASE): `RUN_STARTED → TEXT_MESSAGE_START → N×TEXT_MESSAGE_CONTENT(markdown) → TEXT_MESSAGE_END → [CUSTOM(dataweave.result)] → [CUSTOM(dataweave.ui.open)] → RUN_FINISHED`. Text = Markdown; structured results = `CUSTOM`; view summoning = `CUSTOM(dataweave.ui.open)` (payload `{view, params?}`, Workspace dedupes/activates, unknown view ignored).
+- **Scheduler deadlock-defense invariants** (hard): ① claim only via SKIP LOCKED; ② all state advances via optimistic CAS (`WHERE state=?`); ③ fixed lock order task→workflow; ④ inside the transaction persist state only — HTTP dispatch happens outside it. Waiting holds no resources.
+- **Metric definitions are immutable**: change → add an incremented `version` in `metrics`, never UPDATE an old one. `SchedulerMetrics` owns all instrumentation.
+- **i18n ownership — three rules** (see [docs/architecture.md](docs/architecture.md) + [docs/i18n-error-codes.md](docs/i18n-error-codes.md)): ① **Static UI copy** (buttons/labels/empty states/toasts) → frontend next-intl, ICU `{name}`, **by UI locale**; ② **Backend-generated** (AG-UI markdown, MCP descriptions, diagnostics, approval reasons) → `Messages.get`, MessageFormat `{0}`, **by agent locale**; ③ **Errors** (`throw`, `ApiResponse.err`) → `BizException(code, args)` + `GlobalExceptionHandler`, **by UI locale**. Toasts trust the backend message (no Chinese fallback).
+- **i18n keys**: `frontend/messages/{zh-CN,en-US}.json` namespaced by area (`common`/`workspace`/`ops` + one per view; `views.*` = tab titles only); **both bundles identical key sets** (CI checks, every `t("key")` statically resolvable); non-default locales deep-merge zh-CN via `i18n/request.ts`. Backend codes `<domain>.<semantic>` (e.g. `workflow.not_online`), **stable, never reused**; data terms (cron/DAG/SLA/lineage/OOM) stay English; `data.sql` seed data i18n-exempt (Chinese).
+- **No ellipsis for in-progress states**: never use `…` to mean "loading/in progress" (the text already says it). Only allowed `…`: text truncation in code (e.g. `id.slice(0,13) + "…"`).
+- **Spring Boot 4**: ① Jackson 3 — `ObjectMapper` in `tools.jackson.databind.*`, annotations stay `com.fasterxml.jackson.annotation.*`; ② no `WebClient.Builder` auto-config — build your own `@Bean` (`WebClientConfig`); ③ some test/auto-config annotations moved packages — fix imports per actual package.
 - **Java 25**: this machine uses a symlink swap so non-interactive shells transparently use JDK 25.
 
 ## Development Methodology
 
-This project is **methodology-agnostic**. Any SDD (Specification-Driven Development) and TDD (Test-Driven Development) approach may be used — choose the workflow that best fits the task at hand. There is no mandated spec format or change-management tool. Requirement and design documents may live wherever the team finds appropriate.
+**Methodology-agnostic.** Any SDD/TDD approach may be used — no mandated spec format or change-management tool. Requirement/design docs may live wherever appropriate.
 
 ## Knowledge Base Navigation
 
@@ -117,91 +107,73 @@ This file is the map; details live elsewhere:
 | Looking for…           | Go to                                                       |
 |------------------------|-------------------------------------------------------------|
 | Architecture & layering | [docs/architecture.md](docs/architecture.md)               |
-| Frontend design-system source | [frontend/DESIGN.md](frontend/DESIGN.md)             |
-| Effective theme CSS variables | `frontend/app/globals.css`                           |
-| AG-UI endpoint impl    | `backend/dataweave-api/.../interfaces/AguiController.java`  |
-| Agent intent routing   | `backend/dataweave-api/.../application/IntentRouter.java`   |
-| Scheduler kernel       | `backend/dataweave-master/.../application/SchedulerKernel.java` |
-| System metrics         | `backend/dataweave-master/.../application/SchedulerMetrics.java` |
+| Frontend design source / theme vars | [frontend/DESIGN.md](frontend/DESIGN.md) · `frontend/app/globals.css` |
+| AG-UI endpoint         | `dataweave-api/.../interfaces/AguiController.java`          |
+| Agent intent routing   | `dataweave-api/.../application/IntentRouter.java`           |
+| Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` |
 | Frontend metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx`  |
-| Catalog tree (folders+tags) | `backend/dataweave-master/.../application/CatalogTreeService.java` (path maintenance/move/cycle guard) + `CatalogController`/`TagController` |
-| Frontend catalog tree component | `frontend/components/workspace/catalog-tree.tsx` (left canvas panel; two drag types MOVE_MIME/TASK_MIME) |
-| Table lineage (build-as-you-create) | `backend/dataweave-master/.../application/LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局图/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite 解析 reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
-| Situational cockpit (lineage) view | `frontend/components/workspace/views/cockpit-view.tsx` (顶条聚合: 健康/同步量/ETA + 主舞台活血缘图 + 右栏 Agent 举手台) + `lineage-graph.tsx` (ReactFlow 只读, layer 列布局, CONFLICT/UNVERIFIED 边标记) |
-| ETA prediction         | `backend/dataweave-master/.../application/SlaService.java` (`durationMedianMs` 历史时长中位数 + `predictLatestEta` 运行中实例最迟完成) → `GET /api/ops/eta-summary` |
-| Proactive discovery (Inspector→Finding) | `backend/dataweave-master/.../application/` `Inspector`(SPI) + `TaskFailureInspector`(复用 DiagnosisService 映射 Finding) + `InspectorScheduler`(@Scheduled 兜底 + `TaskInstanceFailedEvent` @Async 加速) + `FindingService`(去重/状态) + `FindingActionService`(闸门修复) · `Finding` 窄腰模型 `domain/Finding.java` |
-| Agent 主动播报 (真推 SSE) | `AgentNotifier`(master, 经 `EventBus` `dw:agent:notify`) → `AgentStreamController` `GET /api/agent/stream`(api, `agent.finding`/`agent.message`/`keepalive`) ; 前端 `frontend/lib/chat/real.ts` `subscribeAgentStream`(EventSource 直连 SSE_BASE) |
-| 自有多会话聊天台 (替 CopilotKit) | `frontend/lib/chat/`(`provider`real+mock / `store` zustand runtimes Map / `real.ts` AG-UI 流消费+适配层 / `types.ts`) + `components/chat/` + `components/cockpit/findings-rail.tsx`(通用举手台) ; 后端会话持久化 `AgentSessionController` `/api/agent/sessions*` |
-| L1 真采集 + 故障注入 | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean 真指标) + `NodeTelemetryService`(master, 并发/history 聚合 → `DiagnosisAnalyzer.Telemetry`) · `scripts/fault-injection.sql`(测试期手动注入真实失败素材) |
+| Catalog tree (folders+tags) | `dataweave-master/.../application/CatalogTreeService.java` (path/move/cycle guard) + `CatalogController`/`TagController` · frontend `catalog-tree.tsx` (drag MOVE_MIME/TASK_MIME) |
+| Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
+| Situational cockpit view | `frontend/components/workspace/views/cockpit-view.tsx` (顶条 健康/同步量/ETA + 活血缘图 + Agent 举手台) + `lineage-graph.tsx` (ReactFlow 只读, CONFLICT/UNVERIFIED 边标记) |
+| ETA prediction         | `SlaService.java` (`durationMedianMs` + `predictLatestEta`) → `GET /api/ops/eta-summary` |
+| Proactive discovery (Inspector→Finding) | `Inspector`(SPI) + `TaskFailureInspector` + `InspectorScheduler`(@Scheduled 兜底 + `TaskInstanceFailedEvent` @Async) + `FindingService`(去重/状态) + `FindingActionService`(闸门修复) · `domain/Finding.java` |
+| Agent 主动播报 (真推 SSE) | `AgentNotifier`(master, `EventBus` `dw:agent:notify`) → `AgentStreamController` `GET /api/agent/stream` ; 前端 `lib/chat/real.ts` `subscribeAgentStream` |
+| 自有多会话聊天台          | `frontend/lib/chat/` (provider real+mock / zustand store / `real.ts` AG-UI 流消费 / types) + `components/chat/` + `components/cockpit/findings-rail.tsx` ; 后端 `AgentSessionController` `/api/agent/sessions*` |
+| L1 真采集 + 故障注入     | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean) + `NodeTelemetryService`(master) · `scripts/fault-injection.sql` |
 | How to run             | [README.md](README.md)                                      |
 
 ## Working Rules
 
 ### Post-Edit Verification
-
-- **Backend**: after each edit run `cd backend && ./mvnw -q -pl <changed-module> compile` — confirm zero compile errors before continuing.
-- **Frontend**: after each edit run `cd frontend && pnpm typecheck` — confirm zero type errors before continuing.
-- **Exception**: high-confidence small changes (comments/copy/single-line literals) may skip; when unsure, run it.
+- **Backend**: after each edit `cd backend && ./mvnw -q -pl <changed-module> compile` — zero errors before continuing.
+- **Frontend**: after each edit `cd frontend && pnpm typecheck` — zero errors before continuing.
+- Skip only for high-confidence trivial changes (comments/copy/single literals); when unsure, run it.
 
 ### Backend Build
-
-- **Always use `./dev-install.sh` for local builds** — it auto-detects `mvnd` (Maven Daemon, ~5x faster) and falls back to `mvnw`. It skips tests and fat jar repackaging, and the build cache extension (`.mvn/extensions.xml`) reuses unchanged modules by content hash.
-  ```bash
-  cd backend && ./dev-install.sh                           # full install, all four modules
-  cd backend && ./dev-install.sh -pl dataweave-master -am  # single module + upstream deps only
-  ```
-- After changing domain/application/infrastructure, `dev-install.sh` installs to `~/.m2` so `spring-boot:run` picks up the new classes. Skipping this step means the running process still uses old jars.
-- Use `./mvnw install` (without the dev flags) only for CI or deployment builds — those need tests and the fat jar.
+- **Use `./dev-install.sh` for local builds** — auto-detects `mvnd` (~5x faster, falls back to `mvnw`), skips tests/fat jar, content-hash module cache (`.mvn/extensions.xml`). `-pl <module> -am` for one module + upstream deps.
+- It installs to `~/.m2` so `spring-boot:run` picks up new classes; skipping it means the running process keeps old jars. Use plain `./mvnw install` only for CI/deploy (needs tests + fat jar).
 
 ### Browser Verification Gate (hard)
+- **`pnpm build` passing ≠ the page renders** — chat/AG-UI seams only surface at browser runtime.
+- Any task touching `/agent`, the chat shell, the AG-UI protocol, or theme/layout **must run once in the browser** (`mcp__playwright__*` or `playwright-cli`): chat input renders (not "just divider lines"), no console errors, a message sends and streams back.
+- Verification artifacts → project-root `tmp/`, cleaned up after; **never** left in the repo.
 
-- **`pnpm build` passing ≠ the page renders.** CopilotKit/AG-UI seams only surface at browser runtime; neither build nor Node seam-checks catch them.
-- Any task touching `/agent`, the CopilotKit Provider, the AG-UI protocol, or theme/layout **must actually run once in the browser when done** (`mcp__playwright__*` or `playwright-cli`): confirm CopilotChat renders the input box (not "just a few divider lines"), console has no errors, and a message can be sent and streamed back.
-- Browser verification artifacts (screenshots/traces) go in project-root `tmp/`, cleaned up after; **never left in the repo**.
-
-### Frontend Stack Gate
-
-Before writing or changing any `frontend/` code:
-- **Chat uses the self-built multi-session shell (NOT CopilotKit)**: the chat cockpit is `components/chat/` + `lib/chat/` (zustand store / `ChatProvider` real+mock / AG-UI stream parser / `agent-stream` subscriber), replacing the former CopilotKit v2 `CopilotChat`. This is an **intentional deviation** from the earlier "CopilotKit v2 only" gate — CopilotKit could not inject messages outside a user run, which blocked "Agent speaks first" (主动播报); rationale in [openspec/changes/proactive-agent-discovery/design.md](openspec/changes/proactive-agent-discovery/design.md) §D4. Do **not** re-introduce `@copilotkit/*` or `@ag-ui/client`. `/api/agent/stream` must be consumed via `EventSource` direct to `SSE_BASE` (the Next rewrite proxy buffers SSE into one burst); AG-UI text deltas arrive on the `delta` field, CUSTOM events on `{name,value}` (see backend `AguiEvents.java`). Markdown rendering is the ported `marked`+`morphdom`+`DOMPurify`+Shiki engine in `components/chat/markdown-content.tsx`.
-- **base-style components**: custom triggers use the `render` prop (not `asChild`). A base UI `Button` rendered with `render={<Link/>}` (becomes `<a>`) must add `nativeButton={false}`, or the console errors.
-- **Icons use hugeicons**: `<HugeiconsIcon icon={XxxIcon} />`, names from `@hugeicons/core-free-icons` (not lucide).
-- Follow shadcn rules: semantic tokens (`bg-primary`, `text-muted-foreground`), spacing `gap-*`, equal width/height `size-*`, no hand-written `dark:` color overrides.
+### Frontend Stack Gate (before any `frontend/` change)
+- **Chat = self-built multi-session shell, NOT CopilotKit**: `components/chat/` + `lib/chat/` (zustand store / `ChatProvider` real+mock / AG-UI stream parser / `agent-stream` subscriber). Intentional deviation from the old "CopilotKit v2" gate (CopilotKit couldn't inject messages outside a user run, blocking 主动播报; rationale in [openspec/changes/proactive-agent-discovery/design.md](openspec/changes/proactive-agent-discovery/design.md) §D4). Do **not** re-introduce `@copilotkit/*` or `@ag-ui/client`. `/api/agent/stream` consumed via `EventSource` direct to `SSE_BASE` (Next rewrite proxy buffers SSE); AG-UI text deltas on `delta`, CUSTOM on `{name,value}` (see `AguiEvents.java`). Markdown = `marked`+`morphdom`+`DOMPurify`+Shiki in `components/chat/markdown-content.tsx`.
+- **base-style components**: custom triggers use `render` (not `asChild`); a `Button` rendered as `<a>` via `render={<Link/>}` needs `nativeButton={false}` or console errors.
+- **Icons = hugeicons**: `<HugeiconsIcon icon={XxxIcon} />` from `@hugeicons/core-free-icons` (not lucide).
+- shadcn rules: semantic tokens (`bg-primary`, `text-muted-foreground`), `gap-*` spacing, `size-*` for equal w/h, no hand-written `dark:` overrides.
 
 ### Design Contract Gate
-
-- Before changing `frontend/` theme/visuals/design-system, **read [frontend/DESIGN.md](frontend/DESIGN.md) first** and state the constraints adopted in the proposal.
+- Before changing `frontend/` theme/visuals/design-system, **read [frontend/DESIGN.md](frontend/DESIGN.md) first** and state adopted constraints.
 - Theme changes edit `DESIGN.md` (source of truth) + sync `app/globals.css`; `pnpm design:lint` validates.
-- If the direction conflicts with `DESIGN.md`, stop and ask: ① follow DESIGN.md ② change DESIGN.md first ③ deviate deliberately with written rationale.
+- Conflict with `DESIGN.md` → stop and ask: ① follow it ② change it first ③ deviate with written rationale.
 
 ### AG-UI Protocol Contract Gate
-
-- Before changing the `/agui` endpoint or event structure, change both sides together and align: event `type` in SCREAMING_SNAKE_CASE, complete sequence (RUN_STARTED…RUN_FINISHED), CORS allowing the frontend origin (`http://localhost:4000`).
-- After the change, run the Browser Verification Gate once for real.
+- Before changing `/agui` or event structure, change both sides together: `type` SCREAMING_SNAKE_CASE, full sequence (RUN_STARTED…RUN_FINISHED), CORS allowing `http://localhost:4000`. Then run the Browser Verification Gate for real.
 
 ### Testing
-
 - New features must have tests; no test = not done.
-- Backend: JUnit 5 + AssertJ; for WebFlux/AG-UI use `@SpringBootTest` or WebTestClient (note SB4's `@WebFluxTest` is in `org.springframework.boot.webflux.test.autoconfigure`).
-- Frontend: vitest (as needed) + the end-to-end real run from the Browser Verification Gate.
+- Backend: JUnit 5 + AssertJ; WebFlux/AG-UI → `@SpringBootTest` or WebTestClient (SB4's `@WebFluxTest` is in `org.springframework.boot.webflux.test.autoconfigure`).
+- Frontend: vitest as needed + the Browser Verification Gate real run.
 
 ### Exploration & Brainstorming
-
-- New ideas, design discussion, troubleshooting: explore freely — think, compare, diagram. No artifacts required upfront.
+- Ideas/design/troubleshooting: explore freely, no upfront artifacts.
 - Major architecture changes (new module, cross-DDD-layer refactor, AG-UI protocol change) **must** run `superpowers:brainstorming` before proposing a design.
 
 ### Clarify Before Acting
-
 - When requirements, scope, or approach are unclear, **ask first**, never guess.
 
-### MCP / Skill Temporary Files
+### Parallel-Feature Isolation & Cross-Feature Awareness (SDD)
+Applies when **more than one feature may be in flight**, especially with an SDD tool holding a **single global "active feature" pointer**. Spec Kit is this case: `/speckit-*` reads `.specify/feature.json` and `create-new-feature` silently rewrites it — a newer feature **steals the pointer** (this is how `/speckit-clarify` once mis-targeted `002-ops-dag-viewer` while we were on `001-distributed-cron-trigger`). The `.specify/` scaffold is deliberate-deviation footprint, not the default workflow.
+- **Isolate (hard)**: each parallel feature gets its **own git worktree** (`git worktree add ../dw-<feature> -b <branch>`) so its SDD state can't clobber a sibling. One working copy = one active feature. Never interleave two features' SDD commands in one copy; if you must switch, pin per-shell with `export SPECIFY_FEATURE_DIRECTORY=specs/<NNN-feature>` (it's `SPECIFY_FEATURE_DIRECTORY`, **not** `SPECIFY_FEATURE` which only sets a label). `git worktree remove` on merge; never commit a worktree path.
+- **Cross-feature awareness (habit, 防止相互不闭环)** — before starting, at plan time, and before merge: ① `git worktree list` + enumerate active `specs/*/` / `openspec/changes/*/`; ② read each sibling's `spec.md` intent + FRs and note the **surface it touches** (same files/tables/endpoints/domain services/config keys); ③ on overlap, **reconcile first** (record the dependency, agree ordering, or fold into one feature) — a change that compiles alone but breaks/no-ops once the sibling lands is **not done** (功能不闭环); ④ at integration, merge the sibling's landed work first, re-run shared-surface tests, confirm the seam closes.
 
-- Temp files from MCP/Skill (Playwright screenshots/traces, brainstorming drafts, intermediate scripts, downloads, etc.) **must** go in project-root `tmp/` (create if absent).
-- **Never** write to: repo root, `frontend/`, `backend/`, `docs/`, system `/tmp`, `~/`, or any tracked source path.
-- `tmp/` is not committed to git.
+### MCP / Skill Temporary Files
+- MCP/Skill temp files (screenshots/traces, drafts, scripts, downloads) → project-root `tmp/` (create if absent). **Never** write to repo root, `frontend/`, `backend/`, `docs/`, system `/tmp`, `~/`, or any tracked path. `tmp/` is git-ignored.
 
 ### Response Style
-
-- Concise and direct, no filler. Report faithfully: if a test fails, say so and paste the output; if a step was skipped, say it was skipped.
+- Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
