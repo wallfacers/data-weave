@@ -160,7 +160,7 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
             ) : (
               results.map((opt) => (
                 <button
-                  key={opt.id}
+                  key={`${opt.type}-${opt.id}`}
                   type="button"
                   onClick={() => {
                     onChange(opt)
@@ -168,7 +168,7 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
                   }}
                   className={cn(
                     "flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted",
-                    opt.id === value?.id && "bg-muted",
+                    opt.type === value?.type && opt.id === value?.id && "bg-muted",
                   )}
                 >
                   <span className="truncate text-sm font-medium text-foreground">{opt.name}</span>
