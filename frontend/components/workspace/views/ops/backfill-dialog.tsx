@@ -1,11 +1,11 @@
 "use client"
 
 /**
- * 补数据弹窗：目标 + 日期区间 + includeDownstream + parallelism。
+ * 补数据弹窗：目标(可搜索选择器) + 日期区间 + parallelism。
  * 提交 POST /api/ops/backfill，按 outcome 三态分流。
  */
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import { zhCN, enUS } from "date-fns/locale"
 import { toast } from "sonner"
@@ -21,9 +21,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
-import { DropdownSelect } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+import {
+  TargetSearchSelect,
+  buildCatalogPathMap,
+  type TargetOption,
+} from "./target-search-select"
 
 interface BackfillResponse {
   id: string
@@ -44,13 +48,22 @@ interface BackfillSubmitResponse {
   message?: string
 }
 
+interface DownstreamTask {
+  id: number
+  name: string
+  catalogNodeId: number | null
+  level: number
+}
+
 interface BackfillDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: () => void
-  /** 预填的目标类型（例如从举手台 "backfill" 动作传入） */
+  /** 预填的目标类型（例如从举手台 "backfill" 动作 / 就地入口传入） */
   initialTargetType?: "task" | "workflow"
   initialTargetId?: number | string
+  /** 预填目标的显示名（就地入口传入，避免显示空名） */
+  initialTargetName?: string
 }
 
 export function BackfillDialog({
@@ -59,29 +72,92 @@ export function BackfillDialog({
   onSuccess,
   initialTargetType = "task",
   initialTargetId = "",
+  initialTargetName,
 }: BackfillDialogProps) {
   const t = useTranslations("ops")
   const locale = useLocale()
   const dateFnsLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
-  const [targetType, setTargetType] = useState<"task" | "workflow">(initialTargetType)
-  const [targetId, setTargetId] = useState<string>(String(initialTargetId ?? ""))
+  const [target, setTarget] = useState<TargetOption | null>(
+    initialTargetId !== "" && initialTargetId != null
+      ? { id: Number(initialTargetId), name: initialTargetName ?? `#${initialTargetId}`, type: initialTargetType }
+      : null,
+  )
   const [dateStart, setDateStart] = useState("")
   const [dateEnd, setDateEnd] = useState("")
-  const [includeDownstream, setIncludeDownstream] = useState(false)
   const [parallelism, setParallelism] = useState(3)
   const [busy, setBusy] = useState(false)
+  const [pathMap, setPathMap] = useState<Map<number, string>>(new Map())
+  const [downstream, setDownstream] = useState<DownstreamTask[]>([])
+  const [downstreamLoading, setDownstreamLoading] = useState(false)
+  const [selectedDownstream, setSelectedDownstream] = useState<Set<number>>(new Set())
+
+  // 打开时同步预填目标(就地入口每次打开可能预填不同目标)
+  useEffect(() => {
+    if (!open) return
+    setTarget(
+      initialTargetId !== "" && initialTargetId != null
+        ? { id: Number(initialTargetId), name: initialTargetName ?? `#${initialTargetId}`, type: initialTargetType }
+        : null,
+    )
+  }, [open, initialTargetType, initialTargetId, initialTargetName])
+
+  // 加载类目树一次,构建 catalogNodeId → 路径(供选择器候选项展示路径)
+  useEffect(() => {
+    if (!open) return
+    authFetch(`${API_BASE}/api/catalog/tree`)
+      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse<unknown>>) : Promise.resolve(null)))
+      .then((json) => {
+        if (!json || json.code !== 0 || !json.data) return
+        const roots = (json.data as Record<string, unknown>).roots
+        if (Array.isArray(roots)) {
+          setPathMap(buildCatalogPathMap(roots as Parameters<typeof buildCatalogPathMap>[0]))
+        }
+      })
+      .catch(() => {})
+  }, [open])
+
+  // 选定 task 目标后拉取血缘下游预览(默认不全选,避免误炸全图);workflow 目标 M1 维持整 DAG,不展示下游树。
+  useEffect(() => {
+    setDownstream([])
+    setSelectedDownstream(new Set())
+    if (!open || target?.type !== "task" || !target) return
+    let cancelled = false
+    setDownstreamLoading(true)
+    authFetch(`${API_BASE}/api/ops/backfill/downstream-preview?targetType=task&targetId=${target.id}`)
+      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse<DownstreamTask[]>>) : Promise.resolve(null)))
+      .then((json) => {
+        if (cancelled || !json || json.code !== 0) return
+        setDownstream(Array.isArray(json.data) ? json.data : [])
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDownstreamLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, target?.type, target])
+
+  function toggleDownstream(id: number) {
+    setSelectedDownstream((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function reset() {
-    setTargetType("task")
-    setTargetId("")
+    setTarget(null)
     setDateStart("")
     setDateEnd("")
-    setIncludeDownstream(false)
     setParallelism(3)
+    setDownstream([])
+    setSelectedDownstream(new Set())
   }
 
   async function submit() {
-    if (!targetId || !dateStart || !dateEnd) {
+    if (!target || !dateStart || !dateEnd) {
       toast.error(t("backfillValidationError"))
       return
     }
@@ -95,12 +171,13 @@ export function BackfillDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          targetType,
-          targetId: Number(targetId),
+          targetType: target.type,
+          targetId: target.id,
           dateStart,
           dateEnd,
-          includeDownstream,
+          includeDownstream: selectedDownstream.size > 0,
           parallelism,
+          downstreamTaskIds: target.type === "task" ? Array.from(selectedDownstream) : [],
         }),
       })
       const json = (await res.json().catch(() => null)) as BackfillSubmitResponse | null
@@ -136,27 +213,12 @@ export function BackfillDialog({
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              {t("backfillTargetType")}
+              {t("backfillTarget")}
             </label>
-            <DropdownSelect
-              value={targetType}
-              onChange={(v) => setTargetType(v as "task" | "workflow")}
-              triggerClassName="w-auto"
-              options={[
-                { value: "task", label: t("backfillTargetTypeTask") },
-                { value: "workflow", label: t("backfillTargetTypeWorkflow") },
-              ]}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("backfillTargetId")}
-            </label>
-            <Input
-              type="number"
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              placeholder={t("backfillTargetIdPh")}
+            <TargetSearchSelect
+              value={target}
+              onChange={setTarget}
+              pathMap={pathMap}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -197,17 +259,59 @@ export function BackfillDialog({
               onChange={(e) => setParallelism(Number(e.target.value) || 1)}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={includeDownstream} onChange={setIncludeDownstream} />
-            {t("backfillIncludeDownstream")}
-          </label>
+          {/* 下游影响范围:仅 task 目标;默认不全选,勾选具体补哪些 */}
+          {target?.type === "task" && target && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("backfillDownstream")}
+                </label>
+                <span className="text-xs text-muted-foreground">
+                  {t("backfillAffected", { n: 1 + selectedDownstream.size })}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground/70">{t("backfillDownstreamHint")}</p>
+              {downstreamLoading ? (
+                <div className="rounded-md border px-2 py-3 text-center text-xs text-muted-foreground">
+                  {t("backfillDownstreamLoading")}
+                </div>
+              ) : downstream.length === 0 ? (
+                <div className="rounded-md border px-2 py-3 text-center text-xs text-muted-foreground">
+                  {t("backfillDownstreamEmpty")}
+                </div>
+              ) : (
+                <div className="flex max-h-40 flex-col gap-0.5 overflow-y-auto rounded-md border p-1">
+                  {downstream.map((d) => (
+                    <label
+                      key={d.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={selectedDownstream.has(d.id)}
+                        onChange={() => toggleDownstream(d.id)}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm">{d.name}</span>
+                      {d.catalogNodeId != null && pathMap.get(d.catalogNodeId) && (
+                        <span className="shrink-0 truncate text-xs text-muted-foreground">
+                          {pathMap.get(d.catalogNodeId)}
+                        </span>
+                      )}
+                      <span className="shrink-0 rounded bg-muted px-1 font-mono text-[10px]">
+                        L{d.level}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             {t("backfillCancel")}
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Submitting" : t("backfillSubmit")}
+            {busy ? t("backfillSubmitting") : t("backfillSubmit")}
           </Button>
         </DialogFooter>
       </DialogContent>

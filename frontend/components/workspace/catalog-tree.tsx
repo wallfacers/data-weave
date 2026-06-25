@@ -23,6 +23,7 @@ import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   Delete02Icon,
+  Calendar03Icon,
   Folder01Icon,
   FolderAddIcon,
   FolderOpenIcon,
@@ -68,6 +69,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu"
+import { BackfillDialog } from "@/components/workspace/views/ops/backfill-dialog"
 
 const MOVE_MIME = "application/dw-catalog-move"
 const TASK_MIME = "application/dw-task"
@@ -279,6 +281,8 @@ export function CatalogTree({
   // ── 统一 Dialog ──
   const [dialog, setDialog] = useState<DialogState>({ mode: "closed" })
   const closeDialog = useCallback(() => setDialog({ mode: "closed" }), [])
+  // 就地补数据：右键叶子 → 预填目标打开补数据弹窗
+  const [backfill, setBackfill] = useState<{ type: "task" | "workflow"; id: number; name: string } | null>(null)
 
   // ── 基础数据：树 + 任务 + 工作流 + 标签 ──
   useEffect(() => {
@@ -755,6 +759,12 @@ export function CatalogTree({
             </ContextMenuItem>
             <ContextMenuItem
               disabled={pending}
+              onClick={() => setBackfill({ type: kind, id, name })}
+            >
+              <HugeiconsIcon icon={Calendar03Icon} className="size-4" /> {t("ops.backfillTrigger")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={pending}
               onClick={() => setDialog({ mode: "rename", kind, id, name })}
             >
               <HugeiconsIcon icon={PencilEdit01Icon} className="size-4" /> {t("catalog.rename")}
@@ -1018,6 +1028,17 @@ export function CatalogTree({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+
+      {/* 就地补数据弹窗：右键叶子触发,预填目标 */}
+      <BackfillDialog
+        open={!!backfill}
+        onOpenChange={(open) => {
+          if (!open) setBackfill(null)
+        }}
+        initialTargetType={backfill?.type ?? "task"}
+        initialTargetId={backfill?.id ?? ""}
+        initialTargetName={backfill?.name}
+      />
 
       {/* 统一 Dialog：建文件夹 / 文件夹改名删除 / 在此新建任务工作流 / 叶子改名删除 */}
       <Dialog

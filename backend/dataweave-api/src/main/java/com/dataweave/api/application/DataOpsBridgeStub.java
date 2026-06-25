@@ -65,6 +65,12 @@ public class DataOpsBridgeStub implements DataOpsBridge {
     }
 
     @Override
+    public java.util.List<com.dataweave.master.application.OpsContracts.DownstreamTaskView> previewDownstream(
+            String targetType, Long targetId) {
+        return java.util.List.of();
+    }
+
+    @Override
     public BatchResult batchOp(List<UUID> instanceIds, BatchOp op) {
         throw new UnsupportedOperationException("batchOp — 待 Stream A 实现");
     }

@@ -364,6 +364,8 @@ public class OpsController {
                 .param("dateEnd", req.dateEnd())
                 .param("includeDownstream", req.includeDownstream())
                 .param("parallelism", req.parallelism())
+                // 影响面：目标自身 + 勾选下游数,喂入 PolicyEngine 数据驱动分级(大批量补数据可升级审批)。
+                .param("affectedTargetCount", 1 + req.downstreamTaskIds().size())
                 .build();
 
         GateResult gr = gatedActionService.submit(actionReq, locale);
@@ -382,6 +384,17 @@ public class OpsController {
             result.put("approvalId", gr.actionId());
         }
         return ApiResponse.ok(result);
+    }
+
+    /**
+     * 补数据下游影响范围预览 — 沿血缘解析目标任务的下游任务(id/名称/类目节点/层级),供前端可勾选展示。
+     * M1 仅 task 目标支持下游子集(workflow 维持整 DAG,见 design 开放问题③);只读,不经闸门。
+     */
+    @GetMapping("/backfill/downstream-preview")
+    public ApiResponse<List<OpsContracts.DownstreamTaskView>> backfillDownstreamPreview(
+            @RequestParam(defaultValue = "task") String targetType,
+            @RequestParam Long targetId) {
+        return ApiResponse.ok(dataOpsBridge.previewDownstream(targetType, targetId));
     }
 
     /**

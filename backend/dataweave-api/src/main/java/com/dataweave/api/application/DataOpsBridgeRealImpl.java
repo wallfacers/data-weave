@@ -53,8 +53,14 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     public BackfillRun submitBackfill(BackfillRequest req) {
         OpsContracts.BackfillRunView v = backfillService.submitBackfill(
                 new OpsContracts.BackfillRequest(req.targetType(), req.targetId(),
-                        req.dateStart(), req.dateEnd(), req.includeDownstream(), req.parallelism()));
+                        req.dateStart(), req.dateEnd(), req.includeDownstream(), req.parallelism(),
+                        req.downstreamTaskIds()));
         return toDtoRun(v);
+    }
+
+    @Override
+    public List<OpsContracts.DownstreamTaskView> previewDownstream(String targetType, Long targetId) {
+        return backfillService.previewDownstream(targetType, targetId);
     }
 
     @Override

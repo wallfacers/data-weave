@@ -42,9 +42,24 @@ public final class OpsContracts {
     /** 分页结果通用包。 */
     public record PageResult<T>(List<T> items, long total, int page, int size) {}
 
-    /** 补数据发起请求。targetType ∈ "task"|"workflow"；日期 yyyy-MM-dd（含端点）；parallelism≥1。 */
+    /**
+     * 补数据发起请求。targetType ∈ "task"|"workflow"；日期 yyyy-MM-dd（含端点）；parallelism≥1。
+     * downstreamTaskIds：用户勾选的血缘下游子集（空=只补目标自身）；最终目标=[自身]∪downstreamTaskIds。
+     */
     public record BackfillRequest(String targetType, Long targetId, String dateStart, String dateEnd,
-                                  boolean includeDownstream, int parallelism) {}
+                                  boolean includeDownstream, int parallelism, List<Long> downstreamTaskIds) {
+        public BackfillRequest {
+            downstreamTaskIds = downstreamTaskIds == null ? List.of() : List.copyOf(downstreamTaskIds);
+        }
+        /** 兼容旧 6 参构造（无下游子集）。 */
+        public BackfillRequest(String targetType, Long targetId, String dateStart, String dateEnd,
+                               boolean includeDownstream, int parallelism) {
+            this(targetType, targetId, dateStart, dateEnd, includeDownstream, parallelism, List.of());
+        }
+    }
+
+    /** 下游任务预览项（血缘下游展开）：id/名称/类目节点(供前端解析路径)/层级(BFS 深度,从目标算起为 1)。 */
+    public record DownstreamTaskView(Long id, String name, Long catalogNodeId, int level) {}
 
     /**
      * 补数据批次视图：实体字段 + 子实例聚合进度（success/failed/running 查询时算）。

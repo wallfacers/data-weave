@@ -32,6 +32,7 @@ import { VersionHistoryPanel, type VersionInfo } from "@/components/workspace/ve
 import { VersionDetailDialog } from "@/components/workspace/version-detail-dialog"
 import { VersionDiffDialog, type VersionDiffInput } from "@/components/workspace/version-diff-dialog"
 import { RollbackConfirmDialog } from "@/components/workspace/rollback-confirm-dialog"
+import { BackfillDialog } from "@/components/workspace/views/ops/backfill-dialog"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { cn } from "@/lib/utils"
@@ -116,6 +117,7 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   const [loading, setLoading] = useState(true)
   const [versions, setVersions] = useState<TaskDefVersion[]>([])
   const [sidebarTab, setSidebarTab] = useState<"config" | "versions">("config")
+  const [backfillOpen, setBackfillOpen] = useState(false)
 
   // 数据源绑定
   const [datasourceId, setDatasourceId] = useState<number | null>(null)
@@ -551,6 +553,11 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
             {t("taskEditor.publish")}
           </Button>
           {published && (
+            <Button size="sm" variant="outline" onClick={() => setBackfillOpen(true)}>
+              {t("ops.backfillTrigger")}
+            </Button>
+          )}
+          {published && (
             <Button
               size="sm"
               variant="outline"
@@ -567,6 +574,13 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
           )}
         </div>
       </div>
+      <BackfillDialog
+        open={backfillOpen}
+        onOpenChange={setBackfillOpen}
+        initialTargetType="task"
+        initialTargetId={taskId}
+        initialTargetName={name}
+      />
 
       <div className="flex min-h-0 flex-1">
         {/* 左：代码编辑器（Monaco）+ 运行日志 Tabs */}

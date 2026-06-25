@@ -400,6 +400,12 @@ ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;
 -- ============================================================
 -- 域 F · 表级血缘种子（table-lineage）：一条 ODS→DWD→DWS→ADS 数据流，供态势驾驶舱开屏即见
 -- ============================================================
+-- 血缘链对应的任务定义（task_table_io 引用的 9001/9002/9003）：补全后这条链可在补数据「下游影响范围」中被搜到并展开。
+INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+  (9001, 1, 1, '订单明细加工 ODS→DWD', 'SQL', 'insert into dwd_order select * from ods_order', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (9002, 1, 1, '用户订单聚合 DWD→DWS', 'SQL', 'insert into dws_user_order select * from dwd_order join ods_user', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (9003, 1, 1, 'GMV 汇总 DWS→ADS', 'SQL', 'insert into ads_gmv select sum(amount) from dws_user_order', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+
 INSERT INTO data_table (id, tenant_id, project_id, datasource_id, qualified_name, layer, created_at, deleted, version) VALUES
   (1, 1, 1, 1, 'ods_order',      'ODS', CURRENT_TIMESTAMP, 0, 0),
   (2, 1, 1, 1, 'ods_user',       'ODS', CURRENT_TIMESTAMP, 0, 0),

@@ -21,6 +21,10 @@ public interface DataOpsBridge {
     /** 提交补数据：校验 + 落 backfill_run + 生成子实例 + 触发调度。 */
     BackfillRun submitBackfill(BackfillRequest req);
 
+    /** 补数据下游影响范围预览：沿血缘解析目标任务的下游任务(M1 仅 task 目标,workflow 返回空)。 */
+    List<com.dataweave.master.application.OpsContracts.DownstreamTaskView> previewDownstream(
+            String targetType, Long targetId);
+
     /** 批量操作：逐个执行 RERUN | KILL | SET_SUCCESS。 */
     BatchResult batchOp(List<UUID> instanceIds, BatchOp op);
 

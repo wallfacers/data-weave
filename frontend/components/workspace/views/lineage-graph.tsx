@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
+import { toast } from "sonner"
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -18,6 +19,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { DatabaseIcon } from "@hugeicons/core-free-icons"
 
 import { useApi } from "@/lib/workspace/use-api"
+import { BackfillDialog } from "./ops/backfill-dialog"
 import { ViewStatus } from "./view-status"
 
 // ─── 后端 LineageGraph 对应类型 ─────────────────────────────
@@ -127,9 +129,27 @@ function LegendDot({ className, label }: { className: string; label: string }) {
 
 function LineageGraphInner() {
   const t = useTranslations("lineageCockpit")
+  const tOps = useTranslations("ops")
   const { data: graph, loading } = useApi<LineageGraphData>("/api/lineage/graph")
 
   const flow = useMemo(() => (graph ? toFlow(graph) : { nodes: [], edges: [] }), [graph])
+
+  // 就地补数据：点表节点 → 取其产出任务(toTableId==该表的边的 taskDefId)预填弹窗
+  const [backfill, setBackfill] = useState<{ taskId: number; name: string } | null>(null)
+  const onNodeClick = useCallback(
+    (_e: React.MouseEvent, node: Node) => {
+      if (!graph) return
+      const tableId = Number(node.id)
+      const producer = graph.edges.find((e) => e.toTableId === tableId)
+      if (!producer) {
+        toast.info(tOps("backfillNoProducer"))
+        return
+      }
+      const label = (node.data as LineageNodeData).label
+      setBackfill({ taskId: producer.taskDefId, name: label })
+    },
+    [graph, tOps],
+  )
 
   if (!graph) return <ViewStatus loading={loading} />
   if (graph.nodes.length === 0) {
@@ -146,6 +166,7 @@ function LineageGraphInner() {
         nodes={flow.nodes}
         edges={flow.edges}
         nodeTypes={NODE_TYPES}
+        onNodeClick={onNodeClick}
         nodesDraggable={false}
         nodesConnectable={false}
         // 关掉空格平移：ReactFlow 默认 panActivationKeyCode='Space' 会在 window 上挂
@@ -165,6 +186,15 @@ function LineageGraphInner() {
         <LegendDot className="bg-warning" label={t("legendUnverified")} />
         <LegendDot className="bg-destructive" label={t("legendConflict")} />
       </div>
+      <BackfillDialog
+        open={!!backfill}
+        onOpenChange={(open) => {
+          if (!open) setBackfill(null)
+        }}
+        initialTargetType="task"
+        initialTargetId={backfill?.taskId ?? ""}
+        initialTargetName={backfill?.name}
+      />
     </div>
   )
 }

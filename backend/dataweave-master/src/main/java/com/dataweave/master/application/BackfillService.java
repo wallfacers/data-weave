@@ -43,18 +43,37 @@ public class BackfillService {
     private final WorkflowTriggerService triggerService;
     private final TaskDefRepository taskDefRepository;
     private final WorkflowDefRepository workflowDefRepository;
+    private final LineageGraphService lineageGraphService;
     private final JdbcTemplate jdbc;
 
     public BackfillService(BackfillRunRepository backfillRunRepository,
                            WorkflowTriggerService triggerService,
                            TaskDefRepository taskDefRepository,
                            WorkflowDefRepository workflowDefRepository,
+                           LineageGraphService lineageGraphService,
                            JdbcTemplate jdbc) {
         this.backfillRunRepository = backfillRunRepository;
         this.triggerService = triggerService;
         this.taskDefRepository = taskDefRepository;
         this.workflowDefRepository = workflowDefRepository;
+        this.lineageGraphService = lineageGraphService;
         this.jdbc = jdbc;
+    }
+
+    /**
+     * 下游影响范围预览：M1 仅 task 目标支持下游子集(workflow 目标维持整 DAG,见 design 开放问题③)。
+     * 沿血缘解析目标任务的下游任务(id/名称/类目节点/层级);无下游返回空。
+     */
+    public List<OpsContracts.DownstreamTaskView> previewDownstream(String targetType, Long targetId) {
+        if (targetId == null) {
+            throw new BizException("backfill.target_required");
+        }
+        if (!"task".equalsIgnoreCase(targetType)) {
+            return List.of();
+        }
+        TaskDef def = taskDefRepository.findById(targetId)
+                .orElseThrow(() -> new IllegalStateException("Task def not found: " + targetId));
+        return lineageGraphService.downstreamTasks(def.getTenantId(), def.getProjectId(), targetId);
     }
 
     /** 发起补数据：校验 → 落 backfill_run → 逐 bizDate 生成实例 → 回填 total → 返回视图。 */
@@ -107,6 +126,23 @@ public class BackfillService {
         BackfillRun saved = backfillRunRepository.save(run);
         UUID runId = saved.getId();
 
+        // task 目标：最终目标 = [自身] ∪ 勾选的合法下游(与血缘实算下游求交,挡掉越权注入)。
+        // 同 bizDate 内的上下游就绪由既有调度就绪门(上游 SUCCESS 才认领)自然串行,无需额外编排(design D3)。
+        List<Long> targetTaskIds = new ArrayList<>();
+        if (isTask) {
+            targetTaskIds.add(req.targetId());
+            List<Long> requested = req.downstreamTaskIds();
+            if (requested != null && !requested.isEmpty()) {
+                java.util.Set<Long> valid = new java.util.HashSet<>(
+                        lineageGraphService.downstreamTaskDefIds(tenantId, projectId, req.targetId()));
+                for (Long d : requested) {
+                    if (d != null && valid.contains(d) && !targetTaskIds.contains(d)) {
+                        targetTaskIds.add(d);
+                    }
+                }
+            }
+        }
+
         // bizDate 粒度节流（backfill-parallelism-throttle，design D2）：bizDate 升序前 parallelism 个放行（held=0），
         // 其余整批持有（held=1），由 BackfillPromoter 完成即晋升。held 在 INSERT 时即定（trigger 透传），
         // 根除「插入后→置 held 前」被抢认领的竞态。parallelism≥bizDate 总数时全部 held=0，退化为无节流。
@@ -115,7 +151,10 @@ public class BackfillService {
             String bizDate = dates.get(i).format(ISO);
             int held = i < parallelism ? 0 : 1;
             if (isTask) {
-                triggerService.triggerBackfillTaskRun(req.targetId(), bizDate, runId, held, Messages.DEFAULT_LOCALE);
+                // 同 bizDate 下,目标自身 + 选定下游各生成一条 BACKFILL 实例(held 同 bizDate 一致)。
+                for (Long tid : targetTaskIds) {
+                    triggerService.triggerBackfillTaskRun(tid, bizDate, runId, held, Messages.DEFAULT_LOCALE);
+                }
             } else {
                 // 工作流补数：物化整张 DAG（同 bizDate 内上下游就绪由调度就绪门自然串行 → includeDownstream 语义）。
                 triggerService.trigger(wf, "BACKFILL", bizDate, null, Messages.DEFAULT_LOCALE,

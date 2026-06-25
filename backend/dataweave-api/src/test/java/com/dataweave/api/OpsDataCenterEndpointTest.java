@@ -206,6 +206,73 @@ class OpsDataCenterEndpointTest {
                 .jsonPath("$.data.outcome").isNotEmpty();
     }
 
+    @Test
+    void backfill_带下游子集提交返回outcome() {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("targetType", "task");
+        body.put("targetId", 1);
+        body.put("dateStart", "2026-06-20");
+        body.put("dateEnd", "2026-06-20");
+        body.put("includeDownstream", true);
+        body.put("parallelism", 1);
+        body.put("downstreamTaskIds", java.util.List.of(7702));
+
+        client.post().uri("/api/ops/backfill")
+                .bodyValue(body)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.outcome").isNotEmpty();
+    }
+
+    // ─── 下游影响范围预览（backfill-target-and-downstream-ux）────
+
+    /** 自建血缘链：7701 WRITE 表 7710；7702 READ 表 7710 → 7702 是 7701 的下游。 */
+    private void seedDownstreamChain() {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update("INSERT INTO task_def (id, tenant_id, project_id, name, type, status, "
+                + "created_at, updated_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,0,0)",
+                7701L, "上游测试任务", "SQL", "ONLINE", now, now);
+        jdbc.update("INSERT INTO task_def (id, tenant_id, project_id, name, type, status, "
+                + "created_at, updated_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,0,0)",
+                7702L, "下游测试任务", "SQL", "ONLINE", now, now);
+        jdbc.update("INSERT INTO data_table (id, tenant_id, project_id, datasource_id, qualified_name, "
+                + "layer, created_at, deleted, version) VALUES (?,1,1,0,?,?,?,0,0)",
+                7710L, "test.bf_chain_out", "DWD", now);
+        jdbc.update("INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, table_id, "
+                + "direction, source, confidence, created_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,?,0,0)",
+                7720L, 7701L, 7710L, "WRITE", "FORM", "CONFIRMED", now);
+        jdbc.update("INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, table_id, "
+                + "direction, source, confidence, created_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,?,0,0)",
+                7721L, 7702L, 7710L, "READ", "FORM", "CONFIRMED", now);
+    }
+
+    @Test
+    void downstreamPreview_沿血缘返回下游任务() {
+        seedDownstreamChain();
+
+        client.get().uri("/api/ops/backfill/downstream-preview?targetType=task&targetId=7701")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data").isArray()
+                .jsonPath("$.data[0].id").isEqualTo(7702)
+                .jsonPath("$.data[0].name").isEqualTo("下游测试任务")
+                .jsonPath("$.data[0].level").isEqualTo(1);
+    }
+
+    @Test
+    void downstreamPreview_workflow目标返回空() {
+        client.get().uri("/api/ops/backfill/downstream-preview?targetType=workflow&targetId=1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.length()").isEqualTo(0);
+    }
+
     // ─── 3.1.2 GET /backfill ────────────────────────────────
 
     @Test

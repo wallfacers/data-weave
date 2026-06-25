@@ -36,6 +36,7 @@ class BackfillServiceTest {
     private WorkflowTriggerService triggerService;
     private TaskDefRepository taskDefRepository;
     private WorkflowDefRepository workflowDefRepository;
+    private LineageGraphService lineageGraphService;
     private JdbcTemplate jdbc;
     private BackfillService backfill;
 
@@ -45,9 +46,10 @@ class BackfillServiceTest {
         triggerService = mock(WorkflowTriggerService.class);
         taskDefRepository = mock(TaskDefRepository.class);
         workflowDefRepository = mock(WorkflowDefRepository.class);
+        lineageGraphService = mock(LineageGraphService.class);
         jdbc = mock(JdbcTemplate.class);
         backfill = new BackfillService(backfillRunRepository, triggerService, taskDefRepository,
-                workflowDefRepository, jdbc);
+                workflowDefRepository, lineageGraphService, jdbc);
 
         when(backfillRunRepository.save(any())).thenAnswer(inv -> {
             BackfillRun r = inv.getArgument(0);
@@ -128,6 +130,51 @@ class BackfillServiceTest {
                 eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(0));
         verify(triggerService).trigger(eq(wf), eq("BACKFILL"), eq("2026-06-21"), eq(null), any(),
                 eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(1));
+    }
+
+    @Test
+    void selectedDownstreamSubsetGeneratesPerTargetPerDate() {
+        // 选定下游子集 [11,12]：单日补数据 → 目标 10 + 下游 11、12 各生成一条实例（held=0）。
+        stubTask();
+        when(lineageGraphService.downstreamTaskDefIds(1L, 1L, 10L))
+                .thenReturn(java.util.List.of(11L, 12L));
+        BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-20", "2026-06-20",
+                false, 1, java.util.List.of(11L, 12L));
+
+        backfill.submitBackfill(req);
+
+        verify(triggerService).triggerBackfillTaskRun(eq(10L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+        verify(triggerService).triggerBackfillTaskRun(eq(11L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+        verify(triggerService).triggerBackfillTaskRun(eq(12L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+    }
+
+    @Test
+    void emptyDownstreamOnlyBackfillsSelf() {
+        // 空下游集合 → 只补目标自身（向后兼容），不触碰血缘解析。
+        stubTask();
+        BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-20", "2026-06-20",
+                false, 1, java.util.List.of());
+
+        backfill.submitBackfill(req);
+
+        verify(triggerService, times(1)).triggerBackfillTaskRun(eq(10L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+        verify(triggerService, times(1)).triggerBackfillTaskRun(any(), anyString(), any(), anyInt(), any());
+    }
+
+    @Test
+    void downstreamSelectionConstrainedByLineage() {
+        // 越权注入挡掉：请求 [11,99]，但血缘实算下游只有 11 → 99 被忽略，只补 10 + 11。
+        stubTask();
+        when(lineageGraphService.downstreamTaskDefIds(1L, 1L, 10L))
+                .thenReturn(java.util.List.of(11L));
+        BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-20", "2026-06-20",
+                false, 1, java.util.List.of(11L, 99L));
+
+        backfill.submitBackfill(req);
+
+        verify(triggerService).triggerBackfillTaskRun(eq(10L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+        verify(triggerService).triggerBackfillTaskRun(eq(11L), eq("2026-06-20"), eq(RUN_ID), eq(0), any());
+        verify(triggerService, times(2)).triggerBackfillTaskRun(any(), anyString(), any(), anyInt(), any());
     }
 
     @Test

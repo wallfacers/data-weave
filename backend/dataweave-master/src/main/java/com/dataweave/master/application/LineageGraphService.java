@@ -154,6 +154,89 @@ public class LineageGraphService {
         return reachableNodes(tenantId, projectId, tableId, true, false);
     }
 
+    // ─── 任务级下游（补数据展开,可跨 workflow）─────────────────
+
+    /**
+     * 某任务的血缘下游任务集合（taskDefId,去重去自身,按发现顺序）。
+     *
+     * <p>沿既有 {@link FlowEdge}(读表→写表,经 taskDefId)做任务级 BFS：目标任务的 WRITE 表 → 读这些表的
+     * 下游任务 → 再沿其 WRITE 表继续下钻。{@code scope=DOWNSTREAM} 只在单 workflow DAG 内,够不到跨
+     * workflow 的血缘下游,故在此自行展开(design D3)。
+     */
+    public List<Long> downstreamTaskDefIds(long tenantId, long projectId, long taskDefId) {
+        return new ArrayList<>(downstreamLevels(tenantId, projectId, taskDefId).keySet());
+    }
+
+    /**
+     * 下游任务 → BFS 层级(从目标算起首层为 1),保持发现顺序(LinkedHashMap)。
+     *
+     * <p>直接基于 {@code task_table_io} 的读写关系,而非表→表的 {@link FlowEdge} 视图——后者仅在某任务
+     * 同时有 READ 与 WRITE 时才生成边,会漏掉纯产出/纯消费任务。下游=读取目标 WRITE 表的任务,再沿其
+     * WRITE 表继续下钻。
+     */
+    private java.util.LinkedHashMap<Long, Integer> downstreamLevels(long tenantId, long projectId, long taskDefId) {
+        // task → WRITE 表集合;table → 读它的任务集合(一次加载,内存 BFS)。
+        java.util.Map<Long, Set<Long>> writesByTask = new java.util.HashMap<>();
+        java.util.Map<Long, Set<Long>> readersByTable = new java.util.HashMap<>();
+        jdbcTemplate.query(
+                "SELECT task_def_id, table_id, direction FROM task_table_io "
+                        + "WHERE deleted = 0 AND tenant_id = ? AND project_id = ?",
+                rs -> {
+                    long task = rs.getLong("task_def_id");
+                    long table = rs.getLong("table_id");
+                    String dir = rs.getString("direction");
+                    if (WRITE.equalsIgnoreCase(dir)) {
+                        writesByTask.computeIfAbsent(task, k -> new HashSet<>()).add(table);
+                    } else if (READ.equalsIgnoreCase(dir)) {
+                        readersByTable.computeIfAbsent(table, k -> new HashSet<>()).add(task);
+                    }
+                },
+                tenantId, projectId);
+
+        java.util.LinkedHashMap<Long, Integer> levels = new java.util.LinkedHashMap<>();
+        Set<Long> visitedTasks = new HashSet<>();
+        visitedTasks.add(taskDefId);
+        Deque<long[]> queue = new ArrayDeque<>(); // [taskDefId, level]
+        queue.add(new long[]{taskDefId, 0});
+        while (!queue.isEmpty()) {
+            long[] cur = queue.poll();
+            long task = cur[0];
+            int level = (int) cur[1];
+            for (long writeTable : writesByTask.getOrDefault(task, Set.of())) {
+                for (long reader : readersByTable.getOrDefault(writeTable, Set.of())) {
+                    if (visitedTasks.add(reader)) {
+                        levels.put(reader, level + 1);
+                        queue.add(new long[]{reader, level + 1});
+                    }
+                }
+            }
+        }
+        return levels;
+    }
+
+    /** 下游任务预览(id/名称/类目节点/层级),供补数据前端可勾选展示。无下游返回空。 */
+    public List<OpsContracts.DownstreamTaskView> downstreamTasks(long tenantId, long projectId, long taskDefId) {
+        java.util.LinkedHashMap<Long, Integer> levels = downstreamLevels(tenantId, projectId, taskDefId);
+        if (levels.isEmpty()) return List.of();
+        String ph = String.join(",", java.util.Collections.nCopies(levels.size(), "?"));
+        java.util.Map<Long, Object[]> meta = new java.util.HashMap<>();
+        jdbcTemplate.query(
+                "SELECT id, name, catalog_node_id FROM task_def WHERE deleted=0 AND id IN (" + ph + ")",
+                rs -> {
+                    meta.put(rs.getLong("id"),
+                            new Object[]{rs.getString("name"), (Long) rs.getObject("catalog_node_id")});
+                },
+                levels.keySet().toArray());
+        List<OpsContracts.DownstreamTaskView> out = new ArrayList<>(levels.size());
+        for (var en : levels.entrySet()) {
+            Object[] m = meta.get(en.getKey());
+            if (m == null) continue; // 任务已删/不存在则跳过
+            out.add(new OpsContracts.DownstreamTaskView(
+                    en.getKey(), (String) m[0], (Long) m[1], en.getValue()));
+        }
+        return out;
+    }
+
     private List<GraphNode> reachableNodes(long tenantId, long projectId, long tableId,
                                            boolean forward, boolean backward) {
         List<GraphNode> allNodes = loadNodes(tenantId, projectId);
