@@ -33,7 +33,6 @@ class IntentRouterIntentTest {
     @Mock private LineageService lineageService;
     @Mock private TaskService taskService;
     @Mock private SqlExecutionService sqlExecutionService;
-    @Mock private LlmClient llmClient;
     @Mock private FleetService fleetService;
     @Mock private DiagnosisService diagnosisService;
 
@@ -50,7 +49,7 @@ class IntentRouterIntentTest {
         ms.setFallbackToSystemLocale(false);
         Messages messages = new Messages(ms);
         router = new IntentRouter(metricService, lineageService, taskService,
-                sqlExecutionService, llmClient, fleetService, diagnosisService,
+                sqlExecutionService, fleetService, diagnosisService,
                 null, null, objectMapper, messages);
     }
 

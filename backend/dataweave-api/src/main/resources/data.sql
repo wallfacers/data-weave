@@ -276,24 +276,8 @@ INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, loa
 (4, 'node-4', 'worker-4', '10.0.0.14', '8C/16G', 0.0,  0.0,  33.0, 0.00, 0, 'OFFLINE', TIMESTAMP '2026-06-10 06:12:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 06:12:00', 0, 0),
 (5, 'node-5', 'worker-5', '10.0.0.15', '8C/16G', 12.0, 30.0, 40.0, 0.90, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0);
 
-INSERT INTO task_diagnosis (id, tenant_id, project_id, task_instance_id, workflow_instance_id, task_id, worker_node_code, title, root_cause, context_json, suggestions_json, status, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, 1, '01910000-0010-7000-8000-000000000001', '01910000-0001-7000-8000-000000000001', 2, 'node-3',
-  '订单宽表加工 失败 · 节点内存不足导致 OOM',
-  'node-3 内存使用率 95%，本任务在 stage 3 触发 OutOfMemoryError 被容器终止；同时段 node-3 上还并发运行 2 个任务，存在资源争抢。',
-  '{"nodeId":"node-3","nodeMem":95,"nodeCpu":72,"nodeLoad":9.4,"concurrentTasks":2,"history":"近 7 天该任务在 node-3 失败 2 次"}',
-  '[{"action":"RERUN_MORE_MEMORY","label":"调大 executor 内存重跑"},{"action":"MIGRATE_NODE","label":"迁移到空闲节点 node-5 重跑"},{"action":"CAP_NODE_WEIGHT","label":"为 node-3 设置调度权重上限"}]',
-  'OPEN', 1, 1, TIMESTAMP '2026-06-10 02:08:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0);
-
--- 首屏 Finding（与上面 OOM 诊断对应；source=TASK_FAILURE，举手台开箱即有一张真证据卡片）。
--- 运行期由 TaskFailureInspector 自动产出；此处仅保证 fresh boot 首屏不空。
-INSERT INTO finding (id, tenant_id, project_id, source, severity, target_type, target_id, title, root_cause, evidence_json, actions_json, status, announced, task_diagnosis_id, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, 1, 'TASK_FAILURE', 'CRITICAL', 'TASK_INSTANCE', '01910000-0010-7000-8000-000000000001',
-  '订单宽表加工 失败 · 节点内存不足导致 OOM',
-  'node-3 内存使用率 95%，本任务在 stage 3 触发 OutOfMemoryError 被容器终止；同时段 node-3 上还并发运行 2 个任务，存在资源争抢。',
-  '{"nodeId":"node-3","nodeMem":95,"nodeCpu":72,"nodeLoad":9.4,"concurrentTasks":2,"history":"近 7 天该任务在 node-3 失败 2 次"}',
-  '[{"key":"RERUN_MORE_MEMORY","label":"调大 executor 内存重跑","actionType":"APPLY_FIX_RERUN_MORE_MEMORY"},{"key":"MIGRATE_NODE","label":"迁移到空闲节点 node-5 重跑","actionType":"APPLY_FIX_MIGRATE_NODE"},{"key":"CAP_NODE_WEIGHT","label":"为 node-3 设置调度权重上限","actionType":"APPLY_FIX_CAP_NODE_WEIGHT"}]',
-  'OPEN', 0, 1, 1, 1, TIMESTAMP '2026-06-10 02:08:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0);
-ALTER TABLE finding ALTER COLUMN id RESTART WITH 100;
+-- 注：OOM@node-3 的预填诊断结论（task_diagnosis / finding / 首屏 Finding）已移至 demo-data.sql，
+-- 默认不加载（仅 demo profile）。data.sql 仅保留失败实例素材与节点注册，由 Inspector 运行期真诊断。
 
 -- ===== 域 F · 告警 =====
 INSERT INTO notification_channels (id, tenant_id, name, type, config_json, enabled, created_by, updated_by, created_at, updated_at, deleted, version)
@@ -304,8 +288,7 @@ VALUES (1, 1, 1, 'GMV 工作流失败告警', 'WORKFLOW', '1', 'state = FAILED',
 
 -- ===== 域 G · 审计与 mock 业务 =====
 INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, target_id, detail_json, created_at) VALUES
-(1, 1, 1, 1, 'CREATE', 'WORKFLOW', '1', '{"name":"每日 GMV 工作流"}', TIMESTAMP '2026-06-06 00:00:00'),
-(2, 1, 1, 1, 'DIAGNOSE', 'TASK_INSTANCE', '01910000-0010-7000-8000-000000000001', '{"result":"OOM@node-3"}', TIMESTAMP '2026-06-10 02:08:00');
+(1, 1, 1, 1, 'CREATE', 'WORKFLOW', '1', '{"name":"每日 GMV 工作流"}', TIMESTAMP '2026-06-06 00:00:00');
 
 -- ===== 域 H · Agent 策略规则（policy_rules）=====
 -- 分级维度：爆炸半径 × 可逆性 × 资源归属 × 环境。归属/环境/数量阈值在 PolicyEngine 运行时抬升，

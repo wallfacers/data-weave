@@ -2,6 +2,7 @@ package com.dataweave.api;
 
 import com.dataweave.api.application.bridge.WorkhorseClient;
 import com.dataweave.api.application.bridge.WorkhorseEvent;
+import com.dataweave.api.application.bridge.WorkhorseHealth;
 import com.dataweave.master.domain.AgentRun;
 import com.dataweave.master.domain.AgentRunRepository;
 import com.dataweave.master.domain.AgentStep;
@@ -36,6 +37,13 @@ class AguiWorkhorseModeTest {
 
     @TestConfiguration
     static class StubConfig {
+        /** probe gating：显式 workhorse 模式下注入恒健康，绕过对真实 sidecar 的 HTTP 探测。 */
+        @Bean
+        @Primary
+        WorkhorseHealth stubWorkhorseHealth() {
+            return () -> true;
+        }
+
         @Bean
         @Primary
         WorkhorseClient stubWorkhorseClient() {

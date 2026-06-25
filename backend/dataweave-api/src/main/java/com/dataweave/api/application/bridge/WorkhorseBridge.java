@@ -8,6 +8,8 @@ import com.dataweave.master.domain.AgentStep;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -102,6 +104,24 @@ public class WorkhorseBridge {
 
             return Flux.concat(header, body, trailer);
         });
+    }
+
+    /**
+     * Headless oneshot：起一个临时 workhorse 会话发一条消息，聚合全部 {@code text} 增量为最终文本返回，
+     * 不经前端 SSE、不落对话审计。供后台诊断（{@code WorkhorseDiagnosisAnalyzer}）等非对话流复用。
+     *
+     * @param instructions 系统指令（如「你是诊断分析器，只输出 JSON」）
+     * @param message      用户消息（诊断上下文 prompt）
+     */
+    public Mono<String> runHeadless(String instructions, String message) {
+        // metadata 值须为字符串：workhorse /v1/sessions 对非字符串值（如 boolean）返回 400。
+        return Mono.fromCallable(() -> client.createSession(instructions, Map.of("headless", "true")))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMapMany(sessionId -> client.sendMessage(sessionId, message))
+                .filter(ev -> "text".equals(ev.type()) && ev.text() != null)
+                .map(WorkhorseEvent::text)
+                .collect(java.util.stream.Collectors.joining())
+                .map(String::trim);
     }
 
     private Flux<ServerSentEvent<String>> mapEvent(WorkhorseEvent ev, Long runId, String messageId,

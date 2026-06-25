@@ -1,6 +1,7 @@
 package com.dataweave.api.application;
 
 import com.dataweave.api.application.bridge.WorkhorseBridge;
+import com.dataweave.api.application.bridge.WorkhorseHealth;
 import com.dataweave.api.interfaces.dto.PageContext;
 import com.dataweave.api.interfaces.dto.RunAgentInput;
 import com.dataweave.master.application.AgentAuditService;
@@ -31,6 +32,7 @@ public class AguiOrchestrator {
 
     private final IntentRouter intentRouter;
     private final WorkhorseBridge workhorseBridge;
+    private final WorkhorseHealth workhorseHealth;
     private final AgentAuditService audit;
     private final AguiEvents events;
     private final Messages messages;
@@ -38,12 +40,14 @@ public class AguiOrchestrator {
 
     public AguiOrchestrator(IntentRouter intentRouter,
                             WorkhorseBridge workhorseBridge,
+                            WorkhorseHealth workhorseHealth,
                             AgentAuditService audit,
                             AguiEvents events,
                             Messages messages,
-                            @Value("${agent.mode:mock}") String mode) {
+                            @Value("${agent.mode:workhorse}") String mode) {
         this.intentRouter = intentRouter;
         this.workhorseBridge = workhorseBridge;
+        this.workhorseHealth = workhorseHealth;
         this.audit = audit;
         this.events = events;
         this.messages = messages;
@@ -57,7 +61,8 @@ public class AguiOrchestrator {
         PageContext context = input.pageContext();
         List<RunAgentInput.Attachment> attachments = input.attachments();
 
-        if ("workhorse".equalsIgnoreCase(mode)) {
+        boolean wantWorkhorse = "workhorse".equalsIgnoreCase(mode);
+        if (wantWorkhorse && workhorseHealth.isHealthy()) {
             // 附件段拼在页面上下文段之后，一并喂给真脑（实体引用 + 文件名，文件可经 /api/chat/files/{id} 回取）。
             String segment = joinSegments(context.toPromptSegment(locale, messages),
                     attachmentSegment(attachments, locale));
@@ -65,12 +70,17 @@ public class AguiOrchestrator {
                     .subscribeOn(Schedulers.boundedElastic());
         }
 
-        // mock 模式：IntentRouter 路径 + 同样留痕
+        // mock 路径（显式 mock，或 workhorse 不可用时的优雅降级）：IntentRouter + 同样留痕。
+        // 降级（本意 workhorse 但探测不健康）时前置一句温和提示，结构化结果/视图召唤不变。
+        boolean degraded = wantWorkhorse;
         return Flux.defer(() -> {
                     AgentSession session = audit.getOrCreateSession(threadId, "MOCK", null);
                     AgentRun runRow = audit.startRun(session.getId(), runId, "USER_MESSAGE", userMessage);
                     AgentReply reply = withAttachmentAck(intentRouter.route(userMessage, context, locale),
                             attachments, locale);
+                    if (degraded) {
+                        reply = withDegradeNotice(reply, locale);
+                    }
                     recordMockStep(runRow.getId(), userMessage, reply);
                     audit.finishRun(runRow.getId(), "FINISHED");
                     return Flux.fromIterable(buildEvents(threadId, runId, UUID.randomUUID().toString(), reply));
@@ -124,6 +134,13 @@ public class AguiOrchestrator {
                 .reduce((x, y) -> x + ", " + y).orElse("");
         String ack = messages.get("agent.attach.ack", locale, attachments.size(), labels);
         return new AgentReply(ack + "\n\n" + reply.markdown(), reply.structured(),
+                reply.customEventName(), reply.uiOpen());
+    }
+
+    /** 降级路径：在回复前置一句温和提示「真实大脑暂不可用，已降级规则引擎」；结构化结果/视图召唤不变。 */
+    private AgentReply withDegradeNotice(AgentReply reply, Locale locale) {
+        String notice = messages.get("agent.degraded.notice", locale);
+        return new AgentReply(notice + "\n\n" + reply.markdown(), reply.structured(),
                 reply.customEventName(), reply.uiOpen());
     }
 

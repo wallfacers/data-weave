@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * <p>把用户最后一条消息按关键词路由到 5 种意图：指标查询 / Text-to-SQL / 建任务 / 血缘 / 兜底。
  * 命中后调对应领域服务，产出 {@link AgentReply}（Markdown 文本 + 可选结构化结果）。
  *
- * <p>真模型接缝：后期用 {@link LlmClient} 做意图分类 + 槽位抽取 + SQL 生成，替换这里的关键词规则，
+ * <p>真模型能力已统一由 workhorse 大脑提供，此处仅保留规则兜底；
  * 编排器与领域服务调用方式不变。
  */
 @Component
@@ -50,8 +50,6 @@ public class IntentRouter {
     private final LineageService lineageService;
     private final TaskService taskService;
     private final SqlExecutionService sqlExecutionService;
-    @SuppressWarnings("unused")
-    private final LlmClient llmClient; // 预留：后期做真实意图识别/SQL 生成
     private final FleetService fleetService;
     private final DiagnosisService diagnosisService;
     private final DataOpsBridge dataOpsBridge;
@@ -63,7 +61,6 @@ public class IntentRouter {
                         LineageService lineageService,
                         TaskService taskService,
                         SqlExecutionService sqlExecutionService,
-                        LlmClient llmClient,
                         FleetService fleetService,
                         DiagnosisService diagnosisService,
                         DataOpsBridge dataOpsBridge,
@@ -74,7 +71,6 @@ public class IntentRouter {
         this.lineageService = lineageService;
         this.taskService = taskService;
         this.sqlExecutionService = sqlExecutionService;
-        this.llmClient = llmClient;
         this.fleetService = fleetService;
         this.diagnosisService = diagnosisService;
         this.dataOpsBridge = dataOpsBridge;

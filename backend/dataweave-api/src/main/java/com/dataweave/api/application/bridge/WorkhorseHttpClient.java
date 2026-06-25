@@ -52,7 +52,7 @@ public class WorkhorseHttpClient implements WorkhorseClient {
     public String createSession(String instructions, Map<String, Object> metadata) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("instructions", instructions);
-        body.put("metadata", metadata);
+        body.put("metadata", stringifyValues(metadata));
         Map<String, Object> resp = webClient.post().uri("/v1/sessions")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
@@ -85,6 +85,20 @@ public class WorkhorseHttpClient implements WorkhorseClient {
                 .filter(ev -> !"done".equals(ev.type()));
 
         return submit.thenMany(stream);
+    }
+
+    /**
+     * workhorse {@code POST /v1/sessions} 要求 metadata 为<b>字符串字典</b>：非字符串值
+     * （boolean/number/null）会被拒 400。在客户端边界统一把值 coerce 成字符串，避免每个调用点
+     * 各自记得传字符串而 regress（曾因 {@code {"headless": true}} 致诊断会话建立失败回落 mock）。
+     */
+    static Map<String, Object> stringifyValues(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        metadata.forEach((k, v) -> out.put(k, v == null ? "" : String.valueOf(v)));
+        return out;
     }
 
     private void rememberIdx(String sessionId, ServerSentEvent<String> sse) {

@@ -20,9 +20,10 @@ cli/dw-*
 .playwright-cli/
 .playwright/
 
-# workhorse 本地真 key 配置，禁止提交
+# workhorse 本地真 key 配置，禁止提交（** 兜底任意目录下的 config.local.yaml，含 frontend/ 等）
 deploy/workhorse/config.local.yaml
 deploy/workhorse/.env.workhorse
+**/config.local.yaml
 
 # workhorse-agent 预编译二进制（六平台，由 fetch-bin.sh 产出；交付物非源码，不入 git）
 deploy/workhorse/bin/

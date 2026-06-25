@@ -13,9 +13,12 @@ import java.util.Map;
 
 /**
  * 通用发现 REST 契约（proactive-discovery）：举手台列表 + 一键修复经闸门分流。h2 零依赖。
+ *
+ * <p>OOM 演示种子（finding id=1 / 诊断）已移至 demo profile（demo-data.sql），故本测试显式叠加
+ * {@code demo} profile 引入该素材；默认启动不含演示假数据（agent-real-brain change）。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("h2")
+@ActiveProfiles({"h2", "demo"})
 class FindingEndpointTest {
 
     @LocalServerPort

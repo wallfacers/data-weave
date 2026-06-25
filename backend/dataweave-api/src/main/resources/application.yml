@@ -25,7 +25,9 @@ server:
 
 # Agent 大脑模式与策略闸门（agent-fabric-m1）
 agent:
-  mode: mock                       # mock（默认零依赖）| workhorse（接 LLM 大脑）
+  mode: workhorse                  # workhorse（默认，真实 LLM 大脑）| mock（规则兜底，零依赖）
+  #   默认走 workhorse 真实大脑；workhorse 不可用时由 WorkhorseHealthProbe 探测并自动降级 mock
+  #   （CI / fresh clone / 无 key 环境照常跑）。测试默认 mock（src/test/resources/application.properties）。
   workhorse:
     base-url: http://127.0.0.1:8300
     # sidecar 进程托管（dataweave-managed-sidecar）。managed=false（默认）时 supervisor 旁路、
