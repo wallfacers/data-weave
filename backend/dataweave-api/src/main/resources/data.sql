@@ -168,6 +168,82 @@ INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, work
 -- 试跑：脱离工作流、跑草稿版(task_version_no=NULL)、run_mode=TEST，不计入生产
 ('01910000-0010-7000-8000-00000000000a', 1, 1, NULL, NULL, 1, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
 
+-- ===== 手动任务流种子数据（schedule_type=MANUAL, status=ONLINE）=====
+-- 供「手动任务流列表」Tab 展示：3 条不同规模的手动工作流，覆盖单节点 / 链式 / 菱形 DAG，
+-- 字段填充完整（last_fire_time / priority / timeout_sec / has_draft_change）。
+
+-- 手动工作流关联任务定义
+INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(20, 1, 1, '广告投放数据抽取', 'SQL', 'select campaign_id, impressions, clicks, spend from ad_platform.campaigns', 1, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-20 00:00:00', TIMESTAMP '2026-06-20 00:00:00', 0, 0),
+(21, 1, 1, '异常数据检测',     'SQL', 'select id, table_name, error_type, row_count from data_quality.alerts where severity=''HIGH''', 1, NULL, NULL, 300, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(22, 1, 1, '数据修复执行',     'SHELL', 'echo "[修复] done"', NULL, NULL, NULL, 1800, 2, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(23, 1, 1, '修复结果验证',     'SQL', 'select table_name, case when error_count=0 then ''PASS'' else ''FAIL'' end as result from data_quality.alerts where fix_applied=1', 1, NULL, NULL, 300, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(24, 1, 1, '收入汇总',         'SQL', 'select channel, sum(amount) as revenue from finance.income where month=:bizdate group by channel', 1, NULL, NULL, 900, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(25, 1, 1, '支出汇总',         'SQL', 'select dept, sum(amount) as expense from finance.expense where month=:bizdate group by dept', 1, NULL, NULL, 900, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(26, 1, 1, '对账差异计算',     'SQL', 'select i.channel, i.revenue, e.expense, (i.revenue - e.expense) as diff from revenue_sum i join expense_sum e on i.channel=e.dept', 1, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(27, 1, 1, '对账报告输出',     'SHELL', 'echo "[报告] done"', NULL, NULL, NULL, 1200, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0);
+
+-- 任务已发布版本快照
+INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
+(20, 1, 1, 20, 1, '广告投放数据抽取', 'SQL', 'select campaign_id, impressions, clicks, spend from ad_platform.campaigns', 1, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-20 00:00:00', TIMESTAMP '2026-06-20 00:00:00'),
+(21, 1, 1, 21, 1, '异常数据检测',     'SQL', 'select id, table_name, error_type, row_count from data_quality.alerts where severity=''HIGH''', 1, NULL, NULL, 300, 1, '首次发布', 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00'),
+(22, 1, 1, 22, 1, '数据修复执行',     'SHELL', 'echo "[修复] done"', NULL, NULL, NULL, 1800, 2, '首次发布', 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00'),
+(23, 1, 1, 23, 1, '修复结果验证',     'SQL', 'select table_name, case when error_count=0 then ''PASS'' else ''FAIL'' end as result from data_quality.alerts where fix_applied=1', 1, NULL, NULL, 300, 1, '首次发布', 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00'),
+(24, 1, 1, 24, 1, '收入汇总',         'SQL', 'select channel, sum(amount) as revenue from finance.income where month=:bizdate group by channel', 1, NULL, NULL, 900, 1, '首次发布', 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00'),
+(25, 1, 1, 25, 1, '支出汇总',         'SQL', 'select dept, sum(amount) as expense from finance.expense where month=:bizdate group by dept', 1, NULL, NULL, 900, 1, '首次发布', 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00'),
+(26, 1, 1, 26, 1, '对账差异计算',     'SQL', 'select i.channel, i.revenue, e.expense, (i.revenue - e.expense) as diff from revenue_sum i join expense_sum e on i.channel=e.dept', 1, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00'),
+(27, 1, 1, 27, 1, '对账报告输出',     'SHELL', 'echo "[报告] done"', NULL, NULL, NULL, 1200, 1, '首次发布', 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00');
+
+-- 手动工作流定义（字段完整填充）
+INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, last_fire_time, priority, preemptible, timeout_sec, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(4, 1, 1, '广告投放报表刷新', '按需拉取广告平台投放数据，刷新 BI 报表', 'MANUAL', NULL, NULL, NULL, 'ONLINE', 1, 0, TIMESTAMP '2026-06-24 14:30:00', 5, 0, 600, 1, 1, TIMESTAMP '2026-06-20 00:00:00', TIMESTAMP '2026-06-24 14:32:00', 0, 0),
+(5, 1, 1, '数据质量修复管道', '检测异常 → 自动修复 → 验证结果，三步修复管道。可按需抢占低优任务。', 'MANUAL', NULL, NULL, NULL, 'ONLINE', 1, 0, NULL, 8, 1, 3600, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(6, 1, 1, '月度财务对账',   '每月收入/支出汇总 → 差异计算 → 生成对账报告。涉及财务核心数据，最高优先级不可抢占。', 'MANUAL', NULL, NULL, NULL, 'ONLINE', 1, 1, TIMESTAMP '2026-05-31 09:00:00', 10, 0, 7200, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-06-23 00:00:00', 0, 0);
+
+-- 工作流已发布版本快照（dag_snapshot_json 包含完整 DAG）
+INSERT INTO workflow_def_version (id, tenant_id, project_id, workflow_id, version_no, name, description, schedule_type, cron, dag_snapshot_json, remark, published_by, published_at, created_at) VALUES
+(4, 1, 1, 4, 1, '广告投放报表刷新', '按需拉取广告平台投放数据', 'MANUAL', NULL,
+  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":20,"taskVersionNo":1,"name":"广告投放数据抽取","posX":300,"posY":160}],"edges":[]}',
+  '首次发布', 1, TIMESTAMP '2026-06-20 00:00:00', TIMESTAMP '2026-06-20 00:00:00'),
+(5, 1, 1, 5, 1, '数据质量修复管道', '检测→修复→验证', 'MANUAL', NULL,
+  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":21,"taskVersionNo":1,"name":"异常数据检测","posX":100,"posY":160},{"nodeKey":"n2","nodeType":"TASK","taskId":22,"taskVersionNo":1,"name":"数据修复执行","posX":300,"posY":160},{"nodeKey":"n3","nodeType":"TASK","taskId":23,"taskVersionNo":1,"name":"修复结果验证","posX":500,"posY":160}],"edges":[{"fromNodeKey":"n1","toNodeKey":"n2","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n3","strength":"STRONG"}]}',
+  '首次发布', 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00'),
+(6, 1, 1, 6, 1, '月度财务对账', '收入/支出→差异→报告', 'MANUAL', NULL,
+  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":24,"taskVersionNo":1,"name":"收入汇总","posX":100,"posY":100},{"nodeKey":"n2","nodeType":"TASK","taskId":25,"taskVersionNo":1,"name":"支出汇总","posX":100,"posY":220},{"nodeKey":"n3","nodeType":"TASK","taskId":26,"taskVersionNo":1,"name":"对账差异计算","posX":320,"posY":160},{"nodeKey":"n4","nodeType":"TASK","taskId":27,"taskVersionNo":1,"name":"对账报告输出","posX":540,"posY":160}],"edges":[{"fromNodeKey":"n1","toNodeKey":"n3","strength":"STRONG"},{"fromNodeKey":"n2","toNodeKey":"n3","strength":"STRONG"},{"fromNodeKey":"n3","toNodeKey":"n4","strength":"STRONG"}]}',
+  '首次发布', 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00');
+
+-- DAG 节点
+INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node_key, name, pos_x, pos_y, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(10, 1, 1, 4, 20, 'n1', '广告投放数据抽取', 300, 160, 1, 1, TIMESTAMP '2026-06-20 00:00:00', TIMESTAMP '2026-06-20 00:00:00', 0, 0),
+(11, 1, 1, 5, 21, 'n1', '异常数据检测',     100, 160, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(12, 1, 1, 5, 22, 'n2', '数据修复执行',     300, 160, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(13, 1, 1, 5, 23, 'n3', '修复结果验证',     500, 160, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(14, 1, 1, 6, 24, 'n1', '收入汇总',         100, 100, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(15, 1, 1, 6, 25, 'n2', '支出汇总',         100, 220, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(16, 1, 1, 6, 26, 'n3', '对账差异计算',     320, 160, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(17, 1, 1, 6, 27, 'n4', '对账报告输出',     540, 160, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0);
+
+-- DAG 边（wf5 链式、wf6 菱形汇聚）
+INSERT INTO workflow_edge (id, tenant_id, project_id, workflow_id, from_node_id, to_node_id, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(9,  1, 1, 5, 11, 12, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(10, 1, 1, 5, 12, 13, 1, 1, TIMESTAMP '2026-06-15 00:00:00', TIMESTAMP '2026-06-15 00:00:00', 0, 0),
+(11, 1, 1, 6, 14, 16, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(12, 1, 1, 6, 15, 16, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0),
+(13, 1, 1, 6, 16, 17, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0);
+
+-- 手动触发工作流实例（wf4 运行 1 次成功、wf6 运行 1 次成功；wf5 尚未触发过）
+INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0004-7000-8000-000000000004', 1, 1, 4, 1, 'MANUAL', 'SUCCESS', '2026-06-24', TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', 0, 0),
+('01910000-0006-7000-8000-000000000006', 1, 1, 6, 1, 'MANUAL', 'SUCCESS', '2026-05-31', TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', 0, 0);
+
+-- 任务实例（wf4 单节点成功；wf6 四节点全部成功）
+INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0040-7000-8000-000000000001', 1, 1, '01910000-0004-7000-8000-000000000004', 10, 20, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-24 14:30:05', TIMESTAMP '2026-06-24 14:31:50', '[mock] 抽取广告数据 12000 行，刷新报表完成', 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:31:50', 0, 0),
+('01910000-0060-7000-8000-000000000001', 1, 1, '01910000-0006-7000-8000-000000000006', 14, 24, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:08:30', '[mock] 收入汇总完成: 5 channels, total=12,580,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:08:30', 0, 0),
+('01910000-0060-7000-8000-000000000002', 1, 1, '01910000-0006-7000-8000-000000000006', 15, 25, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:07:15', '[mock] 支出汇总完成: 8 depts, total=9,320,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:07:15', 0, 0),
+('01910000-0060-7000-8000-000000000003', 1, 1, '01910000-0006-7000-8000-000000000006', 16, 26, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', '[mock] 对账差异: 3 channels 差异>5%, 需人工复核', 1, 1, TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', 0, 0),
+('01910000-0060-7000-8000-000000000004', 1, 1, '01910000-0006-7000-8000-000000000006', 17, 27, 1, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', '[mock] 对账报告 PDF 已生成: /reports/2026-05-reconciliation.pdf', 1, 1, TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', 0, 0);
+
 -- demo（proactive-discovery）：一条「未诊断」的 FAILED 实例（无对应 finding/diagnosis），
 -- 供 InspectorScheduler 启动后实时发现 → 自动诊断（真证据：node-3 mem 95%）→ 举手台冒出新卡片
 -- → Agent 主动开口。fresh boot 即可演示主动发现链路，无需 PG/故障注入脚本。

@@ -28,6 +28,18 @@ import { useWorkspaceStore } from "@/lib/workspace/store"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { authFetch, API_BASE, type ApiResponse, type WorkflowDef } from "@/lib/types"
 
+/** 简单的日期时间格式化：ISO → 可读字符串，空值返回 "—"。 */
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—"
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso
+    return d.toLocaleString("zh-CN", { hour12: false })
+  } catch {
+    return iso
+  }
+}
+
 interface RunResponse {
   code: number
   data?: { outcome?: "EXECUTED" | "PENDING_APPROVAL" | "REJECTED"; message?: string } | null
@@ -113,6 +125,10 @@ export function ManualWorkflowsPanel() {
                 <TableHead>{t("colWorkflowName")}</TableHead>
                 <TableHead className="w-24">{t("colStatus")}</TableHead>
                 <TableHead className="w-20 text-right">{t("colVersion")}</TableHead>
+                <TableHead className="w-36">{t("colLastFireTime")}</TableHead>
+                <TableHead className="w-16 text-right">{t("colPriority")}</TableHead>
+                <TableHead className="w-20 text-right">{t("colTimeout")}</TableHead>
+                <TableHead className="w-36">{t("colCreatedAt")}</TableHead>
                 <TableHead className="w-44 text-right">{t("colActions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -131,7 +147,24 @@ export function ManualWorkflowsPanel() {
                       <Badge variant="success">{t("statusOnline")}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
-                      v{wf.currentVersionNo}
+                      <span>v{wf.currentVersionNo}</span>
+                      {wf.hasDraftChange === 1 && (
+                        <Badge variant="outline" className="ml-1 h-4 px-1 text-[10px] leading-none text-amber-500 border-amber-500/50">
+                          {t("draftChange")}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {formatDateTime(wf.lastFireTime)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums">
+                      {wf.priority != null ? wf.priority : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      {wf.timeoutSec != null ? `${wf.timeoutSec}s` : "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {formatDateTime(wf.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
