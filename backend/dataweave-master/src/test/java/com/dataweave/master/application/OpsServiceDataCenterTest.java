@@ -8,6 +8,7 @@ import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
+import com.dataweave.master.i18n.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -94,7 +95,7 @@ class OpsServiceDataCenterTest {
         when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
 
         assertThatThrownBy(() -> ops.setSuccess(ti.getId()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BizException.class);
         verify(stateMachine, never()).casTaskTerminal(any(), any(), any(), any());
         verify(eventBus, never()).publish(any(), any());
     }
@@ -105,7 +106,7 @@ class OpsServiceDataCenterTest {
         when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
 
         assertThatThrownBy(() -> ops.setSuccess(ti.getId()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BizException.class);
         verify(stateMachine, never()).casTaskTerminal(any(), any(), any(), any());
     }
 
@@ -128,7 +129,7 @@ class OpsServiceDataCenterTest {
         when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
 
         assertThatThrownBy(() -> ops.rerunInstance(ti.getId()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BizException.class);
         verify(eventBus, never()).publish(any(), any());
     }
 

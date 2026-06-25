@@ -190,7 +190,26 @@
     "viewDag": "View DAG",
     "runOnce": "Run once",
     "runOnceSuccess": "Run triggered: {name}",
-    "runFailed": "Run failed: {msg}"
+    "runFailed": "Run failed: {msg}",
+    "colRecentResult": "Last trigger",
+    "recentNever": "Never fired",
+    "filterWfName": "Workflow name",
+    "filterDraft": "Draft change",
+    "draftOnly": "Has draft change",
+    "draftNone": "No draft change",
+    "filterRecentResult": "Last trigger result",
+    "presetDraftChange": "Has draft change",
+    "presetRecentFailed": "Last trigger failed",
+    "presetTodayFailed": "Failed today",
+    "presetRunning": "Running",
+    "cronDaily": "Daily {time}",
+    "cronWeekday": "Weekdays {time}",
+    "cronMonthly": "Day {day} monthly {time}",
+    "backfillFilterState": "State",
+    "backfillFilterTarget": "Target",
+    "backfillFilterBizDate": "Business date",
+    "presetBackfillRunning": "Running",
+    "presetBackfillPartial": "Partial failure"
   },
   "views": {
     "cockpit": "Cockpit",
@@ -742,7 +761,17 @@
     "dialogEditRole": "Edit Role",
     "dialogCreateProject": "Add Project",
     "dialogEditProject": "Edit Project",
-    "fieldPasswordEditHint": "Leave blank to keep current password"
+    "fieldPasswordEditHint": "Leave blank to keep current password",
+    "emptyTitleUsers": "No users",
+    "emptyTitleRoles": "No roles",
+    "emptyTitleProjects": "No projects",
+    "filterRole": "Role",
+    "filterSearchUser": "Search username or email",
+    "filterSearchRole": "Search role",
+    "filterSearchProject": "Search project",
+    "filterStatus": "Status",
+    "filterStatusProject": "Status",
+    "statusProjectArchived": "Archived"
   },
   "logPanel": {
     "taskFallback": "Task #{id}",
@@ -996,7 +1025,13 @@
       "unbind": "Unbind",
       "driverUploaded": "Driver jar uploaded",
       "uploadFailed": "Driver jar upload failed"
-    }
+    },
+    "emptyTitle": "No datasources",
+    "emptyHint": "No datasource connections configured yet",
+    "filterSearch": "Search name or host",
+    "filterStatus": "Connection status",
+    "filterType": "Type",
+    "presetDisconnected": "Disconnected"
   },
   "dataTable": {
     "allLabel": "All",

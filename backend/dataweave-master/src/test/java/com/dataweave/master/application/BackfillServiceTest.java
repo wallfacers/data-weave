@@ -8,6 +8,7 @@ import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.i18n.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -132,18 +133,18 @@ class BackfillServiceTest {
     @Test
     void endBeforeStartRejected() {
         BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-22", "2026-06-20", false, 1);
-        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(BizException.class);
     }
 
     @Test
     void unknownTargetTypeRejected() {
         BackfillRequest req = new BackfillRequest("nope", 10L, "2026-06-20", "2026-06-20", false, 1);
-        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(BizException.class);
     }
 
     @Test
     void missingTargetRejected() {
         BackfillRequest req = new BackfillRequest("task", null, "2026-06-20", "2026-06-20", false, 1);
-        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> backfill.submitBackfill(req)).isInstanceOf(BizException.class);
     }
 }

@@ -190,7 +190,26 @@
     "viewDag": "查看 DAG",
     "runOnce": "运行一次",
     "runOnceSuccess": "已触发运行：{name}",
-    "runFailed": "运行失败：{msg}"
+    "runFailed": "运行失败：{msg}",
+    "colRecentResult": "最近触发",
+    "recentNever": "从未触发",
+    "filterWfName": "任务流名称",
+    "filterDraft": "草稿改动",
+    "draftOnly": "有未发布改动",
+    "draftNone": "无改动",
+    "filterRecentResult": "最近触发结果",
+    "presetDraftChange": "有未发布改动",
+    "presetRecentFailed": "最近触发失败",
+    "presetTodayFailed": "今天失败",
+    "presetRunning": "正在运行",
+    "cronDaily": "每天 {time}",
+    "cronWeekday": "工作日 {time}",
+    "cronMonthly": "每月{day}日 {time}",
+    "backfillFilterState": "状态",
+    "backfillFilterTarget": "目标",
+    "backfillFilterBizDate": "业务日期",
+    "presetBackfillRunning": "进行中",
+    "presetBackfillPartial": "部分失败"
   },
   "views": {
     "cockpit": "驾驶舱",
@@ -742,7 +761,17 @@
     "dialogEditRole": "编辑角色",
     "dialogCreateProject": "新增项目",
     "dialogEditProject": "编辑项目",
-    "fieldPasswordEditHint": "留空则不修改密码"
+    "fieldPasswordEditHint": "留空则不修改密码",
+    "emptyTitleUsers": "暂无用户",
+    "emptyTitleRoles": "暂无角色",
+    "emptyTitleProjects": "暂无项目",
+    "filterRole": "角色",
+    "filterSearchUser": "搜索用户名/邮箱",
+    "filterSearchRole": "搜索角色",
+    "filterSearchProject": "搜索项目",
+    "filterStatus": "状态",
+    "filterStatusProject": "状态",
+    "statusProjectArchived": "已归档"
   },
   "logPanel": {
     "taskFallback": "任务 #{id}",
@@ -996,7 +1025,13 @@
       "unbind": "解绑",
       "driverUploaded": "驱动 jar 上传成功",
       "uploadFailed": "驱动 jar 上传失败"
-    }
+    },
+    "emptyTitle": "暂无数据源",
+    "emptyHint": "还没有配置任何数据源连接",
+    "filterSearch": "搜索名称/主机",
+    "filterStatus": "连接状态",
+    "filterType": "类型",
+    "presetDisconnected": "连接异常"
   },
   "dataTable": {
     "allLabel": "全部",
