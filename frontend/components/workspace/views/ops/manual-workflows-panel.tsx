@@ -23,22 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { authFetch, API_BASE, type ApiResponse, type WorkflowDef } from "@/lib/types"
-
-/** 简单的日期时间格式化：ISO → 可读字符串，空值返回 "—"。 */
-function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—"
-  try {
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return iso
-    return d.toLocaleString("zh-CN", { hour12: false })
-  } catch {
-    return iso
-  }
-}
 
 interface RunResponse {
   code: number
@@ -49,6 +38,7 @@ interface RunResponse {
 export function ManualWorkflowsPanel() {
   const t = useTranslations("ops")
   const open = useWorkspaceStore((s) => s.open)
+  const formatDateTime = useFormatDateTime()
   const [workflows, setWorkflows] = useState<WorkflowDef[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<number | null>(null)
