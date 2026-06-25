@@ -55,8 +55,8 @@ docker-compose.yml                 # PostgreSQL + Redis (+ workhorse profile); b
 # Backend (connects to PostgreSQL by default; start the Docker DB first)
 cd backend
 docker compose up -d                               # PostgreSQL + Redis (default localhost:5432)
-./mvnw install -DskipTests                         # required on first run / after changing domain·application·infra
-./mvnw -pl dataweave-api spring-boot:run           # port 8000; AG-UI: POST /agui; health: GET /api/health
+./dev-install.sh                                    # fast local build (mvnd + cache, skip tests/fat jar)
+./mvnw -pl dataweave-api spring-boot:run            # port 8000; AG-UI: POST /agui; health: GET /api/health
 
 # Frontend
 cd frontend
@@ -64,7 +64,7 @@ pnpm install
 pnpm dev                                           # http://localhost:4000 (left chat cockpit + right Workspace)
 
 # Zero external deps (H2 in-memory, no Docker)
-cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=h2
+cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=h2
 ```
 
 Entry points: frontend `http://localhost:4000`, backend `http://localhost:8000`; frontend connects via `NEXT_PUBLIC_AGENT_URL` (default `http://localhost:8000/agui`).
@@ -83,7 +83,7 @@ Entry points: frontend `http://localhost:4000`, backend `http://localhost:8000`;
   # 1) Start workhorse (deploy config in deploy/workhorse/, needs ANTHROPIC_API_KEY/OPENAI_API_KEY)
   docker compose --profile workhorse up -d workhorse
   # 2) Switch backend to workhorse mode
-  ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.arguments=--agent.mode=workhorse
+  cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.arguments=--agent.mode=workhorse
   ```
 - **MCP endpoint**: `POST /mcp` (JSON-RPC: initialize/tools/list/tools/call, Bearer `mcp.auth.token`). workhorse connects via `deploy/workhorse/mcp.json`; tokens must match on both sides.
 - **dw CLI**: `cd cli && ./build.sh`; `DW_API` (default `:8000`), `DW_TOKEN` (write ops send `X-DW-Token`, maps to `cli.auth.token`).
@@ -143,10 +143,15 @@ This file is the map; details live elsewhere:
 - **Frontend**: after each edit run `cd frontend && pnpm typecheck` — confirm zero type errors before continuing.
 - **Exception**: high-confidence small changes (comments/copy/single-line literals) may skip; when unsure, run it.
 
-### Backend Run vs Compile
+### Backend Build
 
-- `./mvnw -pl dataweave-api spring-boot:run` loads sibling modules (master/worker/alert) from `~/.m2`, **not** `target/classes`. After changing domain/application/infrastructure you must first `./mvnw install -DskipTests` (or `-pl <module> -am`), otherwise the running process still uses old classes.
-- Single-module run without a prior install errors with "sibling jar not found".
+- **Always use `./dev-install.sh` for local builds** — it auto-detects `mvnd` (Maven Daemon, ~5x faster) and falls back to `mvnw`. It skips tests and fat jar repackaging, and the build cache extension (`.mvn/extensions.xml`) reuses unchanged modules by content hash.
+  ```bash
+  cd backend && ./dev-install.sh                           # full install, all four modules
+  cd backend && ./dev-install.sh -pl dataweave-master -am  # single module + upstream deps only
+  ```
+- After changing domain/application/infrastructure, `dev-install.sh` installs to `~/.m2` so `spring-boot:run` picks up the new classes. Skipping this step means the running process still uses old jars.
+- Use `./mvnw install` (without the dev flags) only for CI or deployment builds — those need tests and the fat jar.
 
 ### Browser Verification Gate (hard)
 
