@@ -169,3 +169,36 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 | 默认 | `oklch(0.556 0 0 / 85%)` | `oklch(0.708 0 0 / 85%)` |
 | hover | `oklch(0.556 0 0)` | `oklch(0.708 0 0)` |
 | active | `oklch(0.45 0 0)` | `oklch(0.6 0 0)` |
+
+## 数据表格 —— `DataTable`
+
+**设计立场：全项目结构化列表表格只有一种长相。** 任何「管理/监控列表」一律用 `components/ui/data-table.tsx`（`DataTable<T>`）+ `data-table-toolbar.tsx`（`DataTableToolbar`）渲染，禁止再手写 `<table>` 或散落 `TableHead/TableCell` 拼版式。标杆为周期实例面板，规范即其沉淀。
+
+### 版式（三段式固定布局）
+
+- **筛选工具栏 `shrink-0`** → **表格区 `flex-1`** → **分页 `shrink-0`**，三段各自固定，绝不「整个 Tab 一起滚」。
+- **固定表头**：表头与数据行拆为两张 `<table>`，**共享同一份 `colgroup` + `table-fixed`**（列宽严格对齐）；表头表在 `DwScroll` 外固定不滚，**仅数据行区域用 `DwScroll`（`direction="vertical"`）纵向滚动**——滚动条只落在数据区，不覆盖表头、不在表头右上缺角。
+- 列宽用 `colgroup` 百分比（`ColumnDef.widthPct`），加总≈100；不用逐列 `w-*` 硬编码。
+- 单元格：数字/时间列 `tabular-nums text-xs`，长文本 `truncate` + `title`，状态用 `Badge`，操作列 `text-right`。行 hover 用基础 `TableRow` 的 `hover:bg-muted/50`，无斑马纹。
+
+### 筛选工具栏（`DataTableToolbar`）
+
+- **统一筛选词汇（`FilterDef.kind`）**：`search`（防抖多字段文本，左置放大镜）/ `segmented`（二元·小枚举段控，含「全部」）/ `multiSelect`（枚举多选，portal 下拉）/ `dateRange`（双 `DatePicker` 区间）/ `toggle`（布尔快捷 chip，如「只看我的」）。不暴露无使用价值的维度（手机号、精确到秒的时间戳等）。
+- **主/高级分层**：`tier:"primary"` 常驻（建议 ≤4 条），`tier:"advanced"` 收进「更多筛选」portal 弹层（带激活计数角标）。工具栏不拥挤、不光秃。
+- **激活计数 + 一键清空**：有激活筛选时显示「清空 {n}」。
+- **语义化快捷预设**：`FilterPreset` chips，一次点击设好一组组合回答真实问题（「今天失败」「我的草稿」「连接异常」「部分补数失败」）；预设是真实开关，非装饰。
+- **克制**：小表（如角色，常 <10 行）只给一个搜索框，不堆下拉。
+
+### 数据获取（双模式）
+
+- `DataTable` 同时支持 `mode="client" | "server"`。**列与筛选声明（`ColumnDef`/`FilterDef`）两模式完全一致**，仅取数方式不同。
+- **server 模式**：把 `{filters,page,size}` 交给 `fetcher` 拼后端 query 真实查询（`lib/data-table.ts` 的 `toQueryParams`），不在前端缓存全量再筛选——**禁止 client 端全量兜底假筛选**。
+- **client 模式**：仅用于前端已持有的派生小数据，走 `applyClientFilters` + `paginate` 纯函数。
+- **智能默认**：每表声明默认筛选值，打开即停在最该看的一屏（实例=今天+未成功优先，新鲜度=最陈旧在前），而非空白全量。
+
+### 其它
+
+- **多选批量**：`selectable` + `bulkActions(selectedIds, reload)`；批量写须按返回 `outcome`（EXECUTED/PENDING_APPROVAL/REJECTED）三态分流，绝不以 `code===0` 判成功。
+- **空/加载态**：组件内置——加载显 `Loading`（无 `…`），空显图标 + 标题（`emptyTitle`）+ 提示（`emptyHint`）。
+- **i18n**：组件 chrome 文案走 `dataTable` 命名空间；列头、筛选标签、预设名、空提示由调用方传**已翻译**字符串（按其所在 view 的命名空间）。
+- **基础件来源**：`Pagination`（`components/ui/pagination.tsx`，分页 chrome 走 `ops` 命名空间）、`DwScroll`、`Checkbox`、`DatePicker`、`Badge` 均复用既有 ui 件，不另造。
