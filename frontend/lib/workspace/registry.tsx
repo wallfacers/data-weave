@@ -28,12 +28,10 @@ import {
   Share08Icon,
 } from "@hugeicons/core-free-icons"
 
-import { CockpitView } from "@/components/workspace/views/cockpit-view"
 import { OpsView } from "@/components/workspace/views/ops-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { ReportsView } from "@/components/workspace/views/reports-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
-import { DiagnosisView } from "@/components/workspace/views/diagnosis-view"
 import { FleetView } from "@/components/workspace/views/fleet-view"
 import { SettingsView } from "@/components/workspace/views/settings-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
@@ -64,13 +62,11 @@ const placeholder = (viewKey: string, descKey: string) => {
 }
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
-  cockpit: { icon: DashboardSquare01Icon, component: CockpitView },
   ops: { icon: SettingDone02Icon, component: OpsView },
   "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },
   reports: { icon: Analytics01Icon, component: ReportsView },
   metrics: { icon: Activity02Icon, component: MetricsView },
-  diagnosis: { icon: BugIcon, component: DiagnosisView },
   fleet: { icon: ServerStackIcon, component: FleetView },
   "instance-log": { icon: DocumentCodeIcon, component: InstanceLogView },
   "workflow-instance-detail": { icon: Flowchart01Icon, component: WorkflowInstanceDetail },

@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
-import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { BoxIcon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
@@ -138,13 +137,7 @@ export function InstanceTable({ instances }: { instances: TaskInstance[] }) {
               <TableCell className="font-mono tabular-nums">{inst.id}</TableCell>
               <TableCell className="font-mono tabular-nums">{inst.taskId}</TableCell>
               <TableCell>
-                {inst.state === "FAILED" ? (
-                  <Link href={`/diagnosis?instanceId=${inst.id}`} className="inline-block">
-                    {stateBadge(inst.state)}
-                  </Link>
-                ) : (
-                  stateBadge(inst.state)
-                )}
+                {stateBadge(inst.state)}
               </TableCell>
               <TableCell className="font-mono text-xs">{inst.workerNodeCode ?? "—"}</TableCell>
               <TableCell className="tabular-nums">{formatDateTime(inst.startedAt)}</TableCell>
