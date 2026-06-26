@@ -1,50 +1,152 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+SYNC IMPACT REPORT
+==================
+Version change: (template / unratified) → 1.0.0
+Bump rationale: Initial ratification — fills the placeholder template with the
+Weft "Tasks-as-Code" governing principles derived from specs/005-weft-pivot/spec.md.
+
+Modified principles: (none — initial adoption)
+Added principles:
+  I.   Files-First (文件优先)
+  II.  Server is the Source of Truth (服务器为治理真相源)
+  III. Two-Legged Debugging (本地两条腿调试) — NON-NEGOTIABLE
+  IV.  AI Lives in the Local Agent (AI 归位本地) — NON-NEGOTIABLE
+  V.   Reuse the Kernel (内核复用而非重写)
+Added sections:
+  - Additional Constraints (更名/原地重构/子特性依赖顺序)
+  - Development Workflow & Quality Gates
+  - Governance
+
+Templates requiring updates:
+  ✅ .specify/memory/constitution.md (this file)
+  ⚠ .specify/templates/plan-template.md — review "Constitution Check" gate aligns
+     with Principles I–V before next speckit-plan run
+  ⚠ .specify/templates/spec-template.md — no mandatory-section change required by
+     this constitution; revisit if a sub-spec adds constraints
+  ⚠ .specify/templates/tasks-template.md — ensure task categories cover teardown(A)
+     + round-trip/contract(B,C) + local-runtime(D) + MCP-gate(E) work types
+  ⚠ CLAUDE.md — project map still describes the "AI 数据中台" framing; update its
+     positioning to Weft during sub-feature A (server-side AI teardown)
+
+Follow-up TODOs: none deferred. RATIFICATION_DATE set to adoption date 2026-06-26.
+-->
+
+# Weft Constitution
+
+Weft is a **Tasks-as-Code** platform. Data tasks and task-flows are developed like
+local code: they live as plain-text files in a local git working copy, are authored
+and debugged by the developer's local AI coding agent (Claude Code / Codex), and are
+pushed to a server that governs and runs them. This constitution is the highest
+authority governing the transformation and all of its sub-features.
+
+The transformation is delivered as five ordered sub-features, each with its own spec:
+**A** server-side AI teardown → **B** file-definition contract → **C** pull/push API →
+**D** CLI + local runtime → **E** MCP tool reshape. The vision总纲 is
+`specs/005-weft-pivot/spec.md`; every sub-spec MUST conform to the principles below.
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Files-First (文件优先)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Project, catalog, task, and workflow MUST each have a deterministic plain-text on-disk
+representation. The local directory tree IS the catalog tree (folder hierarchy = catalog
+hierarchy). A task's metadata and its script execution body MUST be stored separately.
+All definitions MUST be human- and AI-agent-friendly: readable, diff-able, and
+code-reviewable as plain text.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+Rationale: "Tasks-as-Code" only holds if every artifact is a file a developer or an AI
+coding agent can read, edit, diff, and review — no opaque DB-only configuration.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. Server is the Source of Truth (服务器为治理真相源)
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+The server MUST remain the governance source of truth: it owns tenant/project isolation
+and version-snapshot governance. The local copy is a working copy only. Sync is git-style
+`pull` (fetch a project as files) and `push` (submit files back). `push` MUST be an
+idempotent overwrite that generates a new version snapshot. Bidirectional sync and
+conflict-merge are FORBIDDEN. Before an overwrite, the developer MUST be able to perceive
+the local-vs-server difference. Every `pull`/`push`/run and MCP operation MUST be subject
+to isolation; out-of-scope access MUST be rejected.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Rationale: Local-only is unreliable; governance, isolation, and immutable versioning must
+stay server-side. One authoritative direction (push overwrites + snapshots) avoids the
+complexity and footguns of two-way merge.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Two-Legged Debugging (本地两条腿调试) — NON-NEGOTIABLE
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+The CLI MUST embed a lightweight runtime that **really executes** a task on the
+developer's machine, reusing the platform's SQL/Shell executor semantics (it MUST NOT
+fork a divergent second execution engine), connecting to local/dev datasources with
+output streamed straight to the terminal and exit codes faithfully reported. The CLI MUST
+also support submitting a task in TEST mode to the server, with run logs streamed back to
+the local terminal.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Rationale: The core feel of "like writing local code" is fast local runs; environment
+fidelity is then closed by server TEST instances. Two execution engines would drift and
+break trust in local debugging.
+
+### IV. AI Lives in the Local Agent (AI 归位本地) — NON-NEGOTIABLE
+
+The server MUST NOT embed an AI brain. The chat cockpit, AG-UI protocol, workhorse bridge,
+IntentRouter, and proactive-notify/findings MUST be removed cleanly (no active code or
+dependency residue). AI capability is provided exclusively by the developer's local coding
+agent operating the platform through MCP. Teardown MUST NOT damage run-time observability
+(ops overview, metrics, run logs, DAG instance views) or the scheduling kernel.
+
+Rationale: The AI is already in the developer's editor; a second server-side agent brain is
+redundant and fragmented. Removing it nets a leaner, un-polluted platform.
+
+### V. Reuse the Kernel (内核复用而非重写)
+
+The transformation MUST reuse existing kernels rather than rewrite them: the scheduler
+(peer master + SKIP LOCKED + cron guard), version snapshots, the SQL/Shell executors, the
+PolicyEngine L0–L4 write gate, and the MCP server framework. Every write operation issued
+via CLI or MCP MUST pass the write gate and leave an audit trail — it MUST NOT be waved
+through merely because its origin is an AI agent.
+
+Rationale: The scheduling, execution, versioning, and gating cores are mature and stable;
+the pivot is a re-shaping of the development experience, not a kernel rewrite.
+
+## Additional Constraints
+
+- **Naming & repo**: The product MUST be renamed to **Weft**; the codebase MUST be
+  refactored **in place** in the current repository (no fresh empty repo). The positioning
+  shifts from "AI 数据中台" to "Tasks-as-Code platform".
+- **Sub-feature dependency order** (MUST hold): B depends on A's cleaned environment;
+  C depends on B; D's local-run subset depends only on B (so the local runtime may be
+  built in parallel with C) while D's TEST-submit subset depends on C; E depends on C.
+- **Sub-spec isolation**: Each sub-feature (A–E) MUST have its own spec with
+  non-overlapping boundaries; a change that compiles alone but breaks/no-ops once a sibling
+  lands is NOT done (不闭环).
+- **Round-trip integrity**: `push` then `pull` to a clean directory MUST yield a
+  semantically equivalent definition (no silent field loss).
+- **No Legacy Migration (存量不予考虑)** — HARD RULE: Existing data created by the old
+  Web editor and stored in the DB (tasks / workflows / catalogs) MUST NOT constrain the
+  design. The transformation starts from a clean slate: legacy definition data is simply
+  deleted — no export, migration, or coexistence path is built. The file format and
+  pull/push serve only definitions created or rebuilt under the new paradigm.
+
+## Development Workflow & Quality Gates
+
+- Each sub-feature flows spec → plan → tasks → implementation, and every plan MUST include
+  a Constitution Check that verifies conformance to Principles I–V before implementation.
+- New features MUST ship with tests; no test = not done. Browser-verification and post-edit
+  compile/typecheck gates from the repository guidance (CLAUDE.md) remain in force.
+- Given the large deletion surface and main-line changes, the transformation SHOULD proceed
+  in an isolated git worktree to avoid polluting recently merged work
+  (distributed-cron, ops/instance-dag-viewer).
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes other practices for the Weft transformation. All sub-feature
+specs, plans, and reviews MUST verify compliance with Principles I–V; deviations MUST be
+recorded with explicit written rationale and approved before implementation.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Amendments require: a documented change, a semantic version bump, and propagation to
+dependent templates and guidance files. Versioning policy: MAJOR for backward-incompatible
+principle removals/redefinitions; MINOR for a new principle/section or materially expanded
+guidance; PATCH for clarifications and non-semantic refinements.
+
+Compliance is reviewed at plan time (Constitution Check) and before merge (cross-feature
+boundary and seam-closure check). Runtime development guidance lives in `CLAUDE.md`.
+
+**Version**: 1.0.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-26
