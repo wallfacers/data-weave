@@ -110,7 +110,7 @@ This file is the map; details live elsewhere:
 | Frontend design source / theme vars | [frontend/DESIGN.md](frontend/DESIGN.md) · `frontend/app/globals.css` |
 | AG-UI endpoint         | `dataweave-api/.../interfaces/AguiController.java`          |
 | Agent intent routing   | `dataweave-api/.../application/IntentRouter.java`           |
-| Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` |
+| Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` · `TriggerEngine.java` (预读+精确触发) · `TimingStrategy.java` (CRON/FIXED_RATE/FIXED_DELAY) · `MasterRegistry.java` (分片注册+心跳) |
 | Frontend metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx`  |
 | Catalog tree (folders+tags) | `dataweave-master/.../application/CatalogTreeService.java` (path/move/cycle guard) + `CatalogController`/`TagController` · frontend `catalog-tree.tsx` (drag MOVE_MIME/TASK_MIME) |
 | Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |

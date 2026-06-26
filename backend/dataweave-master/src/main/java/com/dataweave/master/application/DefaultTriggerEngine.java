@@ -4,6 +4,8 @@ import com.dataweave.master.domain.CronFire;
 import com.dataweave.master.domain.CronFireRepository;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
+import com.dataweave.master.domain.WorkflowInstance;
+import com.dataweave.master.domain.WorkflowInstanceRepository;
 import com.dataweave.master.i18n.Messages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,11 +44,14 @@ public class DefaultTriggerEngine implements TriggerEngine {
     private final WorkflowDefRepository workflowDefRepository;
     private final CronFireRepository cronFireRepository;
     private final WorkflowTriggerService triggerService;
+    private final WorkflowInstanceRepository workflowInstanceRepository;
     private final SchedulerClock clock;
     private final SchedulerMetrics metrics;
     private final List<TimingStrategy> strategies;
+    private final MasterRegistry masterRegistry;
     private final long lookaheadMs;
     private final String misfirePolicy;
+    private final boolean shardingEnabled;
 
     /** 进程内精确触发器；预读窗口内的到期点按延迟入队，到点回调 fire。 */
     private final ScheduledExecutorService timer =
@@ -61,27 +66,74 @@ public class DefaultTriggerEngine implements TriggerEngine {
     public DefaultTriggerEngine(WorkflowDefRepository workflowDefRepository,
                                 CronFireRepository cronFireRepository,
                                 WorkflowTriggerService triggerService,
+                                WorkflowInstanceRepository workflowInstanceRepository,
                                 SchedulerClock clock,
                                 SchedulerMetrics metrics,
                                 List<TimingStrategy> strategies,
+                                MasterRegistry masterRegistry,
                                 @Value("${scheduler.cron-lookahead-ms:30000}") long lookaheadMs,
-                                @Value("${scheduler.cron-misfire:fire_once}") String misfirePolicy) {
+                                @Value("${scheduler.cron-misfire:fire_once}") String misfirePolicy,
+                                @Value("${scheduler.cron-sharding-enabled:false}") boolean shardingEnabled) {
         this.workflowDefRepository = workflowDefRepository;
         this.cronFireRepository = cronFireRepository;
         this.triggerService = triggerService;
+        this.workflowInstanceRepository = workflowInstanceRepository;
         this.clock = clock;
         this.metrics = metrics;
         this.strategies = strategies;
+        this.masterRegistry = masterRegistry;
         this.lookaheadMs = lookaheadMs;
         this.misfirePolicy = misfirePolicy;
+        this.shardingEnabled = shardingEnabled;
     }
+
+    /** US4 支持的全部周期类型：CRON / FIXED_RATE / FIXED_DELAY。 */
+    private static final List<String> PERIODIC_TYPES = List.of("CRON", "FIXED_RATE", "FIXED_DELAY");
 
     @Override
     public void scanAndArm(LocalDateTime now) {
         LocalDateTime horizon = now.plus(Duration.ofMillis(lookaheadMs));
-        // MVP（US1）：CRON 类型；US4 扩展 FIXED_RATE/FIXED_DELAY。
-        List<WorkflowDef> candidates =
-                workflowDefRepository.findByScheduleTypeAndStatusAndDeleted("CRON", "ONLINE", 0);
+        // 1) 首轮回填：next_trigger_time=NULL 的周期工作流
+        for (String type : PERIODIC_TYPES) {
+            List<WorkflowDef> uninitialized =
+                    workflowDefRepository.findByScheduleTypeAndStatusAndDeleted(type, "ONLINE", 0);
+            for (WorkflowDef wf : uninitialized) {
+                if (wf.getNextTriggerTime() != null) {
+                    continue;
+                }
+                try {
+                    TimingStrategy strategy = strategyFor(wf.getScheduleType());
+                    if (strategy == null) {
+                        continue;
+                    }
+                    LocalDateTime next = strategy.next(wf, baseOf(wf, now));
+                    if (next == null) {
+                        continue;
+                    }
+                    wf.setNextTriggerTime(next);
+                    wf.setUpdatedAt(now);
+                    workflowDefRepository.save(wf);
+                } catch (Exception e) {
+                    log.error("[TriggerEngine] 回填 next_trigger_time id={} 失败：{}", wf.getId(), e.getMessage(), e);
+                }
+            }
+        }
+        // 2) 预读窗口扫描：next_trigger_time 非空且在 lookahead 范围内（全部周期类型）
+        List<WorkflowDef> candidates;
+        if (shardingEnabled) {
+            int shardCount = masterRegistry.activeMasterCount();
+            int shardIndex = masterRegistry.myShardIndex();
+            if (shardCount <= 1 || shardIndex < 0) {
+                // 分片未就绪（只有自己在线 / 未注册）→ 退化为全量扫描
+                candidates = workflowDefRepository.findScannableByTypes(PERIODIC_TYPES, "ONLINE", horizon);
+            } else {
+                candidates = workflowDefRepository.findScannableSharded(
+                        PERIODIC_TYPES, "ONLINE", horizon, shardCount, shardIndex);
+            }
+            metrics.setShardWorkflows(candidates.size());
+        } else {
+            candidates = workflowDefRepository.findScannableByTypes(PERIODIC_TYPES, "ONLINE", horizon);
+        }
         int armedCount = 0;
         for (WorkflowDef wf : candidates) {
             try {
@@ -91,14 +143,7 @@ public class DefaultTriggerEngine implements TriggerEngine {
                 }
                 LocalDateTime next = wf.getNextTriggerTime();
                 if (next == null) {
-                    // 首轮回填：据 last_fire_time / 创建时刻 / now-1min 推算（向后兼容既有工作流，SC-004）
-                    next = strategy.next(wf, baseOf(wf, now));
-                    if (next == null) {
-                        continue;
-                    }
-                    wf.setNextTriggerTime(next);
-                    wf.setUpdatedAt(now);
-                    workflowDefRepository.save(wf);
+                    continue;
                 }
                 if (!next.isAfter(horizon)) {
                     if (armPoint(wf.getId(), next)) {
@@ -109,8 +154,10 @@ public class DefaultTriggerEngine implements TriggerEngine {
                 log.error("[TriggerEngine] 扫描工作流 id={} 失败：{}", wf.getId(), e.getMessage(), e);
             }
         }
+        metrics.setCronWindowSize(armed.size());
         if (armedCount > 0) {
-            log.info("[TriggerEngine] scan: 候选={}, 本轮新装载={}", candidates.size(), armedCount);
+            log.info("[TriggerEngine] scan: 候选={}, 本轮新装载={}, 分片={}",
+                    candidates.size(), armedCount, shardingEnabled ? masterRegistry.myShardIndex() : "off");
         }
     }
 
@@ -178,7 +225,8 @@ public class DefaultTriggerEngine implements TriggerEngine {
         }
 
         // 下游触发（签名不变，FR-012）；重叠不阻塞、允许并发（FR-015）
-        UUID wiId = triggerService.trigger(wf, "CRON",
+        // triggerType 使用实际的 schedule_type，方便区分 CRON/FIXED_RATE/FIXED_DELAY 触发
+        UUID wiId = triggerService.trigger(wf, wf.getScheduleType(),
                 due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE);
         guard.setWorkflowInstanceId(wiId);
         guard.setFiredAt(LocalDateTime.now());
@@ -218,6 +266,22 @@ public class DefaultTriggerEngine implements TriggerEngine {
     }
 
     private LocalDateTime baseOf(WorkflowDef wf, LocalDateTime now) {
+        // FIXED_DELAY: 基准 = 上一实例完成时刻，无历史则用创建时刻
+        if ("FIXED_DELAY".equalsIgnoreCase(wf.getScheduleType())) {
+            List<WorkflowInstance> finished = workflowInstanceRepository.findByWorkflowId(wf.getId());
+            LocalDateTime lastCompletion = null;
+            for (WorkflowInstance wi : finished) {
+                if (wi.getFinishedAt() != null
+                        && (lastCompletion == null || wi.getFinishedAt().isAfter(lastCompletion))) {
+                    lastCompletion = wi.getFinishedAt();
+                }
+            }
+            if (lastCompletion != null) {
+                return lastCompletion;
+            }
+            return wf.getCreatedAt() != null ? wf.getCreatedAt() : now.minusMinutes(1);
+        }
+        // CRON / FIXED_RATE: 基准 = 上次计划触发时刻或创建时刻
         if (wf.getLastFireTime() != null) {
             return wf.getLastFireTime();
         }
