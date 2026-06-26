@@ -92,6 +92,64 @@ class WorkflowControllerTest {
     }
 
     @Test
+    void saveDraft_persistsConfigAndDagInOneCall() throws Exception {
+        byte[] createBody = client.post().uri("/api/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("name", "原子保存-初始"))
+                .exchange().expectStatus().isOk()
+                .expectBody().returnResult().getResponseBody();
+        JsonNode created = objectMapper.readTree(createBody).get("data");
+        long id = created.get("id").asLong();
+        long version = created.get("version").asLong();
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "config", Map.of("name", "原子保存-改名", "priority", 7),
+                "dag", Map.of("version", version,
+                        "nodes", java.util.List.of(
+                                Map.of("nodeKey", "t1", "nodeType", "TASK", "taskId", 1, "name", "任务1", "posX", 0, "posY", 0)),
+                        "edges", java.util.List.of())));
+        client.put().uri("/api/workflows/{id}/draft", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.nodes.length()").isEqualTo(1);
+
+        // 配置与 DAG 同时落库
+        client.get().uri("/api/workflows/{id}", id)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.workflow.name").isEqualTo("原子保存-改名")
+                .jsonPath("$.data.workflow.priority").isEqualTo(7);
+    }
+
+    @Test
+    void saveDraft_staleVersionRollsBackConfig() throws Exception {
+        byte[] createBody = client.post().uri("/api/workflows")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("name", "回滚-初始"))
+                .exchange().expectStatus().isOk()
+                .expectBody().returnResult().getResponseBody();
+        long id = objectMapper.readTree(createBody).get("data").get("id").asLong();
+
+        // 故意带过期 DAG version → saveDag 抛 409；整事务回滚，配置改名不应落库。
+        String body = objectMapper.writeValueAsString(Map.of(
+                "config", Map.of("name", "回滚-不该生效"),
+                "dag", Map.of("version", 999,
+                        "nodes", java.util.List.of(), "edges", java.util.List.of())));
+        client.put().uri("/api/workflows/{id}/draft", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.code").isEqualTo(409);
+
+        client.get().uri("/api/workflows/{id}", id)
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.data.workflow.name").isEqualTo("回滚-初始");
+    }
+
+    @Test
     void search_returnsPage() {
         client.get().uri("/api/workflows?page=0&size=10")
                 .exchange()

@@ -298,6 +298,8 @@ export interface DagNode {
   nodeKey: string
   nodeType: DagNodeType
   taskId: number | null // VIRTUAL 节点为 null
+  /** 发布时冻结的任务版本号（published-dag 返回，供节点详情面板查询；draft-dag 为 null） */
+  taskVersionNo?: number | null
   name: string | null
   posX: number | null
   posY: number | null

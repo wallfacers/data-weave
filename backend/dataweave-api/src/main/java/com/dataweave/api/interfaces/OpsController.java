@@ -19,6 +19,8 @@ import com.dataweave.master.application.RecoveryService;
 import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.application.SchedulerMetrics.MetricsSnapshot;
 import com.dataweave.master.application.SlaService;
+import com.dataweave.master.application.WorkflowService;
+import com.dataweave.master.application.WorkflowService.NodeTaskDetail;
 import com.dataweave.master.domain.*;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
@@ -64,6 +66,7 @@ public class OpsController {
     private final GatedActionService gatedActionService;
     private final AguiEvents aguiEvents;
     private final OpsAlertService opsAlertService;
+    private final WorkflowService workflowService;
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
@@ -73,7 +76,8 @@ public class OpsController {
                          DataOpsBridge dataOpsBridge,
                          GatedActionService gatedActionService,
                          AguiEvents aguiEvents,
-                         OpsAlertService opsAlertService) {
+                         OpsAlertService opsAlertService,
+                         WorkflowService workflowService) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
         this.metrics = metrics;
@@ -88,6 +92,7 @@ public class OpsController {
         this.gatedActionService = gatedActionService;
         this.aguiEvents = aguiEvents;
         this.opsAlertService = opsAlertService;
+        this.workflowService = workflowService;
     }
 
     /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
@@ -483,6 +488,18 @@ public class OpsController {
             result.put("approvalId", gr.actionId());
         }
         return ApiResponse.ok(result);
+    }
+
+    /**
+     * 获取 DAG 节点关联任务的发布版本详情（003-node-detail-panel）。
+     * 从已发布 DAG 快照中定位节点，按 taskId + taskVersionNo 查询
+     * {@code task_def_version} 返回发布时冻结的任务配置（代码/参数等）。
+     * VIRTUAL 节点返回 400；快照或节点不存在返回 404。
+     */
+    @GetMapping("/workflows/{workflowId}/nodes/{nodeKey}/detail")
+    public ApiResponse<NodeTaskDetail> nodeDetail(@PathVariable Long workflowId,
+                                                   @PathVariable String nodeKey) {
+        return ApiResponse.ok(workflowService.getNodeDetail(workflowId, nodeKey));
     }
 
     // ─── 巡检告警端点（Agent 闭环） ──────────────────────

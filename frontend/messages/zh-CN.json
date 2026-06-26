@@ -227,6 +227,27 @@
       "retry": "重试",
       "versionInfo": "发布版本 v{versionNo}，{publishedAt}",
       "close": "关闭"
+    },
+    "nodeDetail": {
+      "title": "节点配置",
+      "taskName": "任务名称",
+      "taskType": "任务类型",
+      "versionNo": "发布版本",
+      "publishedAt": "发布时间",
+      "code": "执行代码",
+      "params": "配置参数",
+      "datasource": "数据源",
+      "targetDatasource": "目标数据源",
+      "timeout": "超时",
+      "retryMax": "最大重试",
+      "noCode": "该任务类型无执行代码",
+      "noParams": "无配置参数",
+      "taskDeleted": "关联任务已被删除",
+      "fetchError": "获取节点详情失败",
+      "retry": "重试",
+      "close": "关闭",
+      "viewTaskDetail": "查看任务详情",
+      "virtualNoTask": "虚拟节点（无关联任务）"
     }
   },
   "views": {

@@ -157,6 +157,20 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.saveDag(id, body));
     }
 
+    /**
+     * 草稿整体保存（save-draft-atomic）：配置 + DAG 在一次请求、同一事务内落库，
+     * 替代前端两次独立 PUT（{@code /dag} + {@code /{id}}）造成的非原子保存。
+     * DAG version 冲突仍返回 409，且回滚配置改动。{@code config} 可空（仅存图）。
+     */
+    @PutMapping("/{id}/draft")
+    public ApiResponse<DagView> saveDraft(@PathVariable Long id, @RequestBody SaveDraftRequest body) {
+        return ApiResponse.ok(workflowService.saveDraft(id, body.config(), body.dag()));
+    }
+
+    /** 草稿整体保存请求体：{@code config} 走配置 patch（可空），{@code dag} 走整图保存。 */
+    public record SaveDraftRequest(WorkflowDef config, DagPayload dag) {
+    }
+
     /** 发布：无环校验 + 冻结快照 + 版本自增。环路返回错误。 */
     @PostMapping("/{id}/publish")
     public ApiResponse<WorkflowDef> publish(@PathVariable Long id,
