@@ -31,6 +31,9 @@ deploy/workhorse/bin/
 # 共享开发 worktree（并行多窗口/多需求隔离；非源码，不入 git）
 .worktrees/
 
+# JDBC 驱动本地存储（LocalDriverJarStorage 默认落盘目录；运行态数据，不入 git）
+**/libs/jdbc/
+
 # 聊天附件本地存储（LocalChatFileStorage 默认落盘目录；运行态数据，不入 git）
 # 进程 cwd 因运行模块而异（backend/dataweave-api/data/…），用 ** 匹配任意层级。
 **/data/chat-files/

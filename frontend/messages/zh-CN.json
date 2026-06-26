@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "DataWeave",
+    "appName": "Weft",
     "loading": "加载中",
     "save": "保存",
     "cancel": "取消",
@@ -40,7 +40,7 @@
   },
   "ops": {
     "title": "运营中心",
-    "subtitle": "Agent 巡检驱动的运维闭环",
+    "subtitle": "调度与运行态总览",
     "topTotal": "今日总数",
     "topRunning": "运行中",
     "topSuccess": "成功",
@@ -152,8 +152,6 @@
     "tasksUnfreeze": "解冻",
     "manualTestsEmpty": "暂无手动或测试运行",
     "manualTestsEmptyHint": "通过任务画布发起手动运行",
-    "railTitle": "Agent 举手台",
-    "railEmpty": "一切平稳，暂无建议",
     "alertKindInstanceFailed": "实例失败",
     "alertKindSlaRisk": "SLA 风险",
     "alertKindBackfillDone": "补数据完成",
@@ -825,7 +823,7 @@
     "connectingShort": "连接中"
   },
   "login": {
-    "tagline": "AI 数据中台 · 请登录",
+    "tagline": "任务即代码 · 请登录",
     "username": "用户名",
     "password": "密码",
     "signIn": "登录",
@@ -941,8 +939,8 @@
     "download": "下载"
   },
   "meta": {
-    "title": "DataWeave · AI 数据中台",
-    "description": "用 Agent 编织数据 —— AI Agent 原生的数据中台"
+    "title": "Weft · 任务即代码",
+    "description": "像写代码一样编织任务 —— 任务即代码(Tasks-as-Code)数据平台"
   },
   "resultTable": {
     "kindTable": "查询结果",

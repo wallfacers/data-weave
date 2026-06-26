@@ -51,11 +51,11 @@ export default function LoginPage() {
           {/* 品牌 */}
           <div className="mb-2 flex size-12 items-center justify-center rounded-[var(--radius-lg)] bg-primary">
             <span className="font-serif text-xl font-bold text-primary-foreground">
-              Dw
+              W
             </span>
           </div>
           <CardTitle className="font-serif text-xl">
-            DataWeave
+            Weft
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             {t("tagline")}

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "DataWeave",
+    "appName": "Weft",
     "loading": "Loading",
     "save": "Save",
     "cancel": "Cancel",
@@ -40,7 +40,7 @@
   },
   "ops": {
     "title": "Ops Center",
-    "subtitle": "Agent patrol-driven ops closed loop",
+    "subtitle": "Scheduling and runtime overview",
     "topTotal": "Today Total",
     "topRunning": "Running",
     "topSuccess": "Succeeded",
@@ -152,8 +152,6 @@
     "tasksUnfreeze": "Unfreeze",
     "manualTestsEmpty": "No manual or test runs yet",
     "manualTestsEmptyHint": "Start a manual run from the canvas",
-    "railTitle": "Agent Suggestions",
-    "railEmpty": "All clear, no suggestions",
     "alertKindInstanceFailed": "Instance Failed",
     "alertKindSlaRisk": "SLA Risk",
     "alertKindBackfillDone": "Backfill Done",
@@ -825,7 +823,7 @@
     "connectingShort": "Connecting"
   },
   "login": {
-    "tagline": "AI Data Platform · Please sign in",
+    "tagline": "Tasks-as-Code · Please sign in",
     "username": "Username",
     "password": "Password",
     "signIn": "Sign in",
@@ -941,8 +939,8 @@
     "download": "Download"
   },
   "meta": {
-    "title": "DataWeave · AI Data Platform",
-    "description": "Weave data with Agents — an AI-Agent-native data platform"
+    "title": "Weft · Tasks-as-Code",
+    "description": "Weave tasks like code — a Tasks-as-Code data platform"
   },
   "resultTable": {
     "kindTable": "Query Result",
