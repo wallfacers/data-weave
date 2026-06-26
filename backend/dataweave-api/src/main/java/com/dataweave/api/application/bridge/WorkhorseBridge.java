@@ -5,8 +5,11 @@ import com.dataweave.master.application.AgentAuditService;
 import com.dataweave.master.domain.AgentRun;
 import com.dataweave.master.domain.AgentSession;
 import com.dataweave.master.domain.AgentStep;
+import com.dataweave.master.i18n.Messages;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -15,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Service
 public class WorkhorseBridge {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkhorseBridge.class);
 
     /**
      * MCP 工具名 → Workspace 视图的确定性映射（agent-ui-events spec：workhorse 模式发射规则）。
@@ -63,17 +69,19 @@ public class WorkhorseBridge {
     private final AgentAuditService audit;
     private final AguiEvents events;
     private final ObjectMapper objectMapper;
+    private final Messages messages;
 
     public WorkhorseBridge(WorkhorseClient client, AgentAuditService audit,
-                           AguiEvents events, ObjectMapper objectMapper) {
+                           AguiEvents events, ObjectMapper objectMapper, Messages messages) {
         this.client = client;
         this.audit = audit;
         this.events = events;
         this.objectMapper = objectMapper;
+        this.messages = messages;
     }
 
     public Flux<ServerSentEvent<String>> run(String threadId, String runId,
-                                             String userMessage, String contextSegment) {
+                                             String userMessage, String contextSegment, Locale locale) {
         String messageId = UUID.randomUUID().toString();
         AtomicInteger seq = new AtomicInteger(0);
         Map<String, Long> stepIdByToolUse = new ConcurrentHashMap<>();
@@ -95,7 +103,16 @@ public class WorkhorseBridge {
                     events.textMessageStart(messageId));
 
             Flux<ServerSentEvent<String>> body = client.sendMessage(whSessionId, message)
-                    .concatMap(ev -> mapEvent(ev, run.getId(), messageId, seq, stepIdByToolUse, toolNameByUse));
+                    .concatMap(ev -> mapEvent(ev, run.getId(), messageId, seq, stepIdByToolUse,
+                            toolNameByUse, locale))
+                    // submit/stream 任何错误（自愈后仍 409、404、连接异常…）都透出一条通用报错并干净收尾，
+                    // 绝不让 Flux 报错传播导致连接重置（浏览器 ERR_INCOMPLETE_CHUNKED_ENCODING）→ 聊天空白。
+                    // 详细错误原因写日志，仅向用户暴露泛化消息，避免异常原文泄露内部路径/栈/DB 细节。
+                    .onErrorResume(err -> {
+                        log.warn("Workhorse stream error for messageId={}: {}", messageId, rootMessage(err));
+                        return Flux.just(events.textMessageContent(messageId,
+                                messages.get("agent.workhorse.error.generic", locale)));
+                    });
 
             Flux<ServerSentEvent<String>> trailer = Flux.defer(() -> {
                 audit.finishRun(run.getId(), "FINISHED");
@@ -126,9 +143,18 @@ public class WorkhorseBridge {
 
     private Flux<ServerSentEvent<String>> mapEvent(WorkhorseEvent ev, Long runId, String messageId,
                                                    AtomicInteger seq, Map<String, Long> stepIdByToolUse,
-                                                   Map<String, String> toolNameByUse) {
+                                                   Map<String, String> toolNameByUse, Locale locale) {
         return switch (ev.type()) {
             case "text" -> Flux.just(events.textMessageContent(messageId, ev.text()));
+            case "error" -> {
+                // LLM/上游报错（key 失效、限流、超时、中断…）：输出泛化本地化报错文本，
+                // 而非静默吞掉变成空回复。详细错误写日志供排查，避免泄露上游内部细节。
+                String detail = ev.text() == null ? "" : ev.text();
+                log.warn("Workhorse upstream error for messageId={}: {}", messageId,
+                        truncate(detail, 1000));
+                yield Flux.just(events.textMessageContent(messageId,
+                        messages.get("agent.workhorse.error.generic", locale)));
+            }
             case "tool_call_start" -> {
                 AgentStep step = new AgentStep();
                 step.setRunId(runId);
@@ -217,5 +243,15 @@ public class WorkhorseBridge {
             return null;
         }
         return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** 从异常链取一条简洁可读的报错信息透给用户（HTTP body 优先，回退异常 message/类名）。 */
+    private String rootMessage(Throwable err) {
+        Throwable t = err;
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        String msg = t.getMessage();
+        return (msg == null || msg.isBlank()) ? t.getClass().getSimpleName() : truncate(msg, 500);
     }
 }

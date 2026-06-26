@@ -66,7 +66,7 @@ public class AguiOrchestrator {
             // 附件段拼在页面上下文段之后，一并喂给真脑（实体引用 + 文件名，文件可经 /api/chat/files/{id} 回取）。
             String segment = joinSegments(context.toPromptSegment(locale, messages),
                     attachmentSegment(attachments, locale));
-            return workhorseBridge.run(threadId, runId, userMessage, segment)
+            return workhorseBridge.run(threadId, runId, userMessage, segment, locale)
                     .subscribeOn(Schedulers.boundedElastic());
         }
 
