@@ -10,9 +10,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 健康检查 + CORS 预检测试。
+ * CORS 预检 + 健康检查回归测试。
  *
- * <p>验证 GET /api/health 返回正确状态，以及 OPTIONS /agui 的 CORS 头。
+ * <p>/agui 已在 Weft AI 拆除中移除，CORS 预检改测 /api/ops/metrics。
+ * /api/health 也已在 AI 拆除中移除，改测 /actuator/health。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class HealthAndCorsTest {
@@ -32,24 +33,24 @@ class HealthAndCorsTest {
     @Test
     void healthShouldReturnOk() {
         byte[] body = webTestClient.get()
-                .uri("/api/health")
+                .uri("/actuator/health")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.data.status").isEqualTo("ok")
+                .jsonPath("$.status").isEqualTo("UP")
                 .returnResult()
                 .getResponseBody();
 
-        // jsonPath 已断言 status==ok；这里再确认响应体非空
+        // jsonPath 已断言 status==UP；这里再确认响应体非空
         assertThat(body).isNotNull();
     }
 
     @Test
     void corsPreflightShouldAllowLocalhost4000() {
         webTestClient.options()
-                .uri("/agui")
+                .uri("/api/ops/metrics")
                 .header(HttpHeaders.ORIGIN, "http://localhost:4000")
-                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader()

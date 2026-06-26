@@ -320,17 +320,15 @@ class OpsDataCenterEndpointTest {
                 .jsonPath("$.data.outcome").isNotEmpty();
     }
 
-    // ─── 3.2.1 巡检端点 ──────────────────────────────────────
+    // ─── 3.2.1 巡检端点（Weft AI 拆除后 /api/ops/inspect 已移除）───
 
     @Test
-    void inspect_返回巡检结果() {
+    void inspect_端点已移除() {
         client.get().uri("/api/ops/inspect")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.inspected").isNumber()
-                .jsonPath("$.data.alertsGenerated").isNumber();
+                .jsonPath("$.code").isEqualTo(404);
     }
 
     // ─── 鉴权 ──────────────────────────────────────────────
