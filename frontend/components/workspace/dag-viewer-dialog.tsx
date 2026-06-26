@@ -7,6 +7,7 @@
  * 复用 {@link DagRenderer}（与开发画布完全相同的渲染逻辑）以只读模式展示线上拓扑。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslations } from "next-intl"
 import { motion, useMotionValue, useTransform } from "motion/react"
 import { ReactFlowProvider, type Node, type Edge } from "@xyflow/react"
@@ -45,6 +46,19 @@ type LoadState =
   | { kind: "empty"; versionNo: number }
   | { kind: "error"; message: string }
 
+/** 计算面板宽度：优先 localStorage，否则按容器宽度的 1/4，夹在 [minW, maxFraction] 之间 */
+function calcPanelWidth(
+  containerW: number,
+  minW: number,
+  maxFraction: number,
+  storageKey: string,
+): number {
+  const maxW = Math.floor(containerW * maxFraction)
+  const saved = Number(localStorage.getItem(storageKey))
+  if (saved >= minW && saved <= maxW) return saved
+  return Math.max(minW, Math.min(Math.floor(containerW / 4), maxW))
+}
+
 function DagViewerDialogInner({
   workflowId,
   workflowName,
@@ -69,25 +83,24 @@ function DagViewerDialogInner({
   const PANEL_KEY = "dw.dagViewer.panelWidth"
   const dialogRef = useRef<HTMLDivElement>(null)
   const [, setPanelWidth] = useState(0) // 基准值，拖拽松手时同步
-  const panelWidthMotion = useMotionValue(0) // 初次渲染后由 dialog 宽度算出默认值
+
+  // 用 viewport 估算默认宽度，防止 Dialog 未挂载时 dialogRef.current=null 导致宽度=0
+  const panelWidthMotion = useMotionValue(
+    typeof window !== "undefined"
+      ? calcPanelWidth(window.innerWidth * 0.9, PANEL_MIN_WIDTH, PANEL_MAX_FRACTION, PANEL_KEY)
+      : PANEL_MIN_WIDTH,
+  )
   const panelWidthStyle = useTransform(panelWidthMotion, (v) => `${Math.round(v)}px`)
 
-  // 从 localStorage 恢复宽度；若未保存则按 dialog 宽度的 1/4 计算
+  // 对话框打开后从真实 dialog 宽度校正；同时加载 localStorage 偏好
   useLayoutEffect(() => {
     const dialog = dialogRef.current
     if (!dialog) return
     const dialogW = dialog.offsetWidth
-    const saved = Number(localStorage.getItem(PANEL_KEY))
-    const maxW = Math.floor(dialogW * PANEL_MAX_FRACTION)
-    if (saved >= PANEL_MIN_WIDTH && saved <= maxW) {
-      panelWidthMotion.set(saved)
-      setPanelWidth(saved)
-    } else {
-      const dflt = Math.max(PANEL_MIN_WIDTH, Math.min(Math.floor(dialogW / 4), maxW))
-      panelWidthMotion.set(dflt)
-      setPanelWidth(dflt)
-    }
-  }, [panelWidthMotion])
+    const w = calcPanelWidth(dialogW, PANEL_MIN_WIDTH, PANEL_MAX_FRACTION, PANEL_KEY)
+    panelWidthMotion.set(w)
+    setPanelWidth(w)
+  }, [panelWidthMotion, open, state.kind])
 
   // 分割线拖拽
   const onPanelResizeDown = useCallback(
@@ -266,48 +279,52 @@ function DagViewerDialogInner({
             )}
           </div>
 
-          {/* 右侧详情面板 + 拖拽分割线（条件渲染） */}
+          {/* 右侧详情面板（分割线在面板左边框上，同 agent-rail 样式） */}
           {state.kind === "loaded" && panelOpen && (
-            <>
-              {/* 分割线 */}
-              <div
-                className="w-1 cursor-col-resize hover:bg-accent active:bg-accent shrink-0"
-                onPointerDown={onPanelResizeDown}
-              />
-              {/* 面板（motion 驱动宽度） */}
-              <motion.div
-                className="shrink-0 h-full"
-                style={{ width: panelWidthStyle }}
-              >
-                <NodeDetailPanel />
-              </motion.div>
-            </>
-          )}
-
-          {/* 右键上下文菜单（浮层） */}
-          {contextMenu && (
-            <div
-              className="fixed z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-md"
-              style={{ left: contextMenu.x, top: contextMenu.y }}
-              onClick={() => setContextMenu(null)}
+            <motion.div
+              className="shrink-0 h-full mr-3 relative"
+              style={{ width: panelWidthStyle }}
             >
+              {/* 分割线：绝对定位在面板左边框，向左侧延伸命中区 */}
               <div
-                className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                onClick={handleContextMenuView}
+                onPointerDown={onPanelResizeDown}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize panel"
+                className="group/resize absolute inset-y-3 -left-1 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
               >
-                {t("nodeDetail.viewTaskDetail")}
+                <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
               </div>
-            </div>
+              <NodeDetailPanel />
+            </motion.div>
           )}
 
-          {/* 点击任意位置关闭菜单 */}
-          {contextMenu && (
-            <div
-              className="fixed inset-0 z-40"
-              onClick={() => setContextMenu(null)}
-              onContextMenu={(e) => { e.preventDefault(); setContextMenu(null) }}
-            />
-          )}
+          {/* 右键上下文菜单 + 点击关闭遮罩（portal 到 body，绕过 Dialog 的 CSS transform containing block） */}
+          {contextMenu &&
+            createPortal(
+              <>
+                {/* 全屏透明遮罩：点击任意位置关闭菜单 */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setContextMenu(null)}
+                  onContextMenu={(e) => { e.preventDefault(); setContextMenu(null) }}
+                />
+                {/* 菜单本体：复用 ContextMenuContent + ContextMenuItem 同款样式 */}
+                <div
+                  className="fixed z-50 min-w-44 rounded-lg border bg-popover bg-clip-padding p-1 text-popover-foreground shadow-md"
+                  style={{ left: contextMenu.x, top: contextMenu.y }}
+                  onClick={() => setContextMenu(null)}
+                >
+                  <div
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                    onClick={handleContextMenuView}
+                  >
+                    {t("nodeDetail.viewTaskDetail")}
+                  </div>
+                </div>
+              </>,
+              document.body,
+            )}
         </div>
 
         {/* Footer */}

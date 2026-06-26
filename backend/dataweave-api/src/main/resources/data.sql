@@ -106,20 +106,294 @@ INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node
 -- ===== workflow id=3「订单 SHELL 流水线」（6 节点 DAG：n1→n2→{n3,n4}→n5→n6）=====
 -- 供 KernelSchedulingTest（弱依赖 / 子图运行范围 / 跨周期 / 端到端）依赖。其他 change 重构 seed 时请勿删此链。
 INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(10, 1, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(11, 1, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(12, 1, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(13, 1, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(14, 1, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(15, 1, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
+(10, 1, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+# 抽取：从源库按分区拉取订单数据
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+TABLE="orders"
+PARTITION="dt=''${BIZ_DATE}''"
+
+echo "[抽取] 开始拉取 ${TABLE} 分区 ${PARTITION}"
+
+sqoop import \
+  --connect jdbc:mysql://db-source.prd/data_platform \
+  --username ${SRC_USER} \
+  --password-file /etc/dw/secrets/src-db.pwd \
+  --table ${TABLE} \
+  --where "${PARTITION}" \
+  --target-dir /warehouse/ods/${TABLE}/${BIZ_DATE}/ \
+  --fields-terminated-by ''\t'' \
+  --lines-terminated-by ''\n'' \
+  --num-mappers 8
+
+COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
+echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(11, 1, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+# 清洗：去重 + 关联维度表生成 DWD 宽表
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[清洗] 开始加工 DWD 层，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dwd.dwd_orders_wide PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  o.order_id,
+  o.user_id,
+  o.order_amount,
+  o.order_status,
+  o.created_at,
+  u.user_name,
+  u.city,
+  u.vip_level,
+  ROW_NUMBER() OVER (PARTITION BY o.order_id ORDER BY o.updated_at DESC) AS rn
+FROM ods.orders o
+LEFT JOIN dim.dim_user u ON o.user_id = u.user_id
+WHERE o.dt = ''${BIZ_DATE}''
+  AND o.order_status != ''CANCELLED''
+QUALIFY rn = 1
+"
+
+ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(12, 1, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+# 质检：校验 DWD 表行数在合理范围内
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+MIN_ROWS=10000
+MAX_ROWS=50000000
+
+echo "[质检] 校验 DWD 行数阈值，业务日期=${BIZ_DATE}"
+
+ACTUAL=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+
+if [ "${ACTUAL}" -lt "${MIN_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} < 下限 ${MIN_ROWS}，可能数据缺失"
+  exit 1
+fi
+
+if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} > 上限 ${MAX_ROWS}，可能数据异常"
+  exit 1
+fi
+
+echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(13, 1, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+# 指标：按维度汇总 GMV 写入 DWS 层
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[指标] 开始汇总 GMV，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dws.dws_gmv_daily PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  city,
+  vip_level,
+  COUNT(DISTINCT user_id)   AS uv,
+  COUNT(DISTINCT order_id)  AS order_cnt,
+  SUM(order_amount)         AS gmv,
+  AVG(order_amount)         AS avg_order_amount,
+  SUM(CASE WHEN order_status = ''PAID'' THEN order_amount ELSE 0 END) AS paid_gmv
+FROM dwd.dwd_orders_wide
+WHERE dt = ''${BIZ_DATE}''
+GROUP BY city, vip_level
+"
+
+GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(14, 1, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+# 加载：将 DWS 结果写入目标报表库
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[加载] 开始写入目标分区表，业务日期=${BIZ_DATE}"
+
+sqoop export \
+  --connect jdbc:mysql://db-report.prd/bi_report \
+  --username ${TGT_USER} \
+  --password-file /etc/dw/secrets/tgt-db.pwd \
+  --table rpt_gmv_daily \
+  --export-dir /warehouse/dws/dws_gmv_daily/${BIZ_DATE}/ \
+  --update-key "dt,city,vip_level" \
+  --update-mode allowinsert \
+  --input-fields-terminated-by ''\t'' \
+  --num-mappers 4
+
+echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(15, 1, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+# 归档：清理过期分区 + 统计链路耗时
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+RETENTION_DAYS=30
+EXPIRE_DATE=$(date -d "${BIZ_DATE} -${RETENTION_DAYS} days" +%Y%m%d)
+
+echo "[归档] 清理 ${EXPIRE_DATE} 之前的分区"
+
+# 清理 ODS 过期分区
+hadoop fs -rm -r -skipTrash /warehouse/ods/orders/${EXPIRE_DATE}/ 2>/dev/null || true
+
+# 清理 DWD 过期分区
+hive -e "ALTER TABLE dwd.dwd_orders_wide DROP IF EXISTS PARTITION (dt<=''${EXPIRE_DATE}'')"
+
+# 统计各层数据量
+echo "[归档] 链路数据量统计："
+echo "  ODS: $(hadoop fs -du -s /warehouse/ods/orders/${BIZ_DATE}/ 2>/dev/null | awk ''{print $1}'' || echo 0) bytes"
+echo "  DWD: $(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+echo "  DWS: $(hive -e "SELECT COUNT(*) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+
+echo "[归档] 完成"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
-(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
+(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+# 抽取：从源库按分区拉取订单数据
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+TABLE="orders"
+PARTITION="dt=''${BIZ_DATE}''"
+
+echo "[抽取] 开始拉取 ${TABLE} 分区 ${PARTITION}"
+
+sqoop import \
+  --connect jdbc:mysql://db-source.prd/data_platform \
+  --username ${SRC_USER} \
+  --password-file /etc/dw/secrets/src-db.pwd \
+  --table ${TABLE} \
+  --where "${PARTITION}" \
+  --target-dir /warehouse/ods/${TABLE}/${BIZ_DATE}/ \
+  --fields-terminated-by ''\t'' \
+  --lines-terminated-by ''\n'' \
+  --num-mappers 8
+
+COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
+echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+# 清洗：去重 + 关联维度表生成 DWD 宽表
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[清洗] 开始加工 DWD 层，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dwd.dwd_orders_wide PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  o.order_id,
+  o.user_id,
+  o.order_amount,
+  o.order_status,
+  o.created_at,
+  u.user_name,
+  u.city,
+  u.vip_level,
+  ROW_NUMBER() OVER (PARTITION BY o.order_id ORDER BY o.updated_at DESC) AS rn
+FROM ods.orders o
+LEFT JOIN dim.dim_user u ON o.user_id = u.user_id
+WHERE o.dt = ''${BIZ_DATE}''
+  AND o.order_status != ''CANCELLED''
+QUALIFY rn = 1
+"
+
+ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+# 质检：校验 DWD 表行数在合理范围内
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+MIN_ROWS=10000
+MAX_ROWS=50000000
+
+echo "[质检] 校验 DWD 行数阈值，业务日期=${BIZ_DATE}"
+
+ACTUAL=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+
+if [ "${ACTUAL}" -lt "${MIN_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} < 下限 ${MIN_ROWS}，可能数据缺失"
+  exit 1
+fi
+
+if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} > 上限 ${MAX_ROWS}，可能数据异常"
+  exit 1
+fi
+
+echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+# 指标：按维度汇总 GMV 写入 DWS 层
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[指标] 开始汇总 GMV，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dws.dws_gmv_daily PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  city,
+  vip_level,
+  COUNT(DISTINCT user_id)   AS uv,
+  COUNT(DISTINCT order_id)  AS order_cnt,
+  SUM(order_amount)         AS gmv,
+  AVG(order_amount)         AS avg_order_amount,
+  SUM(CASE WHEN order_status = ''PAID'' THEN order_amount ELSE 0 END) AS paid_gmv
+FROM dwd.dwd_orders_wide
+WHERE dt = ''${BIZ_DATE}''
+GROUP BY city, vip_level
+"
+
+GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+# 加载：将 DWS 结果写入目标报表库
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[加载] 开始写入目标分区表，业务日期=${BIZ_DATE}"
+
+sqoop export \
+  --connect jdbc:mysql://db-report.prd/bi_report \
+  --username ${TGT_USER} \
+  --password-file /etc/dw/secrets/tgt-db.pwd \
+  --table rpt_gmv_daily \
+  --export-dir /warehouse/dws/dws_gmv_daily/${BIZ_DATE}/ \
+  --update-key "dt,city,vip_level" \
+  --update-mode allowinsert \
+  --input-fields-terminated-by ''\t'' \
+  --num-mappers 4
+
+echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+# 归档：清理过期分区 + 统计链路耗时
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+RETENTION_DAYS=30
+EXPIRE_DATE=$(date -d "${BIZ_DATE} -${RETENTION_DAYS} days" +%Y%m%d)
+
+echo "[归档] 清理 ${EXPIRE_DATE} 之前的分区"
+
+# 清理 ODS 过期分区
+hadoop fs -rm -r -skipTrash /warehouse/ods/orders/${EXPIRE_DATE}/ 2>/dev/null || true
+
+# 清理 DWD 过期分区
+hive -e "ALTER TABLE dwd.dwd_orders_wide DROP IF EXISTS PARTITION (dt<=''${EXPIRE_DATE}'')"
+
+# 统计各层数据量
+echo "[归档] 链路数据量统计："
+echo "  ODS: $(hadoop fs -du -s /warehouse/ods/orders/${BIZ_DATE}/ 2>/dev/null | awk ''{print $1}'' || echo 0) bytes"
+echo "  DWD: $(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+echo "  DWS: $(hive -e "SELECT COUNT(*) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+
+echo "[归档] 完成"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
 
 INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (3, 1, 1, '订单 SHELL 流水线', '抽取→清洗→质检/指标并行→加载→归档，全 SHELL 节点', 'CRON', '0 30 1 * * ?', TIMESTAMP '2026-06-12 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);

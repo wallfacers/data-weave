@@ -74,7 +74,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-/** 代码块：Shiki 高亮，只读 */
+/** 代码块：Shiki 高亮，只读，DwScroll 包裹保证滚动条统一 */
 function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [html, setHtml] = useState<string | null>(null)
 
@@ -96,10 +96,12 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
   }
 
   return (
-    <div
-      className="text-xs [&_pre]:!bg-transparent [&_pre]:!p-2 [&_pre]:!m-0 overflow-x-auto"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <DwScroll direction="both" className="max-h-64">
+      <div
+        className="text-xs [&_pre]:!bg-transparent [&_pre]:!p-2 [&_pre]:!m-0"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </DwScroll>
   )
 }
 
@@ -147,7 +149,7 @@ export function NodeDetailPanel() {
   const lang = detail ? taskTypeToLang(detail.taskType) : "text"
 
   return (
-    <div className="flex flex-col h-full min-w-[280px] border-l border-border">
+    <div className="flex flex-col h-full min-w-[280px] rounded-[var(--radius-md)] border border-border overflow-hidden bg-card">
       {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">
         <span className="text-sm font-medium truncate">{t("nodeDetail.title")}</span>
@@ -201,7 +203,7 @@ export function NodeDetailPanel() {
                 {t("nodeDetail.code")}
               </h4>
               {detail.content && detail.hasCode ? (
-                <div className="rounded-md border border-border overflow-hidden">
+                <div className="rounded-[var(--radius-md)] border border-border overflow-hidden bg-card">
                   <CodeBlock code={detail.content} lang={lang} />
                 </div>
               ) : (
