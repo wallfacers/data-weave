@@ -1,0 +1,163 @@
+openapi: "3.0.3"
+info:
+  title: DAG Node Detail API
+  description: 获取 DAG 弹框中选中节点的任务版本配置详情（已发布快照版本）
+  version: "1.0.0"
+
+paths:
+  /api/ops/workflows/{workflowId}/nodes/{nodeKey}/detail:
+    get:
+      summary: 获取 DAG 节点关联任务的发布版本详情
+      description: >
+        根据 workflowId 和 nodeKey，从该工作流的已发布 DAG 快照中读取节点的 taskId 和
+        taskVersionNo，再从 task_def_version 表查询对应的任务版本配置详情（代码、参数等）。
+        若快照不存在（工作流未发布）或节点不存在（nodeKey 无效），返回 404。
+        若节点类型为 VIRTUAL（无关联任务），返回 400。
+        若关联的任务版本已被删除，返回降级响应（content/paramsJson 为 null + deleted 标记）。
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 工作流 ID
+        - name: nodeKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 节点在 DAG 中的唯一标识（来自 DagView.nodes[].nodeKey）
+      responses:
+        "200":
+          description: 节点任务版本详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeTaskDetailResponse"
+        "400":
+          description: 节点类型非 TASK（VIRTUAL 节点无关联任务）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 工作流未发布、快照不存在、或 nodeKey 不在快照中
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    NodeTaskDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: "0 表示成功"
+          example: 0
+        data:
+          $ref: "#/components/schemas/NodeTaskDetail"
+        message:
+          type: string
+          nullable: true
+
+    NodeTaskDetail:
+      type: object
+      properties:
+        nodeKey:
+          type: string
+          description: 节点标识
+        taskId:
+          type: integer
+          format: int64
+          description: 任务 ID
+        taskName:
+          type: string
+          description: 任务名称（发布时）
+        taskType:
+          type: string
+          description: 任务类型标识（SQL, PYTHON, SHELL, DATA_SYNC 等）
+        versionNo:
+          type: integer
+          description: 发布版本号
+        content:
+          type: string
+          nullable: true
+          description: 执行代码/脚本内容（无代码时为 null）
+        paramsJson:
+          type: string
+          nullable: true
+          description: 配置参数 JSON 字符串（无配置时为 null）
+        datasourceId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 数据源 ID
+        targetDatasourceId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 目标数据源 ID
+        timeoutSec:
+          type: integer
+          description: 超时秒数
+        retryMax:
+          type: integer
+          description: 最大重试次数
+        publishedAt:
+          type: string
+          format: date-time
+          description: 发布时间
+        hasCode:
+          type: boolean
+          description: 该任务类型是否包含代码
+        deleted:
+          type: boolean
+          description: 关联任务是否已被删除（降级标记）
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码（非 0）
+          example: 404
+        data:
+          type: object
+          nullable: true
+        message:
+          type: string
+          description: 人类可读的错误信息
+        errorCode:
+          type: string
+          description: 稳定的 i18n 错误码键
+          example: "task.version_not_found"
+
+    # 扩展：已有 DagView 中 DagNodeDto 增加 taskVersionNo
+    DagNodeDto:
+      type: object
+      properties:
+        nodeKey:
+          type: string
+        nodeType:
+          type: string
+          enum: ["TASK", "VIRTUAL"]
+        taskId:
+          type: integer
+          format: int64
+          nullable: true
+        taskVersionNo:
+          type: integer
+          nullable: true
+          description: 新增字段 — 发布时冻结的任务版本号
+        name:
+          type: string
+        posX:
+          type: integer
+        posY:
+          type: integer
+        taskStatus:
+          type: string
+          nullable: true

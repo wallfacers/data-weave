@@ -6,7 +6,7 @@
  * 从 workflow-canvas-view 抽出 ReactFlow 核心渲染逻辑，保证两处展示 100% 一致。
  * 只读模式下关闭所有编辑交互（拖拽/连线/删除/右键菜单）。
  */
-import type { ReactNode } from "react"
+import type { ReactNode, MouseEvent as ReactMouseEvent } from "react"
 import {
   ReactFlow,
   Background,
@@ -26,9 +26,12 @@ export interface DagRendererProps {
   nodeTypes: NodeTypes
   readOnly?: boolean
   /** 边右键菜单（仅编辑态） */
-  onEdgeContextMenu?: (e: React.MouseEvent, edge: Edge) => void
+  onEdgeContextMenu?: (e: ReactMouseEvent, edge: Edge) => void
   onPaneClick?: () => void
-  onNodeClick?: () => void
+  /** 节点点击回调（readOnly 模式下仍触发，供 Ops DAG 弹框展示节点详情）。 */
+  onNodeClick?: (event: ReactMouseEvent, node: Node) => void
+  /** 节点右键菜单回调（readOnly 模式下仍触发）。 */
+  onNodeContextMenu?: (event: ReactMouseEvent, node: Node) => void
   onMoveStart?: () => void
   /** 编辑态回调 */
   onNodesChange?: (changes: any) => void
@@ -49,6 +52,7 @@ export function DagRenderer({
   onEdgeContextMenu,
   onPaneClick,
   onNodeClick,
+  onNodeContextMenu,
   onMoveStart,
   onNodesChange,
   onEdgesChange,
@@ -75,8 +79,10 @@ export function DagRenderer({
       onEdgesChange={readOnly ? undefined : onEdgesChange}
       onConnect={readOnly ? undefined : onConnect}
       onEdgeContextMenu={readOnly ? undefined : onEdgeContextMenu}
-      onPaneClick={readOnly ? undefined : onPaneClick}
-      onNodeClick={readOnly ? undefined : onNodeClick}
+      // pane/节点点击 —— 只读/编辑模式均触发（只读供 Ops DAG 弹框的节点详情面板）
+      onPaneClick={onPaneClick}
+      onNodeClick={onNodeClick}
+      onNodeContextMenu={onNodeContextMenu}
       onMoveStart={readOnly ? undefined : onMoveStart}
     >
       <Background />

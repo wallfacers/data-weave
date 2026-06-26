@@ -1,0 +1,141 @@
+openapi: "3.0.3"
+info:
+  title: "Workflow Published DAG API"
+  version: "1.0.0"
+  description: "返回任务流已发布版本的 DAG 快照，用于运维中心只读查看。"
+
+paths:
+  /api/workflows/{id}/published-dag:
+    get:
+      operationId: readPublishedDag
+      summary: "获取已发布版本的 DAG"
+      description: >
+        返回指定任务流的**当前发布版本**对应的 DAG 快照数据（节点 + 边 + 布局坐标）。
+        与 GET /api/workflows/{id}/dag（返回草稿 DAG）不同，此端点从 workflood_def_version.dag_snapshot_json 读取。
+        仅对 ONLINE 状态的任务流可用。
+      tags:
+        - Workflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: "任务流 ID"
+      responses:
+        "200":
+          description: "成功返回发布版 DAG"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseDagView"
+        "404":
+          description: "任务流不存在、未发布或无发布版本"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+components:
+  schemas:
+    ApiResponseDagView:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+          description: "0 = 成功"
+        message:
+          type: string
+          example: "OK"
+        data:
+          $ref: "#/components/schemas/DagView"
+
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: "workflow.not_online_or_unpublished"
+
+    DagView:
+      type: object
+      properties:
+        workflowId:
+          type: integer
+          format: int64
+          description: "任务流 ID"
+        version:
+          type: integer
+          description: "发布版本号 (versionNo)"
+        hasDraftChange:
+          type: integer
+          enum: [0, 1]
+          description: "发布后是否产生了新的草稿改动"
+        status:
+          type: string
+          example: "ONLINE"
+          description: "任务流状态（此端点始终返回 ONLINE）"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/DagNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/DagEdge"
+
+    DagNode:
+      type: object
+      properties:
+        nodeKey:
+          type: string
+          description: "节点稳定标识符"
+          example: "node-1"
+        nodeType:
+          type: string
+          enum: ["TASK", "VIRTUAL"]
+          description: "节点类型"
+        taskId:
+          type: integer
+          format: int64
+          nullable: true
+          description: "关联的任务 ID（VIRTUAL 节点为 null）"
+        name:
+          type: string
+          nullable: true
+          description: "节点显示名称"
+          example: "清洗-用户表"
+        posX:
+          type: integer
+          nullable: true
+          description: "画布 X 坐标"
+        posY:
+          type: integer
+          nullable: true
+          description: "画布 Y 坐标"
+        taskStatus:
+          type: string
+          nullable: true
+          description: "关联任务的当前状态（来自 task_def.status）"
+
+    DagEdge:
+      type: object
+      properties:
+        fromNodeKey:
+          type: string
+          description: "起始节点标识符"
+          example: "node-1"
+        toNodeKey:
+          type: string
+          description: "目标节点标识符"
+          example: "node-2"
+        strength:
+          type: string
+          enum: ["STRONG", "WEAK"]
+          default: "STRONG"
+          description: "依赖强度"

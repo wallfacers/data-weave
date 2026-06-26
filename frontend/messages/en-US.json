@@ -227,6 +227,27 @@
       "retry": "Retry",
       "versionInfo": "Published v{versionNo}, {publishedAt}",
       "close": "Close"
+    },
+    "nodeDetail": {
+      "title": "Node Configuration",
+      "taskName": "Task Name",
+      "taskType": "Task Type",
+      "versionNo": "Published Version",
+      "publishedAt": "Published At",
+      "code": "Code",
+      "params": "Parameters",
+      "datasource": "Datasource",
+      "targetDatasource": "Target Datasource",
+      "timeout": "Timeout",
+      "retryMax": "Max Retries",
+      "noCode": "No executable code for this task type",
+      "noParams": "No parameters",
+      "taskDeleted": "Associated task has been deleted",
+      "fetchError": "Failed to load node detail",
+      "retry": "Retry",
+      "close": "Close",
+      "viewTaskDetail": "View Task Detail",
+      "virtualNoTask": "Virtual node (no associated task)"
     }
   },
   "views": {

@@ -9,6 +9,8 @@ export interface CanvasNodeData extends Record<string, unknown> {
   runState?: string
   /** 引用任务发布态（ONLINE/DRAFT）：非 ONLINE 即标「未发布」（ops-center-publish-boundary，仅显示用） */
   taskStatus?: string | null
+  /** 发布时冻结的任务版本号（published-dag 返回，供节点详情面板查询） */
+  taskVersionNo?: number | null
 }
 
 export type CanvasNode = Node<CanvasNodeData>
