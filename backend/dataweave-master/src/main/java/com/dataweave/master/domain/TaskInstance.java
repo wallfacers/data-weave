@@ -15,6 +15,9 @@ public class TaskInstance {
     private Long workflowNodeId;
     private Long taskId;
     private Integer taskVersionNo;
+    private String taskDefName;
+    private String workflowDefName;
+    private String cronExpression;
     private String contentOverride;
     private String paramsOverride;
     private String typeOverride;
@@ -63,6 +66,15 @@ public class TaskInstance {
 
     public Integer getTaskVersionNo() { return taskVersionNo; }
     public void setTaskVersionNo(Integer taskVersionNo) { this.taskVersionNo = taskVersionNo; }
+
+    public String getTaskDefName() { return taskDefName; }
+    public void setTaskDefName(String taskDefName) { this.taskDefName = taskDefName; }
+
+    public String getWorkflowDefName() { return workflowDefName; }
+    public void setWorkflowDefName(String workflowDefName) { this.workflowDefName = workflowDefName; }
+
+    public String getCronExpression() { return cronExpression; }
+    public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
 
     public String getContentOverride() { return contentOverride; }
     public void setContentOverride(String contentOverride) { this.contentOverride = contentOverride; }

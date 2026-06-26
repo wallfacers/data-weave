@@ -182,7 +182,8 @@ public class DataOpsBridgeStub implements DataOpsBridge {
     }
 
     private InstanceRow toRow(TaskInstance ti, Map<Long, String> taskNames) {
-        String name = taskNames.getOrDefault(ti.getTaskId(), "task-" + ti.getTaskId());
+        String name = ti.getTaskDefName() != null ? ti.getTaskDefName()
+                : taskNames.getOrDefault(ti.getTaskId(), "task-" + ti.getTaskId());
         Long durationMs = null;
         if (ti.getStartedAt() != null && ti.getFinishedAt() != null) {
             durationMs = Duration.between(ti.getStartedAt(), ti.getFinishedAt()).toMillis();
@@ -198,9 +199,9 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getStartedAt(),
                 ti.getFinishedAt(),
                 durationMs,
-                null, // cronExpression: stub 不提供
-                null, // env: stub 不提供
-                null  // workflowName: stub 不提供
+                ti.getCronExpression(),      // 快照列
+                ti.getEnv(),                 // 直接列（之前写死 null）
+                ti.getWorkflowDefName()      // 快照列
         );
     }
 }

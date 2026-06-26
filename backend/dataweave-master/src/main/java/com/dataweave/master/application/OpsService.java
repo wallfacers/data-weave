@@ -535,15 +535,7 @@ public class OpsService {
         List<InstanceRow> items = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name, "
-                        + "(SELECT wd.cron FROM workflow_instance wi "
-                        + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
-                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr, "
-                        + "(SELECT wi2.env FROM workflow_instance wi2 "
-                        + "  WHERE wi2.id=ti.workflow_instance_id) AS env, "
-                        + "(SELECT wd2.name FROM workflow_instance wi3 "
-                        + "  JOIN workflow_def wd2 ON wd2.id=wi3.workflow_id "
-                        + "  WHERE wi3.id=ti.workflow_instance_id) AS workflow_name "
+                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name "
                         + "FROM task_instance ti" + where
                         // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
                         + "ORDER BY CASE "
@@ -558,12 +550,12 @@ public class OpsService {
                     LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
                     Long durationMs = (startedAt != null && finishedAt != null)
                             ? Duration.between(startedAt, finishedAt).toMillis() : null;
-                    return new InstanceRow(id, taskId, rs.getString("task_name"), wiId,
+                    return new InstanceRow(id, taskId, rs.getString("task_def_name"), wiId,
                             rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
-                            durationMs, rs.getString("cron_expr"),
-                            rs.getString("env"), rs.getString("workflow_name"));
+                            durationMs, rs.getString("cron_expression"),
+                            rs.getString("env"), rs.getString("workflow_def_name"));
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);
@@ -643,7 +635,7 @@ public class OpsService {
                 "SELECT wi.id, wi.workflow_id, wi.trigger_type, wi.state, wi.biz_date, "
                         + "wi.total_tasks, wi.completed_tasks, wi.failed_tasks, "
                         + "wi.started_at, wi.finished_at, wi.priority, wi.env, "
-                        + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
+                        + "wi.workflow_def_name, wi.cron_expression "
                         + "FROM workflow_instance wi" + where
                         + "ORDER BY CASE "
                         + "  WHEN wi.state IN ('FAILED','STOPPED','PREEMPTED') THEN 0 "
@@ -661,7 +653,7 @@ public class OpsService {
                     Long durationMs = (startedAt != null && finishedAt != null)
                             ? Duration.between(startedAt, finishedAt).toMillis() : null;
                     return new OpsContracts.WorkflowInstanceRow(id, wfId,
-                            rs.getString("workflow_name"),
+                            rs.getString("workflow_def_name"),
                             rs.getString("state"), rs.getString("biz_date"),
                             priority, rs.getString("trigger_type"),
                             totalTasks != null ? totalTasks : 0,
@@ -683,8 +675,7 @@ public class OpsService {
         // 1. 查 WorkflowInstance 元信息
         var wiRows = jdbc.query(
                 "SELECT wi.id, wi.workflow_id, wi.workflow_version_no, wi.trigger_type, wi.state, wi.biz_date, "
-                        + "wi.env, "
-                        + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
+                        + "wi.env, wi.workflow_def_name "
                         + "FROM workflow_instance wi WHERE wi.id=? AND wi.deleted=0",
                 (rs, n) -> List.<Object>of(
                         rs.getObject("id", UUID.class),

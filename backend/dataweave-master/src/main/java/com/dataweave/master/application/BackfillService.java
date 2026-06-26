@@ -247,15 +247,7 @@ public class BackfillService {
         List<InstanceRow> instances = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name, "
-                        + "(SELECT wd.cron FROM workflow_instance wi "
-                        + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
-                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr, "
-                        + "(SELECT wi2.env FROM workflow_instance wi2 "
-                        + "  WHERE wi2.id=ti.workflow_instance_id) AS env, "
-                        + "(SELECT wd3.name FROM workflow_instance wi3 "
-                        + "  JOIN workflow_def wd3 ON wd3.id=wi3.workflow_id "
-                        + "  WHERE wi3.id=ti.workflow_instance_id) AS workflow_name "
+                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name "
                         + "FROM task_instance ti WHERE ti.backfill_run_id=? AND ti.deleted=0 "
                         + "ORDER BY ti.biz_date ASC, ti.id ASC",
                 (rs, n) -> mapInstanceRow(rs), runId);
@@ -351,11 +343,11 @@ public class BackfillService {
         LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
         Long durationMs = (startedAt != null && finishedAt != null)
                 ? Duration.between(startedAt, finishedAt).toMillis() : null;
-        return new InstanceRow(id, taskId, rs.getString("task_name"), wiId,
+        return new InstanceRow(id, taskId, rs.getString("task_def_name"), wiId,
                 rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                 startedAt != null ? startedAt.toString() : null,
                 finishedAt != null ? finishedAt.toString() : null, durationMs,
-                rs.getString("cron_expr"), rs.getString("env"),
-                rs.getString("workflow_name"));
+                rs.getString("cron_expression"), rs.getString("env"),
+                rs.getString("workflow_def_name"));
     }
 }

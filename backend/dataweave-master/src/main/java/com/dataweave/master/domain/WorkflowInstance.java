@@ -17,6 +17,8 @@ public class WorkflowInstance {
     private String triggerType;
     private String state;
     private Integer priority;
+    private String workflowDefName;
+    private String cronExpression;
     private String bizDate;
     private Integer totalTasks;
     private Integer completedTasks;
@@ -58,6 +60,12 @@ public class WorkflowInstance {
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }
+
+    public String getWorkflowDefName() { return workflowDefName; }
+    public void setWorkflowDefName(String workflowDefName) { this.workflowDefName = workflowDefName; }
+
+    public String getCronExpression() { return cronExpression; }
+    public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
 
     public String getBizDate() { return bizDate; }
     public void setBizDate(String bizDate) { this.bizDate = bizDate; }

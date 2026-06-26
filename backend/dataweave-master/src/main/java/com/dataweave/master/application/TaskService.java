@@ -428,6 +428,7 @@ public class TaskService {
         instance.setTaskVersionNo(1);
         instance.setRunMode("NORMAL");
         instance.setState("SUCCESS");
+        instance.setTaskDefName(saved.getName());       // 快照：任务名称
         instance.setAttempt(1);
         instance.setWorkerNodeCode(nodeCode);
         instance.setStartedAt(now);
