@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -522,6 +523,443 @@ public class OpsService {
         int end = Math.min(offset + limit, totalSize);
         String content = (offset < totalSize) ? log.substring(offset, end) : "";
         return new LogChunk(content, totalSize, offset, end < totalSize);
+    }
+
+    /**
+     * 多维筛选 + 分页查询任务流实例列表。
+     * JDBC 动态 SQL 模式，与 {@link #queryInstances} 一致，H2 + PostgreSQL 双兼容。
+     */
+    public OpsContracts.PageResult<OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
+            OpsContracts.WorkflowInstanceQuery q) {
+        int page = Math.max(0, q.page());
+        int size = Math.min(Math.max(1, q.size()), 200);
+        StringBuilder where = new StringBuilder(" WHERE wi.deleted=0 ");
+        List<Object> args = new ArrayList<>();
+        if (q.state() != null && !q.state().isBlank()) {
+            where.append("AND wi.state=? ");
+            args.add(q.state());
+        }
+        if (q.stateIn() != null && !q.stateIn().isBlank()) {
+            String[] states = q.stateIn().split(",");
+            String ph = String.join(",", java.util.Collections.nCopies(states.length, "?"));
+            where.append("AND wi.state IN (").append(ph).append(") ");
+            for (String st : states) args.add(st.trim());
+        }
+        if (q.triggerType() != null && !q.triggerType().isBlank()) {
+            where.append("AND wi.trigger_type=? ");
+            args.add(q.triggerType());
+        }
+        if (q.workflowId() != null) {
+            where.append("AND wi.workflow_id=? ");
+            args.add(q.workflowId());
+        }
+        if (q.bizDate() != null && !q.bizDate().isBlank()) {
+            where.append("AND wi.biz_date=? ");
+            args.add(q.bizDate());
+        }
+        if (q.bizDateFrom() != null && !q.bizDateFrom().isBlank()) {
+            where.append("AND wi.biz_date >= ? ");
+            args.add(q.bizDateFrom().trim());
+        }
+        if (q.bizDateTo() != null && !q.bizDateTo().isBlank()) {
+            where.append("AND wi.biz_date <= ? ");
+            args.add(q.bizDateTo().trim());
+        }
+        if (q.startedAtFrom() != null && !q.startedAtFrom().isBlank()) {
+            where.append("AND wi.started_at >= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.startedAtFrom().trim())));
+        }
+        if (q.startedAtTo() != null && !q.startedAtTo().isBlank()) {
+            where.append("AND wi.started_at <= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.startedAtTo().trim())));
+        }
+
+        Long total = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM workflow_instance wi" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(size);
+        pageArgs.add((long) page * size);
+        List<OpsContracts.WorkflowInstanceRow> items = jdbc.query(
+                "SELECT wi.id, wi.workflow_id, wi.trigger_type, wi.state, wi.biz_date, "
+                        + "wi.total_tasks, wi.completed_tasks, wi.failed_tasks, "
+                        + "wi.started_at, wi.finished_at, wi.priority, "
+                        + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
+                        + "FROM workflow_instance wi" + where
+                        + "ORDER BY CASE "
+                        + "  WHEN wi.state IN ('FAILED','STOPPED','PREEMPTED') THEN 0 "
+                        + "  WHEN wi.state IN ('RUNNING') THEN 1 "
+                        + "  ELSE 2 END, wi.id DESC LIMIT ? OFFSET ?",
+                (rs, n) -> {
+                    UUID id = rs.getObject("id", UUID.class);
+                    Long wfId = rs.getLong("workflow_id");
+                    Integer totalTasks = rs.getInt("total_tasks");
+                    Integer completedTasks = rs.getInt("completed_tasks");
+                    Integer failedTasks = rs.getInt("failed_tasks");
+                    Integer priority = rs.getInt("priority");
+                    LocalDateTime startedAt = rs.getObject("started_at", LocalDateTime.class);
+                    LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
+                    Long durationMs = (startedAt != null && finishedAt != null)
+                            ? Duration.between(startedAt, finishedAt).toMillis() : null;
+                    return new OpsContracts.WorkflowInstanceRow(id, wfId,
+                            rs.getString("workflow_name"),
+                            rs.getString("state"), rs.getString("biz_date"),
+                            priority, rs.getString("trigger_type"),
+                            totalTasks != null ? totalTasks : 0,
+                            completedTasks != null ? completedTasks : 0,
+                            failedTasks != null ? failedTasks : 0,
+                            startedAt != null ? startedAt.toString() : null,
+                            finishedAt != null ? finishedAt.toString() : null,
+                            durationMs);
+                },
+                pageArgs.toArray());
+        return new OpsContracts.PageResult<>(items, totalCount, page, size);
+    }
+
+    /**
+     * 获取实例级 DAG 视图：历史拓扑（workflow_def_version.dag_snapshot_json）+
+     * task_instance 运行时状态叠加。
+     */
+    public OpsContracts.InstanceDagView getInstanceDag(UUID workflowInstanceId) {
+        // 1. 查 WorkflowInstance 元信息
+        var wiRows = jdbc.query(
+                "SELECT wi.id, wi.workflow_id, wi.workflow_version_no, wi.trigger_type, wi.state, wi.biz_date, "
+                        + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
+                        + "FROM workflow_instance wi WHERE wi.id=? AND wi.deleted=0",
+                (rs, n) -> List.<Object>of(
+                        rs.getObject("id", UUID.class),
+                        rs.getLong("workflow_id"),
+                        rs.getInt("workflow_version_no"),
+                        rs.getString("trigger_type"),
+                        rs.getString("state"),
+                        rs.getString("biz_date"),
+                        rs.getString("workflow_name")),
+                workflowInstanceId);
+        if (wiRows.isEmpty()) {
+            throw new BizException("ops.instance.not_found", workflowInstanceId);
+        }
+        var row = wiRows.get(0);
+        UUID wiId = (UUID) row.get(0);
+        Long workflowId = (Long) row.get(1);
+        Integer versionNo = (Integer) row.get(2);
+        String triggerType = (String) row.get(3);
+        String wiState = (String) row.get(4);
+        String bizDate = (String) row.get(5);
+        String workflowName = (String) row.get(6);
+
+        // 2. 查历史版本 DAG snapshot
+        String dagJson = jdbc.queryForObject(
+                "SELECT wdv.dag_snapshot_json FROM workflow_def_version wdv "
+                        + "WHERE wdv.workflow_id=? AND wdv.version_no=?",
+                String.class, workflowId, versionNo);
+        if (dagJson == null || dagJson.isBlank()) {
+            throw new BizException("workflow.dag_snapshot_missing", workflowId, versionNo.toString());
+        }
+
+        // 3. 反序列化 DAG 拓扑
+        com.dataweave.master.domain.WorkflowDagSnapshot snapshot;
+        try {
+            snapshot = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(dagJson, com.dataweave.master.domain.WorkflowDagSnapshot.class);
+        } catch (Exception e) {
+            throw new BizException("workflow.dag_snapshot_corrupt", workflowId, versionNo.toString());
+        }
+
+        // 4. 查 task_instance 运行时状态
+        List<Object[]> tiRows = jdbc.query(
+                "SELECT ti.id, ti.task_id, ti.state, ti.attempt, ti.started_at, ti.finished_at "
+                        + "FROM task_instance ti WHERE ti.workflow_instance_id=? AND ti.deleted=0",
+                (rs, n) -> {
+                    UUID tiId = rs.getObject("id", UUID.class);
+                    return new Object[]{
+                            tiId,
+                            rs.getLong("task_id"),
+                            rs.getString("state"),
+                            rs.getInt("attempt"),
+                            rs.getObject("started_at", LocalDateTime.class),
+                            rs.getObject("finished_at", LocalDateTime.class)};
+                },
+                workflowInstanceId);
+
+        // 构建 taskId → task instance 状态映射
+        record TiState(UUID id, String state, int attempt, LocalDateTime startedAt,
+                       LocalDateTime finishedAt) {}
+        java.util.Map<Long, TiState> stateMap = new java.util.LinkedHashMap<>();
+        for (Object[] t : tiRows) {
+            Long tid = (Long) t[1];
+            // 同一 taskId 下取最新（按 id 倒序），实际场景极少重复
+            stateMap.putIfAbsent(tid, new TiState(
+                    (UUID) t[0], (String) t[2], (Integer) t[3],
+                    (LocalDateTime) t[4], (LocalDateTime) t[5]));
+        }
+
+        // 5. 批量查 task_def 名称（snapshot 中 name 可能为 null）
+        java.util.Map<Long, String> taskNameMap = new java.util.LinkedHashMap<>();
+        List<Long> taskIds = snapshot.nodes().stream()
+                .map(com.dataweave.master.domain.WorkflowDagSnapshot.Node::taskId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (!taskIds.isEmpty()) {
+            String ph = taskIds.stream().map(id -> "?").collect(java.util.stream.Collectors.joining(","));
+            List<Object[]> nameRows = jdbc.query(
+                    "SELECT id, name FROM task_def WHERE id IN (" + ph + ")",
+                    (rs, n) -> new Object[]{rs.getLong("id"), rs.getString("name")},
+                    taskIds.toArray());
+            for (Object[] nr : nameRows) {
+                taskNameMap.put((Long) nr[0], (String) nr[1]);
+            }
+        }
+
+        // 6. 自动布局：snapshot 坐标全部为空/0 时，按 DAG 拓扑自动计算坐标
+        boolean hasCoords = snapshot.nodes().stream()
+                .anyMatch(n -> (n.posX() != null && n.posX() != 0) || (n.posY() != null && n.posY() != 0));
+        java.util.Map<String, double[]> layout = new java.util.LinkedHashMap<>();
+        if (!hasCoords && !snapshot.nodes().isEmpty()) {
+            // 构建邻接表（from → to）+ 入度
+            java.util.Map<String, java.util.List<String>> adj = new java.util.LinkedHashMap<>();
+            java.util.Map<String, Integer> indeg = new java.util.LinkedHashMap<>();
+            for (var sn : snapshot.nodes()) {
+                adj.putIfAbsent(sn.nodeKey(), new ArrayList<>());
+                indeg.putIfAbsent(sn.nodeKey(), 0);
+            }
+            for (var e : snapshot.edges()) {
+                adj.computeIfAbsent(e.fromNodeKey(), k -> new ArrayList<>()).add(e.toNodeKey());
+                indeg.merge(e.toNodeKey(), 1, Integer::sum);
+                indeg.putIfAbsent(e.fromNodeKey(), indeg.getOrDefault(e.fromNodeKey(), 0));
+            }
+            // BFS 分层：入度 0 的节点为 layer 0
+            java.util.Map<String, Integer> layer = new java.util.LinkedHashMap<>();
+            java.util.Queue<String> queue = new java.util.LinkedList<>();
+            for (var sn : snapshot.nodes()) {
+                if (indeg.getOrDefault(sn.nodeKey(), 0) == 0) {
+                    queue.add(sn.nodeKey());
+                    layer.put(sn.nodeKey(), 0);
+                }
+            }
+            while (!queue.isEmpty()) {
+                String u = queue.poll();
+                int cur = layer.get(u);
+                for (String v : adj.getOrDefault(u, List.of())) {
+                    int newLayer = Math.max(layer.getOrDefault(v, 0), cur + 1);
+                    layer.put(v, newLayer);
+                    indeg.merge(v, -1, Integer::sum);
+                    if (indeg.get(v) <= 0) queue.add(v);
+                }
+            }
+            // 每层节点按层内位置纵向分布
+            java.util.Map<Integer, java.util.List<String>> byLayer = new java.util.LinkedHashMap<>();
+            for (var e : layer.entrySet()) {
+                byLayer.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(e.getKey());
+            }
+            final double H_SPACING = 220.0;
+            final double V_SPACING = 100.0;
+            for (var ble : byLayer.entrySet()) {
+                int l = ble.getKey();
+                var keys = ble.getValue();
+                double x = 50.0 + l * H_SPACING;
+                double startY = 50.0 + (byLayer.size() > 1 ? (keys.size() - 1) * V_SPACING / -2.0 : 0);
+                for (int i = 0; i < keys.size(); i++) {
+                    layout.put(keys.get(i), new double[]{x, startY + i * V_SPACING});
+                }
+            }
+        }
+
+        // 7. 组装 InstanceDagView
+        List<OpsContracts.InstanceDagNode> nodes = new ArrayList<>();
+        for (var sn : snapshot.nodes()) {
+            TiState ts = stateMap.get(sn.taskId());
+            String nodeState = ts != null ? ts.state() : "NOT_RUN";
+            UUID tiId = ts != null ? ts.id() : null;
+            int attempt = ts != null ? ts.attempt() : 0;
+            String startedAt = ts != null && ts.startedAt() != null ? ts.startedAt().toString() : null;
+            String finishedAt = ts != null && ts.finishedAt() != null ? ts.finishedAt().toString() : null;
+            Long durationMs = (ts != null && ts.startedAt() != null && ts.finishedAt() != null)
+                    ? Duration.between(ts.startedAt(), ts.finishedAt()).toMillis() : null;
+            double posX = sn.posX() != null ? sn.posX().doubleValue() : 0.0;
+            double posY = sn.posY() != null ? sn.posY().doubleValue() : 0.0;
+            if (!hasCoords && layout.containsKey(sn.nodeKey())) {
+                double[] lp = layout.get(sn.nodeKey());
+                posX = lp[0];
+                posY = lp[1];
+            }
+            // name: snapshot 优先，回退 task_def.name
+            String nodeName = sn.name() != null && !sn.name().isBlank()
+                    ? sn.name() : taskNameMap.getOrDefault(sn.taskId(), "task-" + sn.taskId());
+            nodes.add(new OpsContracts.InstanceDagNode(sn.nodeKey(), nodeName, sn.taskId(), tiId,
+                    nodeState, attempt, startedAt, finishedAt, durationMs, posX, posY,
+                    sn.nodeType() != null ? sn.nodeType() : "TASK"));
+        }
+
+        List<OpsContracts.InstanceDagEdge> edges = snapshot.edges().stream()
+                .map(e -> new OpsContracts.InstanceDagEdge(e.fromNodeKey(), e.toNodeKey(),
+                        e.strength() != null ? e.strength() : "NORMAL"))
+                .toList();
+
+        return new OpsContracts.InstanceDagView(wiId, workflowName, versionNo != null ? versionNo : 0,
+                triggerType, wiState, bizDate, nodes, edges);
+    }
+
+    /**
+     * 获取任务实例的参数替换后实际代码。
+     * 内容优先级：content_override (TEST) > task_def_version.content > task_def.content。
+     * 参数替换复用 {@link ScheduleParamResolver}，保证展示结果与执行时一致。
+     */
+    public OpsContracts.ResolvedCodeView resolveActualCode(UUID taskInstanceId) {
+        // 查 task_instance 关键字段
+        var tiRow = jdbc.queryForList(
+                "SELECT ti.id, ti.task_id, ti.biz_date, ti.run_mode, ti.content_override, ti.params_override, "
+                        + "ti.task_version_no, ti.workflow_instance_id "
+                        + "FROM task_instance ti WHERE ti.id=? AND ti.deleted=0",
+                taskInstanceId);
+        if (tiRow.isEmpty()) {
+            throw new BizException("ops.instance.not_found", taskInstanceId);
+        }
+        var r = tiRow.get(0);
+        UUID id = (UUID) r.get("id");
+        Long taskId = (Long) r.get("task_id");
+        String bizDate = (String) r.get("biz_date");
+        String runMode = (String) r.get("run_mode");
+        String contentOverride = (String) r.get("content_override");
+        String paramsOverride = (String) r.get("params_override");
+        Integer taskVersionNo = (Integer) r.get("task_version_no");
+        UUID workflowInstanceId = (UUID) r.get("workflow_instance_id");
+
+        // 获取原始模板和参数（按优先级）
+        String rawContent = null;
+        String paramsJson = null;
+        boolean isOverride = false;
+
+        if (contentOverride != null && !contentOverride.isBlank()) {
+            rawContent = contentOverride;
+            paramsJson = paramsOverride;
+            isOverride = true;
+        } else if (taskVersionNo != null) {
+            // 从已发布版本快照取
+            String vContent = jdbc.queryForObject(
+                    "SELECT tdv.content FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?",
+                    String.class, taskId, taskVersionNo);
+            String vParams = jdbc.queryForObject(
+                    "SELECT tdv.params_json FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?",
+                    String.class, taskId, taskVersionNo);
+            rawContent = vContent;
+            paramsJson = vParams;
+        }
+
+        if (rawContent == null || rawContent.isBlank()) {
+            // 回退到 task_def 当前内容
+            rawContent = jdbc.queryForObject(
+                    "SELECT td.content FROM task_def td WHERE td.id=?", String.class, taskId);
+            paramsJson = jdbc.queryForObject(
+                    "SELECT td.params_json FROM task_def td WHERE td.id=?", String.class, taskId);
+        }
+
+        if (rawContent == null || rawContent.isBlank()) {
+            throw new BizException("ops.instance.no_content", taskInstanceId);
+        }
+
+        // 获取 task type
+        String taskType = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT tdv.type FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?), "
+                        + "(SELECT td.type FROM task_def td WHERE td.id=?))",
+                String.class, taskId, taskVersionNo, taskId);
+
+        // 参数替换
+        ScheduleParamResolver resolver = new ScheduleParamResolver();
+        String resolvedContent;
+        List<String> unresolved = new ArrayList<>();
+        try {
+            ScheduleParamResolver.BuiltInContext ctx = new ScheduleParamResolver.BuiltInContext(
+                    workflowInstanceId != null ? workflowInstanceId.toString() : "",
+                    "",
+                    id.toString(),
+                    LocalDate.now());
+            resolvedContent = resolver.resolve(rawContent, bizDate, paramsJson, ctx);
+        } catch (ScheduleParamResolver.UnresolvedPlaceholderException e) {
+            resolvedContent = rawContent;
+            unresolved.add(e.getCode());
+        } catch (Exception e) {
+            resolvedContent = rawContent;
+            unresolved.add("resolution_error");
+        }
+
+        return new OpsContracts.ResolvedCodeView(id, rawContent, resolvedContent, unresolved,
+                runMode != null ? runMode : "NORMAL", isOverride,
+                taskType != null ? taskType : "UNKNOWN");
+    }
+
+    /**
+     * 获取任务实例的参数替换后实际配置。
+     */
+    public OpsContracts.ResolvedConfigView resolveActualConfig(UUID taskInstanceId) {
+        var tiRow = jdbc.queryForList(
+                "SELECT ti.id, ti.task_id, ti.run_mode, ti.params_override, ti.task_version_no, "
+                        + "ti.content_override "
+                        + "FROM task_instance ti WHERE ti.id=? AND ti.deleted=0",
+                taskInstanceId);
+        if (tiRow.isEmpty()) {
+            throw new BizException("ops.instance.not_found", taskInstanceId);
+        }
+        var r = tiRow.get(0);
+        UUID id = (UUID) r.get("id");
+        Long taskId = (Long) r.get("task_id");
+        String runMode = (String) r.get("run_mode");
+        String paramsOverride = (String) r.get("params_override");
+        Integer taskVersionNo = (Integer) r.get("task_version_no");
+        String contentOverride = (String) r.get("content_override");
+        boolean isOverride = contentOverride != null && !contentOverride.isBlank();
+
+        // 获取 task type
+        String taskType = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT tdv.type FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?), "
+                        + "(SELECT td.type FROM task_def td WHERE td.id=?))",
+                String.class, taskId, taskVersionNo, taskId);
+        if (taskType == null) taskType = "UNKNOWN";
+
+        // 获取默认配置
+        Integer timeoutSec = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT tdv.timeout_sec FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?), "
+                        + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=?))",
+                Integer.class, taskId, taskVersionNo, taskId);
+        Integer retryMax = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT tdv.retry_max FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?), "
+                        + "(SELECT td.retry_max FROM task_def td WHERE td.id=?))",
+                Integer.class, taskId, taskVersionNo, taskId);
+        String versionParams = jdbc.queryForObject(
+                "SELECT COALESCE((SELECT tdv.params_json FROM task_def_version tdv WHERE tdv.task_id=? AND tdv.version_no=?), "
+                        + "(SELECT td.params_json FROM task_def td WHERE td.id=?))",
+                String.class, taskId, taskVersionNo, taskId);
+        String originalParamsJson = (!isOverride) ? null : versionParams;
+
+        // 实际使用的 params（TEST 覆盖 > 版本 > 当前定义）
+        String rawParamsJson = (paramsOverride != null && !paramsOverride.isBlank())
+                ? paramsOverride : versionParams;
+
+        int timeout = timeoutSec != null ? timeoutSec : 300;
+        int retry = retryMax != null ? retryMax : 0;
+        String retryStrategy = "FIXED(" + retry + ",60s)";
+        String resourceLimit = "cpu=2,mem=1024Mi";
+
+        // 参数替换
+        ScheduleParamResolver resolver = new ScheduleParamResolver();
+        String resolvedParamsJson = rawParamsJson;
+        List<String> unresolved = new ArrayList<>();
+        if (rawParamsJson != null && !rawParamsJson.isBlank()) {
+            try {
+                resolvedParamsJson = resolver.resolve(rawParamsJson, "",
+                        rawParamsJson, new ScheduleParamResolver.BuiltInContext("", "", id.toString(), LocalDate.now()));
+            } catch (Exception e) {
+                unresolved.add("resolution_error");
+            }
+        }
+
+        return new OpsContracts.ResolvedConfigView(id, taskType, timeout, retryStrategy, resourceLimit,
+                rawParamsJson != null ? rawParamsJson : "{}",
+                resolvedParamsJson != null ? resolvedParamsJson : "{}",
+                unresolved, runMode != null ? runMode : "NORMAL", isOverride,
+                originalParamsJson, isOverride ? timeout : null,
+                taskVersionNo != null ? taskVersionNo : 0);
     }
 
     public record LogChunk(String content, int totalSize, int offset, boolean hasMore) {}

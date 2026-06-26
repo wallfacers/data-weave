@@ -25,6 +25,8 @@ import { DwScroll } from "@/components/ui/dw-scroll"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
+import { WorkflowInstancesPanel } from "./ops/workflow-instances-panel"
+import { InstanceDagDialog } from "./ops/instance-dag-dialog"
 import { BackfillPanel } from "./ops/backfill-panel"
 import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
 import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
@@ -33,6 +35,7 @@ import { OpsAlertCard } from "./ops/ops-alert-card"
 // 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
 // 「手动·测试」Tab 已移除：测试实例归开发态，手动触发是实例视图里的动作。
 type TabId = "periodicWf" | "manualWf" | "instances" | "backfill"
+type InstanceViewType = "task" | "workflow"
 
 const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "periodicWf", labelKey: "tabPeriodicWorkflows", icon: Calendar03Icon },
@@ -78,6 +81,9 @@ export function OpsView({ params }: ViewProps) {
   }, [params?.tab])
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
+  const [instanceView, setInstanceView] = useState<InstanceViewType>("workflow")
+  const [dagWfInstanceId, setDagWfInstanceId] = useState<string | null>(null)
+  const [dagOpen, setDagOpen] = useState(false)
   const alerts = useOpsAlertsStore((s) => s.alerts)
   const activeAlerts = alerts.filter((a) => !a.resolved)
 
@@ -104,7 +110,45 @@ export function OpsView({ params }: ViewProps) {
             {activeTab === "periodicWf" && <PeriodicWorkflowsPanel />}
             {activeTab === "manualWf" && <ManualWorkflowsPanel />}
             {activeTab === "instances" && (
-              <PeriodicInstancesPanel initialFilter={initialFilter} />
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* 子切换：任务流实例 / 任务实例 */}
+                <div className="flex items-center gap-1 border-b px-5 h-9">
+                  <button
+                    type="button"
+                    onClick={() => setInstanceView("workflow")}
+                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                      instanceView === "workflow"
+                        ? "bg-accent text-accent-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t("instanceViewWorkflow")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInstanceView("task")}
+                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
+                      instanceView === "task"
+                        ? "bg-accent text-accent-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t("instanceViewTask")}
+                  </button>
+                </div>
+                <div className="flex min-h-0 flex-1">
+                  {instanceView === "workflow" ? (
+                    <WorkflowInstancesPanel
+                      onRowClick={(row) => {
+                        setDagWfInstanceId(row.id)
+                        setDagOpen(true)
+                      }}
+                    />
+                  ) : (
+                    <PeriodicInstancesPanel initialFilter={initialFilter} />
+                  )}
+                </div>
+              </div>
             )}
             {activeTab === "backfill" && <BackfillPanel />}
           </div>
@@ -133,6 +177,13 @@ export function OpsView({ params }: ViewProps) {
           )}
         </aside>
       </div>
+
+      {/* 实例 DAG 弹窗 */}
+      <InstanceDagDialog
+        workflowInstanceId={dagWfInstanceId}
+        open={dagOpen}
+        onOpenChange={setDagOpen}
+      />
     </div>
   )
 }

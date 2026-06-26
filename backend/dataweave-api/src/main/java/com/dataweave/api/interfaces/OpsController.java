@@ -218,10 +218,66 @@ public class OpsController {
         return ApiResponse.ok(opsService.instances());
     }
 
+    /**
+     * 多维筛选 + 分页查询任务流实例列表。
+     * page 从 1 起；size 上限 200。
+     */
+    @GetMapping("/workflow-instances")
+    public ApiResponse<?> workflowInstances(
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String stateIn,
+            @RequestParam(required = false) String triggerType,
+            @RequestParam(required = false) Long workflowId,
+            @RequestParam(required = false) String bizDate,
+            @RequestParam(required = false) String bizDateFrom,
+            @RequestParam(required = false) String bizDateTo,
+            @RequestParam(required = false) String startedAtFrom,
+            @RequestParam(required = false) String startedAtTo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q =
+                new com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery(
+                        state, stateIn, triggerType, workflowId, bizDate,
+                        bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
+                        page, size);
+        var result = dataOpsBridge.queryWorkflowInstances(q);
+        return ApiResponse.ok(result);
+    }
+
     /** 工作流实例详情（实例 + 其下任务节点）。 */
     @GetMapping("/workflow-instances/{id}")
     public ApiResponse<OpsService.WorkflowInstanceDetail> workflowInstance(@PathVariable UUID id) {
         return ApiResponse.ok(opsService.workflowInstanceDetail(id));
+    }
+
+    /** 实例级 DAG 视图：历史拓扑（发布时快照）+ task_instance 运行时状态叠加。 */
+    @GetMapping("/workflow-instances/{id}/dag")
+    public ApiResponse<?> workflowInstanceDag(@PathVariable UUID id) {
+        var dag = dataOpsBridge.getInstanceDag(id);
+        if (dag == null) {
+            return ApiResponse.err(404, "workflow.instance.not_found");
+        }
+        return ApiResponse.ok(dag);
+    }
+
+    /** 任务实例参数替换后的实际代码。 */
+    @GetMapping("/task-instances/{id}/resolved-code")
+    public ApiResponse<?> resolvedCode(@PathVariable UUID id) {
+        var code = dataOpsBridge.getResolvedCode(id);
+        if (code == null) {
+            return ApiResponse.err(404, "task.instance.not_found");
+        }
+        return ApiResponse.ok(code);
+    }
+
+    /** 任务实例参数替换后的实际配置。 */
+    @GetMapping("/task-instances/{id}/resolved-config")
+    public ApiResponse<?> resolvedConfig(@PathVariable UUID id) {
+        var config = dataOpsBridge.getResolvedConfig(id);
+        if (config == null) {
+            return ApiResponse.err(404, "task.instance.not_found");
+        }
+        return ApiResponse.ok(config);
     }
 
     /** 失败的正式运行实例。 */

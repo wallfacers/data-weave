@@ -158,6 +158,29 @@ public class DataOpsBridgeStub implements DataOpsBridge {
         throw new UnsupportedOperationException("backfillRunInstances — 待 Stream A 实现");
     }
 
+    // ─── 003-instance-dag-viewer 新方法（桩） ──────────────
+
+    @Override
+    public Page<com.dataweave.master.application.OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
+            com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q) {
+        return new Page<>(List.of(), 0, q.page(), q.size());
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.InstanceDagView getInstanceDag(UUID workflowInstanceId) {
+        return null;
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedCodeView getResolvedCode(UUID taskInstanceId) {
+        return null;
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedConfigView getResolvedConfig(UUID taskInstanceId) {
+        return null;
+    }
+
     private InstanceRow toRow(TaskInstance ti, Map<Long, String> taskNames) {
         String name = taskNames.getOrDefault(ti.getTaskId(), "task-" + ti.getTaskId());
         Long durationMs = null;

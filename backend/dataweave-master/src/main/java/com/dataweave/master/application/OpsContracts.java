@@ -100,4 +100,49 @@ public final class OpsContracts {
     public record WorkflowQuery(String scheduleType, String keyword, Integer hasDraftChange,
                                 String recentResult, Long catalogNodeId, Long createdBy,
                                 int page, int size) {}
+
+    /**
+     * 任务流实例列表行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。
+     * workflowName 来自 workflow_def.name（correlated subquery）。
+     */
+    public record WorkflowInstanceRow(UUID id, Long workflowId, String workflowName, String state,
+                                      String bizDate, Integer priority, String triggerType,
+                                      int totalTasks, int completedTasks, int failedTasks,
+                                      String startedAt, String finishedAt, Long durationMs) {}
+
+    /**
+     * 任务流实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。
+     * stateIn 为状态多选 CSV（与 state 单值并存，二者都给则都生效）；bizDate/startedAt 区间在对应列上闭区间过滤。
+     */
+    public record WorkflowInstanceQuery(String state, String stateIn, String triggerType,
+                                         Long workflowId, String bizDate,
+                                         String bizDateFrom, String bizDateTo,
+                                         String startedAtFrom, String startedAtTo,
+                                         int page, int size) {}
+
+    /** 实例 DAG 节点：DAG 拓扑位置 + 运行时状态叠加。 */
+    public record InstanceDagNode(String nodeKey, String taskName, Long taskId, UUID taskInstanceId,
+                                  String state, int attempt, String startedAt, String finishedAt,
+                                  Long durationMs, double posX, double posY, String nodeType) {}
+
+    /** 实例 DAG 边：端点用 nodeKey 引用。 */
+    public record InstanceDagEdge(String fromNodeKey, String toNodeKey, String strength) {}
+
+    /** 实例 DAG 完整视图：历史拓扑 + 全部节点运行时状态 + 边。 */
+    public record InstanceDagView(UUID workflowInstanceId, String workflowName, int workflowVersionNo,
+                                   String triggerType, String state, String bizDate,
+                                   List<InstanceDagNode> nodes, List<InstanceDagEdge> edges) {}
+
+    /** 参数替换后的实际代码视图。 */
+    public record ResolvedCodeView(UUID taskInstanceId, String rawContent, String resolvedContent,
+                                    List<String> unresolvedPlaceholders, String runMode,
+                                    boolean isOverride, String taskType) {}
+
+    /** 参数替换后的实际配置视图。TEST 模式下 originalParamsJson/originalTimeoutSeconds 非空。 */
+    public record ResolvedConfigView(UUID taskInstanceId, String taskType, int timeoutSeconds,
+                                      String retryStrategy, String resourceLimit,
+                                      String rawParamsJson, String resolvedParamsJson,
+                                      List<String> unresolvedPlaceholders, String runMode,
+                                      boolean isOverride, String originalParamsJson,
+                                      Integer originalTimeoutSeconds, int taskVersionNo) {}
 }
