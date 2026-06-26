@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tools.jackson.core.type.TypeReference;
@@ -66,12 +67,6 @@ public class WorkhorseHttpClient implements WorkhorseClient {
 
     @Override
     public Flux<WorkhorseEvent> sendMessage(String sessionId, String content) {
-        Mono<Void> submit = webClient.post().uri("/v1/sessions/{id}/stream", sessionId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("type", "user_message", "content", content))
-                .retrieve()
-                .bodyToMono(Void.class);
-
         Flux<WorkhorseEvent> stream = webClient.get().uri("/v1/sessions/{id}/stream", sessionId)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .header("Last-Event-ID",
@@ -81,10 +76,40 @@ public class WorkhorseHttpClient implements WorkhorseClient {
                 })
                 .doOnNext(sse -> rememberIdx(sessionId, sse))
                 .mapNotNull(this::parse)
-                .takeUntil(ev -> "done".equals(ev.type()))
+                // error 也是终结信号（takeUntil 含界：error 事件先发出再完成），但保留它让桥层透出报错；
+                // 仅过滤掉纯终结标记 done。
+                .takeUntil(ev -> "done".equals(ev.type()) || "error".equals(ev.type()))
                 .filter(ev -> !"done".equals(ev.type()));
 
-        return submit.thenMany(stream);
+        return submitWithRecovery(sessionId, content).thenMany(stream);
+    }
+
+    /** 提交一条 user_message。turn 进行中（thinking/running）会被 workhorse 拒以 409 session_busy。 */
+    private Mono<Void> submit(String sessionId, String content) {
+        return webClient.post().uri("/v1/sessions/{id}/stream", sessionId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("type", "user_message", "content", content))
+                .retrieve()
+                .bodyToMono(Void.class);
+    }
+
+    /**
+     * 带自愈的提交：若 workhorse 返回 409 session_busy（上一轮被打断卡在 thinking/running，例如浏览器
+     * 中途断开、agent 重启），先 {@code POST /cancel} 解卡再重试一次。否则该会话所有后续消息都会 409 →
+     * /agui 的 Flux 报错 → 连接被重置（浏览器 ERR_INCOMPLETE_CHUNKED_ENCODING）→ 该对话永久空白。
+     */
+    private Mono<Void> submitWithRecovery(String sessionId, String content) {
+        return submit(sessionId, content)
+                .onErrorResume(WebClientResponseException.Conflict.class,
+                        e -> cancel(sessionId).then(submit(sessionId, content)));
+    }
+
+    /** 取消会话当前 turn（解卡 thinking/running）。失败不阻断后续重试。 */
+    private Mono<Void> cancel(String sessionId) {
+        return webClient.post().uri("/v1/sessions/{id}/cancel", sessionId)
+                .retrieve()
+                .bodyToMono(Void.class)
+                .onErrorResume(e -> Mono.empty());
     }
 
     /**
@@ -139,7 +164,12 @@ public class WorkhorseHttpClient implements WorkhorseClient {
                 // 非 tool_use 即本轮终结；缺失 stop_reason 时保守判定为终结，避免挂死。
                 yield (stop == null || !stop.equals("tool_use")) ? WorkhorseEvent.done() : null;
             }
-            case "error", "interrupted" -> WorkhorseEvent.done();
+            case "error", "interrupted" -> {
+                // 透出上游错误信息（key 失效/限流/超时/中断…），优先取 upstream_message，回退 message/type。
+                String upstream = nestedUpstreamMessage(d.get("details"));
+                String msg = upstream != null ? upstream : str(d, "message");
+                yield WorkhorseEvent.error(msg != null ? msg : type);
+            }
             default -> null;     // reasoning_*/compaction/provider_retry/pong/... 不进 AG-UI 文本流
         };
     }
@@ -162,6 +192,16 @@ public class WorkhorseHttpClient implements WorkhorseClient {
 
     private String str(Map<String, Object> m, String key) {
         Object v = m.get(key);
+        return v == null ? null : v.toString();
+    }
+
+    /** 从 error 事件的 {@code details} 对象里取 {@code upstream_message}（更贴近根因的上游报文）；缺失返回 null。 */
+    @SuppressWarnings("unchecked")
+    private String nestedUpstreamMessage(Object details) {
+        if (!(details instanceof Map<?, ?> m)) {
+            return null;
+        }
+        Object v = ((Map<String, Object>) m).get("upstream_message");
         return v == null ? null : v.toString();
     }
 }

@@ -9,8 +9,13 @@ server:
 
 # 大脑 LLM 提供方（anthropic / openai 双协议；无 ${ENV} 展开，key 须字面量，部署时覆盖）。
 # 当前接百炼（DashScope）Qwen 的 Anthropic 兼容端点：base_url 会被拼成 <base_url>/v1/messages。
-# 真 key 不写进本（进 git 的）文件：用同目录 config.local.yaml（已 gitignore）或环境变量
-#   WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY 覆盖。
+#
+# ⚠️ go 二进制只读单个 --config 文件 + WORKHORSE_AGENT_* env（load.go），**不会自动合并同目录
+#   config.local.yaml，也不认裸 ANTHROPIC_* env，且 env 无 model 覆盖项**。直接 `serve --config config.yaml`
+#   会用下面的占位 key 失败（上游 invalid access token），聊天空白。
+# ✅ 本地真 key 放 config.local.yaml（gitignore），用 `deploy/workhorse/serve-local.sh` 启动——
+#   它把本模板 ⊕ config.local.yaml 合并成 config.runtime.yaml 再喂给 --config。仅 key/base_url 时
+#   也可 export WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY / _BASE_URL；换 model 只能走合并文件。
 providers:
   default: anthropic
   anthropic:
