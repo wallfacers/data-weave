@@ -21,7 +21,7 @@ public final class OpsContracts {
     public record InstanceRow(UUID id, Long taskDefId, String taskDefName, UUID workflowInstanceId,
                               String runMode, String state, String bizDate,
                               String startedAt, String finishedAt, Long durationMs,
-                              String cronExpression) {}
+                              String cronExpression, String env, String workflowName) {}
 
     /**
      * 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。
@@ -108,7 +108,8 @@ public final class OpsContracts {
     public record WorkflowInstanceRow(UUID id, Long workflowId, String workflowName, String state,
                                       String bizDate, Integer priority, String triggerType,
                                       int totalTasks, int completedTasks, int failedTasks,
-                                      String startedAt, String finishedAt, Long durationMs) {}
+                                      String startedAt, String finishedAt, Long durationMs,
+                                      String env) {}
 
     /**
      * 任务流实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。
@@ -131,7 +132,8 @@ public final class OpsContracts {
     /** 实例 DAG 完整视图：历史拓扑 + 全部节点运行时状态 + 边。 */
     public record InstanceDagView(UUID workflowInstanceId, String workflowName, int workflowVersionNo,
                                    String triggerType, String state, String bizDate,
-                                   List<InstanceDagNode> nodes, List<InstanceDagEdge> edges) {}
+                                   List<InstanceDagNode> nodes, List<InstanceDagEdge> edges,
+                                   String env) {}
 
     /** 参数替换后的实际代码视图。 */
     public record ResolvedCodeView(UUID taskInstanceId, String rawContent, String resolvedContent,

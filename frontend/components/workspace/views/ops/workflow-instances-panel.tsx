@@ -9,10 +9,14 @@
  * 与 PeriodicInstancesPanel 共享 DataTable<T> + DataTableToolbar 渲染模式。
  */
 
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { PlayIcon, StopIcon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import {
   type ColumnDef,
@@ -84,6 +88,26 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
     return () => abortRef.current?.abort() // 组件卸载时取消进行中的请求
   }, [])
 
+  // 批量操作
+  const runBatch = useCallback(async (op: string, ids: string[], reload: () => void) => {
+    try {
+      const res = await authFetch(`${API_BASE}/api/ops/instances/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, op }),
+      })
+      const j = (await res.json()) as ApiResponse<{ outcome: string }>
+      if (j.code === 0) {
+        toast.success(t("batchSuccess"))
+        reload()
+      } else {
+        toast.error(t("batchError"))
+      }
+    } catch {
+      toast.error(t("batchError"))
+    }
+  }, [t])
+
   // ── 筛选定义 ──
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -133,6 +157,16 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
         cell: (row: WorkflowInstanceRow) => (
           <Badge variant="outline" className="text-xs">
             {t((TRIGGER_TYPE_I18N[row.triggerType] ?? row.triggerType) as never)}
+          </Badge>
+        ),
+      },
+      {
+        key: "env",
+        header: t("colEnv"),
+        widthPct: 5,
+        cell: (row: WorkflowInstanceRow) => (
+          <Badge variant={row.env === "DEV" ? "secondary" : "default"} className="text-xs">
+            {row.env ?? "PROD"}
           </Badge>
         ),
       },
@@ -210,9 +244,8 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
         params.set("page", String(query.page))
         params.set("size", String(query.size))
         for (const [k, v] of Object.entries(query.filters ?? {})) {
-          if (v != null && v !== "") {
-            params.set(k, Array.isArray(v) ? v.join(",") : String(v))
-          }
+          if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) continue
+          params.set(k, Array.isArray(v) ? v.join(",") : String(v))
         }
         const res = await authFetch(`${API_BASE}/api/ops/workflow-instances?${params.toString()}`, {
           signal: abortRef.current.signal,
@@ -234,6 +267,26 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
         filters={filters}
         presets={presets}
         onRowClick={onRowClick}
+        selectable
+        bulkActions={(ids, reload) => (
+          <div className="flex items-center gap-1">
+            {ids.length > 100 ? (
+              <span className="text-xs text-destructive">最多选中 100 个实例</span>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={() => runBatch("rerun", ids, reload)}>
+                  <HugeiconsIcon icon={PlayIcon} /> 批量重跑
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => runBatch("set-success", ids, reload)}>
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} /> 批量置成功
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => runBatch("kill", ids, reload)}>
+                  <HugeiconsIcon icon={StopIcon} /> 批量停止
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       />
     </div>
   )

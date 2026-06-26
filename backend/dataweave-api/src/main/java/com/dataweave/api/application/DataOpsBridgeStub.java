@@ -198,7 +198,9 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getStartedAt(),
                 ti.getFinishedAt(),
                 durationMs,
-                null // cronExpression: stub 不提供
+                null, // cronExpression: stub 不提供
+                null, // env: stub 不提供
+                null  // workflowName: stub 不提供
         );
     }
 }

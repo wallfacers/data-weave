@@ -176,7 +176,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at claude
+Current feature: [006-workflow-instance-ops](specs/006-workflow-instance-ops/spec.md)
+Implementation plan: [plan.md](specs/006-workflow-instance-ops/plan.md)
+Research: [research.md](specs/006-workflow-instance-ops/research.md)
+Data model: [data-model.md](specs/006-workflow-instance-ops/data-model.md)
+API contracts: [api-changes.md](specs/006-workflow-instance-ops/contracts/api-changes.md)
 <!-- SPECKIT END -->

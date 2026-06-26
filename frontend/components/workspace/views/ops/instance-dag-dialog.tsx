@@ -34,6 +34,7 @@ export function InstanceDagDialog({
   const { dag, loading, error, reload } = useInstanceDag(open ? workflowInstanceId : null)
   const [selectedTaskInstanceId, setSelectedTaskInstanceId] = useState<string | null>(null)
   const [selectedNodeName, setSelectedNodeName] = useState<string | undefined>(undefined)
+  const [selectedTaskState, setSelectedTaskState] = useState<string | undefined>(undefined)
 
   // ── 计算高亮 nodeKey ─────────────────────────────────
   const highlightNodeKey = useMemo(() => {
@@ -56,6 +57,7 @@ export function InstanceDagDialog({
       const tiId = (data?.taskInstanceId as string) ?? null
       setSelectedTaskInstanceId(tiId)
       setSelectedNodeName((data?.label as string) ?? undefined)
+      setSelectedTaskState((data?.state as string) ?? undefined)
     },
     [],
   )
@@ -81,10 +83,11 @@ export function InstanceDagDialog({
   const panelOpen = selectedTaskInstanceId !== null
 
   const title = dag ? `${dag.workflowName} — ${dag.bizDate}` : t("instanceDagTitle")
-  const subtitle = dag ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.state}` : undefined
+  const envLabel = dag?.env ? ` · ${dag.env}` : ""
+  const subtitle = dag ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.state}${envLabel}` : undefined
   const footerInfo = dag
-    ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.bizDate}`
-    : " "
+    ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.bizDate}${envLabel}`
+    : " "
 
   return (
     <DagDialog
@@ -104,6 +107,8 @@ export function InstanceDagDialog({
         <InstanceDetailSidePanel
           taskInstanceId={selectedTaskInstanceId}
           nodeName={selectedNodeName}
+          taskState={selectedTaskState}
+          env={dag?.env}
           onClose={handlePaneClick}
         />
       )}

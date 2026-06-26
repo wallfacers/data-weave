@@ -3,6 +3,8 @@ package com.dataweave.master.application;
 import com.dataweave.master.application.OpsContracts.InstanceQuery;
 import com.dataweave.master.application.OpsContracts.InstanceRow;
 import com.dataweave.master.application.OpsContracts.PageResult;
+import com.dataweave.master.domain.AgentAction;
+import com.dataweave.master.domain.AgentActionRepository;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.LogBus;
@@ -43,6 +45,7 @@ public class OpsService {
     private final LogBus logBus;
     private final EventBus eventBus;
     private final JdbcTemplate jdbc;
+    private final AgentActionRepository agentActionRepository;
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
@@ -52,7 +55,8 @@ public class OpsService {
                       InstanceStateMachine stateMachine,
                       LogBus logBus,
                       EventBus eventBus,
-                      JdbcTemplate jdbc) {
+                      JdbcTemplate jdbc,
+                      AgentActionRepository agentActionRepository) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
@@ -62,6 +66,23 @@ public class OpsService {
         this.logBus = logBus;
         this.eventBus = eventBus;
         this.jdbc = jdbc;
+        this.agentActionRepository = agentActionRepository;
+    }
+
+    /** 记录运维直接操作审计日志。绕过闸门的直接操作仍需留痕（FR-012）。 */
+    private void audit(String actionType, UUID targetId, String summary) {
+        AgentAction aa = new AgentAction();
+        aa.setActionType(actionType);
+        aa.setTargetType("TASK_INSTANCE");
+        aa.setTargetId(targetId.toString());
+        aa.setSummary(summary);
+        aa.setActor("ops");
+        aa.setActorSource("UI");
+        aa.setPolicyLevel("L0");
+        aa.setApprovalStatus("NONE");
+        aa.setCreatedAt(LocalDateTime.now());
+        aa.setExecutedAt(LocalDateTime.now());
+        agentActionRepository.save(aa);
     }
 
     /** 非成功态：允许 set-success 的起始态（无运行事实的 NOT_RUN/WAITING/PAUSED 不在内）。 */
@@ -242,7 +263,7 @@ public class OpsService {
                     wi.getPriority(), "NORMAL",
                     wi.getStartedAt() != null ? wi.getStartedAt().toString() : null,
                     wi.getFinishedAt() != null ? wi.getFinishedAt().toString() : null,
-                    tasks);
+                    tasks, wi.getEnv());
         }).orElse(null);
     }
 
@@ -269,9 +290,28 @@ public class OpsService {
     // ─── 实例生命周期管理 ─────────────────────────────────
 
     /** 暂停工作流实例：RUNNING → PAUSED，所有 NOT_RUN 的 TaskInstance → PAUSED。 */
+    /** DEV 实例仅允许停止操作，其他写操作拒绝（FR-013）。 */
+    private void rejectDevEnv(WorkflowInstance wi, String operation) {
+        if ("DEV".equals(wi.getEnv())) {
+            throw new BizException("workflow.dev_limited", operation);
+        }
+    }
+
+    /** 任务级 DEV 检查：通过 task -> workflow_instance 查 env。 */
+    private void rejectDevEnvForTask(TaskInstance ti, String operation) {
+        if (ti.getWorkflowInstanceId() != null) {
+            workflowInstanceRepository.findById(ti.getWorkflowInstanceId()).ifPresent(wi -> {
+                if ("DEV".equals(wi.getEnv())) {
+                    throw new BizException("workflow.dev_limited", operation);
+                }
+            });
+        }
+    }
+
     public WorkflowInstance pauseWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        rejectDevEnv(wi, "pause");
         if (!"RUNNING".equals(wi.getState())) {
             throw new BizException("ops.pause.only_running");
         }
@@ -285,6 +325,7 @@ public class OpsService {
                 instanceRepository.save(ti);
             }
         });
+        audit("PAUSE_WORKFLOW", instanceId, "暂停工作流实例");
         return workflowInstanceRepository.save(wi);
     }
 
@@ -292,6 +333,7 @@ public class OpsService {
     public WorkflowInstance resumeWorkflow(UUID instanceId) {
         WorkflowInstance wi = workflowInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        rejectDevEnv(wi, "resume");
         if (!"PAUSED".equals(wi.getState())) {
             throw new BizException("ops.resume.only_paused");
         }
@@ -304,6 +346,7 @@ public class OpsService {
                 instanceRepository.save(ti);
             }
         });
+        audit("RESUME_WORKFLOW", instanceId, "恢复工作流实例");
         return workflowInstanceRepository.save(wi);
     }
 
@@ -328,6 +371,7 @@ public class OpsService {
         wi.setState("STOPPED");
         wi.setFinishedAt(now);
         wi.setUpdatedAt(now);
+        audit("KILL_WORKFLOW", instanceId, "停止工作流实例");
         return workflowInstanceRepository.save(wi);
     }
 
@@ -340,6 +384,7 @@ public class OpsService {
         }
         ti.setState("PAUSED");
         ti.setUpdatedAt(LocalDateTime.now());
+        audit("PAUSE_TASK", instanceId, "暂停任务实例");
         return instanceRepository.save(ti);
     }
 
@@ -352,6 +397,7 @@ public class OpsService {
         }
         ti.setState("NOT_RUN");
         ti.setUpdatedAt(LocalDateTime.now());
+        audit("RESUME_TASK", instanceId, "恢复任务实例");
         return instanceRepository.save(ti);
     }
 
@@ -366,7 +412,9 @@ public class OpsService {
             appendManualStopLog(instanceId);
         }
         // 返回最新态（CAS 已落库）。
-        return instanceRepository.findById(instanceId).orElse(ti);
+        var latest = instanceRepository.findById(instanceId).orElse(ti);
+        audit("KILL_TASK", instanceId, "停止任务实例");
+        return latest;
     }
 
     // ─── data-ops-center：置成功 / 重跑 / 冻结 / 筛选 ──────────────
@@ -378,6 +426,7 @@ public class OpsService {
     public TaskInstance setSuccess(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
+        rejectDevEnvForTask(ti, "set-success");
         String from = ti.getState();
         if (!SET_SUCCESS_FROM.contains(from)) {
             throw new BizException("ops.set_success.invalid_state", from);
@@ -386,6 +435,7 @@ public class OpsService {
             // 唤醒：下游 WAITING 经调度认领的就绪门（上游 SUCCESS）自然解锁。
             eventBus.publish(InstanceStates.WAKE_CHANNEL, "set-success");
         }
+        audit("SET_SUCCESS", instanceId, "置成功任务实例");
         return instanceRepository.findById(instanceId).orElse(ti);
     }
 
@@ -396,6 +446,7 @@ public class OpsService {
     public TaskInstance rerunInstance(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
+        rejectDevEnvForTask(ti, "rerun");
         if (!isTerminal(ti.getState())) {
             throw new BizException("ops.rerun.not_terminal", ti.getState());
         }
@@ -409,6 +460,7 @@ public class OpsService {
                     + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0", now, wiId);
         }
         eventBus.publish(InstanceStates.WAKE_CHANNEL, "rerun");
+        audit("RERUN_INSTANCE", instanceId, "重跑任务实例");
         return instanceRepository.findById(instanceId).orElse(ti);
     }
 
@@ -486,7 +538,12 @@ public class OpsService {
                         + "(SELECT td.name FROM task_def td WHERE td.id=ti.task_id) AS task_name, "
                         + "(SELECT wd.cron FROM workflow_instance wi "
                         + "  JOIN workflow_def wd ON wd.id=wi.workflow_id "
-                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr "
+                        + "  WHERE wi.id=ti.workflow_instance_id) AS cron_expr, "
+                        + "(SELECT wi2.env FROM workflow_instance wi2 "
+                        + "  WHERE wi2.id=ti.workflow_instance_id) AS env, "
+                        + "(SELECT wd2.name FROM workflow_instance wi3 "
+                        + "  JOIN workflow_def wd2 ON wd2.id=wi3.workflow_id "
+                        + "  WHERE wi3.id=ti.workflow_instance_id) AS workflow_name "
                         + "FROM task_instance ti" + where
                         // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
                         + "ORDER BY CASE "
@@ -505,7 +562,8 @@ public class OpsService {
                             rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
-                            durationMs, rs.getString("cron_expr"));
+                            durationMs, rs.getString("cron_expr"),
+                            rs.getString("env"), rs.getString("workflow_name"));
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);
@@ -584,7 +642,7 @@ public class OpsService {
         List<OpsContracts.WorkflowInstanceRow> items = jdbc.query(
                 "SELECT wi.id, wi.workflow_id, wi.trigger_type, wi.state, wi.biz_date, "
                         + "wi.total_tasks, wi.completed_tasks, wi.failed_tasks, "
-                        + "wi.started_at, wi.finished_at, wi.priority, "
+                        + "wi.started_at, wi.finished_at, wi.priority, wi.env, "
                         + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
                         + "FROM workflow_instance wi" + where
                         + "ORDER BY CASE "
@@ -611,7 +669,7 @@ public class OpsService {
                             failedTasks != null ? failedTasks : 0,
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
-                            durationMs);
+                            durationMs, rs.getString("env"));
                 },
                 pageArgs.toArray());
         return new OpsContracts.PageResult<>(items, totalCount, page, size);
@@ -625,6 +683,7 @@ public class OpsService {
         // 1. 查 WorkflowInstance 元信息
         var wiRows = jdbc.query(
                 "SELECT wi.id, wi.workflow_id, wi.workflow_version_no, wi.trigger_type, wi.state, wi.biz_date, "
+                        + "wi.env, "
                         + "COALESCE((SELECT wd.name FROM workflow_def wd WHERE wd.id=wi.workflow_id), '') AS workflow_name "
                         + "FROM workflow_instance wi WHERE wi.id=? AND wi.deleted=0",
                 (rs, n) -> List.<Object>of(
@@ -634,6 +693,7 @@ public class OpsService {
                         rs.getString("trigger_type"),
                         rs.getString("state"),
                         rs.getString("biz_date"),
+                        rs.getString("env"),
                         rs.getString("workflow_name")),
                 workflowInstanceId);
         if (wiRows.isEmpty()) {
@@ -646,7 +706,8 @@ public class OpsService {
         String triggerType = (String) row.get(3);
         String wiState = (String) row.get(4);
         String bizDate = (String) row.get(5);
-        String workflowName = (String) row.get(6);
+        String env = (String) row.get(6);
+        String workflowName = (String) row.get(7);
 
         // 2. 查历史版本 DAG snapshot
         String dagJson = jdbc.queryForObject(
@@ -798,7 +859,7 @@ public class OpsService {
                 .toList();
 
         return new OpsContracts.InstanceDagView(wiId, workflowName, versionNo != null ? versionNo : 0,
-                triggerType, wiState, bizDate, nodes, edges);
+                triggerType, wiState, bizDate, nodes, edges, env);
     }
 
     /**
@@ -973,7 +1034,7 @@ public class OpsService {
     /** 工作流实例详情（实例 + 任务节点视图）。runMode 恒 NORMAL（试跑不建 workflow_instance）。 */
     public record WorkflowInstanceDetail(UUID id, Long workflowId, String bizDate, String state,
             Integer priority, String runMode, String startedAt, String finishedAt,
-            List<TaskNodeView> tasks) {}
+            List<TaskNodeView> tasks, String env) {}
 
     private boolean isTerminal(String state) {
         return "SUCCESS".equals(state) || "FAILED".equals(state) || "STOPPED".equals(state);

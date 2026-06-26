@@ -194,28 +194,14 @@ public class OpsController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 新签名：有任一筛选/分页参数时走契约①
-        boolean hasFilter = runMode != null || state != null || taskId != null || bizDate != null
-                || stateIn != null || bizDateFrom != null || bizDateTo != null
-                || startedAtFrom != null || startedAtTo != null
-                || workerNodeCode != null || failureReason != null
-                || page > 1; // page>1 表示调用方明确要分页
-        if (hasFilter) {
-            InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
-                    stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                    workerNodeCode, failureReason, page, size);
-            Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
-            return ApiResponse.ok(result);
-        }
-
-        // 旧兼容：无参数返回全部 NORMAL 实例
-        if (size != 20 || page != 1) {
-            InstanceQuery q = new InstanceQuery(null, null, null, null, page, size);
-            Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
-            return ApiResponse.ok(result);
-        }
-
-        return ApiResponse.ok(opsService.instances());
+        // 统一走 dataOpsBridge，返回 Page<InstanceRow> 格式保证前端解析一致
+        // 前端 1-indexed，后端 0-indexed，做转换；响应用原始 page 保持一致性
+        int page0 = Math.max(0, page - 1);
+        InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
+                stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
+                workerNodeCode, failureReason, page0, size);
+        Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
+        return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }
 
     /**
@@ -235,13 +221,15 @@ public class OpsController {
             @RequestParam(required = false) String startedAtTo,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
+        // 前端 1-indexed → 后端 0-indexed；响应用原始 page
+        int page0 = Math.max(0, page - 1);
         com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q =
                 new com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery(
                         state, stateIn, triggerType, workflowId, bizDate,
                         bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                        page, size);
+                        page0, size);
         var result = dataOpsBridge.queryWorkflowInstances(q);
-        return ApiResponse.ok(result);
+        return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }
 
     /** 工作流实例详情（实例 + 其下任务节点）。 */
@@ -355,6 +343,16 @@ public class OpsController {
         return ApiResponse.ok(opsService.killTask(id));
     }
 
+    @PostMapping("/task-instances/{id}/rerun")
+    public ApiResponse<?> rerunTask(@PathVariable UUID id) {
+        return ApiResponse.ok(opsService.rerunInstance(id));
+    }
+
+    @PostMapping("/task-instances/{id}/set-success")
+    public ApiResponse<?> setSuccess(@PathVariable UUID id) {
+        return ApiResponse.ok(opsService.setSuccess(id));
+    }
+
     // ─── 契约① 新增端点：批量操作 / 补数据 / 冻结 ─────────────────
 
     /**
@@ -369,6 +367,9 @@ public class OpsController {
         String opName = (String) body.get("op");
         if (idStrings == null || idStrings.isEmpty()) {
             throw new BizException("ops.batch.empty_ids");
+        }
+        if (idStrings.size() > 100) {
+            throw new BizException("ops.batch.too_many", idStrings.size());
         }
         if (opName == null || opName.isBlank()) {
             throw new BizException("ops.batch.missing_op");
@@ -387,12 +388,17 @@ public class OpsController {
         int accepted = 0;
         for (UUID id : ids) {
             try {
-                ActionRequest req = buildBatchActionRequest(id, op);
-                GateResult gr = gatedActionService.submit(req, locale);
-                String outcome = gr.outcome().name();
-                if (gr.executed()) accepted++;
+                switch (op) {
+                    case RERUN -> opsService.rerunInstance(id);
+                    case KILL -> opsService.killTask(id);
+                    case SET_SUCCESS -> opsService.setSuccess(id);
+                }
+                accepted++;
                 items.add(new BatchResult.BatchResultItem(
-                        id.toString(), outcome, gr.actionId()));
+                        id.toString(), "EXECUTED", null));
+            } catch (BizException e) {
+                items.add(new BatchResult.BatchResultItem(
+                        id.toString(), "REJECTED", null));
             } catch (Exception e) {
                 items.add(new BatchResult.BatchResultItem(
                         id.toString(), "REJECTED", null));

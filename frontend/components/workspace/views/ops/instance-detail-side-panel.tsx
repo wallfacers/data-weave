@@ -11,22 +11,72 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { PlayIcon, StopIcon, CheckmarkCircle01Icon, PauseIcon, RepeatIcon } from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
 import { DetailPanelShell } from "@/components/workspace/detail-panel-shell"
 import { CodeBlock } from "@/components/workspace/shared/code-block"
 import { ParamsTable, InfoRow, taskTypeToLang } from "@/components/workspace/shared/params-table"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { authFetch, API_BASE, type ApiResponse, type ResolvedCodeView, type ResolvedConfigView } from "@/lib/types"
+
+// ─── 任务操作可用性矩阵 (T025) ─────────────────────────
+
+/** 根据任务节点状态 + 环境返回可用操作列表。 */
+function getAvailableTaskActions(taskState: string | undefined, env: string | undefined): string[] {
+  if (!taskState || env === "DEV") {
+    // DEV 环境仅允许停止
+    if (taskState && !["SUCCESS", "FAILED", "STOPPED", "SKIPPED"].includes(taskState)) return ["kill"]
+    return []
+  }
+  const actions: string[] = []
+  switch (taskState) {
+    case "NOT_RUN":
+      actions.push("pause")
+      break
+    case "PAUSED":
+      actions.push("resume")
+      break
+    case "DISPATCHED":
+    case "RUNNING":
+      actions.push("kill")
+      break
+    case "FAILED":
+    case "STOPPED":
+    case "PREEMPTED":
+      actions.push("rerun", "set-success")
+      break
+    case "WAITING":
+      actions.push("kill")
+      break
+  }
+  return actions
+}
+
+const ACTION_META: Record<string, { icon: typeof PlayIcon; label: string; variant: "outline" | "destructive" }> = {
+  rerun: { icon: RepeatIcon, label: "rerunTask", variant: "outline" },
+  "set-success": { icon: CheckmarkCircle01Icon, label: "setSuccessTask", variant: "outline" },
+  kill: { icon: StopIcon, label: "killTask", variant: "destructive" },
+  pause: { icon: PauseIcon, label: "pauseTask", variant: "outline" },
+  resume: { icon: PlayIcon, label: "resumeTask", variant: "outline" },
+}
 
 // ─── Main ────────────────────────────────────────────
 
 interface InstanceDetailSidePanelProps {
   taskInstanceId: string | null
   nodeName?: string
+  taskState?: string
+  env?: string
   onClose: () => void
 }
 
 export function InstanceDetailSidePanel({
   taskInstanceId,
   nodeName,
+  taskState,
+  env,
   onClose,
 }: InstanceDetailSidePanelProps) {
   const t = useTranslations("ops")
@@ -61,6 +111,30 @@ export function InstanceDetailSidePanel({
 
   if (!taskInstanceId) return null
 
+  // ── 单任务操作 ──
+  const [actionBusy, setActionBusy] = useState(false)
+  const availableActions = getAvailableTaskActions(taskState, env)
+
+  const runTaskAction = useCallback(async (action: string) => {
+    if (!taskInstanceId || actionBusy) return
+    setActionBusy(true)
+    try {
+      const endpoint = action === "set-success" ? "set-success" : action
+      const res = await authFetch(`${API_BASE}/api/ops/task-instances/${taskInstanceId}/${endpoint}`, { method: "POST" })
+      const j = (await res.json()) as ApiResponse<unknown>
+      if (j.code === 0) {
+        toast.success(t(`action${action.charAt(0).toUpperCase() + action.slice(1)}`) ?? t("actionSuccess"))
+        load()
+      } else {
+        toast.error(t("actionFailed", { msg: (j as { msg?: string }).msg ?? "" }))
+      }
+    } catch {
+      toast.error(t("networkError"))
+    } finally {
+      setActionBusy(false)
+    }
+  }, [taskInstanceId, actionBusy, t, load])
+
   const lang = codeData ? taskTypeToLang(codeData.taskType) : "text"
   const showCode = codeData && codeData.resolvedContent
   const showConfig = configData
@@ -78,6 +152,25 @@ export function InstanceDetailSidePanel({
     >
       {hasData && (
         <>
+          {/* 任务状态 + 操作按钮 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {taskState && (
+              <Badge variant={taskState === "FAILED" || taskState === "STOPPED" ? "destructive" : taskState === "SUCCESS" ? "success" : taskState === "RUNNING" || taskState === "DISPATCHED" ? "success" : "outline"} className="text-xs">
+                {taskState}
+              </Badge>
+            )}
+            {availableActions.map((action) => {
+              const meta = ACTION_META[action]
+              if (!meta) return null
+              return (
+                <Button key={action} size="sm" variant={meta.variant} className="h-6 text-xs px-2" disabled={actionBusy} onClick={() => runTaskAction(action)}>
+                  <HugeiconsIcon icon={meta.icon} className="size-3 mr-1" />
+                  {t(meta.label as never)}
+                </Button>
+              )
+            })}
+          </div>
+
           {/* TEST 运行标注 */}
           {isTestRun && (
             <div className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-md border border-amber-200 dark:border-amber-800/50">

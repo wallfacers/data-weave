@@ -183,7 +183,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 null, // workflowId（workflow_def Long）：master 行携带的是实例 UUID，M1 暂不映射
                 r.runMode(), r.state(), r.bizDate(),
                 parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
-                r.cronExpression());
+                r.cronExpression(), r.env(), r.workflowName());
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {

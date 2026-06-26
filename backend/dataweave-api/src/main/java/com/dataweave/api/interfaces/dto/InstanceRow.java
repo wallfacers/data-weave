@@ -17,5 +17,7 @@ public record InstanceRow(
         LocalDateTime startedAt,
         LocalDateTime finishedAt,
         Long durationMs,
-        String cronExpression
+        String cronExpression,
+        String env,
+        String workflowName
 ) {}

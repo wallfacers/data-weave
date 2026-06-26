@@ -533,6 +533,7 @@ export interface WorkflowInstanceRow {
   startedAt: string | null
   finishedAt: string | null
   durationMs: number | null
+  env?: string  // PROD | DEV
 }
 
 /** 任务流实例筛选条件。 */
@@ -583,6 +584,7 @@ export interface InstanceDagView {
   triggerType: string
   state: string
   bizDate: string
+  env?: string
   nodes: InstanceDagNode[]
   edges: InstanceDagEdge[]
 }
