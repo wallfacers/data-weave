@@ -1,7 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
-import com.dataweave.master.application.AgentAuditService;
+import com.dataweave.master.application.WorkspaceSnapshotService;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Workspace 快照 REST 端点（workspace-persistence spec）：随对话会话（conversationId = AG-UI
- * threadId）存取前端 Workspace 状态。后端视快照为透明 blob，不解析语义。
+ * Workspace 快照 REST 端点（workspace-persistence）：按客户端键存取前端 Workspace 状态。
+ * conversationId 现为前端 localStorage 自生成的不透明 clientKey，后端视快照为透明 blob，不解析语义。
  *
  * <p>GET 无快照返回 {@code ApiResponse(code=0, data=null)}（前端据此回落 Pinned 底座）；
  * PUT 超长（> 8000 字符，对齐列宽）返回 code=413。
@@ -22,18 +22,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/agent/sessions/{conversationId}/workspace")
 public class WorkspaceController {
 
-    /** 对齐 agent_session.workspace_state VARCHAR(8000)。 */
+    /** 对齐 workspace_snapshot.snapshot_json VARCHAR(8000)。 */
     private static final int MAX_STATE_CHARS = 8000;
 
-    private final AgentAuditService audit;
+    private final WorkspaceSnapshotService snapshots;
 
-    public WorkspaceController(AgentAuditService audit) {
-        this.audit = audit;
+    public WorkspaceController(WorkspaceSnapshotService snapshots) {
+        this.snapshots = snapshots;
     }
 
     @GetMapping
     public ApiResponse<String> get(@PathVariable String conversationId) {
-        return audit.getWorkspaceState(conversationId)
+        return snapshots.getWorkspaceState(conversationId)
                 .map(ApiResponse::ok)
                 .orElseGet(ApiResponse::ok);
     }
@@ -43,7 +43,7 @@ public class WorkspaceController {
         if (body == null || body.length() > MAX_STATE_CHARS) {
             throw new BizException("workspace.state.too_long", MAX_STATE_CHARS).withHttpStatus(413);
         }
-        audit.putWorkspaceState(conversationId, body);
+        snapshots.putWorkspaceState(conversationId, body);
         return ApiResponse.ok();
     }
 }

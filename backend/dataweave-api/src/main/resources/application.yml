@@ -1,7 +1,7 @@
 spring:
   main:
     # 强制 WebFlux/Netty：classpath 含 sibling 泄漏的 webmvc+tomcat 会让 Spring 默认选 servlet 栈，
-    # 导致 reactive CorsWebFilter（CorsConfig）失效、/agui 预检无 CORS 头、前端 Failed to fetch。
+    # 导致 reactive CorsWebFilter（CorsConfig）失效、前端 Failed to fetch。
     web-application-type: reactive
   application:
     name: dataweave-api
@@ -23,29 +23,6 @@ spring:
 server:
   port: 8000
 
-# Agent 大脑模式与策略闸门（agent-fabric-m1）
-agent:
-  mode: workhorse                  # workhorse（默认，真实 LLM 大脑）| mock（规则兜底，零依赖）
-  #   默认走 workhorse 真实大脑；workhorse 不可用时由 WorkhorseHealthProbe 探测并自动降级 mock
-  #   （CI / fresh clone / 无 key 环境照常跑）。测试默认 mock（src/test/resources/application.properties）。
-  workhorse:
-    base-url: http://127.0.0.1:8300
-    # sidecar 进程托管（dataweave-managed-sidecar）。managed=false（默认）时 supervisor 旁路、
-    # 仅连外部 base-url 指向的进程，行为与未引入本能力时完全一致。
-    managed: false                 # true：DataWeave 后端托管 workhorse-agent 生命周期（起后端→agent 就绪）
-    runtime: native                # native（默认）| wsl（仅 Windows host 且 wsl 可用时生效，否则兜底 native）
-    port: 8300                     # sidecar 绑定端口（与 base-url 一致）
-    config-path: deploy/workhorse/config.yaml   # workhorse config.yaml 路径
-    binary-dir: deploy/workhorse/bin            # 预编译二进制目录（六平台，.gitignore，不入 git）
-    binary: ""                     # 覆盖按平台自动选型的二进制名/绝对路径（留空=自动 workhorse-agent-{goos}-{goarch}）
-    health-path: /health           # 健康探测路径
-    max-restarts: 5                # 连续重启上限，超过进 Failed（不无限刷）
-    probe-interval-ms: 3000        # 稳态健康探测/就绪轮询间隔
-    startup-timeout-ms: 30000      # spawn 后就绪收敛超时
-    reap-grace-ms: 5000            # reap 优雅终止宽限期（超时 destroyForcibly）
-    backoff-base-ms: 1000          # 退避基数（指数 base*2^n）
-    backoff-cap-ms: 30000          # 退避封顶
-
 policy:
   environment: dev                 # dev | prod（prod 抬升 L1→L2）
   batch-threshold: 50              # 批量 > N 抬升 L1→L2
@@ -53,7 +30,7 @@ policy:
 
 mcp:
   auth:
-    token: dataweave-local-mcp-token   # 部署须覆盖；workhorse mcp.json 用同一 token
+    token: dataweave-local-mcp-token   # 部署须覆盖；本地 AI 编程 agent 的 mcp 客户端用同一 token
   output-threshold: 8000           # 工具输出超此字节截断 + 存档
 
 cli:

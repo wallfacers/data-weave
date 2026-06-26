@@ -318,11 +318,9 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (22, 'TOOL', 'query_fleet',             NULL, 'L0', '查机器集群（只读）',         1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (23, 'TOOL', 'query_metric',            NULL, 'L0', '查指标（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (24, 'TOOL', 'query_lineage',           NULL, 'L0', '查血缘（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(25, 'TOOL', 'query_diagnosis',         NULL, 'L0', '查诊断（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 可逆例行写 MCP 工具（L1）
 (30, 'TOOL', 'task_rerun',              NULL, 'L1', '重跑任务实例（可逆例行）',   1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (31, 'TOOL', 'create_task',             NULL, 'L1', '建任务并上线（可逆）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(32, 'TOOL', 'apply_fix',               NULL, 'L1', '一键修复（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (33, 'TOOL', 'node_exec',               NULL, 'L1', '节点受控执行（按命令串解析抬升）', 1, 25, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 调度类写工具（L1，可逆例行；distributed-scheduler-m1）。TEST 试跑是「未发布内容上 worker」唯一口子，须留痕。
 (34, 'TOOL', 'test_run',                NULL, 'L1', '单任务测试运行（草稿上 worker，留痕）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
@@ -370,14 +368,10 @@ ALTER TABLE derived_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE metric_dimension ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE metric_lineage ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE worker_nodes ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE task_diagnosis ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE notification_channels ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE alert_rules ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE audit_log ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE policy_rules ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE agent_session ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE agent_run ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE agent_step ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;
 
 -- ============================================================

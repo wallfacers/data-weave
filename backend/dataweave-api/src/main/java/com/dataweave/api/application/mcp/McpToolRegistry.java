@@ -10,7 +10,6 @@ import com.dataweave.api.interfaces.dto.InstanceRow;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.ApprovalService;
-import com.dataweave.master.application.DiagnosisService;
 import com.dataweave.master.application.FleetService;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
@@ -22,7 +21,6 @@ import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AtomicMetric;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
-import com.dataweave.master.domain.TaskDiagnosis;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,7 +56,6 @@ public class McpToolRegistry {
     private final FleetService fleetService;
     private final MetricService metricService;
     private final LineageService lineageService;
-    private final DiagnosisService diagnosisService;
     private final GatedActionService gatedActionService;
     private final ApprovalService approvalService;
     private final TaskService taskService;
@@ -76,7 +73,6 @@ public class McpToolRegistry {
                            FleetService fleetService,
                            MetricService metricService,
                            LineageService lineageService,
-                           DiagnosisService diagnosisService,
                            GatedActionService gatedActionService,
                            ApprovalService approvalService,
                            TaskService taskService,
@@ -91,7 +87,6 @@ public class McpToolRegistry {
         this.fleetService = fleetService;
         this.metricService = metricService;
         this.lineageService = lineageService;
-        this.diagnosisService = diagnosisService;
         this.gatedActionService = gatedActionService;
         this.approvalService = approvalService;
         this.taskService = taskService;
@@ -192,15 +187,6 @@ public class McpToolRegistry {
                                     "exprSql", p.metric().getMeasureExpr(),
                                     "edges", p.edges()))
                             .orElse(Map.of("found", false, "code", code));
-                });
-
-        register("query_diagnosis", "诊断指定失败实例（缺省诊断最近一条失败实例）",
-                schema(prop("instanceId", "string", "任务实例 id（UUID），可选")), ctx -> {
-                    java.util.UUID instanceId = uuid(ctx.args(), "instanceId");
-                    Optional<TaskDiagnosis> d = instanceId != null
-                            ? Optional.of(diagnosisService.diagnoseInstance(instanceId, ctx.locale()))
-                            : diagnosisService.diagnoseLatestFailure(ctx.locale());
-                    return d.map(x -> (Object) x).orElse(Map.of("found", false));
                 });
 
         // ---- 写工具（全部经 PolicyEngine 闸门）----
@@ -528,7 +514,7 @@ public class McpToolRegistry {
         // REST `/api/ops/tasks/{id}/freeze` 已换成节点级 `/workflows/{id}/nodes/{nodeKey}/freeze`。
         // 此 MCP 工具仍走 deprecated `dataOpsBridge.setFrozen`（仅写 task_def.frozen 列，已无调度效果）。
         // 待全局 MCP 工具梳理时：改注册 `freeze_node`（参数 workflowId/nodeKey/instanceId?/frozen），
-        // handler 调 `dataOpsBridge.setNodeFrozen`，与 REST 对齐。暂留以免破坏 workhorse 现有工具列表。
+        // handler 调 `dataOpsBridge.setNodeFrozen`，与 REST 对齐。暂留以兼容现有 MCP 客户端工具列表。
         register("freeze_task", "冻结/解冻任务定义（经策略闸门）【已退役，待全局重写为 freeze_node】",
                 schema(req("taskId", "integer", "任务定义 id"),
                         req("frozen", "boolean", "true=冻结 false=解冻")),

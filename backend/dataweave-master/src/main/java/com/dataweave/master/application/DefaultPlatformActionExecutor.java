@@ -1,8 +1,6 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.AgentAction;
-import com.dataweave.master.domain.TaskDiagnosis;
-import com.dataweave.master.domain.TaskDiagnosisRepository;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
@@ -20,7 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 默认平台动作执行器：按 action_type 执行 applyFix 四动作、任务重跑、节点受控执行。
+ * 默认平台动作执行器：按 action_type 执行任务/工作流运行与重跑、回滚、实例生命周期、节点受控执行等。
  *
  * <p>node_exec 委托 {@link NodeExecGateway}（实现在 api 模块，section 3 接线；缺失时返回明确错误）。
  *
@@ -31,7 +29,6 @@ import java.util.UUID;
 public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
 
     private final TaskInstanceRepository instanceRepository;
-    private final TaskDiagnosisRepository diagnosisRepository;
     private final FleetService fleetService;
     private final TaskService taskService;
     private final WorkflowService workflowService;
@@ -39,12 +36,11 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final WorkflowTriggerService triggerService;
     private final RecoveryService recoveryService;
     private final WorkflowDefRepository workflowDefRepository;
-    // ObjectProvider 延迟查找：打破 OpsService→DiagnosisService→GatedActionService→Executor 的循环依赖。
+    // ObjectProvider 延迟查找：打破 OpsService→GatedActionService→Executor 的循环依赖。
     private final ObjectProvider<OpsService> opsService;
     private final Messages messages;
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
-                                         TaskDiagnosisRepository diagnosisRepository,
                                          FleetService fleetService,
                                          TaskService taskService,
                                          WorkflowService workflowService,
@@ -55,7 +51,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<OpsService> opsService,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
-        this.diagnosisRepository = diagnosisRepository;
         this.fleetService = fleetService;
         this.taskService = taskService;
         this.workflowService = workflowService;
@@ -71,11 +66,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     public ExecOutcome execute(AgentAction action, Locale locale) {
         String type = action.getActionType() == null ? "" : action.getActionType().toUpperCase();
         return switch (type) {
-            case "APPLY_FIX_RERUN" -> rerun(action, null, "[fix] 原地重跑成功",
-                    messages.get("executor.fix_rerun.success", locale));
-            case "APPLY_FIX_MIGRATE_NODE" -> migrate(action, locale);
-            case "APPLY_FIX_RERUN_MORE_MEMORY" -> rerunMoreMemory(action, locale);
-            case "APPLY_FIX_CAP_NODE_WEIGHT" -> capNodeWeight(action, locale);
             case "TASK_RERUN" -> taskRerun(action, locale);
             case "CREATE_TASK" -> createTask(action, locale);
             case "NODE_EXEC" -> nodeExec(action);
@@ -98,54 +88,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     messages.get("executor.unsupported_action", locale, action.getActionType()),
                     json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
         };
-    }
-
-    // ---- applyFix / task rerun ----
-    private ExecOutcome rerun(AgentAction action, String nodeOverride, String log, String message) {
-        TaskDiagnosis diagnosis = diagnosisOf(action);
-        Long taskId = diagnosis != null ? diagnosis.getTaskId() : null;
-        String nodeCode = nodeOverride;
-        if (nodeCode == null) {
-            nodeCode = diagnosis != null && diagnosis.getWorkerNodeCode() != null
-                    ? diagnosis.getWorkerNodeCode() : "node-1";
-        }
-        TaskInstance inst = rerunOnNode(taskId, nodeCode, log);
-        resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true, message,
-                json(Map.of("newInstanceId", inst.getId(), "node", nodeCode)), inst.getId());
-    }
-
-    private ExecOutcome migrate(AgentAction action, Locale locale) {
-        String target = fleetService.pickLeastLoadedOnline()
-                .map(WorkerNode::getNodeCode).orElse("node-online");
-        TaskDiagnosis diagnosis = diagnosisOf(action);
-        TaskInstance inst = rerunOnNode(diagnosis != null ? diagnosis.getTaskId() : null, target,
-                "[fix] 迁移到 " + target + " 后重跑成功");
-        resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true,
-                messages.get("executor.fix_migrate.success", locale, target),
-                json(Map.of("newInstanceId", inst.getId(), "node", target)), inst.getId());
-    }
-
-    private ExecOutcome rerunMoreMemory(AgentAction action, Locale locale) {
-        TaskDiagnosis diagnosis = diagnosisOf(action);
-        String nodeCode = diagnosis != null && diagnosis.getWorkerNodeCode() != null
-                ? diagnosis.getWorkerNodeCode() : "node-1";
-        TaskInstance inst = rerunOnNode(diagnosis != null ? diagnosis.getTaskId() : null, nodeCode,
-                "[fix] 调大 executor 内存后重跑成功");
-        resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true,
-                messages.get("executor.fix_more_memory.success", locale, nodeCode),
-                json(Map.of("newInstanceId", inst.getId(), "node", nodeCode)), inst.getId());
-    }
-
-    private ExecOutcome capNodeWeight(AgentAction action, Locale locale) {
-        TaskDiagnosis diagnosis = diagnosisOf(action);
-        String nodeCode = diagnosis != null ? diagnosis.getWorkerNodeCode() : action.getTargetId();
-        resolveDiagnosis(diagnosis);
-        return new ExecOutcome(true,
-                messages.get("executor.fix_cap_weight.success", locale, nodeCode),
-                json(Map.of("node", String.valueOf(nodeCode))), null);
     }
 
     // ---- 任务实例重跑（MCP task_rerun / CLI dw task rerun）----
@@ -392,22 +334,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     }
 
     // ---- helpers ----
-    private TaskDiagnosis diagnosisOf(AgentAction action) {
-        if (!"DIAGNOSIS".equalsIgnoreCase(action.getTargetType())) {
-            return null;
-        }
-        Long id = parseLong(action.getTargetId());
-        return id == null ? null : diagnosisRepository.findById(id).orElse(null);
-    }
-
-    private void resolveDiagnosis(TaskDiagnosis diagnosis) {
-        if (diagnosis != null) {
-            diagnosis.setStatus("RESOLVED");
-            diagnosis.setUpdatedAt(LocalDateTime.now());
-            diagnosisRepository.save(diagnosis);
-        }
-    }
-
     private TaskInstance rerunOnNode(Long taskId, String nodeCode, String log) {
         LocalDateTime now = LocalDateTime.now();
         TaskInstance inst = new TaskInstance();

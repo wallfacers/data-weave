@@ -1,9 +1,6 @@
 package com.dataweave.api.interfaces;
 
-import com.dataweave.api.application.AguiEvents;
 import com.dataweave.api.application.DataOpsBridge;
-import com.dataweave.api.application.OpsAlertService;
-import com.dataweave.api.application.supervisor.WorkhorseSupervisor;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.api.infrastructure.OpsMessages;
@@ -61,22 +58,16 @@ public class OpsController {
     private final EventBus eventBus;
     private final Messages messages;
     private final OpsMessages opsMessages;
-    private final WorkhorseSupervisor workhorseSupervisor;
     private final DataOpsBridge dataOpsBridge;
     private final GatedActionService gatedActionService;
-    private final AguiEvents aguiEvents;
-    private final OpsAlertService opsAlertService;
     private final WorkflowService workflowService;
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
                          LogBus logBus, LogArchiveStorage logArchive, EventBus eventBus,
                          Messages messages, OpsMessages opsMessages,
-                         WorkhorseSupervisor workhorseSupervisor,
                          DataOpsBridge dataOpsBridge,
                          GatedActionService gatedActionService,
-                         AguiEvents aguiEvents,
-                         OpsAlertService opsAlertService,
                          WorkflowService workflowService) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
@@ -87,11 +78,8 @@ public class OpsController {
         this.eventBus = eventBus;
         this.messages = messages;
         this.opsMessages = opsMessages;
-        this.workhorseSupervisor = workhorseSupervisor;
         this.dataOpsBridge = dataOpsBridge;
         this.gatedActionService = gatedActionService;
-        this.aguiEvents = aguiEvents;
-        this.opsAlertService = opsAlertService;
         this.workflowService = workflowService;
     }
 
@@ -502,29 +490,6 @@ public class OpsController {
         return ApiResponse.ok(workflowService.getNodeDetail(workflowId, nodeKey));
     }
 
-    // ─── 巡检告警端点（Agent 闭环） ──────────────────────
-
-    /**
-     * 触发一次巡检：扫描失败实例，发 AG-UI ops.alert 事件。
-     * GET 查询，无副作用；返回生成的告警数。
-     */
-    @GetMapping("/inspect")
-    public ApiResponse<Map<String, Object>> inspect(ServerWebExchange exchange) {
-        var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
-        List<TaskInstance> failedInstances = opsService.failedInstances();
-        int count = 0;
-        for (TaskInstance inst : failedInstances) {
-            Map<String, Object> alert = opsAlertService.buildFailedAlert(inst, locale);
-            if (alert != null) {
-                count++;
-            }
-        }
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("inspected", failedInstances.size());
-        result.put("alertsGenerated", count);
-        return ApiResponse.ok(result);
-    }
-
     // ─── 现有日志 / 指标 / SSE ──────────────────────
 
     @GetMapping("/instances/{id}/log")
@@ -545,15 +510,6 @@ public class OpsController {
         metrics.refreshSlotUtilization();
         metrics.refreshFragmentation();
         return ApiResponse.ok(metrics.snapshot());
-    }
-
-    /**
-     * workhorse sidecar supervisor 健康段（dataweave-managed-sidecar tasks 3.3）：
-     * 状态机当前态 + adopt 标记 + 自起 PID + 失败原因；managed=false 时 custody 标「external」。
-     */
-    @GetMapping("/supervisor")
-    public ApiResponse<WorkhorseSupervisor.Status> supervisor() {
-        return ApiResponse.ok(workhorseSupervisor.status());
     }
 
     // ─── 实时 SSE 端点 ─────────────────────────────────────────

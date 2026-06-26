@@ -8,7 +8,6 @@ import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
-import com.dataweave.master.domain.TaskDiagnosis;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkflowInstance;
@@ -37,7 +36,6 @@ public class OpsService {
     private final TaskInstanceRepository instanceRepository;
     private final WorkflowInstanceRepository workflowInstanceRepository;
     private final com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository;
-    private final DiagnosisService diagnosisService;
     private final InstanceStateMachine stateMachine;
     private final LogBus logBus;
     private final EventBus eventBus;
@@ -47,7 +45,6 @@ public class OpsService {
                       TaskInstanceRepository instanceRepository,
                       WorkflowInstanceRepository workflowInstanceRepository,
                       com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository,
-                      DiagnosisService diagnosisService,
                       InstanceStateMachine stateMachine,
                       LogBus logBus,
                       EventBus eventBus,
@@ -56,7 +53,6 @@ public class OpsService {
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
         this.workflowDefRepository = workflowDefRepository;
-        this.diagnosisService = diagnosisService;
         this.stateMachine = stateMachine;
         this.logBus = logBus;
         this.eventBus = eventBus;
@@ -262,7 +258,7 @@ public class OpsService {
             }
         }
         return new DashboardSummary(all.size(), success, failed, running,
-                failedInstances(), diagnosisService.open());
+                failedInstances());
     }
 
     // ─── 实例生命周期管理 ─────────────────────────────────
@@ -549,9 +545,8 @@ public class OpsService {
      * @param failed          失败数
      * @param running         运行中数
      * @param failedInstances 失败实例清单
-     * @param diagnosing      待处理（Agent 诊断中）的诊断清单
      */
     public record DashboardSummary(int total, int success, int failed, int running,
-                                   List<TaskInstance> failedInstances, List<TaskDiagnosis> diagnosing) {
+                                   List<TaskInstance> failedInstances) {
     }
 }
