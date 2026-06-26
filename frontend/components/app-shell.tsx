@@ -4,12 +4,11 @@ import { useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { usePathname, useRouter } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { AgentRail } from "@/components/agent-rail"
 import { SidePanel } from "@/components/side-panel/side-panel"
 import { useAuth } from "@/lib/auth"
 
 /**
- * 双栏外壳：左 = Agent 对话主驾（常驻、可调宽），右 = Workspace 工作区。
+ * 工作区外壳：Workspace 多 tab 占满主区，右侧 SidePanel 常驻。
  * min-w-0 让工作区可收缩到内容宽度以下，避免溢出视口产生横向滚动条。
  *
  * 未登录时自动重定向到 /login。
@@ -43,7 +42,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
       <div className="flex h-svh min-w-0">
-        <AgentRail />
         <main className="flex h-svh min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>

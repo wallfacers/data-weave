@@ -13,7 +13,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { DwScroll } from "@/components/ui/dw-scroll"
-import { highlightCode } from "@/components/chat/highlighter"
+import { highlightCode } from "@/lib/highlighter"
 import { useNodeDetailStore, type PanelLoadState } from "@/lib/workspace/node-detail-store"
 
 // ─── Helpers ────────────────────────────────────────

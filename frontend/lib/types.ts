@@ -6,9 +6,6 @@
  *  - GET  /api/ops/failed      → TaskInstance[]
  *  - GET  /api/fleet           → WorkerNode[]
  *  - GET  /api/fleet/{nodeCode}→ WorkerNode
- *  - GET  /api/diagnosis       → TaskDiagnosis[]
- *  - GET  /api/diagnosis/{id}  → TaskDiagnosis
- *  - POST /api/diagnosis/{id}/fix?action=... → FixResult
  */
 
 import { format as dateFnsFormat } from "date-fns"
@@ -111,27 +108,6 @@ export interface LatestInstanceView {
   runMode: string;
 }
 
-// ─── TaskDiagnosis ───────────────────────────────────────
-
-export interface DiagnosisSuggestion {
-  action: string;
-  label: string;
-}
-
-export interface TaskDiagnosis {
-  id: number;
-  taskInstanceId: number;
-  taskId: number;
-  workerNodeCode: string | null;
-  title: string;
-  rootCause: string;
-  /** JSON string → parse to Record<string, unknown> */
-  contextJson: string | null;
-  /** JSON string → parse to DiagnosisSuggestion[] */
-  suggestionsJson: string | null;
-  status: "OPEN" | "RESOLVED";
-}
-
 // ─── DashboardSummary ────────────────────────────────────
 
 export interface DashboardSummary {
@@ -140,15 +116,6 @@ export interface DashboardSummary {
   failed: number;
   running: number;
   failedInstances: TaskInstance[];
-  diagnosing: TaskDiagnosis[];
-}
-
-// ─── FixResult ───────────────────────────────────────────
-
-export interface FixResult {
-  success: boolean;
-  message: string;
-  newInstanceId: number | null;
 }
 
 // ─── TaskDef ──────────────────────────────────────────────

@@ -7,13 +7,11 @@
  */
 
 export type ViewType =
-  | "cockpit"
   | "ops"
   | "workflow-canvas"
   | "freshness"
   | "reports"
   | "metrics"
-  | "diagnosis"
   | "fleet"
   | "instance-log"
   | "workflow-instance-detail"
@@ -33,13 +31,11 @@ export interface ViewMeta {
 }
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
-  cockpit: { title: "views.cockpit", defaultPinned: true },
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas" },
   freshness: { title: "views.freshness", defaultPinned: true },
   reports: { title: "views.reports", defaultPinned: true },
   metrics: { title: "views.metrics", defaultPinned: true },
-  diagnosis: { title: "views.diagnosis" },
   fleet: { title: "views.fleet" },
   "instance-log": { title: "views.instanceLog" },
   "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
