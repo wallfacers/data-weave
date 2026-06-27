@@ -1,34 +1,32 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (template / unratified) → 1.0.0
-Bump rationale: Initial ratification — fills the placeholder template with the
-Weft "Tasks-as-Code" governing principles derived from specs/005-weft-pivot/spec.md.
+Version change: 1.0.0 → 1.1.0
+Bump rationale (MINOR): Amend Principle III to add a phased-implementation clause —
+the current phase MAY satisfy local execution fidelity by reusing the platform's
+ACTUAL executor as a local subprocess (requires local JVM), with a Go-native
+lightweight runtime as the future target. This relaxes the "lightweight" expectation
+for the current phase while STRENGTHENING "reuse executor semantics" (code-level
+identity = zero drift). Adjudicated by the project owner during D (009) clarify; this
+sanctions the explicit deviation from 005 总纲 FR-010 ("Go-native / contract-level /
+lightweight"). Principle list unchanged (I–V); only III's normative body refined.
 
-Modified principles: (none — initial adoption)
-Added principles:
-  I.   Files-First (文件优先)
-  II.  Server is the Source of Truth (服务器为治理真相源)
-  III. Two-Legged Debugging (本地两条腿调试) — NON-NEGOTIABLE
-  IV.  AI Lives in the Local Agent (AI 归位本地) — NON-NEGOTIABLE
-  V.   Reuse the Kernel (内核复用而非重写)
-Added sections:
-  - Additional Constraints (更名/原地重构/子特性依赖顺序)
-  - Development Workflow & Quality Gates
-  - Governance
+Modified principles:
+  III. Two-Legged Debugging — normative body amended (phased runtime clause added);
+       name, NON-NEGOTIABLE status, and rationale unchanged.
+Added principles: (none)
+Removed principles/sections: (none)
 
 Templates requiring updates:
   ✅ .specify/memory/constitution.md (this file)
-  ⚠ .specify/templates/plan-template.md — review "Constitution Check" gate aligns
-     with Principles I–V before next speckit-plan run
-  ⚠ .specify/templates/spec-template.md — no mandatory-section change required by
-     this constitution; revisit if a sub-spec adds constraints
-  ⚠ .specify/templates/tasks-template.md — ensure task categories cover teardown(A)
-     + round-trip/contract(B,C) + local-runtime(D) + MCP-gate(E) work types
-  ⚠ CLAUDE.md — project map still describes the "AI 数据中台" framing; update its
-     positioning to Weft during sub-feature A (server-side AI teardown)
+  ⚠ .specify/templates/plan-template.md — Constitution Check for D MUST accept the
+     phased III (Java-executor subprocess in current phase); no structural template
+     change required, list of principles unchanged.
+  ✅ .specify/templates/spec-template.md — unaffected
+  ✅ .specify/templates/tasks-template.md — unaffected (work-type categories still hold)
 
-Follow-up TODOs: none deferred. RATIFICATION_DATE set to adoption date 2026-06-26.
+Follow-up TODOs: none deferred. RATIFICATION_DATE unchanged (2026-06-26).
+Prior 1.0.0 report: initial ratification of Principles I–V from specs/005-weft-pivot/spec.md.
 -->
 
 # Weft Constitution
@@ -73,16 +71,26 @@ complexity and footguns of two-way merge.
 
 ### III. Two-Legged Debugging (本地两条腿调试) — NON-NEGOTIABLE
 
-The CLI MUST embed a lightweight runtime that **really executes** a task on the
-developer's machine, reusing the platform's SQL/Shell executor semantics (it MUST NOT
-fork a divergent second execution engine), connecting to local/dev datasources with
-output streamed straight to the terminal and exit codes faithfully reported. The CLI MUST
-also support submitting a task in TEST mode to the server, with run logs streamed back to
-the local terminal.
+The CLI MUST provide a runtime that **really executes** a task on the developer's machine,
+reusing the platform's SQL/Shell executor semantics (it MUST NOT fork a divergent second
+execution engine), connecting to local/dev datasources with output streamed straight to the
+terminal and exit codes faithfully reported. The CLI MUST also support submitting a task in
+TEST mode to the server, with run logs streamed back to the local terminal.
+
+**Phased implementation** (amended v1.1.0): Execution fidelity MAY be achieved by reusing
+the platform's **actual executor as a local subprocess** — code-level identity, the
+strongest form of "reuse the executor semantics," at the cost of a local JVM dependency.
+This is the **sanctioned approach for the current phase** and overrides 005 总纲 FR-010's
+"Go-native / contract-level / lightweight" wording. A **Go-native lightweight runtime**,
+aligned to the server executor by golden contract tests, is the **future target** but is NOT
+required now. Whichever form, exit-code / stdout-stderr split / timeout-abort / datasource
+driver-loading behavior MUST be **identical** to the server executor and MUST be verified by
+tests — fidelity is the invariant; the implementation vehicle is phased.
 
 Rationale: The core feel of "like writing local code" is fast local runs; environment
-fidelity is then closed by server TEST instances. Two execution engines would drift and
-break trust in local debugging.
+fidelity is then closed by server TEST instances. Reusing the real executor gives zero
+semantic drift immediately; a leaner Go-native runtime is an optimization to pursue once the
+contract is pinned by tests, not a precondition for shipping local debugging.
 
 ### IV. AI Lives in the Local Agent (AI 归位本地) — NON-NEGOTIABLE
 
@@ -149,4 +157,4 @@ guidance; PATCH for clarifications and non-semantic refinements.
 Compliance is reviewed at plan time (Constitution Check) and before merge (cross-feature
 boundary and seam-closure check). Runtime development guidance lives in `CLAUDE.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-26
+**Version**: 1.1.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-27
