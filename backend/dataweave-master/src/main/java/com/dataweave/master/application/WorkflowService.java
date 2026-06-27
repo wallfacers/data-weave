@@ -668,6 +668,44 @@ public class WorkflowService {
         return readDag(id);
     }
 
+    // ─── 版本快照内核（状态中立，供 publish / push 复用，D1）─
+
+    /**
+     * 状态中立的建快照内核：基于当前 live 节点/边创建 WorkflowDefVersion 并推进 currentVersionNo。
+     * 不晋级 ONLINE、不做空 DAG/引用完整性闸门。push（US2）仅建快照不晋级；
+     * publish() 复用本方法后再追加 ONLINE 晋级 + 各守卫。
+     *
+     * @return 新版本号
+     */
+    public Integer writeWorkflowVersionSnapshot(Long workflowId, String remark) {
+        WorkflowDef wf = requireWorkflow(workflowId);
+        List<WorkflowNode> nodes = nodeRepository.findByWorkflowIdAndDeleted(workflowId, 0);
+
+        LocalDateTime now = LocalDateTime.now();
+        int newVersion = (wf.getCurrentVersionNo() != null ? wf.getCurrentVersionNo() : 0) + 1;
+
+        WorkflowDefVersion ver = new WorkflowDefVersion();
+        ver.setTenantId(wf.getTenantId());
+        ver.setProjectId(wf.getProjectId());
+        ver.setWorkflowId(wf.getId());
+        ver.setVersionNo(newVersion);
+        ver.setName(wf.getName());
+        ver.setDescription(wf.getDescription());
+        ver.setScheduleType(wf.getScheduleType());
+        ver.setCron(wf.getCron());
+        ver.setDagSnapshotJson(buildSnapshotJson(workflowId, nodes));
+        ver.setRemark(remark != null ? remark : "快照 v" + newVersion);
+        ver.setPublishedAt(now);
+        ver.setCreatedAt(now);
+        workflowDefVersionRepository.save(ver);
+
+        wf.setCurrentVersionNo(newVersion);
+        wf.setUpdatedAt(now);
+        workflowDefRepository.save(wf);
+
+        return newVersion;
+    }
+
     // ─── Publish（无环校验 + 冻结快照 + 版本自增）──────────
 
     @Transactional
@@ -706,28 +744,11 @@ public class WorkflowService {
         // 无环校验（复用既有校验器，只看未删边）
         graphValidator.validateWorkflowDagAcyclic(id);
 
-        LocalDateTime now = LocalDateTime.now();
-        int newVersion = (wf.getCurrentVersionNo() != null ? wf.getCurrentVersionNo() : 0) + 1;
-
-        WorkflowDefVersion ver = new WorkflowDefVersion();
-        ver.setTenantId(wf.getTenantId());
-        ver.setProjectId(wf.getProjectId());
-        ver.setWorkflowId(wf.getId());
-        ver.setVersionNo(newVersion);
-        ver.setName(wf.getName());
-        ver.setDescription(wf.getDescription());
-        ver.setScheduleType(wf.getScheduleType());
-        ver.setCron(wf.getCron());
-        ver.setDagSnapshotJson(buildSnapshotJson(id, nodes));
-        ver.setRemark(remark != null ? remark : "发布 v" + newVersion);
-        ver.setPublishedAt(now);
-        ver.setCreatedAt(now);
-        workflowDefVersionRepository.save(ver);
+        writeWorkflowVersionSnapshot(id, remark);
 
         wf.setStatus("ONLINE");
-        wf.setCurrentVersionNo(newVersion);
         wf.setHasDraftChange(0);
-        wf.setUpdatedAt(now);
+        wf.setUpdatedAt(LocalDateTime.now());
         wf.setVersion((wf.getVersion() != null ? wf.getVersion() : 0L) + 1);
         return workflowDefRepository.save(wf);
     }

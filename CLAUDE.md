@@ -102,6 +102,7 @@ This file is the map; details live elsewhere:
 | Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
 | ETA prediction         | `SlaService.java` (`durationMedianMs` + `predictLatestEta`) → `GET /api/ops/eta-summary` |
 | L1 真采集 + 故障注入     | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean) + `NodeTelemetryService`(master) · `scripts/fault-injection.sql` |
+| Project sync (pull/push/diff) | `ProjectSyncService.java`(pull 装配/push 落库+快照/diff 只读对账) + `ProjectSyncController.java`(`POST /api/projects/{id}/pull|push|diff`) — 子特性 C 文件化同步 API |
 | How to run             | [README.md](README.md)                                      |
 
 ## Working Rules

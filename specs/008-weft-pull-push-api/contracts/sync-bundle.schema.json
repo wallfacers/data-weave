@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weft.dev/contracts/sync-bundle.schema.json",
+  "title": "Weft Sync Bundle & Commands (子特性 C)",
+  "description": "pull/push/diff 的传输契约。bundle 文件内容的格式由子特性 B 定义,此处只约束同步信封。",
+  "$defs": {
+    "files": {
+      "type": "object",
+      "description": "相对路径 → UTF-8 文本内容。键为 POSIX 相对路径(/ 分隔,无前导 /),值为文件全文。",
+      "patternProperties": {
+        "^[^/].*$": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "counts": {
+      "type": "object",
+      "patternProperties": { "^(task|workflow|catalog|tag)$": { "type": "integer", "minimum": 0 } },
+      "additionalProperties": false
+    },
+    "snapshotRef": {
+      "type": "object",
+      "required": ["entityType", "entityId", "versionNo"],
+      "properties": {
+        "entityType": { "enum": ["TASK", "WORKFLOW"] },
+        "entityId": { "type": "integer" },
+        "name": { "type": "string" },
+        "versionNo": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "entityRef": {
+      "type": "object",
+      "required": ["entityType", "identity"],
+      "properties": {
+        "entityType": { "enum": ["TASK", "WORKFLOW", "CATALOG", "TAG"] },
+        "identity": { "type": "string", "description": "身份键:catalog=path, task=catalogPath/slug, workflow=slug, tag=name" },
+        "displayName": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "title": "PullResult",
+      "type": "object",
+      "required": ["projectId", "bundle", "baseline", "fileCount"],
+      "properties": {
+        "projectId": { "type": "integer" },
+        "bundle": { "type": "object", "required": ["files"], "properties": { "files": { "$ref": "#/$defs/files" } } },
+        "baseline": { "type": "string" },
+        "fileCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "PushCommand",
+      "type": "object",
+      "required": ["files"],
+      "properties": {
+        "files": { "$ref": "#/$defs/files" },
+        "baseline": { "type": "string" },
+        "force": { "type": "boolean", "default": false },
+        "expectedFileCount": { "type": "integer", "minimum": 0 },
+        "remark": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "PushResult",
+      "type": "object",
+      "required": ["projectId", "created", "updated", "deleted", "snapshots", "newBaseline"],
+      "properties": {
+        "projectId": { "type": "integer" },
+        "created": { "$ref": "#/$defs/counts" },
+        "updated": { "$ref": "#/$defs/counts" },
+        "deleted": { "$ref": "#/$defs/counts" },
+        "snapshots": { "type": "array", "items": { "$ref": "#/$defs/snapshotRef" } },
+        "newBaseline": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "title": "DiffPreview",
+      "type": "object",
+      "required": ["added", "modified", "removed", "stale"],
+      "properties": {
+        "added": { "type": "array", "items": { "$ref": "#/$defs/entityRef" } },
+        "modified": { "type": "array", "items": { "$ref": "#/$defs/entityRef" } },
+        "removed": { "type": "array", "items": { "$ref": "#/$defs/entityRef" } },
+        "stale": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

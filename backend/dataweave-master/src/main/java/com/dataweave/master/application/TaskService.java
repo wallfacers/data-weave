@@ -274,19 +274,19 @@ public class TaskService {
         taskDefRepository.save(task);
     }
 
-    // ─── Publish（DRAFT → ONLINE + 版本快照）─────────────
+    // ─── 版本快照内核（状态中立，供 publish / push 复用，D1）─
 
-    /** 发布上线：DRAFT → ONLINE，生成版本快照。 */
-    public TaskDef publish(Long id, String remark) {
-        TaskDef task = taskDefRepository.findById(id)
-                .orElseThrow(() -> new BizException("task.not_found", id));
-        if ("ONLINE".equals(task.getStatus()) && (task.getHasDraftChange() == null || task.getHasDraftChange() == 0)) {
-            throw new BizException("task.no_draft_changes");
-        }
+    /**
+     * 状态中立的建快照内核：创建 TaskDefVersion 行 + 推进 currentVersionNo。
+     * 不改 status、不做无草稿变更守卫。push（US2）仅建快照不晋级 ONLINE；
+     * publish() 复用本方法后再追加 ONLINE 晋级 + 引用闸门。
+     *
+     * @return 新版本号
+     */
+    public Integer writeTaskVersionSnapshot(TaskDef task, Long publishedBy, String remark) {
         LocalDateTime now = LocalDateTime.now();
         int newVersion = (task.getCurrentVersionNo() != null ? task.getCurrentVersionNo() : 0) + 1;
 
-        // 版本快照
         TaskDefVersion ver = new TaskDefVersion();
         ver.setTenantId(task.getTenantId());
         ver.setProjectId(task.getProjectId());
@@ -302,15 +302,33 @@ public class TaskService {
         ver.setRetryMax(task.getRetryMax());
         ver.setPriority(task.getPriority());
         ver.setDescription(task.getDescription());
-        ver.setRemark(remark != null ? remark : "发布 v" + newVersion);
+        ver.setRemark(remark != null ? remark : "快照 v" + newVersion);
+        ver.setPublishedBy(publishedBy);
         ver.setPublishedAt(now);
         ver.setCreatedAt(now);
         taskDefVersionRepository.save(ver);
 
-        task.setStatus("ONLINE");
         task.setCurrentVersionNo(newVersion);
-        task.setHasDraftChange(0);
         task.setUpdatedAt(now);
+        taskDefRepository.save(task);
+
+        return newVersion;
+    }
+
+    // ─── Publish（DRAFT → ONLINE + 版本快照）─────────────
+
+    /** 发布上线：DRAFT → ONLINE，生成版本快照。复用状态中立建快照内核 + 晋级 ONLINE + 无变更守卫。 */
+    public TaskDef publish(Long id, String remark) {
+        TaskDef task = taskDefRepository.findById(id)
+                .orElseThrow(() -> new BizException("task.not_found", id));
+        if ("ONLINE".equals(task.getStatus()) && (task.getHasDraftChange() == null || task.getHasDraftChange() == 0)) {
+            throw new BizException("task.no_draft_changes");
+        }
+
+        writeTaskVersionSnapshot(task, null, remark);
+
+        task.setStatus("ONLINE");
+        task.setHasDraftChange(0);
         return taskDefRepository.save(task);
     }
 

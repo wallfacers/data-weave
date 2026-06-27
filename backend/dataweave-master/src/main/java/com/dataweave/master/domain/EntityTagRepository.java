@@ -22,4 +22,7 @@ public interface EntityTagRepository extends CrudRepository<EntityTag, Long> {
     @Modifying
     @Query("DELETE FROM entity_tag WHERE tag_id = :tagId")
     void deleteByTagId(@Param("tagId") Long tagId);
+
+    /** push 重建实体标签：按实体类型+id 清空旧关联。 */
+    void deleteByEntityTypeAndEntityId(String entityType, Long entityId);
 }
