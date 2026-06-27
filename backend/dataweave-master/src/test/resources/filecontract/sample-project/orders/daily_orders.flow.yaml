@@ -1,0 +1,30 @@
+formatVersion: 1
+name: 每日订单流
+schedule:
+  type: CRON
+  cron: "0 0 2 * * ?"
+priority: 5
+preemptible: true
+timeoutSec: 3600
+tags:
+- nightly
+nodes:
+- key: n_etl
+  type: TASK
+  task: orders/orders_etl
+  name: 抽取
+  pos: [200, 120]
+- key: n_notify
+  type: TASK
+  task: orders/notify
+  name: 通知
+  pos: [400, 120]
+- key: start
+  type: VIRTUAL
+  name: 起点
+  pos: [60, 120]
+edges:
+- from: n_etl
+  to: n_notify
+- from: start
+  to: n_etl

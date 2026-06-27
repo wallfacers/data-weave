@@ -1,0 +1,6 @@
+formatVersion: 1
+tags:
+- name: critical
+  color: "#ff3b30"
+- name: nightly
+  color: "#3366cc"

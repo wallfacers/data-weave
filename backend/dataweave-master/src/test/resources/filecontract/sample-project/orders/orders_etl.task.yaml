@@ -1,0 +1,15 @@
+formatVersion: 1
+name: 订单 ETL
+type: SQL
+description: 每日订单宽表抽取
+priority: 5
+timeoutSec: 600
+retryMax: 2
+datasource: warehouse_main
+targetDatasource: mart_orders
+params:
+  bizDate: ${yyyyMMdd}
+  mode: full
+tags:
+- critical
+- nightly

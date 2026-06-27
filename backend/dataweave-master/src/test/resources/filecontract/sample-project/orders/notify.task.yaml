@@ -1,0 +1,11 @@
+formatVersion: 1
+name: 订单完成通知
+type: SHELL
+description: 发送钉钉通知
+priority: 8
+timeoutSec: 60
+retryMax: 0
+params:
+  env: prod
+tags:
+- critical

@@ -29,6 +29,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-json</artifactId>
         </dependency>
+        <!-- SnakeYAML 2.5 for filecontract YAML dump/load (explicit; Spring Boot transitive) -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
         <!-- Micrometer core for scheduler metrics (MeterRegistry injected from boot) -->
         <dependency>
             <groupId>io.micrometer</groupId>
