@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weft:file-contract/workflow",
+  "title": "WorkflowDoc (<slug>.flow.yaml)",
+  "description": "任务流元数据 + DAG。身份=文件名 slug。",
+  "type": "object",
+  "required": ["formatVersion", "name", "schedule", "nodes", "edges"],
+  "properties": {
+    "formatVersion": { "type": "integer", "const": 1 },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "schedule": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["MANUAL", "CRON", "DEPENDENCY"] },
+        "cron": { "type": "string" },
+        "start": { "type": "string", "description": "ISO-8601 datetime" },
+        "end": { "type": "string", "description": "ISO-8601 datetime" },
+        "intervalMs": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "priority": { "type": "integer", "minimum": 0, "maximum": 9 },
+    "preemptible": { "type": "boolean" },
+    "timeoutSec": { "type": "integer", "minimum": 0 },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "nodes": {
+      "type": "array",
+      "description": "按 key 升序",
+      "items": {
+        "type": "object",
+        "required": ["key", "type"],
+        "properties": {
+          "key": { "type": "string", "description": "工作流内稳定标识 nodeKey" },
+          "type": { "type": "string", "enum": ["TASK", "VIRTUAL"] },
+          "task": { "type": "string", "description": "TASK 必填:任务 project-root 相对路径/slug(无扩展名)" },
+          "name": { "type": "string" },
+          "pos": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[posX, posY]"
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "TASK" } } },
+            "then": { "required": ["task"] }
+          },
+          {
+            "if": { "properties": { "type": { "const": "VIRTUAL" } } },
+            "then": { "not": { "required": ["task"] } }
+          }
+        ]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "按 (from,to,strength) 升序",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string", "description": "源 node.key" },
+          "to": { "type": "string", "description": "目标 node.key" },
+          "strength": { "type": "string", "enum": ["STRONG", "WEAK"], "description": "省略=STRONG(默认);仅 WEAK 写出" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

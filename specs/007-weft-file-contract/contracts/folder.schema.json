@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weft:file-contract/folder",
+  "title": "FolderDoc (_folder.yaml)",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": { "type": "string", "description": "类目显示名(可中文);目录名是 slug 身份" },
+    "sortOrder": { "type": "integer", "description": "同级排序;省略=null(视为 0)" }
+  },
+  "additionalProperties": false
+}

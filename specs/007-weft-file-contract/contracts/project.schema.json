@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weft:file-contract/project",
+  "title": "ProjectDoc (project.yaml)",
+  "type": "object",
+  "required": ["formatVersion", "code", "name"],
+  "properties": {
+    "formatVersion": { "type": "integer", "const": 1 },
+    "code": { "type": "string", "pattern": "^[a-z0-9_-]+$", "description": "项目身份(租户内唯一)" },
+    "name": { "type": "string", "description": "显示名,可含任意字符" }
+  },
+  "additionalProperties": false
+}

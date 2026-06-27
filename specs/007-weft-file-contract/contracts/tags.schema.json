@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weft:file-contract/tags",
+  "title": "TagsDoc (tags.yaml)",
+  "type": "object",
+  "required": ["formatVersion", "tags"],
+  "properties": {
+    "formatVersion": { "type": "integer", "const": 1 },
+    "tags": {
+      "type": "array",
+      "description": "标签定义(调色板),按 name 升序",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "description": "项目内唯一,关联引用键" },
+          "color": { "type": "string", "description": "原始色串如 #RRGGBB" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
