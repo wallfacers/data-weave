@@ -896,3 +896,18 @@ CREATE TABLE task_run_table_io (
 );
 CREATE INDEX IF NOT EXISTS idx_task_run_table_io_inst ON task_run_table_io (task_instance_id);
 CREATE INDEX IF NOT EXISTS idx_task_run_table_io_bizdate ON task_run_table_io (biz_date);
+
+-- chat-attachments: 聊天附件文件存储（内容寻址 SHA-256 主键，映射 agent_chat_file）
+CREATE TABLE agent_chat_file (
+    id                VARCHAR(64) PRIMARY KEY,
+    tenant_id         BIGINT NOT NULL,
+    original_name     VARCHAR(512) NOT NULL,
+    mime_type         VARCHAR(64),
+    size_bytes        BIGINT NOT NULL,
+    storage_type      VARCHAR(16) NOT NULL DEFAULT 'local',
+    storage_key       VARCHAR(256) NOT NULL,
+    created_by        BIGINT,
+    created_at        TIMESTAMP,
+    version           INTEGER DEFAULT 0,
+    deleted           SMALLINT DEFAULT 0
+);

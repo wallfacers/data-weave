@@ -18,11 +18,12 @@ frontend/                          # Next.js 16 (App Router) + React 19 + shadcn
 backend/                           # Spring Boot 4.0 + Java 25, Maven multi-module (com.dataweave)
   dataweave-api/                   # entry; WebFlux; MCP /mcp; CORS/WebClient config
   dataweave-master/                # scheduler + workflow + metrics/task/lineage + PolicyEngine/4 audit tables
-  dataweave-worker/                # task executor + ControlledCommandExecutor
+  dataweave-worker/                # task executor + ControlledCommandExecutor + localrun (CLI 本地独立 runtime)
   dataweave-alert/                 # alert rules + channels (skeleton)
   # DDD layers per module: interfaces / application / domain / infrastructure
-cli/                               # dw, single Go binary over master REST (binary not in git)
-openspec/                          # change proposals, specs, archive (one change per dir)
+cli/                               # dw Go binary: task/logs ops + pull/push/diff/run (sync + local runtime); binary not in git
+specs/                             # active SDD (Spec Kit): specs/NNN-feature/ spec·plan·tasks
+openspec/                          # legacy change proposals + archive (pre-Spec-Kit)
 docker-compose.yml                 # PostgreSQL + Redis
 ```
 
@@ -37,7 +38,7 @@ docker-compose.yml                 # PostgreSQL + Redis
 | Scheduling | Peer masters + SKIP LOCKED claim + event-driven + soft preemption + cron guard table for dedup, `scheduler.mode=all-in-one\|distributed` |
 | Metrics  | Micrometer + Actuator, four tiers (performance/resource/pipeline/SLA), `/api/ops/metrics` + `/actuator/prometheus` |
 | Tools/Perms | MCP Server (`/mcp`, Bearer) exposes platform tools; all writes pass `PolicyEngine` L0–L4 + 4 audit tables |
-| CLI      | `dw` Go binary (`cli/`): `task list/show/instances/rerun`, `logs cat` |
+| CLI      | `dw` Go binary (`cli/`): `task list/show/instances/rerun`, `logs cat`, `pull/push/diff`, `run [--test]` (local runtime) |
 | Design system | `@google/design.md` (token source of truth + lint/export)              |
 | Spec     | Methodology-agnostic — any SDD/TDD approach                                  |
 
@@ -68,14 +69,16 @@ Frontend `:4000`, backend `:8000`.
 ### MCP & CLI
 
 - **MCP**: `POST /mcp` (JSON-RPC initialize/tools.list/tools.call, Bearer `mcp.auth.token`).
-- **dw CLI**: `cd cli && ./build.sh`; `DW_API` (default `:8000`), `DW_TOKEN` (write ops send `X-DW-Token` → `cli.auth.token`).
+- **MCP 身份隔离（E1）**: `mcp.auth.token` 绑定 `mcp.auth.tenant-id`/`mcp.auth.user-id` 配置；`McpAuthFilter` 校验 token 后解析身份置入 exchange 属性；`McpController` 分发工具前 `TenantContext.set(tenantId, userId)`、`finally` clear。所有读写工具按 `TenantContext.tenantId()` 隔离，缺身份返回 `mcp.tenant_required`。
+- **MCP 工具集**: 只读 `query_task_definitions/instances/fleet/metric/lineage`（已补租户隔离）、`project_pull/diff`（复用 C `ProjectSyncService`）、`instance_logs`（复用 `OpsService.getLog`）、`approve_and_execute`；写 `project_push`（风险自适应闸门：纯增改 L1 直通、含删除/force L2 审批挂起，`policy_rules` 数据驱动 + `DefaultPlatformActionExecutor` case → `ProjectSyncService.push`）、`task_rerun`/`node_exec`（tenant-scoped + 安全解析不弱化）。另有遗留 ops/工作流运维工具（`pause/resume/kill_instance`、`trigger/resume/rerun_workflow`、`test_run`、`*_backfill` 等）与上述并存——**完整清单以 `McpToolRegistry.registerTools()` 为准**。E 重塑已移除 `create_task/update_task/delete_task`（定义写入一律走 `project_push`）。
+- **dw CLI**: `cd cli && ./build.sh`；`DW_API`（默认 `http://localhost:8000`）。两类命令两套认证：① `task`/`logs cat` 走 `/api/cli/*`，写操作用 `X-DW-Token`(`cli.auth.token`)；② `pull/push/diff/run` 走 `/api/projects|tasks|ops/*`，`DW_TOKEN` 作 Bearer JWT。`dw run <task>` 本地真跑复用 worker 执行器子进程（classpath 经 `DW_WORKER_CP` 或自动探测 worker fat jar），`dw run --test` 提交服务器 TEST。详见 `cli/README.md`。
 - **Audit trail**: every write action records `agent_action`; PolicyEngine gate applies uniformly.
 
 ## Key Conventions
 
 - **Dependency direction**: domain ← application ← infrastructure ← interfaces (outer→inner only).
 - **Side-effect ops must pass the gate**: any write tool (`node_exec`, CLI `rerun`, `applyFix`…) → `ActionRequest` → `GatedActionService.submit` → `PolicyEngine` (L0/L1 run; L2/L3 → approval + `PENDING_APPROVAL`; L4 reject) + `agent_action` trail, **no bypass**. Rules are data-driven (`policy_rules` table).
-- **Adding an MCP tool**: register in `McpToolRegistry.registerTools()` (name + JSON Schema + handler); queries reuse domain services, writes pass the gate. `node_exec` command-string safe parsing lives in `PolicyEngine` (redirect/separator/subcommand → escalate to L2).
+- **Adding an MCP tool**: register in `McpToolRegistry.registerTools()` (name + JSON Schema + handler); all tools MUST call `requireTenant(ctx)` (E1); queries reuse domain services, writes MUST go through `ActionRequest → gatedActionService.submit` (zero bypass). `node_exec` command-string safe parsing lives in `PolicyEngine` (redirect/separator/subcommand → escalate to L2). Definition writes go exclusively through `project_push` (risk-adaptive gating + `DefaultPlatformActionExecutor` execution detailed in MCP & CLI above); inline `create_task/update_task/delete_task` permanently removed.
 - **Scheduler deadlock-defense invariants** (hard): ① claim only via SKIP LOCKED; ② all state advances via optimistic CAS (`WHERE state=?`); ③ fixed lock order task→workflow; ④ inside the transaction persist state only — HTTP dispatch happens outside it. Waiting holds no resources.
 - **Metric definitions are immutable**: change → add an incremented `version` in `metrics`, never UPDATE an old one. `SchedulerMetrics` owns all instrumentation.
 - **i18n ownership — three rules** (see [docs/architecture.md](docs/architecture.md) + [docs/i18n-error-codes.md](docs/i18n-error-codes.md)): ① **Static UI copy** (buttons/labels/empty states/toasts) → frontend next-intl, ICU `{name}`, **by UI locale**; ② **Backend-generated** (MCP descriptions, approval reasons) → `Messages.get`, MessageFormat `{0}`, **by agent locale**; ③ **Errors** (`throw`, `ApiResponse.err`) → `BizException(code, args)` + `GlobalExceptionHandler`, **by UI locale**. Toasts trust the backend message (no Chinese fallback).
@@ -103,6 +106,9 @@ This file is the map; details live elsewhere:
 | ETA prediction         | `SlaService.java` (`durationMedianMs` + `predictLatestEta`) → `GET /api/ops/eta-summary` |
 | L1 真采集 + 故障注入     | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean) + `NodeTelemetryService`(master) · `scripts/fault-injection.sql` |
 | Project sync (pull/push/diff) | `ProjectSyncService.java`(pull 装配/push 落库+快照/diff 只读对账) + `ProjectSyncController.java`(`POST /api/projects/{id}/pull|push|diff`) — 子特性 C 文件化同步 API |
+| CLI 同步 + 本地 runtime（D）| `cli/`(`pull/push/diff/run` + `client`/`sync`/`run` 包) + `dataweave-worker/.../localrun/LocalRunMain.java` + `PythonTaskExecutor.java`（CLI 与服务器共享执行器，代码级语义一致）；spec `specs/009-weft-cli-runtime/` |
+| MCP 工具重塑（E）| `specs/010-weft-mcp-tools/` spec/plan/tasks；`McpToolRegistry.java`(工具注册) + `McpAuthFilter.java`(身份绑定 E1) + `McpController.java`(TenantContext 注入) + `DefaultPlatformActionExecutor.java`(PROJECT_PUSH case E4) + `data.sql`(policy_rules seed E3) |
+| MCP 身份 + 租户隔离 | `TenantContext.java`(ThreadLocal) → `McpAuthFilter` 置 exchange 属性 → `McpController` set/finally clear；`requireTenant()` 校验；repo 增量方法 `findByTenantId*`
 | How to run             | [README.md](README.md)                                      |
 
 ## Working Rules

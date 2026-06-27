@@ -49,6 +49,8 @@ class DefaultPlatformActionExecutorTest {
     private OpsService opsService;
     @Mock
     private ObjectProvider<OpsService> opsServiceProvider;
+    @Mock
+    private ObjectProvider<ProjectSyncService> projectSyncServiceProvider;
 
     private DefaultPlatformActionExecutor executor;
 
@@ -65,7 +67,7 @@ class DefaultPlatformActionExecutorTest {
         when(opsServiceProvider.getObject()).thenReturn(opsService);
         executor = new DefaultPlatformActionExecutor(instanceRepository,
                 fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
-                opsServiceProvider, realMessages());
+                opsServiceProvider, projectSyncServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));

@@ -320,7 +320,7 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (24, 'TOOL', 'query_lineage',           NULL, 'L0', '查血缘（只读）',             1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 可逆例行写 MCP 工具（L1）
 (30, 'TOOL', 'task_rerun',              NULL, 'L1', '重跑任务实例（可逆例行）',   1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(31, 'TOOL', 'create_task',             NULL, 'L1', '建任务并上线（可逆）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- (31) create_task 已移除（E 子特性，定义写入一律走 project_push）
 (33, 'TOOL', 'node_exec',               NULL, 'L1', '节点受控执行（按命令串解析抬升）', 1, 25, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 调度类写工具（L1，可逆例行；distributed-scheduler-m1）。TEST 试跑是「未发布内容上 worker」唯一口子，须留痕。
 (34, 'TOOL', 'test_run',                NULL, 'L1', '单任务测试运行（草稿上 worker，留痕）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
@@ -330,6 +330,8 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (43, 'TOOL', 'rollback_workflow',       NULL, 'L1', '回滚工作流到历史版本（可逆，恢复草稿）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (36, 'TOOL', 'resume_workflow',         NULL, 'L1', '断点恢复工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (37, 'TOOL', 'rerun_workflow',          NULL, 'L1', '整流重跑工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(44, 'TOOL', 'PROJECT_PUSH',             NULL, 'L1', '项目推送（纯增改，租户项目内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(45, 'TOOL', 'PROJECT_PUSH_DESTRUCTIVE', NULL, 'L2', '项目推送含删除/force（破坏性，需审批）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 (40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);

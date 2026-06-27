@@ -4,6 +4,8 @@ import com.dataweave.api.application.mcp.McpTool;
 import com.dataweave.api.application.mcp.McpToolRegistry;
 import com.dataweave.api.application.mcp.ToolResult;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.McpAuthFilter;
+import com.dataweave.api.infrastructure.TenantContext;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +25,9 @@ import java.util.Map;
  * DataWeave MCP Streamable HTTP 端点（POST JSON-RPC）。手写最小子集（design D8 spike 定案：
  * 不引官方 SDK，Spring Boot 4/Jackson 3 兼容性可控）：initialize / tools/list / tools/call / ping。
  *
- * <p>Bearer 认证由 {@code McpAuthFilter} 前置。阻塞工具调用放 boundedElastic。
+ * <p>Bearer 认证由 {@code McpAuthFilter} 前置，将 tenantId/userId 写入 exchange 属性。
+ * E1：在 boundedElastic 线程设置 {@link TenantContext}，工具调用全过程可感知租户身份；
+ * 缺少租户身份时返回 403。阻塞工具调用放 boundedElastic。
  */
 @RestController
 public class McpController {
@@ -43,24 +47,40 @@ public class McpController {
         Object id = request.get("id");
         String method = str(request.get("method"));
         Locale agentLocale = Locales.agentLocale(exchange.getRequest().getHeaders());
+        Long tenantId = exchange.getAttribute(McpAuthFilter.ATTR_TENANT_ID);
+        Long userId = exchange.getAttribute(McpAuthFilter.ATTR_USER_ID);
 
         // 通知（无 id）：不回 body
         if (id == null && method != null && method.startsWith("notifications/")) {
             return Mono.just(ResponseEntity.accepted().build());
         }
 
-        return Mono.fromCallable(() -> ResponseEntity.ok(dispatch(id, method, request, agentLocale)))
-                .subscribeOn(Schedulers.boundedElastic());
+        // E1: 捕获身份到闭包，在 boundedElastic 线程设置 TenantContext
+        final Long capturedTenantId = tenantId;
+        final Long capturedUserId = userId;
+        return Mono.fromCallable(() -> {
+            if (capturedTenantId == null) {
+                return ResponseEntity.status(403)
+                        .body(error(id, -32000, "MCP tenant identity not configured"));
+            }
+            TenantContext.set(capturedTenantId, capturedUserId, "mcp-agent");
+            try {
+                return ResponseEntity.ok(dispatch(id, method, request, agentLocale,
+                        capturedTenantId, capturedUserId));
+            } finally {
+                TenantContext.clear();
+            }
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> dispatch(Object id, String method, Map<String, Object> request, Locale agentLocale) {
+    private Map<String, Object> dispatch(Object id, String method, Map<String, Object> request,
+                                         Locale agentLocale, Long tenantId, Long userId) {
         if (method == null) {
             return error(id, -32600, "Invalid Request: missing method");
         }
         return switch (method) {
             case "initialize" -> result(id, Map.of(
-                    // 回显客户端请求的协议版本（MCP 协商），缺省回退本服务版本，避免版本不匹配告警。
                     "protocolVersion", clientProtocolVersion(request),
                     "capabilities", Map.of("tools", Map.of()),
                     "serverInfo", Map.of("name", "dataweave", "version", "0.0.1")));
@@ -79,7 +99,7 @@ public class McpController {
                 Object argsObj = params.get("arguments");
                 Map<String, Object> arguments = argsObj instanceof Map
                         ? (Map<String, Object>) argsObj : Map.of();
-                ToolResult tr = registry.call(name, arguments, agentLocale);
+                ToolResult tr = registry.call(name, arguments, agentLocale, tenantId, userId);
                 Map<String, Object> content = Map.of("type", "text", "text", tr.text());
                 Map<String, Object> callResult = new LinkedHashMap<>();
                 callResult.put("content", List.of(content));

@@ -20,8 +20,8 @@ public record McpTool(String name,
                       Map<String, Object> inputSchema,
                       Handler handler) {
 
-    /** Handler 上下文：工具参数 + agent locale。 */
-    public record Context(Map<String, Object> args, Locale locale) {
+    /** Handler 上下文：工具参数 + agent locale + 租户/用户身份（E1 MCP 身份注入）。 */
+    public record Context(Map<String, Object> args, Locale locale, Long tenantId, Long userId) {
         public Object arg(String key) {
             return args == null ? null : args.get(key);
         }

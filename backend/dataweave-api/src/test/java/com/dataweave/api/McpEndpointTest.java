@@ -72,9 +72,20 @@ class McpEndpointTest {
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.result.tools[?(@.name=='query_fleet')].name").isEqualTo("query_fleet")
-                .jsonPath("$.result.tools[?(@.name=='create_task')].name").isEqualTo("create_task")
+                .jsonPath("$.result.tools[?(@.name=='project_push')].name").isEqualTo("project_push")
                 .jsonPath("$.result.tools[?(@.name=='node_exec')].name").isEqualTo("node_exec")
                 .jsonPath("$.result.tools[?(@.name=='approve_and_execute')].name").isEqualTo("approve_and_execute");
+    }
+
+    @Test
+    void toolsList_noCreateTask_noLegacyAiTools() {
+        post().bodyValue(Map.of("jsonrpc", "2.0", "id", 99, "method", "tools/list"))
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.result.tools[?(@.name=='create_task')]").doesNotExist()
+                .jsonPath("$.result.tools[?(@.name=='query_diagnosis')]").doesNotExist()
+                .jsonPath("$.result.tools[?(@.name=='update_task')]").doesNotExist()
+                .jsonPath("$.result.tools[?(@.name=='delete_task')]").doesNotExist();
     }
 
     @Test
@@ -88,16 +99,21 @@ class McpEndpointTest {
     }
 
     @Test
-    void toolsCall_createTask_executesThroughGate() {
-        post().bodyValue(Map.of("jsonrpc", "2.0", "id", 4, "method", "tools/call",
-                        "params", Map.of("name", "create_task", "arguments",
-                                Map.of("name", "测试订单汇总", "content", "select count(*) from orders",
-                                        "cron", "0 0 3 * * ?"))))
+    void toolsCall_projectPush_goesThroughGate() {
+        // Project 1 has seed data; partial push detects removals → L2 PENDING (risk-adaptive gate works)
+        var files = java.util.Map.of(
+                "project.yaml", "formatVersion: 1\ncode: test-project\nname: Test Project",
+                "mcp/test_push.task.yaml", "formatVersion: 1\nname: mcp_test_push\ntype: SQL\n");
+        var args = java.util.Map.of("projectId", 1, "files", files);
+        var params = java.util.Map.of("name", "project_push", "arguments", args);
+        var body = java.util.Map.of("jsonrpc", "2.0", "id", 4, "method", "tools/call", "params", params);
+        post().bodyValue(body)
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.result.isError").isEqualTo(false)
                 .jsonPath("$.result.content[0].text").value(t ->
-                        org.assertj.core.api.Assertions.assertThat((String) t).contains("EXECUTED"));
+                        org.assertj.core.api.Assertions.assertThat((String) t)
+                                .containsPattern("EXECUTED|PENDING_APPROVAL"));
     }
 
     @Test

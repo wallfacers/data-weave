@@ -111,8 +111,8 @@ class DatasourceEncryptorTest {
         field.set(bad, "0123456789abcdef"); // only 8 bytes
 
         assertThatThrownBy(bad::init)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("32 bytes");
+                .isInstanceOf(com.dataweave.master.i18n.BizException.class)
+                .hasMessageContaining("master_key_invalid_length");
     }
 
     @Test
@@ -123,7 +123,7 @@ class DatasourceEncryptorTest {
         field.set(bad, null);
 
         assertThatThrownBy(bad::init)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("DATASOURCE_MASTER_KEY");
+                .isInstanceOf(com.dataweave.master.i18n.BizException.class)
+                .hasMessageContaining("master_key_required");
     }
 }

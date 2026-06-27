@@ -31,6 +31,8 @@ policy:
 mcp:
   auth:
     token: dataweave-local-mcp-token   # 部署须覆盖；本地 AI 编程 agent 的 mcp 客户端用同一 token
+    tenant-id: 1                       # MCP 令牌绑定租户（MVP 配置身份模型，E1）
+    user-id: 1                         # MCP 令牌绑定用户（与 JWT 路径同源 TenantContext）
   output-threshold: 8000           # 工具输出超此字节截断 + 存档
 
 cli:

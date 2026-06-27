@@ -8,11 +8,14 @@ import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -38,7 +41,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final WorkflowDefRepository workflowDefRepository;
     // ObjectProvider 延迟查找：打破 OpsService→GatedActionService→Executor 的循环依赖。
     private final ObjectProvider<OpsService> opsService;
+    // ObjectProvider 延迟查找：打破 ProjectSyncService→TaskService→Executor 的循环依赖（E 子特性 project_push 执行接线）。
+    private final ObjectProvider<ProjectSyncService> projectSyncService;
     private final Messages messages;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
                                          FleetService fleetService,
@@ -49,6 +55,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          RecoveryService recoveryService,
                                          WorkflowDefRepository workflowDefRepository,
                                          ObjectProvider<OpsService> opsService,
+                                         ObjectProvider<ProjectSyncService> projectSyncService,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -59,6 +66,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.recoveryService = recoveryService;
         this.workflowDefRepository = workflowDefRepository;
         this.opsService = opsService;
+        this.projectSyncService = projectSyncService;
         this.messages = messages;
     }
 
@@ -67,7 +75,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         String type = action.getActionType() == null ? "" : action.getActionType().toUpperCase();
         return switch (type) {
             case "TASK_RERUN" -> taskRerun(action, locale);
-            case "CREATE_TASK" -> createTask(action, locale);
             case "NODE_EXEC" -> nodeExec(action);
             case "TEST_RUN" -> testRun(action, locale);
             case "TASK_RUN" -> taskRun(action, locale);
@@ -78,12 +85,13 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "PAUSE_INSTANCE" -> instanceOp(action, "pause", locale);
             case "RESUME_INSTANCE" -> instanceOp(action, "resume", locale);
             // 运维中心批量操作（data-ops-center）：targetType=TASK_INSTANCE，对单个 task_instance 生效。
-            // 与既有 TASK_RERUN（按 taskId 新建实例）/KILL_INSTANCE（杀工作流实例）语义区分，故用独立动作类型。
             case "OPS_SET_SUCCESS" -> opsTaskInstanceOp(action, "set-success", locale);
             case "OPS_RERUN_INSTANCE" -> opsTaskInstanceOp(action, "rerun", locale);
             case "OPS_KILL_INSTANCE" -> opsTaskInstanceOp(action, "kill", locale);
             case "ROLLBACK_TASK" -> rollbackTask(action, locale);
             case "ROLLBACK_WORKFLOW" -> rollbackWorkflow(action, locale);
+            // E 子特性：project_push 执行接线（E4）
+            case "PROJECT_PUSH", "PROJECT_PUSH_DESTRUCTIVE" -> projectPush(action, locale);
             default -> new ExecOutcome(false,
                     messages.get("executor.unsupported_action", locale, action.getActionType()),
                     json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
@@ -102,39 +110,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 messages.get("executor.task_rerun.success", locale, action.getTargetId(), String.valueOf(inst.getId())),
                 json(Map.of("newInstanceId", inst.getId(), "node", node, "sourceInstanceId", String.valueOf(action.getTargetId()))),
                 inst.getId());
-    }
-
-    // ---- 建任务并上线（MCP create_task）。command 编码为 "[@io:ds|tds|reads|writes\n]cron\ncontent"，targetId 为任务名 ----
-    private ExecOutcome createTask(AgentAction action, Locale locale) {
-        String fallbackName = messages.get("executor.create_task.default_name", locale);
-        String name = action.getTargetId() != null ? action.getTargetId() : fallbackName;
-        String cmd = action.getCommand() == null ? "" : action.getCommand();
-
-        // 可选 io 头：Agent 声明的输入/输出表与数据源（设计态血缘 AGENT 来源）
-        Long dsId = null, tdsId = null;
-        java.util.List<String> reads = null, writes = null;
-        if (cmd.startsWith("@io:")) {
-            int hnl = cmd.indexOf('\n');
-            String header = cmd.substring(4, hnl < 0 ? cmd.length() : hnl);
-            cmd = hnl < 0 ? "" : cmd.substring(hnl + 1);
-            String[] parts = header.split("\\|", -1);
-            if (parts.length >= 4) {
-                dsId = parseLongOrNull(parts[0]);
-                tdsId = parseLongOrNull(parts[1]);
-                reads = parts[2].isBlank() ? null : java.util.Arrays.asList(parts[2].split(","));
-                writes = parts[3].isBlank() ? null : java.util.Arrays.asList(parts[3].split(","));
-            }
-        }
-
-        int nl = cmd.indexOf('\n');
-        String cron = nl >= 0 ? cmd.substring(0, nl) : "0 0 8 * * ?";
-        String content = nl >= 0 ? cmd.substring(nl + 1) : (cmd.isBlank() ? "select count(*) from orders" : cmd);
-        TaskService.TaskCreation c = taskService.createAndOnline(name, "SQL", content, cron,
-                dsId, tdsId, reads, writes);
-        return new ExecOutcome(true,
-                messages.get("executor.create_task.success", locale, name, cron),
-                json(Map.of("taskId", c.task().getId(), "name", name, "cron", cron, "instanceId", c.instanceId())),
-                c.instanceId());
     }
 
     // ---- node_exec（委托 gateway）----
@@ -245,6 +220,67 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             return new ExecOutcome(false, e.getMessage(),
                     json(Map.of("error", e.getClass().getSimpleName())), null);
         }
+    }
+
+    /** E 子特性 project_push 执行接线（E4）：解码 JSON payload → ProjectSyncService.push(@Transactional 全有或全无）。 */
+    private ExecOutcome projectPush(AgentAction action, Locale locale) {
+        String cmd = action.getCommand();
+        if (cmd == null || cmd.isBlank()) {
+            return new ExecOutcome(false,
+                    messages.get("executor.project_push.missing_payload", locale),
+                    json(Map.of("error", "missing_push_payload")), null);
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(cmd,
+                    new TypeReference<Map<String, Object>>() {});
+            Long projectId = longVal(payload, "projectId");
+            Long tenantId = longVal(payload, "tenantId");
+            Long userId = longVal(payload, "userId");
+            @SuppressWarnings("unchecked")
+            Map<String, String> files = (Map<String, String>) payload.getOrDefault("files", Map.of());
+            String baseline = (String) payload.get("baseline");
+            boolean force = Boolean.TRUE.equals(payload.get("force"));
+            String remark = (String) payload.getOrDefault("remark",
+                    "push via MCP (" + (action.getActionType() != null ? action.getActionType() : "PROJECT_PUSH") + ")");
+
+            if (projectId == null || tenantId == null || userId == null) {
+                return new ExecOutcome(false,
+                        messages.get("executor.project_push.missing_params", locale),
+                        json(Map.of("error", "missing_project_tenant_or_user")), null);
+            }
+
+            ProjectSyncDtos.PushCommand pushCmd = new ProjectSyncDtos.PushCommand(
+                    files, baseline, force, null, remark);
+            ProjectSyncService sync = projectSyncService.getObject();
+            ProjectSyncDtos.PushResult result = sync.push(projectId, tenantId, userId, pushCmd);
+
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("projectId", projectId);
+            out.put("created", result.created());
+            out.put("updated", result.updated());
+            out.put("deleted", result.deleted());
+            out.put("snapshots", result.snapshots());
+            out.put("newBaseline", result.newBaseline());
+            return new ExecOutcome(true,
+                    messages.get("executor.project_push.success", locale, projectId),
+                    json(out), null);
+        } catch (BizException e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getCode(), "detail", e.getMessage())), null);
+        } catch (Exception e) {
+            return new ExecOutcome(false,
+                    messages.get("executor.project_push.failed", locale, e.getMessage()),
+                    json(Map.of("error", "push_failed", "detail", String.valueOf(e.getMessage()))), null);
+        }
+    }
+
+    private Long longVal(Map<String, Object> m, String key) {
+        Object v = m.get(key);
+        if (v instanceof Number n) return n.longValue();
+        if (v instanceof String s && !s.isBlank()) {
+            try { return Long.parseLong(s.trim()); } catch (NumberFormatException ignored) {}
+        }
+        return null;
     }
 
     /** 断点恢复：targetId=workflowInstanceId(UUID)。 */
