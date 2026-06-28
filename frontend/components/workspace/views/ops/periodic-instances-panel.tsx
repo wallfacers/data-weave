@@ -372,7 +372,7 @@ export function PeriodicInstancesPanel({
         bulkActions={(ids, reload) => (
           <div className="flex items-center gap-1">
             {ids.length > 100 ? (
-              <span className="text-xs text-destructive">最多选中 100 个实例（当前 {ids.length} 个）</span>
+              <span className="text-xs text-destructive">{t("bulkMaxHintWithCount", { count: ids.length })}</span>
             ) : (
               <>
                 <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("rerun", ids, reload)}>

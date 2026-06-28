@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * 运维中心视图：顶条今日大盘 + 主舞台 Tab + 右栏 Agent 举手台。
+ * 运维中心视图：顶条今日大盘 + 主舞台 Tab。
  *
- * 布局参照 cockpit-view 的三段式；主舞台 Tab：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
+ * 主舞台 Tab：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
  * 经 `dataweave.ui.open({ view: "ops", params: { tab, filter } })` 召唤时，params 用来预置激活 Tab 与筛选。
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -16,12 +16,8 @@ import {
   BoxIcon,
   RefreshIcon,
   CursorMagicSelection02Icon,
-  Bug01Icon,
 } from "@hugeicons/core-free-icons"
 
-import { useWorkspaceStore } from "@/lib/workspace/store"
-import { useOpsAlertsStore } from "@/lib/workspace/ops-alerts-store"
-import { DwScroll } from "@/components/ui/dw-scroll"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
@@ -30,7 +26,6 @@ import { InstanceDagDialog } from "./ops/instance-dag-dialog"
 import { BackfillPanel } from "./ops/backfill-panel"
 import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
 import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
-import { OpsAlertCard } from "./ops/ops-alert-card"
 
 // 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
 // 「手动·测试」Tab 已移除：测试实例归开发态，手动触发是实例视图里的动作。
@@ -44,35 +39,8 @@ const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "backfill", labelKey: "tabBackfillInstances", icon: Loading03Icon },
 ]
 
-/** 开发/测试用 mock alert 注入：`window.__MOCK_OPS_ALERT__` 存在时自动推入 store */
-function useMockAlertInjector() {
-  useEffect(() => {
-    const w = window as typeof window & {
-      __MOCK_OPS_ALERT__?: Record<string, unknown>
-    }
-    if (w.__MOCK_OPS_ALERT__) {
-      useOpsAlertsStore.getState().push({
-        id: String(w.__MOCK_OPS_ALERT__.id ?? "mock-alert"),
-        kind: (w.__MOCK_OPS_ALERT__.kind as "INSTANCE_FAILED") ?? "INSTANCE_FAILED",
-        severity: (w.__MOCK_OPS_ALERT__.severity as "error") ?? "error",
-        title: String(w.__MOCK_OPS_ALERT__.title ?? "Mock alert"),
-        detail: w.__MOCK_OPS_ALERT__.detail as string | undefined,
-        instanceIds: Array.isArray(w.__MOCK_OPS_ALERT__.instanceIds)
-          ? (w.__MOCK_OPS_ALERT__.instanceIds as string[])
-          : [],
-        suggestedAction: w.__MOCK_OPS_ALERT__.suggestedAction as
-          | { op: "rerun"; params: Record<string, unknown> }
-          | undefined,
-        receivedAt: Date.now(),
-      })
-    }
-  }, [])
-}
-
 export function OpsView({ params }: ViewProps) {
   const t = useTranslations("ops")
-  const open = useWorkspaceStore((s) => s.open)
-  useMockAlertInjector()
 
   // 初始 Tab / 筛选来自 ui.open 的 params
   const initialTab = useMemo<TabId>(() => {
@@ -84,8 +52,6 @@ export function OpsView({ params }: ViewProps) {
   const [instanceView, setInstanceView] = useState<InstanceViewType>("workflow")
   const [dagWfInstanceId, setDagWfInstanceId] = useState<string | null>(null)
   const [dagOpen, setDagOpen] = useState(false)
-  const alerts = useOpsAlertsStore((s) => s.alerts)
-  const activeAlerts = alerts.filter((a) => !a.resolved)
 
   // 预置筛选（来自 dataweave.ui.open）：传给周期实例面板
   const initialFilter = (params?.filter as Record<string, string>) ?? undefined
@@ -102,9 +68,9 @@ export function OpsView({ params }: ViewProps) {
 
       <OpsTopStrip />
 
-      {/* 主舞台 + 右栏举手台 */}
+      {/* 主舞台 */}
       <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col border-r">
+        <main className="flex min-w-0 flex-1 flex-col">
           <OpsTabBar active={activeTab} onChange={setActiveTab} />
           <div className="flex min-h-0 flex-1">
             {activeTab === "periodicWf" && <PeriodicWorkflowsPanel />}
@@ -153,29 +119,6 @@ export function OpsView({ params }: ViewProps) {
             {activeTab === "backfill" && <BackfillPanel />}
           </div>
         </main>
-
-        <aside className="flex w-[360px] shrink-0 flex-col">
-          <div className="flex items-center gap-2 border-b px-5 h-11">
-            <HugeiconsIcon icon={Bug01Icon} className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold tracking-tight">{t("railTitle")}</h2>
-            {activeAlerts.length > 0 && (
-              <span className="ml-auto rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive tabular-nums">
-                {activeAlerts.length}
-              </span>
-            )}
-          </div>
-          {activeAlerts.length === 0 ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-center">
-              <p className="text-sm text-muted-foreground">{t("railEmpty")}</p>
-            </div>
-          ) : (
-            <DwScroll className="flex-1" innerClassName="flex flex-col gap-3 p-4">
-              {activeAlerts.map((a) => (
-                <OpsAlertCard key={a.id} alert={a} />
-              ))}
-            </DwScroll>
-          )}
-        </aside>
       </div>
 
       {/* 实例 DAG 弹窗 */}
