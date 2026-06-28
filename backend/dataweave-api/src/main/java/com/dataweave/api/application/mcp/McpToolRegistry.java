@@ -587,37 +587,6 @@ public class McpToolRegistry {
                     return Map.of("requested", uuids.size(), "accepted", accepted, "results", results);
                 });
 
-        // TODO(ops-center-publish-boundary, 全局统一重写时处理): 任务级 freeze 已退役——调度门已移除、
-        // REST `/api/ops/tasks/{id}/freeze` 已换成节点级 `/workflows/{id}/nodes/{nodeKey}/freeze`。
-        // 此 MCP 工具仍走 deprecated `dataOpsBridge.setFrozen`（仅写 task_def.frozen 列，已无调度效果）。
-        // 待全局 MCP 工具梳理时：改注册 `freeze_node`（参数 workflowId/nodeKey/instanceId?/frozen），
-        // handler 调 `dataOpsBridge.setNodeFrozen`，与 REST 对齐。暂留以兼容现有 MCP 客户端工具列表。
-        register("freeze_task", "冻结/解冻任务定义（经策略闸门，租户隔离）【已退役，待全局重写为 freeze_node】",
-                schema(req("taskId", "integer", "任务定义 id"),
-                        req("frozen", "boolean", "true=冻结 false=解冻")),
-                ctx -> {
-                    requireTenant(ctx);
-                    Long taskId = requiredLong(ctx.args(), "taskId");
-                    Boolean frozen = Boolean.TRUE.equals(ctx.args().get("frozen"));
-                    ActionRequest req = ActionRequest.builder()
-                            .toolName("freeze_task").actionType("FREEZE_TASK")
-                            .targetType("TASK").targetId(String.valueOf(taskId))
-                            .actor("agent").actorSource("AGENT")
-                            .summary(opsMessages.get("ops.approval.freeze", ctx.locale()) + " #" + taskId)
-                            .param("frozen", frozen)
-                            .build();
-                    GateResult gr = gatedActionService.submit(req, ctx.locale());
-                    if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
-                    try {
-                        var td = dataOpsBridge.setFrozen(taskId, frozen);
-                        return Map.of("outcome", "EXECUTED", "taskId", taskId, "frozen", frozen,
-                                "name", td.getName());
-                    } catch (UnsupportedOperationException e) {
-                        return Map.of("outcome", "EXECUTED", "taskId", taskId, "frozen", frozen,
-                                "note", "领域执行待 Stream A 实现");
-                    }
-                });
-
         register("submit_backfill", "提交补数据：对指定日期区间生成补数据实例（经策略闸门，租户隔离）",
                 schema(req("targetType", "string", "task 或 workflow"),
                         req("targetId", "integer", "目标任务/工作流 id"),

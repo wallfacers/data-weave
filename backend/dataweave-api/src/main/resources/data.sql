@@ -553,13 +553,6 @@ INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, loa
 -- 注：OOM@node-3 的预填诊断结论（task_diagnosis / finding / 首屏 Finding）已移至 demo-data.sql，
 -- 默认不加载（仅 demo profile）。data.sql 仅保留失败实例素材与节点注册，由 Inspector 运行期真诊断。
 
--- ===== 域 F · 告警 =====
-INSERT INTO notification_channels (id, tenant_id, name, type, config_json, enabled, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, '默认日志通道', 'LOG', NULL, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
-
-INSERT INTO alert_rules (id, tenant_id, project_id, name, target_type, target_id, condition_expr, level, channel_id, enabled, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, 1, 'GMV 工作流失败告警', 'WORKFLOW', '1', 'state = FAILED', 'CRITICAL', 1, 1, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0);
-
 -- ===== 域 G · 审计与 mock 业务 =====
 INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, target_id, detail_json, created_at) VALUES
 (1, 1, 1, 1, 'CREATE', 'WORKFLOW', '1', '{"name":"每日 GMV 工作流"}', TIMESTAMP '2026-06-06 00:00:00');
@@ -644,8 +637,6 @@ ALTER TABLE derived_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE metric_dimension ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE metric_lineage ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE worker_nodes ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE notification_channels ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE alert_rules ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE audit_log ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE policy_rules ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;

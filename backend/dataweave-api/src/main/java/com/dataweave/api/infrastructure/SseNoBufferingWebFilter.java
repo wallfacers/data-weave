@@ -12,7 +12,7 @@ import reactor.core.publisher.Mono;
 /**
  * 给所有 SSE（{@code text/event-stream}）响应自动加防缓冲头，确保流式响应不被中间反代缓冲。
  *
- * <p>背景：实时日志（{@code /api/ops/.../logs/stream}）、工作流状态流、AG-UI 聊天（{@code /agui}）
+ * <p>背景：实时日志（{@code /api/ops/.../logs/stream}）、工作流状态流
  * 等 SSE 经 nginx 等反代时，默认 {@code proxy_buffering on} 会把逐行 SSE 攒到上游关流才一次性下发，
  * 导致「一把输出」而非滚屏。{@code X-Accel-Buffering: no} 是 nginx 识别的「对本响应关闭缓冲」信号
  * （多数反代亦尊重该约定），{@code Cache-Control: no-cache} 防止中间缓存层介入。

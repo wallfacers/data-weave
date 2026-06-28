@@ -88,11 +88,6 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         return opsService.setSuccess(instanceId);
     }
 
-    @Override
-    @Deprecated
-    public TaskDef setFrozen(Long taskDefId, boolean frozen) {
-        return opsService.setFrozen(taskDefId, frozen);
-    }
 
     @Override
     public void setNodeFrozen(Long workflowId, String nodeKey, UUID instanceId, boolean frozen) {

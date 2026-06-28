@@ -142,6 +142,31 @@ export interface TaskDef {
   updatedAt: string | null
 }
 
+/** 分页信封（对齐后端 Page：items/total/page/size）。 */
+export interface Page<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+}
+
+/** 运行实例行（/api/ops/instances，对齐 OpsContracts.InstanceRow）。 */
+export interface InstanceRow {
+  id: number
+  taskDefId: number
+  taskDefName: string
+  workflowInstanceId: string
+  runMode: string
+  state: string
+  bizDate: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  cronExpression: string | null
+  env: string | null
+  workflowName: string | null
+}
+
 /** 任务发布版本快照（task_def_version，不可变历史）。 */
 export interface TaskDefVersion {
   id: number
