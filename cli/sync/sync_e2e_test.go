@@ -121,8 +121,10 @@ func (m *mockSyncServer) handleDiff(w http.ResponseWriter, r *http.Request) {
 
 func (m *mockSyncServer) handleList(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("search")
+	// 真服务端分页键是 items（ProjectController.list），mock 必须照搬真契约，
+	// 否则 resolve-by-code 单测假绿而真端点红（2026-06-28 闭环真跑抓到的缝）。
 	writeAPI(w, map[string]any{
-		"content": []any{map[string]any{"id": 12, "code": code, "name": "Demo"}},
+		"items": []any{map[string]any{"id": 12, "code": code, "name": "Demo"}},
 	})
 }
 

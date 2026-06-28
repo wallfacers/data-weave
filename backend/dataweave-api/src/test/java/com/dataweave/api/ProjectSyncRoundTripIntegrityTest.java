@@ -13,7 +13,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -199,5 +203,162 @@ class ProjectSyncRoundTripIntegrityTest {
         // 只读:diff 后服务器态不变(再 diff 仍报同样 modified,且基线未变)
         ProjectSyncDtos.PullResult after = syncService.pull(1L, 1L);
         assertThat(after.baseline()).isEqualTo(src.baseline());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 013 slug roundtrip fidelity — CJK collision tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /** US1 / SC-001: pull must not silently lose tasks due to slug collapse.
+     *  Project 1 has CJK-named ECHO tasks (id 10-15) that previously all slugged to "-"
+     *  and suffered silent overwrite. */
+    @Test
+    void pullIsLossless_withCjkCollidingNames() {
+        // Count server-side tasks
+        List<TaskDef> srvTasks = new ArrayList<>();
+        for (TaskDef t : taskRepo.findByProjectId(1L)) {
+            if (t.getDeleted() == null || t.getDeleted() == 0) srvTasks.add(t);
+        }
+        long dbCount = srvTasks.size();
+        assertThat(dbCount).as("project 1 should have multiple tasks").isGreaterThan(5);
+
+        ProjectSyncDtos.PullResult result = syncService.pull(1L, 1L);
+        Map<String, String> files = result.bundle().files();
+
+        // Count .task.yaml files in bundle
+        long bundleTaskCount = files.keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).count();
+        assertThat(bundleTaskCount)
+                .as("pull must not lose any task: server=%d, bundle=%d", dbCount, bundleTaskCount)
+                .isEqualTo(dbCount);
+
+        // No collapsed "-.task.yaml" anywhere
+        assertThat(files.keySet())
+                .as("no task file should collapse to '-.task.yaml'")
+                .noneMatch(k -> k.endsWith("/-.task.yaml") || k.equals("-.task.yaml"));
+
+        // Every server task must have a unique file path (no overwrite)
+        assertThat(bundleTaskCount).isEqualTo(dbCount);
+    }
+
+    /** US2 / SC-003 / FR-005: zero-change diff must report no differences,
+     *  AND we must confirm entity count wasn't lost (not blind "一致"). */
+    @Test
+    void diffIsFaithful_zeroChangeReportsNoDiffAndNotBlind() {
+        ProjectSyncDtos.PullResult src = syncService.pull(1L, 1L);
+
+        // Count task files to prove no entities were lost
+        long srcTaskCount = src.bundle().files().keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).count();
+
+        ProjectSyncDtos.PushCommand cmd = new ProjectSyncDtos.PushCommand(
+                src.bundle().files(), src.baseline(), false, null, null);
+        ProjectSyncDtos.DiffPreview diff = syncService.diff(1L, 1L, cmd);
+
+        assertThat(diff.added()).as("zero change must report no added").isEmpty();
+        assertThat(diff.modified()).as("zero change must report no modified").isEmpty();
+        assertThat(diff.removed()).as("zero change must report no removed").isEmpty();
+
+        // Prove it's genuine "no difference", not blind (entities weren't lost)
+        ProjectSyncDtos.PullResult verify = syncService.pull(1L, 1L);
+        long verifyTaskCount = verify.bundle().files().keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).count();
+        assertThat(verifyTaskCount)
+                .as("re-pull must not lose entities after diff")
+                .isEqualTo(srcTaskCount);
+    }
+
+    /** US2: delete one task file → diff must show exactly that task as removed,
+     *  and not misidentify others. Uses a fresh project with no workflow refs. */
+    @Test
+    void diffIsFaithful_deleteOneTask_showsExactlyOneRemoved() {
+        // Create a clean project with two simple tasks (no workflow refs to avoid warnings)
+        Project p = new Project();
+        p.setTenantId(1L); p.setCode("diff-faithful"); p.setName("diff faithful");
+        p.setStatus("ACTIVE"); p.setDeleted(0); p.setVersion(0);
+        p.setCreatedAt(LocalDateTime.now()); p.setUpdatedAt(LocalDateTime.now());
+        Long newPid = projectRepo.save(p).getId();
+
+        // Build a minimal bundle with two tasks
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("project.yaml", "formatVersion: 1\ncode: diff-faithful\nname: diff faithful\n");
+        files.put("tags.yaml", "formatVersion: 1\ntags: []\n");
+        files.put("task-a.task.yaml", "formatVersion: 1\nname: Task A\ntype: SHELL\ncontent: |\n  echo a\n");
+        files.put("task-a.sh", "echo a\n");
+        files.put("task-b.task.yaml", "formatVersion: 1\nname: Task B\ntype: SHELL\ncontent: |\n  echo b\n");
+        files.put("task-b.sh", "echo b\n");
+
+        ProjectSyncDtos.PushCommand pushCmd = new ProjectSyncDtos.PushCommand(
+                files, null, false, null, null);
+        syncService.push(newPid, 1L, 1L, pushCmd);
+
+        // Pull to get stable bundle
+        ProjectSyncDtos.PullResult src = syncService.pull(newPid, 1L);
+        Map<String, String> pulled = new HashMap<>(src.bundle().files());
+
+        // Remove the first .task.yaml file (and its companion script if any)
+        String taskYamlKey = pulled.keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).findFirst().orElseThrow();
+        String base = taskYamlKey.substring(0, taskYamlKey.length() - ".task.yaml".length());
+        pulled.remove(taskYamlKey);
+        // Also remove companion script file if present
+        pulled.keySet().removeIf(k -> k.startsWith(base + ".") && !k.endsWith(".yaml"));
+
+        ProjectSyncDtos.PushCommand cmd = new ProjectSyncDtos.PushCommand(
+                pulled, src.baseline(), false, null, null);
+        ProjectSyncDtos.DiffPreview diff = syncService.diff(newPid, 1L, cmd);
+
+        assertThat(diff.removed()).as("should report exactly one removed task").hasSize(1);
+        assertThat(diff.removed().get(0).entityType()).isEqualTo("TASK");
+    }
+
+    /** US3 / SC-002: pull→push (no change)→re-pull to clean project → entity set equivalent.
+     *  Verifies identity stability across the full round-trip. */
+    @Test
+    void roundtripIsStable_noFalseRemoval() {
+        // 1. Pull project 1
+        ProjectSyncDtos.PullResult src = syncService.pull(1L, 1L);
+        long srcTaskCount = src.bundle().files().keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).count();
+        List<String> srcTaskSlugs = src.bundle().files().keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).sorted().toList();
+
+        // 2. Create empty project and push
+        Project p = new Project();
+        p.setTenantId(1L); p.setCode("rt-stable"); p.setName("roundtrip stable");
+        p.setStatus("ACTIVE"); p.setDeleted(0); p.setVersion(0);
+        p.setCreatedAt(LocalDateTime.now()); p.setUpdatedAt(LocalDateTime.now());
+        Long newPid = projectRepo.save(p).getId();
+
+        // Clone datasources for the new project (needed for tasks with ds references)
+        for (Datasource srcDs : datasourceRepo.findByProjectId(1L)) {
+            Datasource d = new Datasource();
+            d.setTenantId(1L); d.setProjectId(newPid);
+            d.setName(srcDs.getName()); d.setTypeCode(srcDs.getTypeCode());
+            d.setDeleted(0); d.setVersion(0);
+            d.setCreatedAt(LocalDateTime.now()); d.setUpdatedAt(LocalDateTime.now());
+            datasourceRepo.save(d);
+        }
+
+        // 3. Push to new project
+        ProjectSyncDtos.PushCommand pushCmd = new ProjectSyncDtos.PushCommand(
+                src.bundle().files(), null, false, src.fileCount(), "roundtrip test");
+        ProjectSyncDtos.PushResult pushRes = syncService.push(newPid, 1L, 1L, pushCmd);
+
+        // 4. Pull the new project
+        ProjectSyncDtos.PullResult roundtrip = syncService.pull(newPid, 1L);
+        long rtTaskCount = roundtrip.bundle().files().keySet().stream()
+                .filter(k -> k.endsWith(".task.yaml")).count();
+
+        // 5. Entity count must match
+        assertThat(rtTaskCount).as("roundtrip must preserve entity count").isEqualTo(srcTaskCount);
+
+        // 6. No "-" collapsed slugs in the roundtrip result
+        assertThat(roundtrip.bundle().files().keySet())
+                .as("roundtrip must not produce collapsed slugs")
+                .noneMatch(k -> k.endsWith("/-.task.yaml") || k.equals("-.task.yaml"));
+
+        // 7. Push had zero removals on the new project (all insert)
+        assertThat(pushRes.deleted().task()).as("no tasks should be falsely removed").isEqualTo(0);
     }
 }

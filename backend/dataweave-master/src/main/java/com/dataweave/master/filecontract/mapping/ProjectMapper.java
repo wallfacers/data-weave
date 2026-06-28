@@ -6,6 +6,7 @@ import com.dataweave.master.filecontract.ProjectFileBundle;
 import com.dataweave.master.filecontract.ProjectImport;
 import com.dataweave.master.filecontract.dto.*;
 import com.dataweave.master.filecontract.error.FileContractException;
+import com.dataweave.master.filecontract.naming.EntityNaming;
 import com.dataweave.master.filecontract.naming.SlugRules;
 import com.dataweave.master.filecontract.yaml.DeterministicYaml;
 import tools.jackson.databind.ObjectMapper;
@@ -428,18 +429,14 @@ public class ProjectMapper {
                 .orElse(null);
     }
 
+    /** Fallback slug derivation — delegates to {@link EntityNaming} single source of truth (013). */
     private String deriveTaskSlug(TaskDef task) {
-        var name = task.getName();
-        if (name == null) return "task";
-        return name.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("_+", "_")
-                .replaceAll("^_|_$", "");
+        return EntityNaming.effectiveSlug(task.getName());
     }
 
+    /** Fallback slug derivation — delegates to {@link EntityNaming} single source of truth (013). */
     private String deriveWorkflowSlug(WorkflowDef wf) {
-        var name = wf.getName();
-        if (name == null) return "workflow";
-        return name.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("_+", "_")
-                .replaceAll("^_|_$", "");
+        return EntityNaming.effectiveSlug(wf.getName());
     }
 
     private WorkflowDoc withWorkflowTags(WorkflowDoc doc, List<String> tagNames) {

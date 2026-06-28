@@ -5,6 +5,7 @@ import com.dataweave.master.filecontract.FileContract;
 import com.dataweave.master.filecontract.ProjectExport;
 import com.dataweave.master.filecontract.ProjectFileBundle;
 import com.dataweave.master.filecontract.ProjectImport;
+import com.dataweave.master.filecontract.naming.EntityNaming;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -268,13 +269,27 @@ public class ProjectSyncService {
         }
 
         // ── Tasks: 按 (catalogPath, slug) 匹配 ──
-        // 服务器 task 的 identity: (catalogPath from srvCatalogPath, slug from name+catalogPath)
+        // 013: 服务端 slug 同样经 uniquify（同目录兄弟集），与导出同源，保证 INV-4
         record TaskKey(String catalogPath, String slug) {}
-        Map<TaskKey, TaskDef> srvTaskByKey = new HashMap<>();
+
+        // 服务端任务：按 catalogPath 分组，组内 uniquify 后建身份键
+        Map<String, List<TaskDef>> srvTasksByPath = new LinkedHashMap<>();
         for (TaskDef t : srvTasks) {
             String catPath = t.getCatalogNodeId() != null ? srvCatalogPath.getOrDefault(t.getCatalogNodeId(), "") : "";
-            String slug = slugify(t.getName());
-            srvTaskByKey.put(new TaskKey(catPath, slug), t);
+            srvTasksByPath.computeIfAbsent(catPath, k -> new ArrayList<>()).add(t);
+        }
+        Map<Long, String> srvTaskUniqueSlug = new LinkedHashMap<>(); // real id → unique slug
+        Map<TaskKey, TaskDef> srvTaskByKey = new HashMap<>();
+        for (var pathEntry : srvTasksByPath.entrySet()) {
+            String catPath = pathEntry.getKey();
+            List<Map.Entry<Long, String>> siblings = pathEntry.getValue().stream()
+                    .map(t -> Map.entry(t.getId(), EntityNaming.effectiveSlug(t.getName())))
+                    .toList();
+            Map<Long, String> unique = EntityNaming.uniquify(siblings);
+            srvTaskUniqueSlug.putAll(unique);
+            for (TaskDef t : pathEntry.getValue()) {
+                srvTaskByKey.put(new TaskKey(catPath, unique.get(t.getId())), t);
+            }
         }
         Set<TaskKey> localTaskKeys = new HashSet<>();
         List<TaskDef> insertTasks = new ArrayList<>();
@@ -302,18 +317,30 @@ public class ProjectSyncService {
         List<TaskDef> deleteTasks = new ArrayList<>();
         for (TaskDef srvTask : srvTasks) {
             String catPath = srvTask.getCatalogNodeId() != null ? srvCatalogPath.getOrDefault(srvTask.getCatalogNodeId(), "") : "";
-            String slug = slugify(srvTask.getName());
+            String slug = srvTaskUniqueSlug.getOrDefault(srvTask.getId(), slugify(srvTask.getName()));
             if (!localTaskKeys.contains(new TaskKey(catPath, slug))) {
                 deleteTasks.add(srvTask);
                 removedRefs.add(new ProjectSyncDtos.EntityRef("TASK", catPath + "/" + slug, srvTask.getName()));
             }
         }
 
-        // ── Workflows: 按 slug 匹配 ──
-        Map<String, WorkflowDef> srvWfBySlug = new HashMap<>();
+        // ── Workflows: 按 slug 匹配（013: 服务端同样经 uniquify）──
+        Map<String, List<WorkflowDef>> srvWfsByPath = new LinkedHashMap<>();
         for (WorkflowDef w : srvWorkflows) {
-            String slug = slugify(w.getName());
-            srvWfBySlug.put(slug, w);
+            String catPath = w.getCatalogNodeId() != null ? srvCatalogPath.getOrDefault(w.getCatalogNodeId(), "") : "";
+            srvWfsByPath.computeIfAbsent(catPath, k -> new ArrayList<>()).add(w);
+        }
+        Map<Long, String> srvWfUniqueSlug = new LinkedHashMap<>(); // real id → unique slug
+        Map<String, WorkflowDef> srvWfBySlug = new HashMap<>();
+        for (var pathEntry : srvWfsByPath.entrySet()) {
+            List<Map.Entry<Long, String>> siblings = pathEntry.getValue().stream()
+                    .map(w -> Map.entry(w.getId(), EntityNaming.effectiveSlug(w.getName())))
+                    .toList();
+            Map<Long, String> unique = EntityNaming.uniquify(siblings);
+            srvWfUniqueSlug.putAll(unique);
+            for (WorkflowDef w : pathEntry.getValue()) {
+                srvWfBySlug.put(unique.get(w.getId()), w);
+            }
         }
         Set<String> localWfSlugs = new HashSet<>();
         List<WorkflowDef> insertWorkflows = new ArrayList<>();
@@ -337,7 +364,7 @@ public class ProjectSyncService {
         }
         List<WorkflowDef> deleteWorkflows = new ArrayList<>();
         for (WorkflowDef srvWf : srvWorkflows) {
-            String slug = slugify(srvWf.getName());
+            String slug = srvWfUniqueSlug.getOrDefault(srvWf.getId(), slugify(srvWf.getName()));
             if (!localWfSlugs.contains(slug)) {
                 deleteWorkflows.add(srvWf);
                 removedRefs.add(new ProjectSyncDtos.EntityRef("WORKFLOW", slug, srvWf.getName()));
@@ -353,25 +380,39 @@ public class ProjectSyncService {
                 addedRefs, modifiedRefs, removedRefs);
     }
 
-    /** Simple slug: lowercase, replace non-portable with underscore. Falls back to hex hash for all-non-ASCII names. */
+    /** Simple slug: delegates to {@link EntityNaming#effectiveSlug(String)} — the single source of truth (013). */
     static String slugify(String name) {
-        if (name == null || name.isBlank()) return "unnamed";
-        String lower = name.toLowerCase();
-        // Try preserving ASCII portions
-        String slug = lower.replaceAll("[^a-z0-9_-]+", "_")
-                .replaceAll("_+", "_")
-                .replaceAll("^_|_$", "");
-        if (!slug.isEmpty()) return slug;
-        // All-non-ASCII name: use hash of the original name
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder("e");
-            for (int i = 0; i < 4; i++) sb.append(String.format("%02x", hash[i]));
-            return sb.toString();
-        } catch (Exception e) {
-            return "unnamed";
+        return EntityNaming.effectiveSlug(name);
+    }
+
+    /**
+     * Compute unique slugs for a set of entities, applying {@link EntityNaming#uniquify}
+     * within each sibling group (entities sharing the same catalogNodeId / directory).
+     * This guarantees INV-2 (same-directory uniqueness) and INV-4 (export == identity).
+     *
+     * @param nameById   list of (entityId, name) pairs
+     * @param groupById  entityId → group key (catalogNodeId; null = root)
+     * @return entityId → unique final slug
+     */
+    private static Map<Long, String> computeUniqueSlugs(
+            List<Map.Entry<Long, String>> nameById,
+            Map<Long, Long> groupById) {
+        // Group entity ids by their group key (null catalogNodeId = root, mapped to 0L)
+        Map<Long, List<Map.Entry<Long, String>>> groups = new LinkedHashMap<>();
+        for (var entry : nameById) {
+            Long id = entry.getKey();
+            Long raw = groupById.get(id);
+            Long groupKey = raw != null ? raw : 0L; // 0L = root (null catalogNodeId or absent)
+            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(entry);
         }
+        Map<Long, String> result = new LinkedHashMap<>();
+        for (var group : groups.values()) {
+            List<Map.Entry<Long, String>> siblings = group.stream()
+                    .map(e -> Map.entry(e.getKey(), EntityNaming.effectiveSlug(e.getValue())))
+                    .toList();
+            result.putAll(EntityNaming.uniquify(siblings));
+        }
+        return result;
     }
 
     /** Compare task fields that matter for identity/content change detection.
@@ -475,15 +516,21 @@ public class ProjectSyncService {
             allEdges.addAll(workflowEdgeRepository.findByWorkflowIdAndDeleted(wf.getId(), 0));
         }
 
-        // 3. Slug 映射
-        Map<Long, String> taskSlugs = new LinkedHashMap<>();
+        // 3. Slug 映射（013: 同目录兄弟集内经 uniquify 保证唯一 + INV-4 导出=身份同源）
+        Map<Long, Long> taskGroupById = new LinkedHashMap<>();
         for (TaskDef t : tasks) {
-            taskSlugs.put(t.getId(), slugify(t.getName()));
+            taskGroupById.put(t.getId(), t.getCatalogNodeId()); // null = root
         }
-        Map<Long, String> workflowSlugs = new LinkedHashMap<>();
+        Map<Long, Long> wfGroupById = new LinkedHashMap<>();
         for (WorkflowDef w : workflows) {
-            workflowSlugs.put(w.getId(), slugify(w.getName()));
+            wfGroupById.put(w.getId(), w.getCatalogNodeId()); // null = root
         }
+        Map<Long, String> taskSlugs = computeUniqueSlugs(
+                tasks.stream().map(t -> Map.entry(t.getId(), t.getName())).toList(),
+                taskGroupById);
+        Map<Long, String> workflowSlugs = computeUniqueSlugs(
+                workflows.stream().map(w -> Map.entry(w.getId(), w.getName())).toList(),
+                wfGroupById);
 
         // 4. DataSource 逻辑名映射（D7: 零凭据，只取 name）
         List<Datasource> datasources = datasourceRepository.findByProjectId(projectId);

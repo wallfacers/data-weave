@@ -21,25 +21,26 @@ func ResolveProjectID(cfg client.Config, project string) (int64, string, error) 
 	if id, err := strconv.ParseInt(project, 10, 64); err == nil {
 		return id, "", nil
 	}
-	// 按 code 搜索（GET /api/projects?search=… 走分页 query，返回 {content:[…]}）。
+	// 按 code 搜索（GET /api/projects?search=… 走分页 query，返回 {items:[…]}）。
+	// 分页键是 items —— 与 ProjectController.list/User/Role 控制器平台惯例一致。
 	path := "/api/projects?search=" + project + "&size=100"
 	data, err := client.Do(cfg, "GET", path, nil)
 	if err != nil {
 		return 0, "", err
 	}
 	var page struct {
-		Content []struct {
+		Items []struct {
 			ID   int64  `json:"id"`
 			Code string `json:"code"`
 			Name string `json:"name"`
-		} `json:"content"`
+		} `json:"items"`
 	}
 	if err := json.Unmarshal(data, &page); err != nil {
 		return 0, "", client.UsageError("解析项目列表失败：%v", err)
 	}
 	// 精确匹配 code（search 是 LIKE，可能匹配 name）。
 	var hits []int64
-	for _, p := range page.Content {
+	for _, p := range page.Items {
 		if p.Code == project {
 			hits = append(hits, p.ID)
 		}
