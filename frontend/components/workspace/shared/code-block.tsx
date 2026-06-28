@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 import { DwScroll } from "@/components/ui/dw-scroll"
-import { highlightCode } from "@/components/chat/highlighter"
+import { highlightCode } from "@/lib/highlighter"
 
 export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [html, setHtml] = useState<string | null>(null)

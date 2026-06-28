@@ -104,9 +104,12 @@ INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node
 (3, 1, 1, 1, 3, 'n3', '用户画像聚合', 300, 160, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0);
 
 -- ===== workflow id=3「订单 SHELL 流水线」（6 节点 DAG：n1→n2→{n3,n4}→n5→n6）=====
--- 供 KernelSchedulingTest（弱依赖 / 子图运行范围 / 跨周期 / 端到端）依赖。其他 change 重构 seed 时请勿删此链。
+-- 供 KernelSchedulingTest / CrossCycleDependencyTest / BackfillThrottleE2ETest（弱依赖 / 子图运行范围 / 跨周期 / 端到端）依赖。其他 change 重构 seed 时请勿删此链。
+-- 节点 type=ECHO（非 SHELL）：内容保留真实 sqoop/hive/hadoop 脚本作演示叙事，但沙箱/CI 无这些二进制，
+-- 若真跑 SHELL 必 FAILED。ECHO 执行器逐行回显内容即 SUCCESS，既保 demo 真实感又让调度 E2E 可在裸环境断言 SUCCESS。
+-- 真实 SHELL 能力由用户自写简单命令任务（如 id=22/27）与 SchedulingParameterIntegrationTest 覆盖。
 INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(10, 1, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+(10, 1, 1, '抽取-拉取订单分区', 'ECHO', '#!/bin/bash
 # 抽取：从源库按分区拉取订单数据
 set -euo pipefail
 
@@ -129,7 +132,7 @@ sqoop import \
 
 COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
 echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(11, 1, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+(11, 1, 1, '清洗-去重生成宽表', 'ECHO', '#!/bin/bash
 # 清洗：去重 + 关联维度表生成 DWD 宽表
 set -euo pipefail
 
@@ -158,7 +161,7 @@ QUALIFY rn = 1
 
 ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
 echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(12, 1, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+(12, 1, 1, '质检-行数阈值校验', 'ECHO', '#!/bin/bash
 # 质检：校验 DWD 表行数在合理范围内
 set -euo pipefail
 
@@ -181,7 +184,7 @@ if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
 fi
 
 echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(13, 1, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+(13, 1, 1, '指标-GMV 汇总',     'ECHO', '#!/bin/bash
 # 指标：按维度汇总 GMV 写入 DWS 层
 set -euo pipefail
 
@@ -206,7 +209,7 @@ GROUP BY city, vip_level
 
 GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
 echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(14, 1, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+(14, 1, 1, '加载-写目标分区表', 'ECHO', '#!/bin/bash
 # 加载：将 DWS 结果写入目标报表库
 set -euo pipefail
 
@@ -226,7 +229,7 @@ sqoop export \
   --num-mappers 4
 
 echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(15, 1, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+(15, 1, 1, '归档-清理与统计',   'ECHO', '#!/bin/bash
 # 归档：清理过期分区 + 统计链路耗时
 set -euo pipefail
 
@@ -251,7 +254,7 @@ echo "  DWS: $(hive -e "SELECT COUNT(*) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_
 echo "[归档] 完成"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
-(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'ECHO', '#!/bin/bash
 # 抽取：从源库按分区拉取订单数据
 set -euo pipefail
 
@@ -274,7 +277,7 @@ sqoop import \
 
 COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
 echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'ECHO', '#!/bin/bash
 # 清洗：去重 + 关联维度表生成 DWD 宽表
 set -euo pipefail
 
@@ -303,7 +306,7 @@ QUALIFY rn = 1
 
 ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
 echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+(12, 1, 1, 12, 1, '质检-行数阈值校验', 'ECHO', '#!/bin/bash
 # 质检：校验 DWD 表行数在合理范围内
 set -euo pipefail
 
@@ -326,7 +329,7 @@ if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
 fi
 
 echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+(13, 1, 1, 13, 1, '指标-GMV 汇总',     'ECHO', '#!/bin/bash
 # 指标：按维度汇总 GMV 写入 DWS 层
 set -euo pipefail
 
@@ -351,7 +354,7 @@ GROUP BY city, vip_level
 
 GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
 echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+(14, 1, 1, 14, 1, '加载-写目标分区表', 'ECHO', '#!/bin/bash
 # 加载：将 DWS 结果写入目标报表库
 set -euo pipefail
 
@@ -371,7 +374,7 @@ sqoop export \
   --num-mappers 4
 
 echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+(15, 1, 1, 15, 1, '归档-清理与统计',   'ECHO', '#!/bin/bash
 # 归档：清理过期分区 + 统计链路耗时
 set -euo pipefail
 
