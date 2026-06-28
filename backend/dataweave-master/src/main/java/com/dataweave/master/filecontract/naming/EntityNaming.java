@@ -55,12 +55,25 @@ public final class EntityNaming {
      */
     public static String slugOf(String name) {
         if (name == null || name.isBlank()) return UNNAMED;
-        String lower = name.toLowerCase();
-        String slug = lower.replaceAll("[^a-z0-9_-]+", "_")
-                .replaceAll("_+", "_")
-                .replaceAll("^_|_$", "");
+        String slug = reduce(name);
         if (slug.isEmpty()) return UNNAMED;
         return slug;
+    }
+
+    /**
+     * Raw reduction with NO sentinel: lowercase, runs outside {@code [a-z0-9_-]}
+     * → single underscore, compress, trim. May return {@code ""} (e.g. pure-CJK or
+     * punctuation-only names). Degenerate detection MUST run on this raw form, not on
+     * {@link #slugOf}'s {@code UNNAMED} sentinel — the sentinel contains letters and
+     * would mask degeneracy, producing {@code unnamed-<id>} instead of a hash
+     * (the regression caught in 013 review).
+     */
+    private static String reduce(String name) {
+        if (name == null) return "";
+        return name.toLowerCase()
+                .replaceAll("[^a-z0-9_-]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_|_$", "");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -126,11 +139,15 @@ public final class EntityNaming {
      */
     public static String effectiveSlug(String name) {
         if (name == null || name.isBlank()) return UNNAMED;
-        String base = slugOf(name);
-        if (isDegenerate(base)) {
+        // Decide degeneracy on the RAW reduction, not slugOf's UNNAMED sentinel:
+        // a pure-CJK / punctuation-only name reduces to "" → degenerate → MUST hash
+        // (CL-001 / FR-002). Using slugOf here let "unnamed" mask degeneracy and
+        // produced unnamed-<id> filenames (DB id leak + cross-project instability).
+        String raw = reduce(name);
+        if (raw.isEmpty() || isDegenerate(raw)) {
             return fallbackHash(name);
         }
-        return base;
+        return raw;
     }
 
     // ═══════════════════════════════════════════════════════════════

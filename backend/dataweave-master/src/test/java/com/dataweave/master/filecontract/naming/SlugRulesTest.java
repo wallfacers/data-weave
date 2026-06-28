@@ -153,6 +153,38 @@ class SlugRulesTest {
         assertThat(EntityNaming.effectiveSlug("ETL")).isEqualTo("etl");
     }
 
+    /** 013 review regression guard: a pure-CJK name (no hyphen, no ASCII) reduces to
+     *  empty → IS degenerate → MUST hash (CL-001/FR-002). It must NOT become the
+     *  "unnamed" sentinel (which then collides → unnamed-<id>, leaking DB id). */
+    @Test
+    void effectiveSlug_pureChineseNoAscii_returnsHashNotUnnamed() {
+        String eff = EntityNaming.effectiveSlug("异常数据检测");
+        assertThat(eff).as("pure-CJK must hash, not become 'unnamed'").startsWith("e");
+        assertThat(eff).isEqualTo(EntityNaming.fallbackHash("异常数据检测"));
+        assertThat(eff).doesNotContain("unnamed");
+        assertThat(eff).matches("^[a-z0-9_-]+$");
+    }
+
+    /** Different pure-CJK names must yield DIFFERENT slugs (no collapse to one sentinel). */
+    @Test
+    void effectiveSlug_differentPureChineseNames_distinctHashes() {
+        String a = EntityNaming.effectiveSlug("异常数据检测");
+        String b = EntityNaming.effectiveSlug("广告投放数据抽取");
+        String c = EntityNaming.effectiveSlug("订单宽表加工");
+        assertThat(a).isNotEqualTo(b);
+        assertThat(b).isNotEqualTo(c);
+        assertThat(a).isNotEqualTo(c);
+        assertThat(List.of(a, b, c)).as("none may be the unnamed sentinel")
+                .noneMatch(s -> s.contains("unnamed"));
+    }
+
+    /** Pure-CJK hashing is deterministic across calls (INV-3 / SC-004). */
+    @Test
+    void effectiveSlug_pureChinese_isDeterministic() {
+        assertThat(EntityNaming.effectiveSlug("用户画像聚合"))
+                .isEqualTo(EntityNaming.effectiveSlug("用户画像聚合"));
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // FR-003 / INV-2: uniquify — deterministic collision resolution
     // ═══════════════════════════════════════════════════════════════
