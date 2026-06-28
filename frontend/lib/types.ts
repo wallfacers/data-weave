@@ -482,3 +482,106 @@ export interface DriverJarVO {
   sizeBytes: number | null
   status: string
 }
+
+// ─── WorkflowInstance (任务流实例) ──────────────────────────
+
+/** 任务流实例列表行（GET /api/ops/workflow-instances）。 */
+export interface WorkflowInstanceRow {
+  id: string
+  workflowId: number
+  workflowName: string
+  state: string
+  bizDate: string
+  priority: number
+  triggerType: string
+  totalTasks: number
+  completedTasks: number
+  failedTasks: number
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  env?: string  // PROD | DEV
+}
+
+/** 任务流实例筛选条件。 */
+export interface WorkflowInstanceQuery {
+  state?: string
+  stateIn?: string
+  triggerType?: string
+  workflowId?: number
+  bizDate?: string
+  bizDateFrom?: string
+  bizDateTo?: string
+  startedAtFrom?: string
+  startedAtTo?: string
+  page: number
+  size: number
+}
+
+// ─── Instance DAG ──────────────────────────────────────────
+
+/** 实例 DAG 节点（拓扑位置 + 运行时状态叠加）。 */
+export interface InstanceDagNode {
+  nodeKey: string
+  taskName: string
+  taskId: number
+  taskInstanceId: string
+  state: string
+  attempt: number
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  posX: number
+  posY: number
+  nodeType: string
+}
+
+/** 实例 DAG 边。 */
+export interface InstanceDagEdge {
+  fromNodeKey: string
+  toNodeKey: string
+  strength: string
+}
+
+/** 实例 DAG 完整视图（GET /api/ops/workflow-instances/{id}/dag）。 */
+export interface InstanceDagView {
+  workflowInstanceId: string
+  workflowName: string
+  workflowVersionNo: number
+  triggerType: string
+  state: string
+  bizDate: string
+  env?: string
+  nodes: InstanceDagNode[]
+  edges: InstanceDagEdge[]
+}
+
+// ─── Resolved Code / Config ────────────────────────────────
+
+/** 参数替换后的实际代码（GET /api/ops/task-instances/{id}/resolved-code）。 */
+export interface ResolvedCodeView {
+  taskInstanceId: string
+  rawContent: string
+  resolvedContent: string
+  unresolvedPlaceholders: string[]
+  runMode: string
+  isOverride: boolean
+  taskType: string
+}
+
+/** 参数替换后的实际配置（GET /api/ops/task-instances/{id}/resolved-config）。 */
+export interface ResolvedConfigView {
+  taskInstanceId: string
+  taskType: string
+  timeoutSeconds: number
+  retryStrategy: string
+  resourceLimit: string
+  rawParamsJson: string
+  resolvedParamsJson: string
+  unresolvedPlaceholders: string[]
+  runMode: string
+  isOverride: boolean
+  originalParamsJson?: string | null
+  originalTimeoutSeconds?: number | null
+  taskVersionNo: number
+}

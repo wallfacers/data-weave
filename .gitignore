@@ -28,6 +28,8 @@ cli/dw-*
 deploy/workhorse/config.local.yaml
 deploy/workhorse/.env.workhorse
 **/config.local.yaml
+# serve-local.sh 合并产出的 runtime 配置（含真 key），禁止提交
+deploy/workhorse/config.runtime.yaml
 
 # workhorse-agent 预编译二进制（六平台，由 fetch-bin.sh 产出；交付物非源码，不入 git）
 deploy/workhorse/bin/

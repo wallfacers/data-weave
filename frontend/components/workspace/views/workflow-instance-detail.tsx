@@ -24,6 +24,7 @@ interface WorkflowInstance {
   runMode: string
   startedAt: string
   finishedAt: string | null
+  env?: string
   tasks: TaskNode[]
 }
 
@@ -69,8 +70,9 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
-  // 实例操作：暂停 / 恢复 / 终止（后端 OpsController 直调，L1 直执行；成功后拉最新详情）。
-  const instanceAction = async (action: "pause" | "resume" | "kill") => {
+  // 实例操作：暂停 / 恢复 / 终止 / 重跑 / 恢复（后端 OpsController 直调，成功后拉最新详情）。
+  const isDev = instance?.env === "DEV"
+  const instanceAction = async (action: "pause" | "resume" | "kill" | "rerun" | "recover") => {
     if (!instanceId || busy) return
     setBusy(true)
     try {
@@ -180,7 +182,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
         <h1 className="text-sm font-medium">{t("title")}</h1>
         <span className="font-mono text-xs text-muted-foreground">#{instance.id}</span>
         <div className="ml-auto flex items-center gap-2">
-          {instance.state === "RUNNING" && (
+          {instance.state === "RUNNING" && !isDev && (
             <>
               <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("pause")}>
                 {t("pause")}
@@ -190,7 +192,12 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
               </Button>
             </>
           )}
-          {instance.state === "PAUSED" && (
+          {instance.state === "RUNNING" && isDev && (
+            <Button size="sm" variant="destructive" disabled={busy} onClick={() => instanceAction("kill")}>
+              {t("kill")}
+            </Button>
+          )}
+          {instance.state === "PAUSED" && !isDev && (
             <>
               <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("resume")}>
                 {t("resume")}
@@ -199,6 +206,23 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
                 {t("kill")}
               </Button>
             </>
+          )}
+          {(instance.state === "FAILED" || instance.state === "STOPPED") && !isDev && (
+            <>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("rerun")}>
+                {t("rerunAll")}
+              </Button>
+              {instance.state === "FAILED" && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("recover")}>
+                  {t("recover")}
+                </Button>
+              )}
+            </>
+          )}
+          {instance.state === "SUCCESS" && !isDev && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => instanceAction("rerun")}>
+              {t("rerunAll")}
+            </Button>
           )}
           <Badge
             variant={

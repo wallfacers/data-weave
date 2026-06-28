@@ -99,7 +99,7 @@ This file is the map; details live elsewhere:
 |------------------------|-------------------------------------------------------------|
 | Architecture & layering | [docs/architecture.md](docs/architecture.md)               |
 | Frontend design source / theme vars | [frontend/DESIGN.md](frontend/DESIGN.md) · `frontend/app/globals.css` |
-| Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` |
+| Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` · `TriggerEngine.java` (预读+精确触发) · `TimingStrategy.java` (CRON/FIXED_RATE/FIXED_DELAY) · `MasterRegistry.java` (分片注册+心跳) |
 | Frontend metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx`  |
 | Catalog tree (folders+tags) | `dataweave-master/.../application/CatalogTreeService.java` (path/move/cycle guard) + `CatalogController`/`TagController` · frontend `catalog-tree.tsx` (drag MOVE_MIME/TASK_MIME) |
 | Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`) |
@@ -156,7 +156,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at claude
+Current feature: [006-workflow-instance-ops](specs/006-workflow-instance-ops/spec.md)
+Implementation plan: [plan.md](specs/006-workflow-instance-ops/plan.md)
+Research: [research.md](specs/006-workflow-instance-ops/research.md)
+Data model: [data-model.md](specs/006-workflow-instance-ops/data-model.md)
+API contracts: [api-changes.md](specs/006-workflow-instance-ops/contracts/api-changes.md)
 <!-- SPECKIT END -->

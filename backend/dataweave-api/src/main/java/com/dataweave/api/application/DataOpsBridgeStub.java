@@ -158,8 +158,32 @@ public class DataOpsBridgeStub implements DataOpsBridge {
         throw new UnsupportedOperationException("backfillRunInstances — 待 Stream A 实现");
     }
 
+    // ─── 003-instance-dag-viewer 新方法（桩） ──────────────
+
+    @Override
+    public Page<com.dataweave.master.application.OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
+            com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q) {
+        return new Page<>(List.of(), 0, q.page(), q.size());
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.InstanceDagView getInstanceDag(UUID workflowInstanceId) {
+        return null;
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedCodeView getResolvedCode(UUID taskInstanceId) {
+        return null;
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedConfigView getResolvedConfig(UUID taskInstanceId) {
+        return null;
+    }
+
     private InstanceRow toRow(TaskInstance ti, Map<Long, String> taskNames) {
-        String name = taskNames.getOrDefault(ti.getTaskId(), "task-" + ti.getTaskId());
+        String name = ti.getTaskDefName() != null ? ti.getTaskDefName()
+                : taskNames.getOrDefault(ti.getTaskId(), "task-" + ti.getTaskId());
         Long durationMs = null;
         if (ti.getStartedAt() != null && ti.getFinishedAt() != null) {
             durationMs = Duration.between(ti.getStartedAt(), ti.getFinishedAt()).toMillis();
@@ -175,7 +199,9 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getStartedAt(),
                 ti.getFinishedAt(),
                 durationMs,
-                null // cronExpression: stub 不提供
+                ti.getCronExpression(),      // 快照列
+                ti.getEnv(),                 // 直接列（之前写死 null）
+                ti.getWorkflowDefName()      // 快照列
         );
     }
 }

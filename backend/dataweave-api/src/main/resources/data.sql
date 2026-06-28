@@ -106,20 +106,294 @@ INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, task_id, node
 -- ===== workflow id=3「订单 SHELL 流水线」（6 节点 DAG：n1→n2→{n3,n4}→n5→n6）=====
 -- 供 KernelSchedulingTest（弱依赖 / 子图运行范围 / 跨周期 / 端到端）依赖。其他 change 重构 seed 时请勿删此链。
 INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(10, 1, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(11, 1, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(12, 1, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(13, 1, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(14, 1, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
-(15, 1, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
+(10, 1, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+# 抽取：从源库按分区拉取订单数据
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+TABLE="orders"
+PARTITION="dt=''${BIZ_DATE}''"
+
+echo "[抽取] 开始拉取 ${TABLE} 分区 ${PARTITION}"
+
+sqoop import \
+  --connect jdbc:mysql://db-source.prd/data_platform \
+  --username ${SRC_USER} \
+  --password-file /etc/dw/secrets/src-db.pwd \
+  --table ${TABLE} \
+  --where "${PARTITION}" \
+  --target-dir /warehouse/ods/${TABLE}/${BIZ_DATE}/ \
+  --fields-terminated-by ''\t'' \
+  --lines-terminated-by ''\n'' \
+  --num-mappers 8
+
+COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
+echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(11, 1, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+# 清洗：去重 + 关联维度表生成 DWD 宽表
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[清洗] 开始加工 DWD 层，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dwd.dwd_orders_wide PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  o.order_id,
+  o.user_id,
+  o.order_amount,
+  o.order_status,
+  o.created_at,
+  u.user_name,
+  u.city,
+  u.vip_level,
+  ROW_NUMBER() OVER (PARTITION BY o.order_id ORDER BY o.updated_at DESC) AS rn
+FROM ods.orders o
+LEFT JOIN dim.dim_user u ON o.user_id = u.user_id
+WHERE o.dt = ''${BIZ_DATE}''
+  AND o.order_status != ''CANCELLED''
+QUALIFY rn = 1
+"
+
+ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(12, 1, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+# 质检：校验 DWD 表行数在合理范围内
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+MIN_ROWS=10000
+MAX_ROWS=50000000
+
+echo "[质检] 校验 DWD 行数阈值，业务日期=${BIZ_DATE}"
+
+ACTUAL=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+
+if [ "${ACTUAL}" -lt "${MIN_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} < 下限 ${MIN_ROWS}，可能数据缺失"
+  exit 1
+fi
+
+if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} > 上限 ${MAX_ROWS}，可能数据异常"
+  exit 1
+fi
+
+echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(13, 1, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+# 指标：按维度汇总 GMV 写入 DWS 层
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[指标] 开始汇总 GMV，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dws.dws_gmv_daily PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  city,
+  vip_level,
+  COUNT(DISTINCT user_id)   AS uv,
+  COUNT(DISTINCT order_id)  AS order_cnt,
+  SUM(order_amount)         AS gmv,
+  AVG(order_amount)         AS avg_order_amount,
+  SUM(CASE WHEN order_status = ''PAID'' THEN order_amount ELSE 0 END) AS paid_gmv
+FROM dwd.dwd_orders_wide
+WHERE dt = ''${BIZ_DATE}''
+GROUP BY city, vip_level
+"
+
+GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(14, 1, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+# 加载：将 DWS 结果写入目标报表库
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[加载] 开始写入目标分区表，业务日期=${BIZ_DATE}"
+
+sqoop export \
+  --connect jdbc:mysql://db-report.prd/bi_report \
+  --username ${TGT_USER} \
+  --password-file /etc/dw/secrets/tgt-db.pwd \
+  --table rpt_gmv_daily \
+  --export-dir /warehouse/dws/dws_gmv_daily/${BIZ_DATE}/ \
+  --update-key "dt,city,vip_level" \
+  --update-mode allowinsert \
+  --input-fields-terminated-by ''\t'' \
+  --num-mappers 4
+
+echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0),
+(15, 1, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+# 归档：清理过期分区 + 统计链路耗时
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+RETENTION_DAYS=30
+EXPIRE_DATE=$(date -d "${BIZ_DATE} -${RETENTION_DAYS} days" +%Y%m%d)
+
+echo "[归档] 清理 ${EXPIRE_DATE} 之前的分区"
+
+# 清理 ODS 过期分区
+hadoop fs -rm -r -skipTrash /warehouse/ods/orders/${EXPIRE_DATE}/ 2>/dev/null || true
+
+# 清理 DWD 过期分区
+hive -e "ALTER TABLE dwd.dwd_orders_wide DROP IF EXISTS PARTITION (dt<=''${EXPIRE_DATE}'')"
+
+# 统计各层数据量
+echo "[归档] 链路数据量统计："
+echo "  ODS: $(hadoop fs -du -s /warehouse/ods/orders/${BIZ_DATE}/ 2>/dev/null | awk ''{print $1}'' || echo 0) bytes"
+echo "  DWD: $(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+echo "  DWS: $(hive -e "SELECT COUNT(*) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+
+echo "[归档] 完成"', NULL, NULL, NULL, 600, 1, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, name, type, content, datasource_id, target_datasource_id, params_json, timeout_sec, retry_max, remark, published_by, published_at, created_at) VALUES
-(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', 'echo "[抽取] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', 'echo "[清洗] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', 'echo "[质检] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', 'echo "[指标] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', 'echo "[加载] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
-(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', 'echo "[归档] done"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
+(10, 1, 1, 10, 1, '抽取-拉取订单分区', 'SHELL', '#!/bin/bash
+# 抽取：从源库按分区拉取订单数据
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+TABLE="orders"
+PARTITION="dt=''${BIZ_DATE}''"
+
+echo "[抽取] 开始拉取 ${TABLE} 分区 ${PARTITION}"
+
+sqoop import \
+  --connect jdbc:mysql://db-source.prd/data_platform \
+  --username ${SRC_USER} \
+  --password-file /etc/dw/secrets/src-db.pwd \
+  --table ${TABLE} \
+  --where "${PARTITION}" \
+  --target-dir /warehouse/ods/${TABLE}/${BIZ_DATE}/ \
+  --fields-terminated-by ''\t'' \
+  --lines-terminated-by ''\n'' \
+  --num-mappers 8
+
+COUNT=$(wc -l < /warehouse/ods/${TABLE}/${BIZ_DATE}/part-*)
+echo "[抽取] 完成，共 ${COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(11, 1, 1, 11, 1, '清洗-去重生成宽表', 'SHELL', '#!/bin/bash
+# 清洗：去重 + 关联维度表生成 DWD 宽表
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[清洗] 开始加工 DWD 层，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dwd.dwd_orders_wide PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  o.order_id,
+  o.user_id,
+  o.order_amount,
+  o.order_status,
+  o.created_at,
+  u.user_name,
+  u.city,
+  u.vip_level,
+  ROW_NUMBER() OVER (PARTITION BY o.order_id ORDER BY o.updated_at DESC) AS rn
+FROM ods.orders o
+LEFT JOIN dim.dim_user u ON o.user_id = u.user_id
+WHERE o.dt = ''${BIZ_DATE}''
+  AND o.order_status != ''CANCELLED''
+QUALIFY rn = 1
+"
+
+ROW_COUNT=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[清洗] 完成，输出 ${ROW_COUNT} 行"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(12, 1, 1, 12, 1, '质检-行数阈值校验', 'SHELL', '#!/bin/bash
+# 质检：校验 DWD 表行数在合理范围内
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+MIN_ROWS=10000
+MAX_ROWS=50000000
+
+echo "[质检] 校验 DWD 行数阈值，业务日期=${BIZ_DATE}"
+
+ACTUAL=$(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1)
+
+if [ "${ACTUAL}" -lt "${MIN_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} < 下限 ${MIN_ROWS}，可能数据缺失"
+  exit 1
+fi
+
+if [ "${ACTUAL}" -gt "${MAX_ROWS}" ]; then
+  echo "[质检] FAILED: 行数 ${ACTUAL} > 上限 ${MAX_ROWS}，可能数据异常"
+  exit 1
+fi
+
+echo "[质检] PASSED: 行数 ${ACTUAL} 在 [${MIN_ROWS}, ${MAX_ROWS}] 范围内"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(13, 1, 1, 13, 1, '指标-GMV 汇总',     'SHELL', '#!/bin/bash
+# 指标：按维度汇总 GMV 写入 DWS 层
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[指标] 开始汇总 GMV，业务日期=${BIZ_DATE}"
+
+hive -e "
+INSERT OVERWRITE TABLE dws.dws_gmv_daily PARTITION (dt=''${BIZ_DATE}'')
+SELECT
+  city,
+  vip_level,
+  COUNT(DISTINCT user_id)   AS uv,
+  COUNT(DISTINCT order_id)  AS order_cnt,
+  SUM(order_amount)         AS gmv,
+  AVG(order_amount)         AS avg_order_amount,
+  SUM(CASE WHEN order_status = ''PAID'' THEN order_amount ELSE 0 END) AS paid_gmv
+FROM dwd.dwd_orders_wide
+WHERE dt = ''${BIZ_DATE}''
+GROUP BY city, vip_level
+"
+
+GMV=$(hive -e "SELECT SUM(gmv) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1)
+echo "[指标] 完成，当日 GMV = ${GMV}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(14, 1, 1, 14, 1, '加载-写目标分区表', 'SHELL', '#!/bin/bash
+# 加载：将 DWS 结果写入目标报表库
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+
+echo "[加载] 开始写入目标分区表，业务日期=${BIZ_DATE}"
+
+sqoop export \
+  --connect jdbc:mysql://db-report.prd/bi_report \
+  --username ${TGT_USER} \
+  --password-file /etc/dw/secrets/tgt-db.pwd \
+  --table rpt_gmv_daily \
+  --export-dir /warehouse/dws/dws_gmv_daily/${BIZ_DATE}/ \
+  --update-key "dt,city,vip_level" \
+  --update-mode allowinsert \
+  --input-fields-terminated-by ''\t'' \
+  --num-mappers 4
+
+echo "[加载] 完成，已写入 rpt_gmv_daily 分区 dt=${BIZ_DATE}"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00'),
+(15, 1, 1, 15, 1, '归档-清理与统计',   'SHELL', '#!/bin/bash
+# 归档：清理过期分区 + 统计链路耗时
+set -euo pipefail
+
+BIZ_DATE=${bizdate:-$(date -d "yesterday" +%Y%m%d)}
+RETENTION_DAYS=30
+EXPIRE_DATE=$(date -d "${BIZ_DATE} -${RETENTION_DAYS} days" +%Y%m%d)
+
+echo "[归档] 清理 ${EXPIRE_DATE} 之前的分区"
+
+# 清理 ODS 过期分区
+hadoop fs -rm -r -skipTrash /warehouse/ods/orders/${EXPIRE_DATE}/ 2>/dev/null || true
+
+# 清理 DWD 过期分区
+hive -e "ALTER TABLE dwd.dwd_orders_wide DROP IF EXISTS PARTITION (dt<=''${EXPIRE_DATE}'')"
+
+# 统计各层数据量
+echo "[归档] 链路数据量统计："
+echo "  ODS: $(hadoop fs -du -s /warehouse/ods/orders/${BIZ_DATE}/ 2>/dev/null | awk ''{print $1}'' || echo 0) bytes"
+echo "  DWD: $(hive -e "SELECT COUNT(*) FROM dwd.dwd_orders_wide WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+echo "  DWS: $(hive -e "SELECT COUNT(*) FROM dws.dws_gmv_daily WHERE dt=''${BIZ_DATE}''" | tail -1) rows"
+
+echo "[归档] 完成"', NULL, NULL, NULL, 600, 1, '首次发布', 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00');
 
 INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (3, 1, 1, '订单 SHELL 流水线', '抽取→清洗→质检/指标并行→加载→归档，全 SHELL 节点', 'CRON', '0 30 1 * * ?', TIMESTAMP '2026-06-12 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
@@ -146,27 +420,27 @@ INSERT INTO workflow_edge (id, tenant_id, project_id, workflow_id, from_node_id,
 (8, 1, 1, 3, 8, 9, 1, 1, TIMESTAMP '2026-06-12 00:00:00', TIMESTAMP '2026-06-12 00:00:00', 0, 0);
 
 -- 工作流实例：wi1 失败(诊断现场) / wi2 成功 / wi3 运行中(含等待)
-INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0001-7000-8000-000000000001', 1, 1, 1, 1, 'CRON',   'FAILED',  '2026-06-09', TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
-('01910000-0002-7000-8000-000000000002', 1, 1, 1, 1, 'MANUAL', 'SUCCESS', '2026-06-09', TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 0, 0),
-('01910000-0003-7000-8000-000000000003', 1, 1, 1, 1, 'MANUAL', 'RUNNING', '2026-06-10', TIMESTAMP '2026-06-10 09:30:00', NULL,                          1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0);
+INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, workflow_def_name, cron_expression, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0001-7000-8000-000000000001', 1, 1, 1, 1, 'CRON',   'FAILED',  '2026-06-09', TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', '每日 GMV 工作流', '0 0 2 * * ?', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+('01910000-0002-7000-8000-000000000002', 1, 1, 1, 1, 'MANUAL', 'SUCCESS', '2026-06-09', TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', '每日 GMV 工作流', '0 0 2 * * ?', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:02:00', 0, 0),
+('01910000-0003-7000-8000-000000000003', 1, 1, 1, 1, 'MANUAL', 'RUNNING', '2026-06-10', TIMESTAMP '2026-06-10 09:30:00', NULL,                          '每日 GMV 工作流', '0 0 2 * * ?', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0);
 
 -- 节点实例
 -- wi1：n1 失败(OOM@node-3) → n2/n3 因上游失败被取消 STOPPED
-INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0010-7000-8000-000000000001', 1, 1, '01910000-0001-7000-8000-000000000001', 1, 2, 1, 'NORMAL', 'FAILED',  1, 'node-3', TIMESTAMP '2026-06-10 02:00:03', TIMESTAMP '2026-06-10 02:07:51', 'java.lang.OutOfMemoryError: Java heap space at executor stage 3; container killed by YARN, used 8.1GB of 8GB physical memory', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:07:51', 0, 0),
-('01910000-0010-7000-8000-000000000002', 1, 1, '01910000-0001-7000-8000-000000000001', 2, 1, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
-('01910000-0010-7000-8000-000000000003', 1, 1, '01910000-0001-7000-8000-000000000001', 3, 3, 1, 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, task_def_name, workflow_def_name, cron_expression, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0010-7000-8000-000000000001', 1, 1, '01910000-0001-7000-8000-000000000001', 1, 2, 1, '订单宽表加工', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'FAILED',  1, 'node-3', TIMESTAMP '2026-06-10 02:00:03', TIMESTAMP '2026-06-10 02:07:51', 'java.lang.OutOfMemoryError: Java heap space at executor stage 3; container killed by YARN, used 8.1GB of 8GB physical memory', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:07:51', 0, 0),
+('01910000-0010-7000-8000-000000000002', 1, 1, '01910000-0001-7000-8000-000000000001', 2, 1, 1, 'GMV 统计', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
+('01910000-0010-7000-8000-000000000003', 1, 1, '01910000-0001-7000-8000-000000000001', 3, 3, 1, '用户画像聚合', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'STOPPED', 0, NULL,     NULL, NULL, '上游 订单宽表加工 失败，本节点被取消调度', 1, 1, TIMESTAMP '2026-06-10 02:00:00', TIMESTAMP '2026-06-10 02:08:00', 0, 0),
 -- wi2：全部成功
-('01910000-0010-7000-8000-000000000004', 1, 1, '01910000-0002-7000-8000-000000000002', 1, 2, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-10 08:00:05', TIMESTAMP '2026-06-10 08:00:55', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:00:55', 0, 0),
-('01910000-0010-7000-8000-000000000005', 1, 1, '01910000-0002-7000-8000-000000000002', 2, 1, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', 0, 0),
-('01910000-0010-7000-8000-000000000006', 1, 1, '01910000-0002-7000-8000-000000000002', 3, 3, 1, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', 0, 0),
+('01910000-0010-7000-8000-000000000004', 1, 1, '01910000-0002-7000-8000-000000000002', 1, 2, 1, '订单宽表加工', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-10 08:00:05', TIMESTAMP '2026-06-10 08:00:55', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:00:00', TIMESTAMP '2026-06-10 08:00:55', 0, 0),
+('01910000-0010-7000-8000-000000000005', 1, 1, '01910000-0002-7000-8000-000000000002', 2, 1, 1, 'GMV 统计', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:30', 0, 0),
+('01910000-0010-7000-8000-000000000006', 1, 1, '01910000-0002-7000-8000-000000000002', 3, 3, 1, '用户画像聚合', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', '[mock] 执行成功', 1, 1, TIMESTAMP '2026-06-10 08:01:00', TIMESTAMP '2026-06-10 08:01:40', 0, 0),
 -- wi3：n1 运行中 → n2/n3 等待上游
-('01910000-0010-7000-8000-000000000007', 1, 1, '01910000-0003-7000-8000-000000000003', 1, 2, 1, 'NORMAL', 'RUNNING', 1, 'node-5', TIMESTAMP '2026-06-10 09:30:05', NULL, '执行中…', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:05', 0, 0),
-('01910000-0010-7000-8000-000000000008', 1, 1, '01910000-0003-7000-8000-000000000003', 2, 1, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
-('01910000-0010-7000-8000-000000000009', 1, 1, '01910000-0003-7000-8000-000000000003', 3, 3, 1, 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
+('01910000-0010-7000-8000-000000000007', 1, 1, '01910000-0003-7000-8000-000000000003', 1, 2, 1, '订单宽表加工', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'RUNNING', 1, 'node-5', TIMESTAMP '2026-06-10 09:30:05', NULL, '执行中…', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:05', 0, 0),
+('01910000-0010-7000-8000-000000000008', 1, 1, '01910000-0003-7000-8000-000000000003', 2, 1, 1, 'GMV 统计', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
+('01910000-0010-7000-8000-000000000009', 1, 1, '01910000-0003-7000-8000-000000000003', 3, 3, 1, '用户画像聚合', '每日 GMV 工作流', '0 0 2 * * ?', 'NORMAL', 'WAITING', 0, NULL,     NULL, NULL, '等待上游 订单宽表加工 完成', 1, 1, TIMESTAMP '2026-06-10 09:30:00', TIMESTAMP '2026-06-10 09:30:00', 0, 0),
 -- 试跑：脱离工作流、跑草稿版(task_version_no=NULL)、run_mode=TEST，不计入生产
-('01910000-0010-7000-8000-00000000000a', 1, 1, NULL, NULL, 1, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
+('01910000-0010-7000-8000-00000000000a', 1, 1, NULL, NULL, 1, NULL, 'GMV 统计', NULL, NULL, 'TEST', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', '[test] 试跑成功，返回 1 行：GMV=1859.87', 1, 1, TIMESTAMP '2026-06-10 11:00:00', TIMESTAMP '2026-06-10 11:00:08', 0, 0);
 
 -- ===== 手动任务流种子数据（schedule_type=MANUAL, status=ONLINE）=====
 -- 供「手动任务流列表」Tab 展示：3 条不同规模的手动工作流，覆盖单节点 / 链式 / 菱形 DAG，
@@ -232,23 +506,23 @@ INSERT INTO workflow_edge (id, tenant_id, project_id, workflow_id, from_node_id,
 (13, 1, 1, 6, 16, 17, 1, 1, TIMESTAMP '2026-05-15 00:00:00', TIMESTAMP '2026-05-15 00:00:00', 0, 0);
 
 -- 手动触发工作流实例（wf4 运行 1 次成功、wf6 运行 1 次成功；wf5 尚未触发过）
-INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0004-7000-8000-000000000004', 1, 1, 4, 1, 'MANUAL', 'SUCCESS', '2026-06-24', TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', 0, 0),
-('01910000-0006-7000-8000-000000000006', 1, 1, 6, 1, 'MANUAL', 'SUCCESS', '2026-05-31', TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', 0, 0);
+INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, workflow_version_no, trigger_type, state, biz_date, started_at, finished_at, workflow_def_name, cron_expression, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0004-7000-8000-000000000004', 1, 1, 4, 1, 'MANUAL', 'SUCCESS', '2026-06-24', TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', '广告投放报表刷新', NULL, 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:32:00', 0, 0),
+('01910000-0006-7000-8000-000000000006', 1, 1, 6, 1, 'MANUAL', 'SUCCESS', '2026-05-31', TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', '月度财务对账', NULL, 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:45:00', 0, 0);
 
 -- 任务实例（wf4 单节点成功；wf6 四节点全部成功）
-INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0040-7000-8000-000000000001', 1, 1, '01910000-0004-7000-8000-000000000004', 10, 20, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-24 14:30:05', TIMESTAMP '2026-06-24 14:31:50', '[mock] 抽取广告数据 12000 行，刷新报表完成', 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:31:50', 0, 0),
-('01910000-0060-7000-8000-000000000001', 1, 1, '01910000-0006-7000-8000-000000000006', 14, 24, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:08:30', '[mock] 收入汇总完成: 5 channels, total=12,580,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:08:30', 0, 0),
-('01910000-0060-7000-8000-000000000002', 1, 1, '01910000-0006-7000-8000-000000000006', 15, 25, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:07:15', '[mock] 支出汇总完成: 8 depts, total=9,320,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:07:15', 0, 0),
-('01910000-0060-7000-8000-000000000003', 1, 1, '01910000-0006-7000-8000-000000000006', 16, 26, 1, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', '[mock] 对账差异: 3 channels 差异>5%, 需人工复核', 1, 1, TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', 0, 0),
-('01910000-0060-7000-8000-000000000004', 1, 1, '01910000-0006-7000-8000-000000000006', 17, 27, 1, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', '[mock] 对账报告 PDF 已生成: /reports/2026-05-reconciliation.pdf', 1, 1, TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', 0, 0);
+INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, task_def_name, workflow_def_name, cron_expression, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0040-7000-8000-000000000001', 1, 1, '01910000-0004-7000-8000-000000000004', 10, 20, 1, '广告投放数据抽取', '广告投放报表刷新', NULL, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-24 14:30:05', TIMESTAMP '2026-06-24 14:31:50', '[mock] 抽取广告数据 12000 行，刷新报表完成', 1, 1, TIMESTAMP '2026-06-24 14:30:00', TIMESTAMP '2026-06-24 14:31:50', 0, 0),
+('01910000-0060-7000-8000-000000000001', 1, 1, '01910000-0006-7000-8000-000000000006', 14, 24, 1, '收入汇总', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:08:30', '[mock] 收入汇总完成: 5 channels, total=12,580,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:08:30', 0, 0),
+('01910000-0060-7000-8000-000000000002', 1, 1, '01910000-0006-7000-8000-000000000006', 15, 25, 1, '支出汇总', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-05-31 09:00:10', TIMESTAMP '2026-05-31 09:07:15', '[mock] 支出汇总完成: 8 depts, total=9,320,000', 1, 1, TIMESTAMP '2026-05-31 09:00:00', TIMESTAMP '2026-05-31 09:07:15', 0, 0),
+('01910000-0060-7000-8000-000000000003', 1, 1, '01910000-0006-7000-8000-000000000006', 16, 26, 1, '对账差异计算', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', '[mock] 对账差异: 3 channels 差异>5%, 需人工复核', 1, 1, TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', 0, 0),
+('01910000-0060-7000-8000-000000000004', 1, 1, '01910000-0006-7000-8000-000000000006', 17, 27, 1, '对账报告输出', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', '[mock] 对账报告 PDF 已生成: /reports/2026-05-reconciliation.pdf', 1, 1, TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', 0, 0);
 
 -- demo（proactive-discovery）：一条「未诊断」的 FAILED 实例（无对应 finding/diagnosis），
 -- 供 InspectorScheduler 启动后实时发现 → 自动诊断（真证据：node-3 mem 95%）→ 举手台冒出新卡片
 -- → Agent 主动开口。fresh boot 即可演示主动发现链路，无需 PG/故障注入脚本。
-INSERT INTO task_instance (id, tenant_id, project_id, task_id, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, exit_code, failure_reason, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0010-7000-8000-00000000000b', 1, 1, 10, 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+INSERT INTO task_instance (id, tenant_id, project_id, task_id, task_def_name, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, exit_code, failure_reason, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0010-7000-8000-00000000000b', 1, 1, 10, '抽取-拉取订单分区', 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
 
 -- ===== 域 D · 指标体系 =====
 INSERT INTO dimensions (id, tenant_id, project_id, code, name, data_type, expr, created_by, updated_by, created_at, updated_at, deleted, version)
@@ -415,8 +689,8 @@ ALTER TABLE task_run_table_io ALTER COLUMN id RESTART WITH 100;
 -- ETA 预测演示种子（task 5.4）：独立任务 9101「实时GMV增量同步」，3 条历史 SUCCESS（时长 28/30/32min，中位 30min）
 -- + 1 条「此刻起跑」RUNNING（started_at=CURRENT_TIMESTAMP），供顶条「最迟看板 ETA」算出约 +30min 的真预测。
 -- 不挂 workflow_instance（standalone），避免触碰其他 change 的工作流实例链。
-INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-('01910000-0010-7000-8000-000000009101', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', 0, 0),
-('01910000-0010-7000-8000-000000009102', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', 0, 0),
-('01910000-0010-7000-8000-000000009103', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', 0, 0),
-('01910000-0010-7000-8000-000000009104', 1, 1, NULL, NULL, 9101, 1, 'NORMAL', 'RUNNING', 1, 'node-1', CURRENT_TIMESTAMP, NULL, '执行中', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, workflow_node_id, task_id, task_version_no, task_def_name, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+('01910000-0010-7000-8000-000000009101', 1, 1, NULL, NULL, 9101, 1, '实时GMV增量同步', 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-21 02:00:00', TIMESTAMP '2026-06-21 02:28:00', 0, 0),
+('01910000-0010-7000-8000-000000009102', 1, 1, NULL, NULL, 9101, 1, '实时GMV增量同步', 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-22 02:00:00', TIMESTAMP '2026-06-22 02:30:00', 0, 0),
+('01910000-0010-7000-8000-000000009103', 1, 1, NULL, NULL, 9101, 1, '实时GMV增量同步', 'NORMAL', 'SUCCESS', 1, 'node-1', TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', '[mock] 同步成功', 1, 1, TIMESTAMP '2026-06-23 02:00:00', TIMESTAMP '2026-06-23 02:32:00', 0, 0),
+('01910000-0010-7000-8000-000000009104', 1, 1, NULL, NULL, 9101, 1, '实时GMV增量同步', 'NORMAL', 'RUNNING', 1, 'node-1', CURRENT_TIMESTAMP, NULL, '执行中', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);

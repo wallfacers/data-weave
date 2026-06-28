@@ -44,12 +44,12 @@ public class RecoveryService {
         return true;
     }
 
-    /** 整流重跑：工作流（任意终态）→ RUNNING，全部节点重置 WAITING。返回是否生效。 */
+    /** 整流重跑：仅终态（SUCCESS/FAILED/STOPPED）工作流 → RUNNING，全部节点重置 WAITING。返回是否生效。 */
     public boolean rerunAll(UUID workflowInstanceId) {
         LocalDateTime now = LocalDateTime.now();
         int w = jdbc.update(
                 "UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
-                        + "WHERE id=? AND deleted=0",
+                        + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0",
                 now, workflowInstanceId);
         if (w == 0) {
             return false;
@@ -65,7 +65,7 @@ public class RecoveryService {
                 "UPDATE task_instance SET state='WAITING', attempt=0, worker_node_code=NULL, "
                         + "lease_expire_at=NULL, failure_reason=NULL, finished_at=NULL, exit_code=NULL, "
                         + "started_at=NULL, updated_at=? WHERE workflow_instance_id=? AND run_mode='NORMAL' "
-                        + "AND deleted=0" + guard,
+                        + "AND deleted=0 AND state<>'" + InstanceStates.SKIPPED + "'" + guard,
                 now, workflowInstanceId);
     }
 

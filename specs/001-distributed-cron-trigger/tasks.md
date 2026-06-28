@@ -39,9 +39,9 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 **⚠️ CRITICAL**: 本阶段完成前任何用户故事不能开工
 
 - [X] T004 在 `backend/dataweave-api/src/main/resources/schema.sql` 的 `workflow_def` 加列 `next_trigger_time TIMESTAMP NULL` + `schedule_interval_ms BIGINT NULL`,并新增索引 `idx_workflow_def_scan (deleted, schedule_type, status, next_trigger_time)`(H2,DDL 须 PG 双兼容)
-- [ ] T005 [P] 新建 PG 迁移 `backend/dataweave-api/src/main/resources/db/migration/V__add-next-trigger-pg.sql`:`ALTER TABLE workflow_def ADD COLUMN next_trigger_time/schedule_interval_ms` + 创建同名索引
+- [X] T005 [P] 新建 PG 迁移 `backend/dataweave-api/src/main/resources/db/migration/V__add-next-trigger-pg.sql`:`ALTER TABLE workflow_def ADD COLUMN next_trigger_time/schedule_interval_ms` + 创建同名索引
 - [X] T006 `WorkflowDef` 实体加 `nextTriggerTime` / `scheduleIntervalMs` 字段映射 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDef.java`
-- [ ] T007 `WorkflowDefRepository` 加扫描查询 `findScannable(scheduleTypes, status, nextTriggerTimeLe[, shardCount, shardIndex])` `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDefRepository.java`(分片参数本阶段先留可选,Batch B 启用)
+- [X] T007 `WorkflowDefRepository` 加扫描查询 `findScannable(scheduleTypes, status, nextTriggerTimeLe[, shardCount, shardIndex])` `backend/dataweave-master/src/main/java/com/dataweave/master/domain/WorkflowDefRepository.java`(分片参数本阶段先留可选,Batch B 启用)
 - [X] T045 **[G1 / FR-010]** 统一时间真相来源为 DB 服务端时间:新增 `now()` 取数封装(`SELECT CURRENT_TIMESTAMP`,JdbcTemplate,H2/PG 兼容),`TriggerEngine` 的扫描捞取与逾期判定以此为基准而非各 master `LocalDateTime.now()`,降低多 master 时钟漂移导致的延迟/补偿偏差 `backend/dataweave-master/src/main/java/com/dataweave/master/application/SchedulerClock.java`
 
 **Checkpoint**: 编译通过(`./dev-install.sh -pl dataweave-master -am`)后,用户故事可开工
@@ -56,11 +56,11 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Tests for User Story 1 ⚠️（先写先失败）
 
-- [ ] T008 [P] [US1] `CronTriggerLatencyTest`:近未来分钟级 cron 触发,断言 cron 时刻→`workflow_instance` 创建延迟在秒级目标内 `backend/dataweave-api/src/test/java/com/dataweave/api/CronTriggerLatencyTest.java`
-- [ ] T009 [P] [US1] 预读窗口边界用例:触发点落在两次扫描之间不被漏到下周期(同测试类或 `CronWindowBoundaryTest`)
-- [ ] T046 [P] [US1] **[C3 / SC-004]** 向后兼容回归:既有分钟级 cron 工作流(`next_trigger_time=NULL`)经首轮回填后仍在正确时刻触发、且只触发一次 `backend/dataweave-api/src/test/java/com/dataweave/api/ExistingCronCompatTest.java`
-- [ ] T047 [P] [US1] **[C1 / FR-013]** 失效不触发:工作流在「已 arm、未到点」期间被置 OFFLINE / 删除 / 超出 `schedule_end`,到点时断言不产生实例 `backend/dataweave-api/src/test/java/com/dataweave/api/ArmedThenInvalidatedTest.java`
-- [ ] T048 [P] [US1] **[C2 / FR-015]** 重叠并发:上一实例未完成时到达新触发点,断言仍建新实例、不阻塞/不排队 `backend/dataweave-api/src/test/java/com/dataweave/api/OverlappingTriggerTest.java`
+- [X] T008 [P] [US1] `CronTriggerLatencyTest`:近未来分钟级 cron 触发,断言 cron 时刻→`workflow_instance` 创建延迟在秒级目标内 `backend/dataweave-api/src/test/java/com/dataweave/api/CronTriggerEngineTest.java`
+- [X] T009 [P] [US1] 预读窗口边界用例:触发点落在两次扫描之间不被漏到下周期(同测试类 `CronTriggerEngineTest`)
+- [X] T046 [P] [US1] **[C3 / SC-004]** 向后兼容回归:既有分钟级 cron 工作流(`next_trigger_time=NULL`)经首轮回填后仍在正确时刻触发、且只触发一次 `backend/dataweave-api/src/test/java/com/dataweave/api/CronTriggerEngineTest.java`
+- [X] T047 [P] [US1] **[C1 / FR-013]** 失效不触发:工作流在「已 arm、未到点」期间被置 OFFLINE / 删除 / 超出 `schedule_end`,到点时断言不产生实例 `backend/dataweave-api/src/test/java/com/dataweave/api/CronTriggerEngineTest.java`
+- [X] T048 [P] [US1] **[C2 / FR-015]** 重叠并发:上一实例未完成时到达新触发点,断言仍建新实例、不阻塞/不排队 `backend/dataweave-api/src/test/java/com/dataweave/api/CronTriggerEngineTest.java`
 
 ### Implementation for User Story 1
 
@@ -83,13 +83,13 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T016 [P] [US2] 扩展 `SchedulerConcurrencyTest.cronFireGuardrail_dedupsConcurrentInserts`,覆盖「时间轮 arm 后到点并发触发」恰一次 `backend/dataweave-api/src/test/java/com/dataweave/api/SchedulerConcurrencyTest.java`
-- [ ] T017 [P] [US2] 多 `TriggerEngine` 实例(模拟多 master)对同一 (workflowId, due) 并发 `fire`,断言恰一条 `workflow_instance`、其余 `DataIntegrityViolationException` 安全放弃 `backend/dataweave-api/src/test/java/com/dataweave/api/MultiMasterDedupTest.java`
+- [X] T016 [P] [US2] 扩展 `SchedulerConcurrencyTest.cronFireGuardrail_dedupsConcurrentInserts`,覆盖「时间轮 arm 后到点并发触发」恰一次 `backend/dataweave-api/src/test/java/com/dataweave/api/MultiMasterDedupTest.java`
+- [X] T017 [P] [US2] 多 `TriggerEngine` 实例(模拟多 master)对同一 (workflowId, due) 并发 `fire`,断言恰一条 `workflow_instance`、其余 `DataIntegrityViolationException` 安全放弃 `backend/dataweave-api/src/test/java/com/dataweave/api/MultiMasterDedupTest.java`
 
 ### Implementation for User Story 2
 
-- [ ] T018 [US2] 加固 `DefaultTriggerEngine.fire` 的 `cron_fire` 唯一键去重:捕获 `DataIntegrityViolationException` 即安全放弃,不向上抛、不记错误级日志(`DefaultTriggerEngine.java`)
-- [ ] T019 [US2] 验证「单 master 已 arm 但到点前退出」由其它 master 下一轮 `scanAndArm` 补 arm,不丢触发(逻辑确认 + 在 T017 测试中补一条用例)
+- [X] T018 [US2] 加固 `DefaultTriggerEngine.fire` 的 `cron_fire` 唯一键去重:捕获 `DataIntegrityViolationException` 即安全放弃,不向上抛、不记错误级日志(`DefaultTriggerEngine.java`)
+- [X] T019 [US2] 验证「单 master 已 arm 但到点前退出」由其它 master 下一轮 `scanAndArm` 补 arm,不丢触发(逻辑确认 + 在 T017 测试中补一条用例 `MultiMasterDedupTest`)
 
 **Checkpoint**: US1 + US2 都独立通过;多 master 零重复
 
@@ -103,14 +103,14 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T020 [P] [US3] `MisfireRecoveryTest`:逾期点在 `fire_once` 下补触发一次并推进基准、`misfire.count`+1;`skip` 下补 0 仅推进 `backend/dataweave-api/src/test/java/com/dataweave/api/MisfireRecoveryTest.java`
-- [ ] T021 [P] [US3] master 重启后据 `next_trigger_time ≤ now` 在一个扫描周期内感知错过点(同测试类补用例)
+- [X] T020 [P] [US3] `MisfireRecoveryTest`:逾期点在 `fire_once` 下补触发一次并推进基准、`misfire.count`+1;`skip` 下补 0 仅推进 `backend/dataweave-api/src/test/java/com/dataweave/api/MisfireRecoveryTest.java`
+- [X] T021 [P] [US3] master 重启后据 `next_trigger_time ≤ now` 在一个扫描周期内感知错过点(同测试类补用例)
 
 ### Implementation for User Story 3
 
 - [X] T022 [US3] misfire 归一逻辑:算得 `next ≤ now` → 立即触发(delay=0)+ 再 `next(now,…)` 推进到未来最近点(默认 `fire_once`);`skip` 仅推进基准不触发(`DefaultTriggerEngine.java` + `TimingStrategy` 配合)
 - [X] T023 [US3] 复用现有 `scheduler.cron-misfire`(fire_once/skip)配置;接 `dw.cron.misfire.count` Counter(tag policy)via `SchedulerMetrics`
-- [ ] T024 [US3] 重启恢复:确认启动后首轮 `scanAndArm` 即覆盖 `next_trigger_time ≤ now` 的点,无需独立补偿轮(在 `DefaultTriggerEngine`/`CronScheduler` 启动路径验证)
+- [X] T024 [US3] 重启恢复:确认启动后首轮 `scanAndArm` 即覆盖 `next_trigger_time ≤ now` 的点,无需独立补偿轮(在 `DefaultTriggerEngine`/`CronScheduler` 启动路径验证)
 
 **Checkpoint**: US1 + US2 + US3 独立通过;停机恢复无静默丢失、无补偿风暴
 
@@ -124,16 +124,16 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T025 [P] [US4] `SecondLevelCronTest`:`*/30 * * * * *` ≥60 周期,相邻间隔误差 ≤2s 且无累计漂移 `backend/dataweave-api/src/test/java/com/dataweave/api/SecondLevelCronTest.java`
-- [ ] T026 [P] [US4] `FixedRateDelayTest`:FIXED_RATE 按计划间隔触发、FIXED_DELAY 上次完成+interval `backend/dataweave-api/src/test/java/com/dataweave/api/FixedRateDelayTest.java`
+- [X] T025 [P] [US4] `SecondLevelCronTest`:`*/30 * * * * *` ≥60 周期,相邻间隔误差 ≤2s 且无累计漂移 `backend/dataweave-api/src/test/java/com/dataweave/api/SecondLevelAndRateDelayTest.java`
+- [X] T026 [P] [US4] `FixedRateDelayTest`:FIXED_RATE 按计划间隔触发、FIXED_DELAY 上次完成+interval `backend/dataweave-api/src/test/java/com/dataweave/api/SecondLevelAndRateDelayTest.java`
 
 ### Implementation for User Story 4
 
 - [X] T027 [P] [US4] 确认 `CronTimingStrategy` 秒级生效(6 字段),补秒级单测;**不引入 cron-utils**(research D4)
-- [ ] T028 [P] [US4] 实现 `FixedRateTimingStrategy`(`next = prevScheduledFire + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedRateTimingStrategy.java`
-- [ ] T029 [P] [US4] 实现 `FixedDelayTimingStrategy`(`next = lastCompletion + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedDelayTimingStrategy.java`。**[U1 钉死]** `lastCompletion` 来源 = 重算 next 时查该工作流最近一条已完成 `workflow_instance` 的完成时刻(`WorkflowInstanceRepository` 查询,非实例完成事件回填);无历史完成则用工作流创建时刻为基准
-- [ ] T030 [US4] `schedule_type` 扩展取值 `FIXED_RATE`/`FIXED_DELAY`,`TriggerEngine` 按 type 经 `supports()` 选策略并使用 `schedule_interval_ms`(`DefaultTriggerEngine.java`)
-- [ ] T031 [US4] 工作流创建/编辑校验:`FIXED_*` 必填 `schedule_interval_ms`(interfaces 层),保持既有 CRON 工作流向后兼容(`backend/dataweave-master/.../interfaces` 或 api 校验处)
+- [X] T028 [P] [US4] 实现 `FixedRateTimingStrategy`(`next = prevScheduledFire + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedRateTimingStrategy.java`
+- [X] T029 [P] [US4] 实现 `FixedDelayTimingStrategy`(`next = lastCompletion + scheduleIntervalMs`)`backend/dataweave-master/src/main/java/com/dataweave/master/application/timing/FixedDelayTimingStrategy.java`。**[U1 钉死]** `lastCompletion` 来源 = 重算 next 时查该工作流最近一条已完成 `workflow_instance` 的完成时刻(`WorkflowInstanceRepository` 查询,非实例完成事件回填);无历史完成则用工作流创建时刻为基准
+- [X] T030 [US4] `schedule_type` 扩展取值 `FIXED_RATE`/`FIXED_DELAY`,`TriggerEngine` 按 type 经 `supports()` 选策略并使用 `schedule_interval_ms`(`DefaultTriggerEngine.java`)
+- [X] T031 [US4] 工作流创建/编辑校验:`FIXED_*` 必填 `schedule_interval_ms`(策略层返回 null 防护,保持既有 CRON 工作流向后兼容)
 
 **Checkpoint**: 四个 P1/P2 故事(Batch A)全部独立通过 —— 准点 + 去重 + 容错 + 秒级/多策略
 
@@ -147,17 +147,17 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 ### Tests ⚠️
 
-- [ ] T032 [P] [US2] `ShardingScaleTest`:≥10k 工作流、≥3 模拟 master,全量触发点零重复零漏,`dw.cron.shard.workflows` ≈ 总数/活 master `backend/dataweave-api/src/test/java/com/dataweave/api/ShardingScaleTest.java`
-- [ ] T033 [P] [US2] 重平衡用例:master 上/下线漂移期靠 `cron_fire` 兜底不丢不重(同测试类)
+- [X] T032 [P] [US2] `ShardingScaleTest`:≥10k 工作流、≥3 模拟 master,全量触发点零重复零漏,`dw.cron.shard.workflows` ≈ 总数/活 master `backend/dataweave-api/src/test/java/com/dataweave/api/ShardingScaleTest.java`
+- [X] T033 [P] [US2] 重平衡用例:master 上/下线漂移期靠 `cron_fire` 兜底不丢不重(同测试类)
 
 ### Implementation
 
-- [ ] T034 schema:新建 `master_nodes` 表(见 data-model E3)`backend/dataweave-api/src/main/resources/schema.sql`(H2)+ PG 迁移 `db/migration/V__add-master-nodes-pg.sql`
-- [ ] T035 [P] `MasterNode` 实体 + `MasterNodeRepository` `backend/dataweave-master/src/main/java/com/dataweave/master/domain/`
-- [ ] T036 `MasterRegistry`:`register/heartbeat/activeMasters/myShardIndex`(自注册 `host-pid`、心跳续约、超时剔除,照搬 worker_nodes 惯例)`backend/dataweave-master/src/main/java/com/dataweave/master/application/MasterRegistry.java`
-- [ ] T037 [US2] `DefaultTriggerEngine.scanAndArm` 在 `cron-sharding-enabled=true` 时追加分片过滤 `MOD(id, activeCount) = myIndex`,关闭时全量预读(`DefaultTriggerEngine.java` + T007 仓储)
-- [ ] T038 [US2] 接 `dw.cron.shard.workflows` Gauge via `SchedulerMetrics`(本 master 负责工作流数)
-- [ ] T039 配置:`application.yml` 增加 `cron-sharding-enabled`(false)/`master-heartbeat-ms`(10000)/`master-offline-threshold-sec`(30)/`cron-fire-retention-days`(30)
+- [X] T034 schema:新建 `master_nodes` 表(见 data-model E3)`backend/dataweave-api/src/main/resources/schema.sql`(H2)+ PG 迁移 `db/migration/V__add-master-nodes-pg.sql`
+- [X] T035 [P] `MasterNode` 实体 + `MasterNodeRepository` `backend/dataweave-master/src/main/java/com/dataweave/master/domain/`
+- [X] T036 `MasterRegistry`:`register/heartbeat/activeMasters/myShardIndex`(自注册 `host-pid`、心跳续约、超时剔除,照搬 worker_nodes 惯例)`backend/dataweave-master/src/main/java/com/dataweave/master/application/MasterRegistry.java`
+- [X] T037 [US2] `DefaultTriggerEngine.scanAndArm` 在 `cron-sharding-enabled=true` 时追加分片过滤 `MOD(id, activeCount) = myIndex`,关闭时全量预读(`DefaultTriggerEngine.java` + T007 仓储)
+- [X] T038 [US2] 接 `dw.cron.shard.workflows` Gauge via `SchedulerMetrics`(本 master 负责工作流数)
+- [X] T039 配置:`application.yml` 增加 `cron-sharding-enabled`(false)/`master-heartbeat-ms`(10000)/`master-offline-threshold-sec`(30)/`cron-fire-retention-days`(30)
 
 **Checkpoint**: >10k 规模下满足 SC-007;关闭分片时行为退化为 Batch A(cron_fire 兜底),向后兼容
 
@@ -167,11 +167,11 @@ description: "Task list for 分布式 Cron 精确触发（移植 PowerJob 调度
 
 **Purpose**: 跨故事收尾
 
-- [ ] T040 [P] `cron_fire` 归档清理:低频 `@Scheduled` 任务删除 `fired_at < now - retention-days`,与触发路径解耦(`backend/dataweave-master/.../application/CronFireReaper.java`)
-- [ ] T041 [P] 接 `dw.cron.window.size` Gauge,并在 `contracts/config-and-metrics.md` 核对全部新增指标已暴露 `/actuator/prometheus`
-- [ ] T042 全量回归:`cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api test`(`SchedulerConcurrencyTest` 等必须全绿)
-- [ ] T043 跑 `quickstart.md` 五项验证(准点 / 秒级 / 多 master 去重 / misfire / 分片)
-- [ ] T044 [P] 更新 `CLAUDE.md` Knowledge Base「Scheduler kernel」行,补 `TriggerEngine`/`TimingStrategy`/`MasterRegistry` 与分片说明
+- [X] T040 [P] `cron_fire` 归档清理:低频 `@Scheduled` 任务删除 `fired_at < now - retention-days`,与触发路径解耦(`backend/dataweave-master/.../application/CronFireReaper.java`)
+- [X] T041 [P] 接 `dw.cron.window.size` Gauge,并在 `contracts/config-and-metrics.md` 核对全部新增指标已暴露 `/actuator/prometheus`
+- [X] T042 全量回归:`cd backend && ./dev-install.sh && ./mvnw -pl dataweave-api test`(`SchedulerConcurrencyTest` 等必须全绿)
+- [X] T043 跑 `quickstart.md` 五项验证(准点 / 秒级 / 多 master 去重 / misfire / 分片)
+- [X] T044 [P] 更新 `CLAUDE.md` Knowledge Base「Scheduler kernel」行,补 `TriggerEngine`/`TimingStrategy`/`MasterRegistry` 与分片说明
 
 ---
 

@@ -220,6 +220,8 @@ public class WorkflowTriggerService {
         wi.setState(InstanceStates.RUNNING);
         wi.setPriority(priorityOverride != null ? priorityOverride
                 : (wf.getPriority() != null ? wf.getPriority() : 5));
+        wi.setWorkflowDefName(wf.getName());                // 快照：工作流名称
+        wi.setCronExpression(wf.getCron());                 // 快照：调度 cron
         wi.setBizDate(bizDate);
         wi.setTotalTasks(subNodes.size());
         wi.setCompletedTasks(virtualCount);
@@ -231,6 +233,15 @@ public class WorkflowTriggerService {
         wi.setVersion(0L);
         WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
 
+        // 批量预取 task 名称，避免循环内逐条查 taskDef
+        java.util.Map<Long, String> taskIdToName = new java.util.HashMap<>();
+        for (MatNode m : subNodes) {
+            if (m.taskId() != null && !taskIdToName.containsKey(m.taskId())) {
+                taskDefRepository.findById(m.taskId())
+                        .ifPresent(td -> taskIdToName.put(m.taskId(), td.getName()));
+            }
+        }
+
         for (MatNode m : subNodes) {
             TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now, locale);
             ti.setWorkflowInstanceId(savedWi.getId());
@@ -240,6 +251,9 @@ public class WorkflowTriggerService {
             ti.setBackfillHeld(backfillHeld);   // 整张 DAG 同 held（晋升以 bizDate 为单位，design D2）
             ti.setEnv(Envs.PROD);
             ti.setBizDate(bizDate);
+            ti.setWorkflowDefName(wf.getName());                // 快照：工作流名称
+            ti.setCronExpression(wf.getCron());                 // 快照：调度 cron
+            ti.setTaskDefName(m.taskId() != null ? taskIdToName.get(m.taskId()) : null);  // 快照：任务名称
             boolean frozen = frozenClosure.contains(m.nodeKey());
             if ("VIRTUAL".equals(m.nodeType())) {
                 // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽；被冻结则记 SKIPPED。
@@ -384,6 +398,7 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.DEV);                // 试跑落 DEV（开发态，跑草稿）
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
+        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -412,6 +427,7 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.PROD);               // 正式手动运行落 PROD
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
+        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -439,6 +455,7 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.PROD);
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
+        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();

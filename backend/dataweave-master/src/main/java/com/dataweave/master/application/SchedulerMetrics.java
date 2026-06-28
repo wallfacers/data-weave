@@ -75,6 +75,8 @@ public class SchedulerMetrics {
     private final AtomicLong slotFragmentation = new AtomicLong(0);
     private final AtomicLong logStreamBacklog = new AtomicLong(0);
     private final AtomicLong sseConnections = new AtomicLong(0);
+    private final AtomicLong shardWorkflows = new AtomicLong(0);
+    private final AtomicLong cronWindowSize = new AtomicLong(0);
 
     public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
         this.registry = registry;
@@ -170,6 +172,14 @@ public class SchedulerMetrics {
                 .description("Active SSE connections")
                 .register(registry);
 
+        Gauge.builder("dw.cron.shard.workflows", shardWorkflows, AtomicLong::doubleValue)
+                .description("Number of cron workflows this master is responsible for (shard)")
+                .register(registry);
+
+        Gauge.builder("dw.cron.window.size", cronWindowSize, AtomicLong::doubleValue)
+                .description("Current pre-read window armed point count (this master / this shard)")
+                .register(registry);
+
         log.info("[SchedulerMetrics] 调度指标已注册（Micrometer + actuator /prometheus）");
     }
 
@@ -195,6 +205,16 @@ public class SchedulerMetrics {
         } else {
             cronMisfireSkip.increment();
         }
+    }
+
+    /** 本 master 负责的 cron 工作流数（分片模式下 SC-007）。 */
+    public void setShardWorkflows(long count) {
+        shardWorkflows.set(count);
+    }
+
+    /** 当前预读窗口内已装载的点数（FR-014）。 */
+    public void setCronWindowSize(long count) {
+        cronWindowSize.set(count);
     }
 
     public Timer.Sample startRound() {

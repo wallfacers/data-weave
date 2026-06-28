@@ -58,4 +58,17 @@ public interface DataOpsBridge {
 
     /** 补数据运行关联的子实例列表。 */
     List<InstanceRow> backfillRunInstances(UUID runId);
+
+    /** 多维筛选 + 分页查询任务流实例。 */
+    Page<com.dataweave.master.application.OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
+            com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q);
+
+    /** 获取实例级 DAG（历史拓扑 + 运行时状态叠加）。 */
+    com.dataweave.master.application.OpsContracts.InstanceDagView getInstanceDag(UUID workflowInstanceId);
+
+    /** 获取任务实例参数替换后的实际代码。 */
+    com.dataweave.master.application.OpsContracts.ResolvedCodeView getResolvedCode(UUID taskInstanceId);
+
+    /** 获取任务实例参数替换后的实际配置。 */
+    com.dataweave.master.application.OpsContracts.ResolvedConfigView getResolvedConfig(UUID taskInstanceId);
 }

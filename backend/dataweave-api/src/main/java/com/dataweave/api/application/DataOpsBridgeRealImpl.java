@@ -148,6 +148,34 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         }
     }
 
+    // ─── 003-instance-dag-viewer 新方法 ────────────────────
+
+    @Override
+    public Page<com.dataweave.master.application.OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
+            com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q) {
+        OpsContracts.PageResult<OpsContracts.WorkflowInstanceRow> pr = opsService.queryWorkflowInstances(
+                new OpsContracts.WorkflowInstanceQuery(q.state(), q.stateIn(), q.triggerType(),
+                        q.workflowId(), q.bizDate(), q.bizDateFrom(), q.bizDateTo(),
+                        q.startedAtFrom(), q.startedAtTo(),
+                        Math.max(0, q.page() - 1), q.size()));
+        return new Page<>(pr.items(), pr.total(), q.page(), q.size());
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.InstanceDagView getInstanceDag(UUID workflowInstanceId) {
+        return opsService.getInstanceDag(workflowInstanceId);
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedCodeView getResolvedCode(UUID taskInstanceId) {
+        return opsService.resolveActualCode(taskInstanceId);
+    }
+
+    @Override
+    public com.dataweave.master.application.OpsContracts.ResolvedConfigView getResolvedConfig(UUID taskInstanceId) {
+        return opsService.resolveActualConfig(taskInstanceId);
+    }
+
     // ─── 映射 ───────────────────────────────────────────
 
     private static InstanceRow toDtoRow(OpsContracts.InstanceRow r) {
@@ -155,7 +183,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 null, // workflowId（workflow_def Long）：master 行携带的是实例 UUID，M1 暂不映射
                 r.runMode(), r.state(), r.bizDate(),
                 parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
-                r.cronExpression());
+                r.cronExpression(), r.env(), r.workflowName());
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {

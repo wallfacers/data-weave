@@ -1,0 +1,15 @@
+# H2 内存库 profile —— 仅本地开发（Docker/PostgreSQL 不可用时）。
+# 激活：-Dspring-boot.run.profiles=h2
+# ⚠️ 此 profile 从不用于测试/CI/部署环境；部署用默认 PostgreSQL 配置。
+spring:
+  datasource:
+    url: jdbc:h2:mem:dataweave;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: false  # 仅 localhost 可访问，外部不可达

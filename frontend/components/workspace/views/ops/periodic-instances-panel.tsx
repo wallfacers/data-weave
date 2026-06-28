@@ -48,6 +48,8 @@ interface InstanceRow {
   finishedAt?: string | null
   durationMs?: number | null
   cronExpression?: string | null
+  env?: string  // PROD | DEV
+  workflowName?: string | null
 }
 
 interface BatchRowResult {
@@ -203,16 +205,24 @@ export function PeriodicInstancesPanel({
       {
         key: "taskDefName",
         header: t("colTaskName"),
-        widthPct: 18,
+        widthPct: 13,
         cell: (r) => (
           <div className="align-top" title={taskName(r)}>
             <div className="truncate font-medium">{taskName(r)}</div>
-            <div className="truncate text-xs text-muted-foreground">
-              {r.runMode === "PERIODIC" && r.cronExpression
-                ? `${humanizeCron(r.cronExpression)} · ${taskName(r)}`
-                : taskName(r)}
-            </div>
+            {r.runMode === "PERIODIC" && r.cronExpression && (
+              <div className="truncate text-xs text-muted-foreground">
+                {humanizeCron(r.cronExpression)}
+              </div>
+            )}
           </div>
+        ),
+      },
+      {
+        key: "workflowName",
+        header: t("colWorkflow"),
+        widthPct: 10,
+        cell: (r) => (
+          <span className="truncate text-sm">{r.workflowName || "—"}</span>
         ),
       },
       {
@@ -230,6 +240,16 @@ export function PeriodicInstancesPanel({
         },
       },
       {
+        key: "env",
+        header: t("colEnv"),
+        widthPct: 5,
+        cell: (r) => (
+          <Badge variant={r.env === "DEV" ? "secondary" : "default"} className="text-xs">
+            {r.env ?? "PROD"}
+          </Badge>
+        ),
+      },
+      {
         key: "schedule",
         header: t("colSchedule"),
         widthPct: 10,
@@ -240,7 +260,7 @@ export function PeriodicInstancesPanel({
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 13,
+        widthPct: 11,
         cellClassName: "tabular-nums text-xs",
         cell: (r) => formatDateTime(r.startedAt ?? null),
       },
@@ -351,18 +371,24 @@ export function PeriodicInstancesPanel({
         emptyHint={t("emptyHint")}
         bulkActions={(ids, reload) => (
           <div className="flex items-center gap-1">
-            <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("rerun", ids, reload)}>
-              <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
-              {t("batchRerun")}
-            </Button>
-            <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("set-success", ids, reload)}>
-              <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3.5" />
-              {t("batchSetSuccess")}
-            </Button>
-            <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("kill", ids, reload)}>
-              <HugeiconsIcon icon={StopIcon} className="size-3.5" />
-              {t("batchKill")}
-            </Button>
+            {ids.length > 100 ? (
+              <span className="text-xs text-destructive">最多选中 100 个实例（当前 {ids.length} 个）</span>
+            ) : (
+              <>
+                <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("rerun", ids, reload)}>
+                  <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
+                  {t("batchRerun")}
+                </Button>
+                <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("set-success", ids, reload)}>
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3.5" />
+                  {t("batchSetSuccess")}
+                </Button>
+                <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("kill", ids, reload)}>
+                  <HugeiconsIcon icon={StopIcon} className="size-3.5" />
+                  {t("batchKill")}
+                </Button>
+              </>
+            )}
           </div>
         )}
       />

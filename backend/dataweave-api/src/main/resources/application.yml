@@ -53,6 +53,10 @@ scheduler:
   cron-misfire: fire_once          # fire_once（默认，恢复后补一次）| skip
   cron-scan-interval-ms: 15000     # cron 短周期扫描间隔（替代旧 60s 粗轮询）
   cron-lookahead-ms: 30000         # 预读窗口：捞 next_trigger_time ≤ now+此值 的触发点压入精确触发器（建议 ≥ 2×扫描间隔）
+  cron-sharding-enabled: false     # >10k 工作流时启用哈希分片（每个 master 只预读自己分片）
+  master-heartbeat-ms: 10000       # master 成员心跳间隔（分片模式）
+  master-offline-threshold-sec: 30 # master 心跳超时判离线阈值（分片模式）
+  cron-fire-retention-days: 30     # cron_fire 归档保留天数（0=不清理）
 
 cluster:
   auth:
