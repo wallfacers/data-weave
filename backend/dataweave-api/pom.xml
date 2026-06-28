@@ -109,6 +109,21 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!--
+              测试隔离不变量：api 模块有 ~47 个 @SpringBootTest 类，Spring 按配置缓存
+              ApplicationContext。配置相同（@SpringBootTest + @ActiveProfiles("h2")）的类
+              会共享同一缓存 context 及同一 ${random.uuid} 内存 H2 库 —— 含写操作的类会
+              通过共享库污染其它类，并因 context 失败阈值产生级联。reuseForks=false 让每个
+              测试类独占一个 JVM → 独立 context → 独立随机库，从根上隔离（代价是无 context 复用，较慢）。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <reuseForks>false</reuseForks>
+                    <forkCount>1</forkCount>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

@@ -1,5 +1,6 @@
 package com.dataweave.master.domain;
 
+import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +21,7 @@ public interface MasterNodeRepository extends CrudRepository<MasterNode, Long> {
     List<MasterNode> findActive(@Param("threshold") LocalDateTime heartbeatThreshold);
 
     /** 将超时 master 标记为 OFFLINE。 */
+    @Modifying
     @Query("UPDATE master_nodes SET status = 'OFFLINE', updated_at = :now"
             + " WHERE status = 'ONLINE' AND last_heartbeat <= :threshold")
     void markOffline(@Param("threshold") LocalDateTime heartbeatThreshold, @Param("now") LocalDateTime now);
