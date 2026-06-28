@@ -21,7 +21,6 @@ import java.util.Set;
  * <p>白名单路径（无需 JWT）：
  * <ul>
  *   <li>{@code /api/auth/login} — 登录</li>
- *   <li>{@code /agui} — AG-UI SSE（保留原有无鉴权行为）</li>
  *   <li>{@code /mcp} — MCP 端点（由 McpAuthFilter 独立守护）</li>
  *   <li>{@code /api/cli} — CLI 端点（由 CliController 的 X-DW-Token 独立守护，CLI 客户端无 JWT）</li>
  * </ul>
@@ -36,7 +35,6 @@ public class JwtAuthFilter implements WebFilter {
     );
 
     private static final Set<String> PREFIX_WHITELIST = Set.of(
-            "/agui",
             "/mcp",
             "/api/cli",
             "/api/health",

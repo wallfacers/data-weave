@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { cn } from "@/lib/utils"
-import { API_BASE, type TaskDef } from "@/lib/types"
+import { API_BASE, type Page, type InstanceRow } from "@/lib/types"
 
 /** tab 连接状态：实时 / 已结束 / 断开 / 连接中。 */
 type TabConnStatus = "live" | "ended" | "error" | "connecting"
@@ -70,13 +70,13 @@ export function WorkspaceLogPanel() {
     useLogPanelStore()
   const t = useTranslations("logPanel")
 
-  // ── 任务名映射（一次拉全量，taskId → name）─────────────────
-  const { data: taskDefs } = useApi<TaskDef[]>("/api/ops/tasks")
+  // ── 任务名映射（一次拉全量实例，taskDefId → taskDefName）─────────────────
+  const { data } = useApi<Page<InstanceRow>>("/api/ops/instances")
   const taskNames = useMemo(() => {
     const m = new Map<number, string>()
-    for (const t of taskDefs ?? []) m.set(t.id, t.name)
+    for (const r of data?.items ?? []) m.set(r.taskDefId, r.taskDefName)
     return m
-  }, [taskDefs])
+  }, [data])
 
   // ── 各 tab 连接状态（LogTabContent 上报，驱动 tab 圆点）──────
   const [statusMap, setStatusMap] = useState<Record<string, TabConnStatus>>({})

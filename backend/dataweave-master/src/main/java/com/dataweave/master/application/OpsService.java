@@ -91,20 +91,6 @@ public class OpsService {
         logBus.append(taskInstanceId, "状态: 已停止 | 操作: 用户手动停止运行");
     }
 
-    /**
-     * 所有任务定义，按 id 升序。
-     *
-     * @deprecated 运维中心不以任务为主体（ops-center-publish-boundary）：任务只作为任务流节点/任务实例出现。
-     *     周期/手动运维对象改用 {@link #periodicWorkflows()}/{@link #manualWorkflows()}（按 ONLINE 过滤）。
-     *     保留此方法仅供过渡期只读引用，不应作为运维一等列表。
-     */
-    @Deprecated
-    public List<TaskDef> tasks() {
-        List<TaskDef> list = new ArrayList<>();
-        taskDefRepository.findAll().forEach(list::add);
-        list.sort(Comparator.comparing(TaskDef::getId, Comparator.nullsLast(Comparator.naturalOrder())));
-        return list;
-    }
 
     /** 周期任务流列表（运维主体）：仅 status=ONLINE 且 schedule_type=CRON 的已发布工作流，按 id 升序。 */
     public List<com.dataweave.master.domain.WorkflowDef> periodicWorkflows() {
@@ -460,14 +446,6 @@ public class OpsService {
         return instanceRepository.findById(instanceId).orElse(ti);
     }
 
-    /** 冻结/解冻周期任务：置位 task_def.frozen（1/0）。调度认领按 frozen=0 过滤（SchedulerKernel 冻结门）。 */
-    public TaskDef setFrozen(Long taskDefId, boolean frozen) {
-        TaskDef def = taskDefRepository.findById(taskDefId)
-                .orElseThrow(() -> new IllegalStateException("Task def not found: " + taskDefId));
-        def.setFrozen(frozen ? 1 : 0);
-        def.setUpdatedAt(LocalDateTime.now());
-        return taskDefRepository.save(def);
-    }
 
     /** 周期实例多维筛选 + 分页（runMode/state/taskId/bizDate 任一为空即不约束；按 id 降序）。 */
     public PageResult<InstanceRow> queryInstances(InstanceQuery q) {

@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * 调度运维 / 驾驶舱查询 REST 端点：全局概况、任务定义、运行实例、失败清单、系统指标。
  *
  * <p>供前端驾驶舱首页（{@code /}）、调度运维页（{@code /ops}）、数据开发页（{@code /tasks}）拉取。
- * MVP 阶段读侧走 REST，写侧（建任务/诊断/修复）统一走 Agent（{@code /agui}）。
+ * 读侧走 REST，写侧（任务定义写入）统一走 project_push（MCP）。
  *
  * <p>data-ops-center Stream C：新增周期实例筛选分页、批量操作、补数据、冻结端点；
  * 写操作全部经 {@link GatedActionService} 闸门 + agent_action 审计，无旁路。
@@ -89,16 +89,6 @@ public class OpsController {
         return ApiResponse.ok(opsService.summary());
     }
 
-    /**
-     * 所有任务定义。
-     * @deprecated 运维不以任务为主体（ops-center-publish-boundary）：改用 {@code /periodic-workflows} /
-     *     {@code /manual-workflows}。保留供过渡期只读引用。
-     */
-    @Deprecated
-    @GetMapping("/tasks")
-    public ApiResponse<List<TaskDef>> tasks() {
-        return ApiResponse.ok(opsService.tasks());
-    }
 
     /**
      * 周期任务流列表（运维主体）：仅 ONLINE & schedule_type=CRON 的已发布工作流。

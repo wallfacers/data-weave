@@ -31,10 +31,6 @@ public interface DataOpsBridge {
     /** 置成功：CAS 推进 SUCCESS + 唤醒下游 WAITING。 */
     TaskInstance setSuccess(UUID instanceId);
 
-    /** 冻结/解冻任务定义。
-     * @deprecated 任务级冻结退役（ops-center-publish-boundary），改用 {@link #setNodeFrozen}。 */
-    @Deprecated
-    TaskDef setFrozen(Long taskDefId, boolean frozen);
 
     /**
      * 节点级 DAG 冻结/解冻（ops-center-publish-boundary）。

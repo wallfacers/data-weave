@@ -202,6 +202,3 @@ export function buildSyntaxTheme(mode: "light" | "dark"): ThemeRegistration {
 
 export const SYNTAX_THEME_LIGHT = buildSyntaxTheme("light")
 export const SYNTAX_THEME_DARK = buildSyntaxTheme("dark")
-
-/** chat（Streamdown）双主题入参：稳定引用，避免每次 render 重建 highlighter */
-export const CHAT_SHIKI_THEME = [SYNTAX_THEME_LIGHT, SYNTAX_THEME_DARK] as const

@@ -10,7 +10,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 /**
- * WebFlux 全局 CORS，允许前端跨域访问 /api/** 与 /agui（SSE 直连后端必须放行前端源）。
+ * WebFlux 全局 CORS，允许前端跨域访问 /api/**（SSE 直连后端必须放行前端源）。
  *
  * <p>允许的源可配：{@code app.cors.allowed-origins}（逗号分隔），默认 {@code http://localhost:4000}（dev）。
  * 生产部署须设为浏览器实际访问的前端域名，例如 {@code app.cors.allowed-origins=https://app.example.com}。

@@ -133,30 +133,4 @@ class OpsServiceDataCenterTest {
         verify(eventBus, never()).publish(any(), any());
     }
 
-    // ─── 冻结 ───────────────────────────────────────────
-
-    @Test
-    void setFrozenTrueWritesOne() {
-        TaskDef def = new TaskDef();
-        def.setId(1L);
-        when(taskDefRepository.findById(1L)).thenReturn(Optional.of(def));
-        when(taskDefRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        TaskDef out = ops.setFrozen(1L, true);
-
-        assertThat(out.getFrozen()).isEqualTo(1);
-    }
-
-    @Test
-    void setFrozenFalseWritesZero() {
-        TaskDef def = new TaskDef();
-        def.setId(1L);
-        def.setFrozen(1);
-        when(taskDefRepository.findById(1L)).thenReturn(Optional.of(def));
-        when(taskDefRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        TaskDef out = ops.setFrozen(1L, false);
-
-        assertThat(out.getFrozen()).isEqualTo(0);
-    }
 }

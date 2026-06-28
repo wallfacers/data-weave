@@ -80,10 +80,6 @@ public class DataOpsBridgeStub implements DataOpsBridge {
         throw new UnsupportedOperationException("setSuccess — 待 Stream A 实现");
     }
 
-    @Override
-    public TaskDef setFrozen(Long taskDefId, boolean frozen) {
-        throw new UnsupportedOperationException("setFrozen — 待 Stream A 实现");
-    }
 
     @Override
     public void setNodeFrozen(Long workflowId, String nodeKey, UUID instanceId, boolean frozen) {
