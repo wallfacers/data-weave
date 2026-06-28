@@ -21,32 +21,36 @@ import com.dataweave.master.i18n.BizException;
  * 替换是纯函数：只依赖入参（{@code bizDate}、{@code paramsJson}、{@link BuiltInContext}），
  * 无副作用、可独立单测。
  *
+ * <h3>平台占位符语法：{@code {{...}}}（双花括号，与 shell/SQL 不冲突）</h3>
+ * <p>解析器<strong>只识别 {@code {{...}}}</strong>。任何 {@code ${...}}、{@code $(...)}、裸 {@code $word}、
+ * {@code $$}、{@code $1} 等一律原样输出（留给执行 shell），不解析、不抛错。
+ *
  * <h3>支持</h3>
  * <ul>
- *   <li>业务日期语法 {@code ${<fmt>}}：基于 {@code bizDate}（T-1，天精度）格式化，
- *       token 仅 {@code y/m/d}（如 {@code yyyymmdd}、{@code yyyy-mm-dd}、{@code yyyymm}）。</li>
- *   <li>整数偏移 {@code ${<fmt>±N}}：单位取 fmt 最小单位（dd→天 / mm→月 / yyyy→年），
- *       周用 {@code ${yyyymmdd-7*N}}。</li>
- *   <li>系统内置参数：{@code $bizdate}、{@code $bizmonth}（跨月特判）、{@code $gmtdate}、
- *       {@code $jobid}、{@code $nodeid}、{@code $taskid}。</li>
- *   <li>自定义参数递归展开：{@code ${name}} → {@code paramsJson} 中 {@code name} 的值；
- *       值若仍含 {@code ${...}} 继续递归，带访问栈做循环检测。</li>
+ *   <li>业务日期语法 {@code {{<fmt>}}}：基于 {@code bizDate}（T-1，天精度）格式化，
+ *       token 仅 {@code y/m/d}（如 {@code {{yyyymmdd}}}、{@code {{yyyy-mm-dd}}}、{@code {{yyyymm}}}）。</li>
+ *   <li>整数偏移 {@code {{<fmt>±N}}}：单位取 fmt 最小单位（dd→天 / mm→月 / yyyy→年），
+ *       周用 {@code {{yyyymmdd-7*N}}}。</li>
+ *   <li>系统内置参数：{@code {{bizdate}}}、{@code {{bizmonth}}}（跨月特判）、{@code {{gmtdate}}}、
+ *       {@code {{jobid}}}、{@code {{nodeid}}}、{@code {{taskid}}}。</li>
+ *   <li>自定义参数递归展开：{@code {{name}}} → {@code paramsJson} 中 {@code name} 的值；
+ *       值若仍含 {@code {{...}}} 继续递归，带访问栈做循环检测。</li>
  * </ul>
  *
  * <h3>不支持（抛 {@link UnresolvedPlaceholderException}）</h3>
  * <ul>
  *   <li>天精度以外的 token（{@code hh/mi/ss}）。</li>
- *   <li>字面嵌套 {@code ${${...}}}（占位符内部又出现 {@code ${}）。</li>
- *   <li>未定义的 {@code ${name}}（既非日期格式也非自定义参数）。</li>
+ *   <li>字面嵌套 {@code {{{{...}}}}}（占位符内部又出现 {@code {{}）。</li>
+ *   <li>未闭合 {@code {{x} / 空 {{}}}。</li>
+ *   <li>未定义的 {@code {{name}}}（既非日期格式 / 内置词也非自定义参数）。</li>
  * </ul>
  *
- * <p>非内置的裸 {@code $word}（如 shell 变量 {@code $HOME}）原样保留，不替换。
- * 无任何 {@code $} 的 {@code content} 走快速路径原样返回（no-op）。
+ * <p>无任何 {@code {{} 的 {@code content} 走快速路径原样返回（no-op）。</p>
  */
 @Component
 public final class ScheduleParamResolver {
 
-    /** 内置参数标识 + 当前日期（用于 {@code $gmtdate} / {@code $bizmonth} 跨月判断，调用方传入以保证可测）。 */
+    /** 内置参数标识 + 当前日期（用于 {@code {{gmtdate}}} / {@code {{bizmonth}}} 跨月判断，调用方传入以保证可测）。 */
     public record BuiltInContext(String jobId, String nodeId, String taskInstanceId, LocalDate today) {
     }
 
@@ -65,16 +69,15 @@ public final class ScheduleParamResolver {
     private static final Pattern OFFSET = Pattern.compile("^([-+])(\\d+)(?:\\*(\\d+))?$");
 
     /**
-     * 平台调度占位符：{@code ${...}} 或裸内置词（{@code $bizdate/$bizmonth/$gmtdate/$jobid/$nodeid/$taskid}，带词边界）。
-     * 用于快速判定 content 是否需要解析——bash 的 {@code $(...)}、{@code $HOME}、{@code $$} 等不算平台占位符，
+     * 平台调度占位符开标记：{@code {{}}。用于快速判定 content 是否需要解析——
+     * shell/SQL 的 {@code ${...}}、{@code $(...)}、{@code $HOME}、{@code $$} 等一律不算平台占位符，
      * 不应触发 {@link #parseBizDate}（否则 bizDate 为空时整实例被误判 FAILED）。
      */
-    private static final Pattern PLATFORM_PLACEHOLDER =
-            Pattern.compile("\\$\\{|\\$(bizdate|bizmonth|gmtdate|jobid|nodeid|taskid)(?![A-Za-z0-9_])");
+    private static final String PLATFORM_PLACEHOLDER_OPEN = "{{";
 
-    /** content 是否含平台调度占位符；不含（含 null/空）则无需解析，放过 bash 的 {@code $(...)} 等构造。 */
+    /** content 是否含平台调度占位符（{@code {{}}）；不含（含 null/空）则无需解析，放过所有 shell/SQL 构造。 */
     public static boolean hasPlatformPlaceholder(String content) {
-        return content != null && !content.isEmpty() && PLATFORM_PLACEHOLDER.matcher(content).find();
+        return content != null && !content.isEmpty() && content.contains(PLATFORM_PLACEHOLDER_OPEN);
     }
 
     /**
@@ -99,7 +102,9 @@ public final class ScheduleParamResolver {
         return resolveText(content, biz, params, ctx, new LinkedHashSet<>());
     }
 
-    /** 递归解析文本：扫描 {@code $} 起始的占位符，其余字符原样输出。 */
+    /**
+     * 递归解析文本：只扫描 {@code {{...}}} 平台占位符，其余字符（含 {@code $}、{@code ${}、单个 {@code {}）原样输出。
+     */
     private String resolveText(String text, LocalDate biz, Map<String, String> params,
                                BuiltInContext ctx, Set<String> stack) {
         StringBuilder out = new StringBuilder(text.length() + 16);
@@ -107,68 +112,50 @@ public final class ScheduleParamResolver {
         int i = 0;
         while (i < n) {
             char c = text.charAt(i);
-            if (c != '$') {
+            // 平台占位符以 {{ 起始；其余一切（含单个 {、$、${、$( 等）原样输出
+            if (c != '{' || i + 1 >= n || text.charAt(i + 1) != '{') {
                 out.append(c);
                 i++;
                 continue;
             }
-            if (i + 1 >= n) {
-                out.append('$');
-                break;
-            }
-            char next = text.charAt(i + 1);
-            if (next == '{') {
-                // ${...}：扫描到匹配的 }，中间出现 { 视为非法嵌套
-                int end = -1;
-                for (int j = i + 2; j < n; j++) {
-                    char cj = text.charAt(j);
-                    if (cj == '{') {
-                        throw new UnresolvedPlaceholderException(
-                                "schedule.placeholder.nested", i);
-                    }
-                    if (cj == '}') {
+            // {{...}}：从 i+2 起扫描到匹配的 }}，中间再现 { 视为非法嵌套（如 {{{{x}}}}）
+            int end = -1;
+            for (int j = i + 2; j < n; j++) {
+                char cj = text.charAt(j);
+                if (cj == '{') {
+                    throw new UnresolvedPlaceholderException("schedule.placeholder.nested", i);
+                }
+                if (cj == '}') {
+                    if (j + 1 < n && text.charAt(j + 1) == '}') {
                         end = j;
                         break;
                     }
+                    // 单个 } 不闭合双花括号 → 继续扫描（最终若无 }} 则报 unclosed）
                 }
-                if (end < 0) {
-                    throw new UnresolvedPlaceholderException("schedule.placeholder.unclosed", i);
-                }
-                String expr = text.substring(i + 2, end).trim();
-                if (expr.isEmpty()) {
-                    throw new UnresolvedPlaceholderException("schedule.placeholder.empty");
-                }
-                out.append(resolveExpr(expr, biz, params, ctx, stack));
-                i = end + 1;
-            } else if (Character.isLetter(next)) {
-                // $word：读标识符；内置词替换，否则原样保留（可能是 shell 变量）
-                int j = i + 1;
-                while (j < n && (Character.isLetterOrDigit(text.charAt(j)) || text.charAt(j) == '_')) {
-                    j++;
-                }
-                String word = text.substring(i + 1, j);
-                String builtin = builtIn(word, biz, ctx);
-                if (builtin != null) {
-                    out.append(builtin);
-                } else {
-                    out.append('$').append(word);
-                }
-                i = j;
-            } else {
-                // $ 后非 { 非字母（如 $$、$1）：原样保留
-                out.append('$');
-                i++;
             }
+            if (end < 0) {
+                throw new UnresolvedPlaceholderException("schedule.placeholder.unclosed", i);
+            }
+            String expr = text.substring(i + 2, end).trim();
+            if (expr.isEmpty()) {
+                throw new UnresolvedPlaceholderException("schedule.placeholder.empty");
+            }
+            out.append(resolveExpr(expr, biz, params, ctx, stack));
+            i = end + 2;  // 跳过结尾的 }}
         }
         return out.toString();
     }
 
-    /** 解析单个 {@code ${expr}}：先试日期表达式，失败则查自定义参数（递归），都不行则报错。 */
+    /** 解析单个 {@code {{expr}}}：先试日期表达式，再试内置词，失败则查自定义参数（递归），都不行则报错。 */
     private String resolveExpr(String expr, LocalDate biz, Map<String, String> params,
                                BuiltInContext ctx, Set<String> stack) {
         String dateVal = tryDateExpr(expr, biz);
         if (dateVal != null) {
             return dateVal;
+        }
+        String builtin = builtIn(expr, biz, ctx);
+        if (builtin != null) {
+            return builtin;
         }
         if (params.containsKey(expr)) {
             if (!stack.add(expr)) {
@@ -281,7 +268,7 @@ public final class ScheduleParamResolver {
         return out.toString();
     }
 
-    /** 系统内置参数；非内置返回 {@code null}（调用方原样保留 {@code $word}）。 */
+    /** 系统内置参数（{@code {{bizdate}}} 等内的词）；非内置返回 {@code null}（交后续自定义参数 / undefined 处理）。 */
     private String builtIn(String word, LocalDate biz, BuiltInContext ctx) {
         return switch (word) {
             case "bizdate" -> format(biz, "yyyymmdd");
@@ -294,7 +281,7 @@ public final class ScheduleParamResolver {
         };
     }
 
-    /** {@code $bizmonth}：业务日期月份 == 当前月份时取上月，否则取业务日期月份，格式 {@code yyyyMM}。 */
+    /** {@code {{bizmonth}}}：业务日期月份 == 当前月份时取上月，否则取业务日期月份，格式 {@code yyyyMM}。 */
     private String bizMonth(LocalDate biz, BuiltInContext ctx) {
         YearMonth bizYM = YearMonth.from(biz);
         YearMonth todayYM = ctx.today() != null ? YearMonth.from(ctx.today()) : bizYM;

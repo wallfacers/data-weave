@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 /**
  * 调度参数占位符替换的端到端集成测试（H2 真库，all-in-one 进程内执行）：
  * <ul>
- *   <li>{@code placeholder_substitutedAndExecuted}：content 含 {@code ${yyyymmdd}} → 认领 → 替换 →
+ *   <li>{@code placeholder_substitutedAndExecuted}：content 含 {@code {{yyyymmdd}}} → 认领 → 替换 →
  *       SHELL 执行，task_instance.log 含替换后的具体值（tasks 4.1）。</li>
  *   <li>{@code unresolvedPlaceholder_failsWithoutBlockingOthers}：content 含未定义占位符 → 实例 FAILED +
  *       failure_reason 命名占位符，且同批次另一正常实例照常 SUCCESS（tasks 4.2，不连坐）。</li>
@@ -70,7 +70,7 @@ class SchedulingParameterIntegrationTest {
     @Test
     void placeholder_substitutedAndExecuted() throws Exception {
         ensureTestWorker();
-        Long taskId = seedTask(900100L, "echo dt=${yyyymmdd}", null);
+        Long taskId = seedTask(900100L, "echo dt={{yyyymmdd}}", null);
         UUID instId = triggerService.triggerTestRun(taskId, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
 
         boolean done = await(Duration.ofSeconds(20), () -> isTerminal(instId));
@@ -78,13 +78,13 @@ class SchedulingParameterIntegrationTest {
 
         TaskInstance ti = taskInstanceRepository.findById(instId).orElseThrow();
         assertThat(ti.getState()).isEqualTo(InstanceStates.SUCCESS);
-        assertThat(ti.getLog()).asString().contains("dt=20260611");  // ${yyyymmdd} 基于 biz_date 2026-06-11
+        assertThat(ti.getLog()).asString().contains("dt=20260611");  // {{yyyymmdd}} 基于 biz_date 2026-06-11
     }
 
     @Test
     void unresolvedPlaceholder_failsWithoutBlockingOthers() throws Exception {
         ensureTestWorker();
-        Long badTask = seedTask(900200L, "echo ${nope}", null);
+        Long badTask = seedTask(900200L, "echo {{nope}}", null);
         Long goodTask = seedTask(900201L, "echo ok", null);
 
         UUID badInst = triggerService.triggerTestRun(badTask, "2026-06-11", java.util.Locale.SIMPLIFIED_CHINESE);
@@ -133,7 +133,7 @@ class SchedulingParameterIntegrationTest {
     @Test
     void previewEndpoint_resolvesPlaceholders() {
         var req = new TaskController.PreviewRequest(
-                "echo dt=${yyyymmdd} and ${dt}", "2026-06-11", "{\"dt\":\"${yyyymmdd-1}\"}");
+                "echo dt={{yyyymmdd}} and {{dt}}", "2026-06-11", "{\"dt\":\"{{yyyymmdd-1}}\"}");
         var res = taskController.previewParams(req);
         assertThat(res.code()).isZero();
         assertThat(res.data().get("content")).isEqualTo("echo dt=20260611 and 20260610");
@@ -144,7 +144,7 @@ class SchedulingParameterIntegrationTest {
         // i18n 后契约：previewParams 上抛 UnresolvedPlaceholderException（BizException，携带 i18n code +
         // 占位符名 args），由 GlobalExceptionHandler 按请求 locale 翻成 400 文案（HTTP 本地化路径已由
         // GlobalExceptionHandlerI18nTest 覆盖）。此处验证异常携带稳定 code 与占位符名供本地化插值。
-        var req = new TaskController.PreviewRequest("echo ${nope}", "2026-06-11", null);
+        var req = new TaskController.PreviewRequest("echo {{nope}}", "2026-06-11", null);
         assertThatExceptionOfType(ScheduleParamResolver.UnresolvedPlaceholderException.class)
                 .isThrownBy(() -> taskController.previewParams(req))
                 .satisfies(e -> {

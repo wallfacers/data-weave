@@ -490,7 +490,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         const res = await authFetch(`${API_BASE}/api/workflows/${workflowId}/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // 显式带业务日期（T-1）：脚本里的 $bizdate/$bizmonth 等平台占位符方有值，否则节点解析即 FAILED 且无日志。
+          // 显式带业务日期（T-1）：脚本里的 {{bizdate}}/{{bizmonth}} 等平台占位符方有值，否则节点解析即 FAILED 且无日志。
           body: JSON.stringify({ bizDate: yesterdayBizDate(), scope, targetNodeKey: targetNodeKey ?? null }),
         })
         const j = (await res.json()) as ApiResponse<RunResult>
@@ -530,7 +530,7 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       const res = await authFetch(`${API_BASE}/api/tasks/${taskId}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // 同工作流运行：带 T-1 业务日期，保证单跑该节点时 $bizdate 等占位符可解析。
+        // 同工作流运行：带 T-1 业务日期，保证单跑该节点时 {{bizdate}} 等占位符可解析。
         body: JSON.stringify({ bizDate: yesterdayBizDate() }),
       })
       const j = (await res.json()) as ApiResponse<RunResult>

@@ -1,6 +1,8 @@
 # 调度参数（Scheduling Parameters）
 
-任务执行的 `content`（SQL / Shell）支持 `${...}` 占位符,在**下发执行前**替换为具体值。对齐阿里 DataWorks「调度参数」体系(本期实现业务日期一套,秒级 `$[...]` 留二期)。设计细节见 `openspec/changes/scheduling-parameters/design.md`,实现见 `ScheduleParamResolver`。
+任务执行的 `content`（SQL / Shell）支持 `{{...}}` 平台占位符(双花括号,mustache/Jinja 惯例),在**下发执行前**替换为具体值。对齐阿里 DataWorks「调度参数」体系(本期实现业务日期一套,秒级 `$[...]` 留二期)。设计细节见 `openspec/changes/scheduling-parameters/design.md`,实现见 `ScheduleParamResolver`。
+
+> **语法选型(特性 012)**:平台占位符用 `{{...}}`,与 shell/SQL 自身的 `${...}`、`$(...)`、`$HOME`、`$$`、`$1` 等**彻底不冲突**——后者一律原样透传给执行 shell,解析器只处理 `{{...}}`。这样任务内容(本就是脚本)里的 shell 变量不会被误判为「未定义占位符」。
 
 ## 时间基准
 
@@ -8,50 +10,51 @@
 
 ## 语法
 
-### 业务日期 `${<fmt>}`（基于 biz_date，天精度）
+### 业务日期 `{{<fmt>}}`（基于 biz_date，天精度）
 
 token 仅 `yyyy` / `mm` / `dd`;`hh` / `mi` / `ss` 不支持(秒级走二期 `$[...]`)。
 
 | 写法 | 含义 | biz_date=2026-06-11 时 |
 |------|------|------------------------|
-| `${yyyymmdd}` | 业务日 8 位 | `20260611` |
-| `${yyyy-mm-dd}` | 业务日带横线 | `2026-06-11` |
-| `${yyyymm}` | 年月 | `202606` |
-| `${yyyy}` | 年 | `2026` |
-| `${yyyymmdd-1}` | 前一天 | `20260610` |
-| `${yyyymm-1}` | 上月 | `202605` |
-| `${yyyy-1}` | 去年 | `2025` |
-| `${yyyymmdd-7*1}` | 上周(天偏移 ×7) | `20260604` |
+| `{{yyyymmdd}}` | 业务日 8 位 | `20260611` |
+| `{{yyyy-mm-dd}}` | 业务日带横线 | `2026-06-11` |
+| `{{yyyymm}}` | 年月 | `202606` |
+| `{{yyyy}}` | 年 | `2026` |
+| `{{yyyymmdd-1}}` | 前一天 | `20260610` |
+| `{{yyyymm-1}}` | 上月 | `202605` |
+| `{{yyyy-1}}` | 去年 | `2025` |
+| `{{yyyymmdd-7*1}}` | 上周(天偏移 ×7) | `20260604` |
 
-偏移单位取 fmt 最小单位(`dd`→天、`mm`→月、`yyyy`→年);月末自动 clamp(2026-03-31 `${yyyymm-1}`→`202602`)。
+偏移单位取 fmt 最小单位(`dd`→天、`mm`→月、`yyyy`→年);月末自动 clamp(2026-03-31 `{{yyyymm-1}}`→`202602`)。
 
 ### 系统内置参数
 
 | 参数 | 含义 |
 |------|------|
-| `$bizdate` | 业务日 `yyyymmdd`(≡ `${yyyymmdd}`) |
-| `$bizmonth` | 业务月 `yyyymm`(同月取上月,否则取业务日月份) |
-| `$gmtdate` | 当前日期 `yyyymmdd` |
-| `$jobid` | workflow 实例 id |
-| `$nodeid` | workflow 节点 id |
-| `$taskid` | 任务实例 id |
+| `{{bizdate}}` | 业务日 `yyyymmdd`(≡ `{{yyyymmdd}}`) |
+| `{{bizmonth}}` | 业务月 `yyyymm`(同月取上月,否则取业务日月份) |
+| `{{gmtdate}}` | 当前日期 `yyyymmdd` |
+| `{{jobid}}` | workflow 实例 id |
+| `{{nodeid}}` | workflow 节点 id |
+| `{{taskid}}` | 任务实例 id |
 
 ### 自定义参数（递归展开）
 
-`paramsJson` 为 `{"name":"expr"}`。`content` 里 `${name}` 展开为 `expr`,**若 `expr` 仍含 `${...}` 继续递归展开**(任意深度,带循环检测):
+`paramsJson` 为 `{"name":"expr"}`。`content` 里 `{{name}}` 展开为 `expr`,**若 `expr` 仍含 `{{...}}` 继续递归展开**(任意深度,带循环检测):
 
 ```
-paramsJson: {"biz_dt":"${yyyymmdd-1}", "biz_pt":"dt=${biz_dt}"}
-content:    "WHERE ${biz_pt}"
+paramsJson: {"biz_dt":"{{yyyymmdd-1}}", "biz_pt":"dt={{biz_dt}}"}
+content:    "WHERE {{biz_pt}}"
 展开:       WHERE dt=20260610
 ```
 
 ## 限制
 
-- 字面嵌套 `${${...}}`(用展开结果当参数名)**不支持** → 解析失败。
-- 未定义占位符(`${x}` 既非日期格式也非自定义参数)→ 实例 `FAILED`,`failure_reason` 命名占位符。
-- 非内置 `$word`(如 shell `$HOME`)原样保留,不替换。
-- 无 `$` 的 `content` 原样返回(no-op,存量任务零影响)。
+- 字面嵌套 `{{{{...}}}}`(占位符内部又出现 `{{`)**不支持** → 解析失败。
+- 未闭合 `{{x` / 空 `{{}}` → 解析失败。
+- 未定义占位符(`{{x}}` 既非日期格式 / 内置词也非自定义参数)→ 实例 `FAILED`,`failure_reason` 命名占位符。
+- shell/SQL 自身的 `${...}`、`${VAR:-default}`、`$(...)`、`$HOME`、`$$`、`$1` 等**全部原样透传**,不替换(交给执行 shell)。
+- 无 `{{` 的 `content` 原样返回(no-op,存量任务与纯脚本零影响)。
 
 ## 替换时机
 

@@ -162,16 +162,16 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   const expressionPresets = useMemo(
     () => [
       { value: PRESET_PLACEHOLDER, label: t("taskEditor.presetInsert") },
-      { value: "${yyyymmdd}", label: t("taskEditor.presetYmd") },
-      { value: "${yyyymmdd-1}", label: t("taskEditor.presetYmdMinus1") },
-      { value: "${yyyymmdd-7*1}", label: t("taskEditor.presetYmdMinus7") },
-      { value: "${yyyy-mm-dd}", label: t("taskEditor.presetYmdDash") },
-      { value: "${yyyymm}", label: t("taskEditor.presetYm") },
-      { value: "${yyyymm-1}", label: t("taskEditor.presetYmMinus1") },
-      { value: "${yyyy-1}", label: t("taskEditor.presetYMinus1") },
-      { value: "$bizdate", label: t("taskEditor.presetBizdate") },
-      { value: "$bizmonth", label: t("taskEditor.presetBizmonth") },
-      { value: "$gmtdate", label: t("taskEditor.presetGmtdate") },
+      { value: "{{yyyymmdd}}", label: t("taskEditor.presetYmd") },
+      { value: "{{yyyymmdd-1}}", label: t("taskEditor.presetYmdMinus1") },
+      { value: "{{yyyymmdd-7*1}}", label: t("taskEditor.presetYmdMinus7") },
+      { value: "{{yyyy-mm-dd}}", label: t("taskEditor.presetYmdDash") },
+      { value: "{{yyyymm}}", label: t("taskEditor.presetYm") },
+      { value: "{{yyyymm-1}}", label: t("taskEditor.presetYmMinus1") },
+      { value: "{{yyyy-1}}", label: t("taskEditor.presetYMinus1") },
+      { value: "{{bizdate}}", label: t("taskEditor.presetBizdate") },
+      { value: "{{bizmonth}}", label: t("taskEditor.presetBizmonth") },
+      { value: "{{gmtdate}}", label: t("taskEditor.presetGmtdate") },
     ],
     [t],
   )
@@ -371,7 +371,7 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
           content: normalizeNewlines(content),
           type,
           paramsJson: serializeParams(paramRows) || null,
-          // 带上业务日期，使 ${yyyymmdd} 等日期占位符可解析（复用编辑器预览用的业务日期，默认昨天）
+          // 带上业务日期，使 {{yyyymmdd}} 等日期占位符可解析（复用编辑器预览用的业务日期，默认昨天）
           bizDate: previewBizDate || null,
           // SQL 任务运行需要数据源连接信息
           datasourceId: type === "SQL" ? datasourceId : null,
