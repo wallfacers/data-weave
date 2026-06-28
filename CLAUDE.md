@@ -122,6 +122,19 @@ This file is the map; details live elsewhere:
 - **Use `./dev-install.sh` for local builds** — auto-detects `mvnd` (~5x faster, falls back to `mvnw`), skips tests/fat jar, content-hash module cache (`.mvn/extensions.xml`). `-pl <module> -am` for one module + upstream deps.
 - It installs to `~/.m2` so `spring-boot:run` picks up new classes; skipping it means the running process keeps old jars. Use plain `./mvnw install` only for CI/deploy (needs tests + fat jar).
 
+### Long-Running Commands on WSL2 — MUST detach (hard rule)
+**Symptom**: a build/test (`mvnw test`, `mvn install`, `spring-boot:run`, long scripts) finishes (exit code already written, summary printed) but the tool call **hangs until timeout or manual interrupt**. **Root cause (WSL2)**: the Bash tool detects completion by **stdout/stderr pipe EOF** (all writers closed), not by the foreground process exiting. Maven forks child JVMs (surefire) and tests spawn subprocesses (worker `PythonTaskExecutor`/`ControlledCommandExecutor`/`localrun`) that **inherit and hold the persistent shell's stdout pipe**; they die slowly under WSL2, so EOF never arrives. Plain `>log 2>&1` is **not enough** — it only redirects the parent's fds, not the whole session.
+- **Detach into a new session** so nothing the build spawns can hold the tool's pipe; the foreground call returns in **milliseconds**:
+  ```bash
+  setsid bash -c 'cd backend && ./mvnw -pl <mods> test >build.log 2>&1; echo $? >build.exit' </dev/null >/dev/null 2>&1 & disown
+  ```
+- **Poll with a single instant check, never a foreground `sleep` loop** (the loop itself blocks the tool — this is a separate, self-inflicted hang):
+  ```bash
+  [ -f build.exit ] && echo "DONE exit=$(cat build.exit)" || { echo running; tail -1 build.log; }
+  ```
+  Need to wait? Use **one bounded** `sleep 120; <single poll>` per turn — not `for … do sleep …; done`.
+- `setsid` inherits the current shell's env (JAVA_HOME/PATH), so JDK 25 + `mvnd` stay available; redirect to a path under the session scratchpad, not a tracked dir.
+
 ### Frontend Stack Gate (before any `frontend/` change)
 - **base-style components**: custom triggers use `render` (not `asChild`); a `Button` rendered as `<a>` via `render={<Link/>}` needs `nativeButton={false}` or console errors.
 - **Icons = hugeicons**: `<HugeiconsIcon icon={XxxIcon} />` from `@hugeicons/core-free-icons` (not lucide).

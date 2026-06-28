@@ -50,6 +50,11 @@ DROP TABLE IF EXISTS tenants;
 DROP TABLE IF EXISTS task_run_table_io;
 DROP TABLE IF EXISTS task_table_io;
 DROP TABLE IF EXISTS data_table;
+-- 后续合并新增的独立表（无 FK 依赖）：与下方裸 CREATE 配对，补齐 DROP 才幂等。
+-- 缺 DROP 时 mode=always 在 PG 重启会 "table already exists" 致启动失败；
+-- 测试共享内存库二次跑 schema.sql 同样撞表 → context 加载失败级联。
+DROP TABLE IF EXISTS agent_chat_file;
+DROP TABLE IF EXISTS master_nodes;
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
