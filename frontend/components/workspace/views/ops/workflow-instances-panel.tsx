@@ -271,17 +271,17 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
         bulkActions={(ids, reload) => (
           <div className="flex items-center gap-1">
             {ids.length > 100 ? (
-              <span className="text-xs text-destructive">最多选中 100 个实例</span>
+              <span className="text-xs text-destructive">{t("bulkMaxHint")}</span>
             ) : (
               <>
                 <Button size="sm" variant="outline" onClick={() => runBatch("rerun", ids, reload)}>
-                  <HugeiconsIcon icon={PlayIcon} /> 批量重跑
+                  <HugeiconsIcon icon={PlayIcon} /> {t("batchRerun")}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => runBatch("set-success", ids, reload)}>
-                  <HugeiconsIcon icon={CheckmarkCircle01Icon} /> 批量置成功
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} /> {t("batchSetSuccess")}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => runBatch("kill", ids, reload)}>
-                  <HugeiconsIcon icon={StopIcon} /> 批量停止
+                  <HugeiconsIcon icon={StopIcon} /> {t("batchKill")}
                 </Button>
               </>
             )}
