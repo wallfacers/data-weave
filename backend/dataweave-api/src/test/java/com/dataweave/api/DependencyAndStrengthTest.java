@@ -73,12 +73,12 @@ class DependencyAndStrengthTest {
 
     @Test
     void createDependency_crossCycleRejected() {
-        // wf1 → wf3（无环，合法）：wf1.n1 依赖 wf3.n1
+        // wf1 → wf3（无环，合法）：wf1.n3 依赖 wf3.n1（seed 重构后 wf1 仅存节点 n3，n1/n2 已移除）
         workflowService.createDependency(1L,
-                new DependencyDto(null, null, 3L, null, "n1", "n1", "LAST_DAY", null, 1));
+                new DependencyDto(null, null, 3L, null, "n3", "n1", "LAST_DAY", null, 1));
         // wf3 → wf1（与既有 wf1→wf3 成环）→ 抛 BizException
         assertThatThrownBy(() -> workflowService.createDependency(3L,
-                new DependencyDto(null, null, 1L, null, "n1", "n1", "LAST_DAY", null, 1)))
+                new DependencyDto(null, null, 1L, null, "n1", "n3", "LAST_DAY", null, 1)))
                 .isInstanceOf(BizException.class);
     }
 }

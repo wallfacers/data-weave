@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -19,9 +20,14 @@ import static org.assertj.core.api.Assertions.*;
 /**
  * 子特性 C 集成测试：pull/push/diff + 隔离/校验/并发/删除守卫。
  * H2 内存库，seed data (project 1, tenant 1)。
+ *
+ * <p>本类直写/删 seed 项目数据（push 是 mutator）。MOCK 环境下与其他同配置测试类共享缓存上下文+内存库，
+ * 故用 {@link DirtiesContext.ClassMode#BEFORE_CLASS} 强制开类前重建上下文（全新库+干净 data.sql seed），
+ * 隔离前序 mutator 的污染。
  */
 @SpringBootTest
 @ActiveProfiles("h2")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 class ProjectSyncServiceTest {
 
     @Autowired

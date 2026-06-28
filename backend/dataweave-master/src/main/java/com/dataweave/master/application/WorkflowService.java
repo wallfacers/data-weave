@@ -744,8 +744,11 @@ public class WorkflowService {
         // 无环校验（复用既有校验器，只看未删边）
         graphValidator.validateWorkflowDagAcyclic(id);
 
-        writeWorkflowVersionSnapshot(id, remark);
+        // writeWorkflowVersionSnapshot 已在库中把 current_version_no 推进到 newVersionNo（经其自身载入的实例）。
+        // 必须把新版本号同步回外层 stale 实例，否则下面的 save(wf) 会用旧值（0）覆盖刚写入的版本号。
+        Integer newVersionNo = writeWorkflowVersionSnapshot(id, remark);
 
+        wf.setCurrentVersionNo(newVersionNo);
         wf.setStatus("ONLINE");
         wf.setHasDraftChange(0);
         wf.setUpdatedAt(LocalDateTime.now());

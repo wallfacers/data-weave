@@ -5,6 +5,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.cors.reactive.CorsUtils;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -50,6 +51,13 @@ public class JwtAuthFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        // CORS 预检（OPTIONS + Origin + Access-Control-Request-Method）必须放行：
+        // 预检请求不带凭证，应由 CorsWebFilter 应答；本 filter @Order(-90) 先于 CorsWebFilter，
+        // 若不豁免会对 /api/** 的预检直接 401，导致浏览器对 PATCH/DELETE 等的预检失败。
+        if (CorsUtils.isPreFlightRequest(exchange.getRequest())) {
+            return chain.filter(exchange);
+        }
+
         String path = exchange.getRequest().getPath().value();
 
         // 非 /api 路径或白名单路径，跳过

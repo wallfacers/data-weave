@@ -104,28 +104,29 @@ class CatalogApiTest {
 
     @Test
     void assignCatalog_nullClears_missingNoChange() throws Exception {
-        // 用既有 seed 任务 id=1（project 1）做归类语义验证
+        // 用既有 seed 任务 id=2（project 1，deleted=0 的 live 任务；task 1 在 seed 已软删除 deleted=1，
+        // 不会出现在 /api/tasks 的 WHERE deleted=0 列表里，故归类语义验证须用 live 任务）
         long folder = createFolder(1L, null, "归类目标-" + port);
 
         // 给值 → 归入
-        client.patch().uri("/api/tasks/1/catalog").contentType(MediaType.APPLICATION_JSON)
+        client.patch().uri("/api/tasks/2/catalog").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("catalogNodeId", folder))
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.code").isEqualTo(0);
-        assertThat(catalogOfTask(1)).isEqualTo(folder);
+        assertThat(catalogOfTask(2)).isEqualTo(folder);
 
         // 字段缺失 {} → 不改
-        client.patch().uri("/api/tasks/1/catalog").contentType(MediaType.APPLICATION_JSON)
+        client.patch().uri("/api/tasks/2/catalog").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of())
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.code").isEqualTo(0);
-        assertThat(catalogOfTask(1)).isEqualTo(folder);
+        assertThat(catalogOfTask(2)).isEqualTo(folder);
 
         // 显式 null → 清空
         Map<String, Object> nullBody = new HashMap<>();
         nullBody.put("catalogNodeId", null);
-        client.patch().uri("/api/tasks/1/catalog").contentType(MediaType.APPLICATION_JSON)
+        client.patch().uri("/api/tasks/2/catalog").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(nullBody)
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.code").isEqualTo(0);
-        assertThat(catalogOfTask(1)).isNull();
+        assertThat(catalogOfTask(2)).isNull();
     }
 
     @Test

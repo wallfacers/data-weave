@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
@@ -20,9 +21,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 深度 round-trip 完整性（SC-001）：验证 push 落库时 workflow 节点→任务绑定、
  * 数据源、版本快照真正存活,而不仅是文件名 keySet 存活。
+ *
+ * <p>push 是 mutator，与同配置 MOCK 测试类共享缓存上下文+内存库；用
+ * {@link DirtiesContext.ClassMode#BEFORE_CLASS} 开类前重建上下文隔离前序污染。
  */
 @SpringBootTest
 @ActiveProfiles("h2")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 class ProjectSyncRoundTripIntegrityTest {
 
     @Autowired ProjectSyncService syncService;
