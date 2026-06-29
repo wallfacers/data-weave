@@ -150,7 +150,7 @@ func httpClient() *http.Client { return &http.Client{Timeout: 15 * time.Second} 
 func mustGet(path string) []byte {
 	req, _ := http.NewRequest(http.MethodGet, apiBase()+path, nil)
 	if t := token(); t != "" {
-		req.Header.Set("X-DW-Token", t)
+		req.Header.Set("Authorization", "Bearer "+t)
 	}
 	return do(req)
 }
@@ -159,7 +159,7 @@ func mustPost(path string) []byte {
 	req, _ := http.NewRequest(http.MethodPost, apiBase()+path, bytes.NewReader([]byte("{}")))
 	req.Header.Set("Content-Type", "application/json")
 	if t := token(); t != "" {
-		req.Header.Set("X-DW-Token", t)
+		req.Header.Set("Authorization", "Bearer "+t)
 	}
 	return do(req)
 }
@@ -309,10 +309,10 @@ func usageRoot() {
 
 环境变量：
   DW_API        后端地址（默认 http://localhost:8000）
-  DW_TOKEN      task/logs 写类操作用 X-DW-Token；pull/push/diff/run 用登录 JWT（Bearer）
+	  DW_TOKEN      统一 Bearer 凭据（所有命令统一使用 Authorization: Bearer）
   DW_WORKER_CP  dw run 的 Java runtime classpath 或 worker fat jar 路径（缺省自动探测）
 
-退出码：0 成功 / 2 用法错误 / 3 越权 / 4 服务端业务错误 / 5 网络错误 / 6 run 环境错误（任务失败透传 runner 退出码）
+	退出码：0 成功 / 2 用法错误 / 3 越权 / 4 服务端业务错误 / 5 网络错误 / 6 任务执行失败 / 7 环境错误（缺 JVM/worker classpath）
 
 示例：
   dw task list --json
