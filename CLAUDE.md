@@ -169,9 +169,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [006-workflow-instance-ops](specs/006-workflow-instance-ops/spec.md)
-Implementation plan: [plan.md](specs/006-workflow-instance-ops/plan.md)
-Research: [research.md](specs/006-workflow-instance-ops/research.md)
-Data model: [data-model.md](specs/006-workflow-instance-ops/data-model.md)
-API contracts: [api-changes.md](specs/006-workflow-instance-ops/contracts/api-changes.md)
+Current feature: [015-agent-authoring-skill](specs/015-agent-authoring-skill/spec.md)
+Implementation plan: [plan.md](specs/015-agent-authoring-skill/plan.md)
+Research: [research.md](specs/015-agent-authoring-skill/research.md)
+Data model: [data-model.md](specs/015-agent-authoring-skill/data-model.md)
+API contracts: [contracts/](specs/015-agent-authoring-skill/contracts/)
 <!-- SPECKIT END -->
