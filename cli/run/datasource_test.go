@@ -112,15 +112,60 @@ wh:
 
 func TestLookupDatasourcesIncompleteErrors(t *testing.T) {
 	dir := t.TempDir()
+	// FR-017：LoadDatasources 现已做提前校验 —— 缺 jdbcUrl 在加载时即报错
 	writeDatasources(t, dir, `
 wh:
   typeCode: POSTGRESQL
   # missing jdbcUrl
   username: u
 `)
-	_, err := LookupDatasource(dir, "wh")
+	_, err := LoadDatasources(dir)
 	if err == nil {
-		t.Fatal("expected error for incomplete datasource (no jdbcUrl)")
+		t.Fatal("expected error for incomplete datasource at load time (no jdbcUrl)")
+	}
+	if !strings.Contains(err.Error(), "jdbcUrl") {
+		t.Fatalf("error should mention missing jdbcUrl: %v", err)
+	}
+	if !strings.Contains(err.Error(), "wh") {
+		t.Fatalf("error should name the datasource 'wh': %v", err)
+	}
+}
+
+func TestLoadDatasourcesMissingTypeCodeErrors(t *testing.T) {
+	dir := t.TempDir()
+	// FR-017：缺 typeCode 也应在加载时报错
+	writeDatasources(t, dir, `
+wh:
+  jdbcUrl: jdbc:postgresql://localhost/db
+  username: u
+  password: p
+`)
+	_, err := LoadDatasources(dir)
+	if err == nil {
+		t.Fatal("expected error for datasource missing typeCode")
+	}
+	if !strings.Contains(err.Error(), "typeCode") {
+		t.Fatalf("error should mention missing typeCode: %v", err)
+	}
+}
+
+func TestLookupDatasourcesIncompleteAtLookupTime(t *testing.T) {
+	// 通过 LoadDatasources 校验的数据源，在 Lookup 时仍可因缺失报错
+	// （提前校验已覆盖 jdbcUrl/typeCode，此测试验证 Lookup 对逻辑名缺失的报错）
+	dir := t.TempDir()
+	writeDatasources(t, dir, `
+wh:
+  typeCode: POSTGRESQL
+  jdbcUrl: jdbc:postgresql://localhost/db
+  username: u
+  password: p
+`)
+	_, err := LookupDatasource(dir, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing logical name")
+	}
+	if !strings.Contains(err.Error(), "nonexistent") {
+		t.Fatalf("error should name the missing datasource: %v", err)
 	}
 }
 

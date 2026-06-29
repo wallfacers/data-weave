@@ -84,12 +84,13 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 
 	code, runErr := runCommand(cmd)
 	if runErr != nil {
-		// java 启动失败（无 JVM / classpath 不可用）→ 可定位环境错误（FR-007）
-		return &client.ExitError{Code: client.ExitRunFailed,
-			Message: fmt.Sprintf("启动本地 runtime 失败（缺 JVM 或 classpath）：%v", runErr)}
+		// java 启动失败（无 JVM / classpath 不可用）→ 环境错误 (7)，可定位（FR-016）
+		return &client.ExitError{Code: client.ExitEnvironment,
+			Message: fmt.Sprintf("启动本地 runtime 失败（缺 JVM 或 classpath）：%v。"+
+				"请确认 java 在 PATH 中，或设 DW_WORKER_CP 指向 worker classpath/fat jar", runErr)}
 	}
 	if code != 0 {
-		// 透传 runner 退出码（data-model §3：失败/超时非0）
+		// 透传 runner 退出码（FR-016：runner 非零码=任务执行失败，与环境错区分）
 		return &client.ExitError{Code: code,
 			Message: fmt.Sprintf("任务执行失败（退出码 %d，详见上方输出）", code)}
 	}

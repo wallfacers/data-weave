@@ -45,6 +45,16 @@ func LoadDatasources(workDir string) (map[string]Datasource, error) {
 		ds.Name = name
 		raw[name] = ds
 	}
+
+		// FR-017：加载即校验必填字段，错误左移到运行前（可定位：数据源名 + 缺哪个字段）
+		for name, ds := range raw {
+			if ds.JdbcURL == "" {
+				return nil, fmt.Errorf("数据源 %q 配置不完整：缺少 jdbcUrl（%s）", name, path)
+			}
+			if ds.TypeCode == "" {
+				return nil, fmt.Errorf("数据源 %q 配置不完整：缺少 typeCode（%s）", name, path)
+			}
+		}
 	return raw, nil
 }
 
