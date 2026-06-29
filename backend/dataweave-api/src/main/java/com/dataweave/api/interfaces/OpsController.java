@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -61,6 +62,9 @@ public class OpsController {
     private final DataOpsBridge dataOpsBridge;
     private final GatedActionService gatedActionService;
     private final WorkflowService workflowService;
+
+    /** 当前活跃 SSE 长连接计数（logStream live 路径 + workflowEventsStream），供 scheduler.sse.connections Gauge。 */
+    private final AtomicLong sseConnCount = new AtomicLong(0);
 
     public OpsController(OpsService opsService, RecoveryService recoveryService,
                          SchedulerMetrics metrics, SlaService slaService,
@@ -561,6 +565,7 @@ public class OpsController {
         metrics.refreshOldestAge();
         metrics.refreshSlotUtilization();
         metrics.refreshFragmentation();
+        metrics.setLogStreamBacklog(logBus.totalBacklog());
         return ApiResponse.ok(metrics.snapshot());
     }
 
@@ -586,6 +591,8 @@ public class OpsController {
         final String[] afterId = {lastEventId};
         final long stateCheckEvery = 10; // 10 × 200ms = 2s
         return Flux.interval(Duration.ofMillis(200))
+                .doOnSubscribe(s -> sseConnect())
+                .doFinally(s -> sseDisconnect())
                 .concatMap(tick -> {
                     List<ServerSentEvent<String>> out = new ArrayList<>();
                     for (LogBus.Entry entry : logBus.read(id, afterId[0], 100)) {
@@ -680,7 +687,9 @@ public class OpsController {
         });
 
         return sink.asFlux()
-                .doOnCancel(() -> {
+                .doOnSubscribe(s -> sseConnect())
+                .doFinally(s -> {
+                    sseDisconnect();
                     try {
                         subscription.close();
                     } catch (Exception e) {
@@ -690,6 +699,16 @@ public class OpsController {
     }
 
     // ─── helpers ────────────────────────────────────────
+
+    /** SSE 长连接 +1（订阅时调一次，同步推 Gauge）。 */
+    private void sseConnect() {
+        metrics.setSseConnections(sseConnCount.incrementAndGet());
+    }
+
+    /** SSE 长连接 -1（任意终止时调一次，同步推 Gauge）。与 sseConnect 经 doOnSubscribe/doFinally 严格配对。 */
+    private void sseDisconnect() {
+        metrics.setSseConnections(sseConnCount.decrementAndGet());
+    }
 
     /** 构造批量操作请求（每个 instance 独立一个 ActionRequest，逐经闸门）。 */
     private ActionRequest buildBatchActionRequest(UUID instanceId, BatchOp op) {

@@ -1,6 +1,7 @@
 package com.dataweave.api;
 
 import com.dataweave.api.interfaces.OpsController;
+import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.domain.LogBus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -40,6 +42,7 @@ class LogStreamTerminalOutcomeTest {
     @Autowired OpsController opsController;
     @Autowired JdbcTemplate jdbc;
     @Autowired LogBus logBus;
+    @Autowired SchedulerMetrics metrics;
 
     /** 建一个 run_mode=NORMAL、指定 state 的 task_instance（含其所属 workflow_instance）。 */
     private UUID insertInstance(String state) {
@@ -131,5 +134,45 @@ class LogStreamTerminalOutcomeTest {
         List<ServerSentEvent<String>> events = future.get(BOUND.toSeconds(), TimeUnit.SECONDS);
         assertThat(events).isNotNull();
         assertThat(events).anyMatch(s -> isEnd(s) && s.data() != null && s.data().contains("\"state\":\"SUCCESS\""));
+    }
+
+    // ─── SSE 活跃连接计数（scheduler.sse.connections）──────────────────────
+
+    @Test
+    void sse连接_订阅增一_终止减一回零() throws Exception {
+        UUID id = insertInstance("RUNNING"); // live 路径（Flux.interval）才挂 doOnSubscribe/doFinally
+        long before = metrics.snapshot().sseConnections;
+        Disposable sub = opsController.logStream(id, null).subscribe();
+        Thread.sleep(300); // 等 doOnSubscribe 经 interval 调度器触发
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before + 1);
+        sub.dispose();
+        Thread.sleep(300); // 等 doFinally(cancel) 触发
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before);
+    }
+
+    @Test
+    void sse连接_连续多次订阅终止不泄漏() throws Exception {
+        UUID id = insertInstance("RUNNING");
+        long before = metrics.snapshot().sseConnections;
+        for (int i = 0; i < 5; i++) {
+            Disposable sub = opsController.logStream(id, null).subscribe();
+            Thread.sleep(150);
+            sub.dispose();
+            Thread.sleep(150);
+        }
+        // 5 次订阅+终止后精确回到 before（doFinally 对称、无泄漏）
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before);
+    }
+
+    @Test
+    void sse连接_workflowEvents订阅增减() throws Exception {
+        UUID wfId = UUID.randomUUID();
+        long before = metrics.snapshot().sseConnections;
+        Disposable sub = opsController.workflowEventsStream(wfId).subscribe();
+        Thread.sleep(300);
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before + 1);
+        sub.dispose();
+        Thread.sleep(300);
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before);
     }
 }

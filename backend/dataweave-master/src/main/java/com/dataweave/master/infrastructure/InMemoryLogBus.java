@@ -58,6 +58,18 @@ public class InMemoryLogBus implements LogBus {
         return out;
     }
 
+    @Override
+    public long totalBacklog() {
+        long sum = 0;
+        // 遍历弱一致快照，逐 Stream 取 size（与 append/read 同锁，读一致）。
+        for (Stream s : streams.values()) {
+            synchronized (s) {
+                sum += s.entries.size();
+            }
+        }
+        return sum;
+    }
+
     private long parse(String afterId) {
         if (afterId == null || afterId.isBlank()) {
             return 0L;

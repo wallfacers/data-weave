@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -196,6 +197,10 @@ public class SchedulerKernel {
                 int attempt = (r.attempt == null ? 0 : r.attempt) + 1;
                 LocalDateTime lease = now.plusSeconds(leaseSeconds);
                 if (stateMachine.casDispatch(r.id, InstanceStates.WAITING, code, lease, attempt)) {
+                    // 派单延迟：WAITING 入队时刻（updated_at）→ 派单成功此刻（now）；与 lease 同口径。
+                    if (r.waitingSince != null) {
+                        metrics.recordDispatchLatency(Duration.between(r.waitingSince, now));
+                    }
                     ns.used++;
                     String content = resolveContentSafely(r, now);
                     if (content == null) {

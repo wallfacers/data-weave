@@ -31,6 +31,8 @@ public class RedisLogBus implements LogBus {
     private static final long TTL_SECONDS = 3600; // 1h
 
     private final StringRedisTemplate redisTemplate;
+    /** 已写入过的实例集合（供 totalBacklog 遍历 XLEN；TTL 过期后 key 消失但残留项 XLEN 返回 0，不影响求和）。 */
+    private final java.util.Set<UUID> knownInstances = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public RedisLogBus(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -39,6 +41,7 @@ public class RedisLogBus implements LogBus {
     @Override
     public void append(UUID instanceId, String line) {
         String key = streamKey(instanceId);
+        knownInstances.add(instanceId);
         try {
             redisTemplate.opsForStream().add(key, Map.of("line", line));
             // 设置 TTL（每次 append 刷新）
@@ -78,6 +81,23 @@ public class RedisLogBus implements LogBus {
             log.warn("[RedisLogBus] read 失败：instance={}, error={}", instanceId, e.getMessage());
             return List.of();
         }
+    }
+
+    @Override
+    public long totalBacklog() {
+        // 逐已知实例 XLEN 求和；key 已过期/丢失返回 0，异常计 0（不影响正确性）。
+        long sum = 0;
+        for (UUID id : knownInstances) {
+            try {
+                Long size = redisTemplate.opsForStream().size(streamKey(id));
+                if (size != null) {
+                    sum += size;
+                }
+            } catch (Exception e) {
+                // key 已过期或丢失 → 计 0
+            }
+        }
+        return sum;
     }
 
     private String streamKey(UUID instanceId) {

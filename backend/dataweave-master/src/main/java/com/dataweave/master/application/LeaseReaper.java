@@ -36,17 +36,20 @@ public class LeaseReaper {
     private final RetryService retryService;
     private final WorkerNodeRepository nodeRepository;
     private final EventBus eventBus;
+    private final SchedulerMetrics metrics;
 
     public LeaseReaper(JdbcTemplate jdbc,
                        InstanceStateMachine stateMachine,
                        RetryService retryService,
                        WorkerNodeRepository nodeRepository,
-                       EventBus eventBus) {
+                       EventBus eventBus,
+                       SchedulerMetrics metrics) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.retryService = retryService;
         this.nodeRepository = nodeRepository;
         this.eventBus = eventBus;
+        this.metrics = metrics;
     }
 
     /**
@@ -154,6 +157,7 @@ public class LeaseReaper {
         // 但此时实例已是 FAILED 终态，需要用 RetryService 的逻辑判断是否回队
         // 简化：直接查 task_def.retry_max 判断
         tryRetry(inst, reason);
+        metrics.markLeaseReclaim(); // 仅在 casTaskTerminal 成功（真实回收）后计数一次
         return true;
     }
 

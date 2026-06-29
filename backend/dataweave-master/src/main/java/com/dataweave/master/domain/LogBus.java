@@ -19,6 +19,12 @@ public interface LogBus {
     List<Entry> read(UUID instanceId, String afterId, int limit);
 
     /**
+     * 全总线当前积压行数总和（所有实例流的当前长度之和），供 {@code scheduler.log.stream.backlog} Gauge。
+     * 实现应容忍并发修改与已过期实例，返回 0 而非抛异常。
+     */
+    long totalBacklog();
+
+    /**
      * 一行日志及其流内偏移 id（用于 SSE Last-Event-ID 续传）。
      *
      * @param id   流内偏移标识（memory 实现为自增序号字符串；Redis 为 Stream entry id）
