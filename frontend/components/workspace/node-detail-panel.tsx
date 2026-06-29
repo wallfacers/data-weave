@@ -12,6 +12,7 @@ import { DetailPanelShell } from "@/components/workspace/detail-panel-shell"
 import { CodeBlock } from "@/components/workspace/shared/code-block"
 import { ParamsTable, InfoRow, taskTypeToLang } from "@/components/workspace/shared/params-table"
 import { useNodeDetailStore } from "@/lib/workspace/node-detail-store"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 /** 任务类型 → 人类可读标签 */
 function taskTypeLabel(taskType: string, t: (key: string) => string): string {
@@ -30,6 +31,7 @@ export function NodeDetailPanel() {
   const errorMessage = useNodeDetailStore((s) => s.errorMessage)
   const deselectNode = useNodeDetailStore((s) => s.deselectNode)
   const retry = useNodeDetailStore((s) => s.retry)
+  const formatDateTime = useFormatDateTime()
 
   if (!selectedNode || loadState === "idle") return null
 
@@ -66,7 +68,7 @@ export function NodeDetailPanel() {
               <InfoRow label={t("nodeDetail.taskType")} value={taskTypeLabel(detail.taskType, t)} />
               <InfoRow label={t("nodeDetail.versionNo")} value={`v${detail.versionNo}`} />
               {detail.publishedAt && (
-                <InfoRow label={t("nodeDetail.publishedAt")} value={detail.publishedAt} />
+                <InfoRow label={t("nodeDetail.publishedAt")} value={formatDateTime(detail.publishedAt)} />
               )}
               <InfoRow label={t("nodeDetail.timeout")} value={`${detail.timeoutSec}s`} />
               <InfoRow label={t("nodeDetail.retryMax")} value={String(detail.retryMax)} />
