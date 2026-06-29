@@ -266,6 +266,34 @@ func TestExitCodeSemanticsDistinct(t *testing.T) {
 	}
 }
 
+func TestMapRunExit(t *testing.T) {
+	// 成功：code 0 → nil
+	if err := mapRunExit(0, nil); err != nil {
+		t.Fatalf("code 0 → %v, want nil", err)
+	}
+	// 启动失败（runErr 非空，缺 JVM/classpath）→ ExitEnvironment(7)，与作业失败可区分
+	envErr := mapRunExit(-1, exec.ErrNotFound)
+	ee, ok := envErr.(*client.ExitError)
+	if !ok || ee.Code != client.ExitEnvironment {
+		t.Fatalf("启动失败应为 ExitEnvironment(7)，got %v", envErr)
+	}
+	// runner 非零码 → 一律归一到 ExitRunFailed(6)，原始码入 message（不透传原值撞 7/255/137 等契约外码）
+	for _, code := range []int{1, 6, 7, 137, 255} {
+		err := mapRunExit(code, nil)
+		re, ok := err.(*client.ExitError)
+		if !ok {
+			t.Fatalf("runner code %d → %T, want *client.ExitError", code, err)
+		}
+		if re.Code != client.ExitRunFailed {
+			t.Errorf("runner code %d → dw 退出码 %d, want ExitRunFailed(%d)（退出码契约:作业失败恒 6，不撞 7=环境错误）",
+				code, re.Code, client.ExitRunFailed)
+		}
+		if !strings.Contains(re.Message, strconv.Itoa(code)) {
+			t.Errorf("runner code %d 的 message 应含原始码供诊断，got %q", code, re.Message)
+		}
+	}
+}
+
 func TestRunLocalMissingClasspathReturnsUsageError(t *testing.T) {
 	// FindWorkerClasspath 找不到 → ExitUsage(2)（配置问题，非环境错误）
 	t.Setenv("DW_WORKER_CP", "")

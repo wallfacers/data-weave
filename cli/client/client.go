@@ -34,7 +34,7 @@ const (
 	ExitUnauthorized = 3
 	ExitServer      = 4
 	ExitNetwork     = 5
-	ExitRunFailed   = 6 // 任务执行失败（透传 runner 非零退出码）
+	ExitRunFailed   = 6 // 任务执行失败（dw run 恒返回 6；runner 原始非零码写入 message 供诊断，不透传原值以免撞 7=环境错误）
 	ExitEnvironment = 7 // 环境/前置错误（缺 JVM/worker classpath）
 )
 

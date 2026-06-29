@@ -98,17 +98,24 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	code, runErr := runCommand(cmd)
+	return mapRunExit(runCommand(cmd))
+}
+
+// mapRunExit 把 LocalRunMain 子进程结果映射为 dw 退出码（FR-016，退出码契约见 client.go）：
+//   - 启动失败（runErr 非空：缺 JVM / classpath 不可用）→ ExitEnvironment(7)，可定位。
+//   - runner 非零码（作业失败 / 超时被杀 137 / jar 缺失 255 …）→ 一律归一到 ExitRunFailed(6)，
+//     原始码写入 message 供诊断——**不透传原值**，否则作业恰好退 7 会撞「7=环境错误」语义、
+//     退 137/255 落在契约码表 {0,2,3,4,5,6,7} 之外，调用方无法按契约判读。
+//   - code==0 → nil（成功）。
+func mapRunExit(code int, runErr error) error {
 	if runErr != nil {
-		// java 启动失败（无 JVM / classpath 不可用）→ 环境错误 (7)，可定位（FR-016）
 		return &client.ExitError{Code: client.ExitEnvironment,
 			Message: fmt.Sprintf("启动本地 runtime 失败（缺 JVM 或 classpath）：%v。"+
 				"请确认 java 在 PATH 中，或设 DW_WORKER_CP 指向 worker classpath/fat jar", runErr)}
 	}
 	if code != 0 {
-		// 透传 runner 退出码（FR-016：runner 非零码=任务执行失败，与环境错区分）
-		return &client.ExitError{Code: code,
-			Message: fmt.Sprintf("任务执行失败（退出码 %d，详见上方输出）", code)}
+		return &client.ExitError{Code: client.ExitRunFailed,
+			Message: fmt.Sprintf("任务执行失败（runner 退出码 %d，详见上方输出）", code)}
 	}
 	return nil
 }

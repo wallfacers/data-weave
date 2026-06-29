@@ -112,6 +112,8 @@ This file is the map; details live elsewhere:
 | MCP 工具重塑（E）| `specs/010-weft-mcp-tools/` spec/plan/tasks；`McpToolRegistry.java`(工具注册) + `McpAuthFilter.java`(身份绑定 E1) + `McpController.java`(TenantContext 注入) + `DefaultPlatformActionExecutor.java`(PROJECT_PUSH case E4) + `data.sql`(policy_rules seed E3) |
 | MCP 身份 + 租户隔离 | `TenantContext.java`(ThreadLocal) → `McpAuthFilter` 置 exchange 属性 → `McpController` set/finally clear；`requireTenant()` 校验；repo 增量方法 `findByTenantId*`
 | How to run             | [README.md](README.md)                                      |
+| **权威 Schema 真相源** | `backend/dataweave-api/src/main/resources/schema.sql`（单一权威 DDL；`db/migration/` 已删除，不再用增量脚本） |
+| **Schema 版本** | `schema_version` 单行表（在 schema.sql 内；version = 项目发布版本，严格 SemVer `MAJOR.MINOR.PATCH`，基线 `0.0.1`）；改表必升版本；库内/文件头/项目版本三处恒等 |
 
 ## Working Rules
 
@@ -171,9 +173,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [016-spark-runtime-parity](specs/016-spark-runtime-parity/spec.md)
-Implementation plan: [plan.md](specs/016-spark-runtime-parity/plan.md)
-Research: [research.md](specs/016-spark-runtime-parity/research.md)
-Data model: [data-model.md](specs/016-spark-runtime-parity/data-model.md)
-API contracts: [contracts/](specs/016-spark-runtime-parity/contracts/)
+Current feature: [017-sql-schema-versioning](specs/017-sql-schema-versioning/spec.md)
+Implementation plan: [plan.md](specs/017-sql-schema-versioning/plan.md)
+Research: [research.md](specs/017-sql-schema-versioning/research.md)
+Data model: [data-model.md](specs/017-sql-schema-versioning/data-model.md)
+API contracts: [contracts/](specs/017-sql-schema-versioning/contracts/)
 <!-- SPECKIT END -->

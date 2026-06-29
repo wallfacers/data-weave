@@ -38,8 +38,8 @@ dw run my-spark-task          # 真提交 spark-submit --master local[*]，stdou
 ```
 
 **预期**（SC-001/005）：
-- 装 Spark：真跑出结果，成功 exit 0 / 作业失败 exit 6。
-- 不装 Spark：`dw run` 输出"已跳过（本地无 Spark 环境）"，**不报错退出**。
+- 装 Spark：真跑出结果，成功 exit 0 / 作业失败时 `dw run` **透传 spark-submit 的非零退出码原值**（如作业退 7→dw 退 7；超时被杀→137；jar 缺失→255）。注：`ExitRunFailed=6` 是 `client.go` 对该类失败的语义命名，但 `dw run` 实现为忠实透传 runner 原始码、不归一到 6——此退出码契约与实现的张力是 D 特性（009）既有技术债，与 `client.go:37`/README 退出码表一并待收口（见 memory `weft-016-verification`），不属本特性范围。
+- 不装 Spark：`dw run` 输出"已跳过（本地无 Spark 环境）"，**exit 0、不报错退出**（`ExecutionResult.skipped()` → exitCode 0/success false/skipped true，reason 写 stderr 可辨识）。
 
 ## 第 2 层：服务端 TEST（yarn 漂移验证）
 

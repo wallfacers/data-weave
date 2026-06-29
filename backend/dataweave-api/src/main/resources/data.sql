@@ -521,9 +521,7 @@ INSERT INTO task_instance (id, tenant_id, project_id, workflow_instance_id, work
 ('01910000-0060-7000-8000-000000000003', 1, 1, '01910000-0006-7000-8000-000000000006', 16, 26, 1, '对账差异计算', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-2', TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', '[mock] 对账差异: 3 channels 差异>5%, 需人工复核', 1, 1, TIMESTAMP '2026-05-31 09:08:35', TIMESTAMP '2026-05-31 09:12:00', 0, 0),
 ('01910000-0060-7000-8000-000000000004', 1, 1, '01910000-0006-7000-8000-000000000006', 17, 27, 1, '对账报告输出', '月度财务对账', NULL, 'NORMAL', 'SUCCESS', 1, 'node-5', TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', '[mock] 对账报告 PDF 已生成: /reports/2026-05-reconciliation.pdf', 1, 1, TIMESTAMP '2026-05-31 09:12:05', TIMESTAMP '2026-05-31 09:44:50', 0, 0);
 
--- demo（proactive-discovery）：一条「未诊断」的 FAILED 实例（无对应 finding/diagnosis），
--- 供 InspectorScheduler 启动后实时发现 → 自动诊断（真证据：node-3 mem 95%）→ 举手台冒出新卡片
--- → Agent 主动开口。fresh boot 即可演示主动发现链路，无需 PG/故障注入脚本。
+-- 一条 FAILED 实例素材（OOM@node-3，真证据：node-3 mem 95%），供 ops/run-logs 演示失败现场。
 INSERT INTO task_instance (id, tenant_id, project_id, task_id, task_def_name, run_mode, state, attempt, worker_node_code, started_at, finished_at, log, exit_code, failure_reason, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 ('01910000-0010-7000-8000-00000000000b', 1, 1, 10, '抽取-拉取订单分区', 'NORMAL', 'FAILED', 1, 'node-3', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'stage 3 shuffle read 4.2GB: java.lang.OutOfMemoryError: Java heap space; container killed by YARN, used 9.4GB of 8GB physical memory', 137, 'EXIT_NONZERO', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
 
@@ -553,8 +551,8 @@ INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, loa
 (4, 'node-4', 'worker-4', '10.0.0.14', '8C/16G', 0.0,  0.0,  33.0, 0.00, 0, 'OFFLINE', TIMESTAMP '2026-06-10 06:12:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 06:12:00', 0, 0),
 (5, 'node-5', 'worker-5', '10.0.0.15', '8C/16G', 12.0, 30.0, 40.0, 0.90, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0);
 
--- 注：OOM@node-3 的预填诊断结论（task_diagnosis / finding / 首屏 Finding）已移至 demo-data.sql，
--- 默认不加载（仅 demo profile）。data.sql 仅保留失败实例素材与节点注册，由 Inspector 运行期真诊断。
+-- 注：旧 AI 驾驶舱的预填诊断结论（task_diagnosis / finding 表）已随 AI 拆除移除；
+-- data.sql 仅保留失败实例素材与节点注册。
 
 -- ===== 域 G · 审计与 mock 业务 =====
 INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, target_id, detail_json, created_at) VALUES
