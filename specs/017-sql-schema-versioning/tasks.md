@@ -92,7 +92,7 @@
 
 **Independent Test**: 在含旧结构/旧数据的库上重启，结构按权威 schema 重建、应用正常；无迁移代码路径。
 
-- [ ] T016 [US4] 在含旧数据的 PostgreSQL 上重启验证覆盖式重建：`docker compose up -d` → `./dev-install.sh` → `setsid` `spring-boot:run`（默认 PG）→ `curl localhost:8000/api/health` 健康 → `psql ... 'SELECT * FROM schema_version;'` 返回 1 行 `0.0.1`（quickstart §3）。（仅 H2 验证，PG 真库待人工 —— WSL2 环境 Docker 不可达）
+- [x] T016 [US4] 在含旧数据的 PostgreSQL 上重启验证覆盖式重建：`docker compose up -d` → `./dev-install.sh` → `setsid` `spring-boot:run`（默认 PG）→ `curl localhost:8000/api/health` 健康 → `psql ... 'SELECT * FROM schema_version;'` 返回 1 行 `0.0.1`（quickstart §3）。**已真跑(2026-06-30)**：旧库(pre-017，含 finding/task_diagnosis 旧结构)种 stale 行 `task_def(id=999999)` → 启动 017 app → stale 行消失、`task_def` 回 21 行种子(DROP+recreate+reseed 覆盖证实)、health=200、`schema_version` 单行 `0.0.1`。**边界**：`finding`/`task_diagnosis` 旧表作为孤儿残留(schema.sql 的 DROP 列表不含非自管表)——纯新库无此问题、两表零代码引用无害，彻底清除需手动 DROP 或新卷。
 - [x] T017 [US4] 核对并声明无遗留迁移路径：确认未新增任何 Flyway/Liquibase/迁移脚本，`spring.sql.init mode=always` + `DROP IF EXISTS` 覆盖式不变；记录于 quickstart/research（边界声明，非代码改动）。
 
 **Checkpoint**: 覆盖式发布闭环，存量不予考虑被验证。
@@ -103,8 +103,8 @@
 
 **Purpose**: 全量回归、跨特性缝合、知识库与记忆固化
 
-- [x] T018 全量 api 套件回归：`setsid` 跑 `./mvnw -pl dataweave-api test`，确认全绿、**无 masked-red**（与 T003 基线对比，遵守 backend 测试隔离不变量）。（139 run / 0 fail / 4 err / 0 skip；4 err = LineageGraphEndpointTest 上下文加载 NoClassDefFoundError: McpTool$Handler，确证既有技术债非 017 引入；SchemaVersionIT 6/6 全绿；无 017 引入的 masked-red）
-- [ ] T019 [P] PostgreSQL 真库手工验证（quickstart §3）：默认 profile 启动 + 直连库确认 `schema_version` 单行 `0.0.1` + 全表建成（双库兼容 SC-007）。（仅 H2 验证，PG 真库待人工 —— WSL2 环境 Docker 不可达）
+- [x] T018 全量 api 套件回归：`setsid` 跑 `./mvnw -pl dataweave-api test`，确认全绿、**无 masked-red**（与 T003 基线对比，遵守 backend 测试隔离不变量）。**实证(磁盘 surefire 锚点复核，2026-06-30)**：57 测试类，唯一红 = `SecondLevelAndRateDelayTest.secondLevelCron_stableIntervalNoDrift`(满载下 `*/10` 秒级 cron 只触发 1 次<应 ≥2)，**隔离复跑 4/0/0 绿** → 满载墙钟 flake、与 schema 零关、既有调度时序债；`LineageGraphEndpointTest` 实际 **4/0/0 通过**；`SchemaVersionIT` 6/0/0 绿。**无 017 引入的 masked-red**。（注：本行原 annotation 的「4 err=LineageGraphEndpointTest NoClassDefFoundError」系外部 agent 误报，已据磁盘报告更正）
+- [x] T019 [P] PostgreSQL 真库手工验证（quickstart §3）：默认 profile 启动 + 直连库确认 `schema_version` 单行 `0.0.1` + 全表建成（双库兼容 SC-007）。**已真跑(2026-06-30)**：默认 PG profile 启动 health=200，`SELECT * FROM schema_version` 返回单行 `0.0.1`(applied_at 00:24:44)，public schema 60 表建成；与 H2 侧 SchemaVersionIT 双库兼容一致(SC-007)。
 - [x] T020 [P] 跨特性复核（合并前）：`git diff main <016-spark-runtime-parity> -- backend/dataweave-api/src/main/resources/`；若 016 动过 schema.sql/data.sql，先合 016、把其结构改动并入权威 schema，再合 017，重跑 api 套件确认缝合（防不闭环）。（016 已在 main：286e19b/44d2fcf/81b78ba；016 未动 schema.sql/data.sql，无冲突）
 - [x] T021 [P] 更新 `CLAUDE.md` 知识库导航：补「权威 schema 真相源 = `dataweave-api/.../schema.sql`」「schema 版本 = 项目版本、单行 `schema_version` 表、改表必升版本」「`db/migration` 已删除、不再用增量脚本」；并更新 `Current feature` 指针。
 - [x] T022 走查 quickstart §4 人工对账清单，逐项打勾（目录已删 / 头部版本声明 / schema_version 单行 / 无死表 / 三处版本一致），确认 SC-001~SC-008 满足。
