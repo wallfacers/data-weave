@@ -100,13 +100,27 @@ public final class CalciteColumnLineage {
             }
             try {
                 StmtOutcome outcome = processInsert(insert, cat, catalogReader);
-                anyParsed = true;
-                edges.addAll(outcome.edges());
+                if (!outcome.edges().isEmpty()) {
+                    anyParsed = true;
+                    edges.addAll(outcome.edges());
+                } else {
+                    // 主路径没产出（目标列未知/源表缺元数据）→ AST 启发式降级补 UNVERIFIED
+                    List<ColumnEdge> h = ColumnLineageDegrade.heuristic(insert);
+                    if (!h.isEmpty()) {
+                        anyParsed = true;
+                        edges.addAll(h);
+                    }
+                }
                 degraded |= outcome.degraded();
             } catch (Exception e) {
-                // 单语句失败：列级留空、标降级，继续其它语句（不上抛）
+                // 单语句校验/转换失败：退 AST 启发式降级，仍不上抛
                 log.debug("列级解析单语句失败，降级：{}", e.toString());
                 degraded = true;
+                List<ColumnEdge> h = ColumnLineageDegrade.heuristic(insert);
+                if (!h.isEmpty()) {
+                    anyParsed = true;
+                    edges.addAll(h);
+                }
             }
         }
         if (!anyParsed && edges.isEmpty()) {

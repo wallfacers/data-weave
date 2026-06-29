@@ -1,13 +1,16 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.application.lineage.CalciteColumnLineage;
+import com.dataweave.master.application.lineage.ColumnEdge;
 import com.dataweave.master.application.lineage.ColumnLineageCatalog;
+import com.dataweave.master.application.lineage.ColumnLineageCrossCheck;
 import com.dataweave.master.application.lineage.ColumnLineageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -52,6 +55,27 @@ public class SqlColumnLineageExtractor {
             // 任何异常（含 Calcite 内部错误/StackOverflow 之外的 Error 不拦）→ 退表级
             log.debug("列级解析整体失败，退表级：{}", t.toString());
             return ColumnLineageResult.unparsed();
+        }
+    }
+
+    /**
+     * 解析并与 Agent 列级声明做 A×B 交叉校验（契约 C5）。
+     *
+     * @param declared Agent {@code .task.yaml} 的列级声明边（可空/可为 {@code null}）
+     * @return 合并后的列级结果；声明与解析冲突的边标 {@link com.dataweave.master.application.lineage.Confidence#CONFLICT}
+     */
+    public ColumnLineageResult extractAndCrossCheck(String sql, ColumnLineageCatalog catalog,
+                                                    List<ColumnEdge> declared) {
+        ColumnLineageResult base = extract(sql, catalog);
+        if (declared == null || declared.isEmpty()) {
+            return base;
+        }
+        try {
+            List<ColumnEdge> merged = ColumnLineageCrossCheck.crossValidate(base.edges(), declared);
+            return new ColumnLineageResult(base.parsed() || !merged.isEmpty(), merged, base.degraded());
+        } catch (Throwable t) {
+            log.debug("列级交叉校验失败，回退仅解析结果：{}", t.toString());
+            return base;
         }
     }
 }
