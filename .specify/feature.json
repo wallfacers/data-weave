@@ -1,1 +1,3 @@
-{"feature_directory":"specs/015-agent-authoring-skill"}
+{
+  "feature_directory": "specs/016-spark-runtime-parity"
+}

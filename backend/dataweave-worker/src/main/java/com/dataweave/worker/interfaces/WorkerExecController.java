@@ -3,6 +3,7 @@ package com.dataweave.worker.interfaces;
 import com.dataweave.worker.WorkerApplication;
 import com.dataweave.worker.application.IncarnationManager;
 import com.dataweave.worker.application.WorkerExecService;
+import com.dataweave.worker.domain.ExecutionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,12 +14,19 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -80,12 +88,92 @@ public class WorkerExecController {
         String bizDate = (String) body.getOrDefault("bizDate", "");
         String content = (String) body.getOrDefault("content", "");
         int timeoutSeconds = body.get("timeoutSeconds") instanceof Number n ? n.intValue() : 0;
+        String taskType = (String) body.getOrDefault("taskType", "SHELL");
 
-        boolean accepted = execService.submit(instanceId, attempt, bizDate, content, timeoutSeconds,
-                null, new ReportCallback(instanceId));
+        // C4.2：反序列化 over-wire 数据源 → 完整 ExecutionContext（worker 不新增 DB 依赖，与 all-in-one 对称）
+        ExecutionContext ctx = buildContextFromBody(body, content, bizDate, attempt, timeoutSeconds, taskType);
+
+        boolean accepted = execService.submit(instanceId, attempt, ctx, null, new ReportCallback(instanceId));
 
         return ResponseEntity.ok(Map.of("accepted", accepted,
                 "reason", accepted ? "executing" : "duplicate"));
+    }
+
+    /** 反序列化 exec body 的 datasource 字段 → 构建 ExecutionContext（SQL DataSourceRef / SHELL env / PYTHON 落盘 / SPARK）。 */
+    @SuppressWarnings("unchecked")
+    static ExecutionContext buildContextFromBody(Map<String, Object> body, String content, String bizDate,
+                                                   int attempt, int timeoutSeconds, String taskType) {
+        // SPARK 内容形态来自 body 顶层（任务属性，独立于数据源）
+        String sparkMode = (String) body.get("sparkMode");
+        String jarRef = (String) body.get("jarRef");
+        String mainClass = (String) body.get("mainClass");
+
+        Object dsObj = body.get("datasource");
+        if (!(dsObj instanceof Map)) {
+            // 无数据源：SPARK 任务仍须带 sparkMode（sparkHome/master 缺 → 执行器判 SKIPPED，不丢形态）
+            ExecutionContext.SparkSubmitRef sparkNoDs = "SPARK".equals(taskType)
+                    ? new ExecutionContext.SparkSubmitRef(null, null, null, null, null, sparkMode, jarRef, mainClass)
+                    : null;
+            return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
+                    null, null, null, sparkNoDs);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dsInfo = (Map<String, Object>) dsObj;
+        String dsType = (String) dsInfo.getOrDefault("taskType", taskType);
+        ExecutionContext.DataSourceRef dsRef = null;
+        Map<String, String> shellEnvVars = null;
+        String pythonConfigPath = null;
+        ExecutionContext.SparkSubmitRef spark = null;
+        switch (dsType) {
+            case "SQL" -> dsRef = new ExecutionContext.DataSourceRef(
+                    (String) dsInfo.get("name"), (String) dsInfo.get("typeCode"), (String) dsInfo.get("jdbcUrl"),
+                    (String) dsInfo.get("username"), (String) dsInfo.get("password"),
+                    dsInfo.get("driverJarId") instanceof Number num ? num.longValue() : null,
+                    (String) dsInfo.get("driverClass"), (String) dsInfo.get("storageKey"));
+            case "SHELL" -> shellEnvVars = toStringMap(dsInfo.get("shellEnvVars"));
+            case "PYTHON" -> {
+                Object cfg = dsInfo.get("pythonConfigJson");
+                if (cfg instanceof String json && !json.isEmpty()) {
+                    pythonConfigPath = writeWorkerPythonConfig(json);
+                }
+            }
+            case "SPARK" -> spark = new ExecutionContext.SparkSubmitRef(
+                    (String) dsInfo.get("sparkHome"), (String) dsInfo.get("master"),
+                    (String) dsInfo.get("deployMode"), (String) dsInfo.get("queue"),
+                    toStringMap(dsInfo.get("conf")), sparkMode, jarRef, mainClass);
+            default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
+        }
+        return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
+                dsRef, shellEnvVars, pythonConfigPath, spark);
+    }
+
+    /** PYTHON over-wire：把 master 序列化的配置 JSON 落盘为 worker 本地 DW_DATASOURCE_CONFIG 文件（600 权限）。 */
+    private static String writeWorkerPythonConfig(String json) {
+        try {
+            Path tmp = Files.createTempFile("dw-ds-py-", ".json");
+            Files.writeString(tmp, json, StandardCharsets.UTF_8);
+            try {
+                Files.setPosixFilePermissions(tmp, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX（Windows）— skip
+            }
+            return tmp.toString();
+        } catch (IOException e) {
+            log.warn("[WorkerExec] 写 PYTHON 数据源临时文件失败：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> toStringMap(Object o) {
+        if (!(o instanceof Map<?, ?> raw)) {
+            return null;
+        }
+        Map<String, String> out = new LinkedHashMap<>();
+        for (var entry : raw.entrySet()) {
+            out.put(String.valueOf(entry.getKey()), entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
+        }
+        return out;
     }
 
     /**

@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -30,7 +31,7 @@ func writeTaskYAML(t *testing.T, dir, rel, body string) {
 func TestScriptExtension(t *testing.T) {
 	cases := map[string]string{
 		"SQL": ".sql", "Shell": ".sh", "python": ".py", "DATA_SYNC": ".json", "ECHO": ".txt",
-		"UNKNOWN": ".txt",
+		"SPARK": ".py", "UNKNOWN": ".txt",
 	}
 	for typ, want := range cases {
 		if got := ScriptExtension(typ); got != want {
@@ -126,7 +127,7 @@ func TestLocateTaskNotFound(t *testing.T) {
 
 func TestBuildLocalRunCmdFatJar(t *testing.T) {
 	jar := "/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar"
-	cmd := BuildLocalRunCmd(jar, "SHELL", 600, "/tmp/ds.json", []byte("echo hi"))
+	cmd := BuildLocalRunCmd(jar, "SHELL", 600, "/tmp/ds.json", []byte("echo hi"), nil)
 	want := []string{"java", "-cp", jar, "-Dloader.main=" + localRunMainClass, propertiesLauncher,
 		"--type", "SHELL", "--timeout", "600", "--ds-json", "/tmp/ds.json"}
 	if !reflect.DeepEqual(cmd.Args, want) {
@@ -140,7 +141,7 @@ func TestBuildLocalRunCmdFatJar(t *testing.T) {
 
 func TestBuildLocalRunCmdPlainClasspath(t *testing.T) {
 	cp := "/a/target/classes:/b/deps.jar"
-	cmd := BuildLocalRunCmd(cp, "SQL", 0, "", []byte("select 1"))
+	cmd := BuildLocalRunCmd(cp, "SQL", 0, "", []byte("select 1"), nil)
 	want := []string{"java", "-cp", cp, localRunMainClass, "--type", "SQL"}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("args = %v\nwant %v", cmd.Args, want)
@@ -290,5 +291,62 @@ func TestRunLocalMissingClasspathReturnsUsageError(t *testing.T) {
 	}
 	if !strings.Contains(ee.Message, "DW_WORKER_CP") && !strings.Contains(ee.Message, "classpath") {
 		t.Fatalf("error should mention DW_WORKER_CP or classpath: %v", ee)
+	}
+}
+
+// ---- SPARK 类型支持（US1，FR-015）----
+
+func TestBuildLocalRunCmdSpark(t *testing.T) {
+	cmd := BuildLocalRunCmd("/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar", "SPARK", 600, "/tmp/ds.json",
+		[]byte("print('x')"), &SparkRunOpts{SparkMode: "pyspark"})
+	want := []string{"java", "-cp", "/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar",
+		"-Dloader.main=" + localRunMainClass, propertiesLauncher,
+		"--type", "SPARK", "--timeout", "600", "--ds-json", "/tmp/ds.json", "--spark-mode", "pyspark"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Fatalf("spark args = %v\nwant %v", cmd.Args, want)
+	}
+}
+
+func TestBuildLocalRunCmdSparkJar(t *testing.T) {
+	cmd := BuildLocalRunCmd("/a/classes", "SPARK", 0, "",
+		nil, &SparkRunOpts{SparkMode: "jar", JarPath: "/tmp/app.jar", MainClass: "com.x.Main"})
+	want := []string{"java", "-cp", "/a/classes", localRunMainClass,
+		"--type", "SPARK", "--spark-mode", "jar", "--jar-path", "/tmp/app.jar", "--main-class", "com.x.Main"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Fatalf("spark jar args = %v\nwant %v", cmd.Args, want)
+	}
+}
+
+func TestDatasourceSparkJSONContainsSparkFields(t *testing.T) {
+	ds := &Datasource{TypeCode: "SPARK", SparkHome: "/opt/spark", Master: "local[*]", DeployMode: "client"}
+	b, err := json.Marshal(ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{`"sparkHome":"/opt/spark"`, `"master":"local[*]"`, `"deployMode":"client"`, `"typeCode":"SPARK"`} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("spark ds json missing %q: %s", want, s)
+		}
+	}
+}
+
+func TestLoadDatasourcesSparkWithoutJdbcUrl(t *testing.T) {
+	dir := t.TempDir()
+	path := sync.DatasourcePath(dir)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "spark_local:\n  typeCode: SPARK\n  master: local[*]\n  sparkHome: /opt/spark\n  deployMode: client\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	all, err := LoadDatasources(dir)
+	if err != nil {
+		t.Fatalf("SPARK datasource without jdbcUrl should load ok: %v", err)
+	}
+	ds, ok := all["spark_local"]
+	if !ok || ds.SparkHome != "/opt/spark" || ds.Master != "local[*]" || ds.DeployMode != "client" {
+		t.Fatalf("loaded spark ds = %+v", ds)
 	}
 }

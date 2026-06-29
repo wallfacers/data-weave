@@ -13,7 +13,7 @@ import (
 
 // 任务类型 → 脚本扩展名（与 worker TaskMapper.TYPE_EXTENSION 一致，B 的 D7 约定）。
 var typeExtension = map[string]string{
-	"SQL": ".sql", "SHELL": ".sh", "PYTHON": ".py", "DATA_SYNC": ".json", "ECHO": ".txt",
+	"SQL": ".sql", "SHELL": ".sh", "PYTHON": ".py", "DATA_SYNC": ".json", "ECHO": ".txt", "SPARK": ".py",
 }
 
 // ScriptExtension 返回任务类型对应的脚本扩展名（未知类型默认 .txt）。
@@ -28,8 +28,11 @@ func ScriptExtension(taskType string) string {
 type TaskMeta struct {
 	Name       string
 	Type       string
-	Datasource string // 逻辑名（SQL/PYTHON 查 .weft/datasources.local.yaml）
+	Datasource string // 逻辑名（SQL/PYTHON/SPARK 查 .weft/datasources.local.yaml）
 	TimeoutSec int
+	SparkMode  string // SPARK 内容形态：pyspark/spark-sql/jar（其它类型空）
+	JarRef     string // SPARK jar 形态的 application jar 引用（本地路径）
+	MainClass  string // SPARK jar 形态的 --class 主类
 }
 
 // taskFile 对应 <slug>.task.yaml 的字段（与 filecontract TaskDoc 字段名一致）。
@@ -38,6 +41,9 @@ type taskFile struct {
 	Type       string `yaml:"type"`
 	Datasource string `yaml:"datasource"`
 	TimeoutSec int    `yaml:"timeoutSec"`
+	SparkMode  string `yaml:"sparkMode"`
+	JarRef     string `yaml:"jarRef"`
+	MainClass  string `yaml:"mainClass"`
 }
 
 // ParseTaskMeta 读 <slug>.task.yaml 提取最小字段（FR-005）。解析失败仅影响本地 run（低爆炸半径）。
@@ -53,7 +59,8 @@ func ParseTaskMeta(path string) (*TaskMeta, error) {
 	if tf.Type == "" {
 		return nil, fmt.Errorf("任务定义缺少 type 字段（%s）", path)
 	}
-	return &TaskMeta{Name: tf.Name, Type: tf.Type, Datasource: tf.Datasource, TimeoutSec: tf.TimeoutSec}, nil
+	return &TaskMeta{Name: tf.Name, Type: tf.Type, Datasource: tf.Datasource, TimeoutSec: tf.TimeoutSec,
+		SparkMode: tf.SparkMode, JarRef: tf.JarRef, MainClass: tf.MainClass}, nil
 }
 
 // LocateTask 定位任务定义文件（FR-005 / D4）：相对文件路径优先，任务名别名次之。
@@ -108,4 +115,26 @@ func LocateTask(workDir, task string) (string, error) {
 func ScriptForTask(taskPath, taskType string) string {
 	base := strings.TrimSuffix(taskPath, ".task.yaml")
 	return base + ScriptExtension(taskType)
+}
+
+// ScriptExtensionForSpark 返回 SPARK 任务按 sparkMode 的脚本扩展名（与后端 TaskMapper.getScriptExtension 对齐）：
+// pyspark→.py、spark-sql→.sql、jar→""（无独立脚本体）。
+func ScriptExtensionForSpark(sparkMode string) string {
+	switch strings.ToLower(sparkMode) {
+	case "spark-sql":
+		return ".sql"
+	case "jar":
+		return ""
+	default:
+		return ".py" // pyspark（默认）
+	}
+}
+
+// ScriptForSparkTask 返回 SPARK 任务脚本体路径（jar 形态返回空串=无脚本体）。
+func ScriptForSparkTask(taskPath, sparkMode string) string {
+	ext := ScriptExtensionForSpark(sparkMode)
+	if ext == "" {
+		return ""
+	}
+	return strings.TrimSuffix(taskPath, ".task.yaml") + ext
 }

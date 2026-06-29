@@ -1,0 +1,11 @@
+# sample-spark-sql.task.yaml —— 最小可仿写的 Spark SQL 任务模板
+# sparkMode=spark-sql：脚本体为 .sql 文件，经内置 sql_runner.py 提交 spark-submit。
+name: 示例 Spark SQL
+type: SPARK
+sparkMode: spark-sql
+script: sample-spark-sql.sql
+datasource: spark_local        # SPARK 数据源逻辑名（承载 sparkHome/master/confs）
+timeoutSec: 1800
+description: 用 Spark SQL 统计订单数据的最小示例
+params: {}
+enabled: true

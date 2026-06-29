@@ -52,6 +52,10 @@ func TestExamplesAcceptedByDw(t *testing.T) {
 			if content == "" {
 				t.Errorf("SQL script %s is empty", name)
 			}
+		case strings.HasSuffix(name, ".py"):
+			if content == "" {
+				t.Errorf("PySpark script %s is empty", name)
+			}
 		case name == "datasources.local.yaml":
 			validateDatasourceYAML(t, name, content)
 		default:
@@ -200,11 +204,15 @@ func validateDatasourceYAML(t *testing.T, name, content string) {
 			continue
 		}
 		// 必填字段检查（FR-017）
-		if _, ok := ds["jdbcUrl"]; !ok {
-			t.Errorf("datasource %s in %s missing required field 'jdbcUrl'", dsName, name)
-		}
 		if _, ok := ds["typeCode"]; !ok {
 			t.Errorf("datasource %s in %s missing required field 'typeCode'", dsName, name)
+		}
+		// SPARK 数据源不要求 jdbcUrl（提交配置走 sparkHome/master，缺失由执行器判 SKIPPED，与 LoadDatasources 一致）
+		tc, _ := ds["typeCode"].(string)
+		if strings.ToUpper(tc) != "SPARK" {
+			if _, ok := ds["jdbcUrl"]; !ok {
+				t.Errorf("datasource %s in %s missing required field 'jdbcUrl'", dsName, name)
+			}
 		}
 	}
 }
@@ -234,11 +242,15 @@ func TestExamplesDatasourceValidation(t *testing.T) {
 		if !ok {
 			t.Fatalf("datasource %s should be a map", dsName)
 		}
-		if jdbcUrl, ok := ds["jdbcUrl"].(string); !ok || jdbcUrl == "" {
-			t.Errorf("datasource %s missing jdbcUrl", dsName)
-		}
-		if typeCode, ok := ds["typeCode"].(string); !ok || typeCode == "" {
+		typeCode, _ := ds["typeCode"].(string)
+		if typeCode == "" {
 			t.Errorf("datasource %s missing typeCode", dsName)
+		}
+		// SPARK 数据源不要求 jdbcUrl（与 LoadDatasources 校验一致）
+		if strings.ToUpper(typeCode) != "SPARK" {
+			if jdbcUrl, ok := ds["jdbcUrl"].(string); !ok || jdbcUrl == "" {
+				t.Errorf("datasource %s missing jdbcUrl", dsName)
+			}
 		}
 	}
 }

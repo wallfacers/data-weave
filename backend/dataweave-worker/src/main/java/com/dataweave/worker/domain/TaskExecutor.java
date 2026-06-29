@@ -30,15 +30,35 @@ public interface TaskExecutor {
     /**
      * 执行结果。
      *
-     * @param success   是否成功（exitCode==0 且未超时）
-     * @param exitCode  进程退出码（超时/启动失败为 -1）
+     * <p>三态（FR-008/009）：
+     * <ul>
+     *   <li>成功：{@code success=true, skipped=false}</li>
+     *   <li>失败：{@code success=false, skipped=false}（作业自身错误 / 资产缺失 / 真实超时）</li>
+     *   <li>跳过：{@code skipped=true}（环境缺失：无数据源 / 无 SPARK_HOME / spark-submit 不可用），
+     *       success=false，调度层按「非失败完成、不阻塞下游」处理，不新增状态机状态（FR-012）</li>
+     * </ul>
+     *
+     * @param success   是否成功（exitCode==0 且未超时且未跳过）
+     * @param exitCode  进程退出码（超时/启动失败为 -1；跳过约定为 0，靠 skipped 区分）
      * @param stdout    标准输出（可能截断）
      * @param stderr    标准错误（可能截断）
      * @param truncated 输出是否被截断
      * @param timedOut  是否超时终止
-     * @param message   面向用户/审计的摘要
+     * @param message   面向用户/审计的摘要（跳过时含可辨识「已跳过：&lt;原因&gt;」）
+     * @param skipped   环境缺失而未真实执行；与 success 互斥（skipped=true 时 success 不得为伪装的 true）
      */
     record ExecutionResult(boolean success, int exitCode, String stdout, String stderr,
-                           boolean truncated, boolean timedOut, String message) {
+                           boolean truncated, boolean timedOut, String message, boolean skipped) {
+
+        /** 向后兼容：真实成功/失败路径的 7 参构造（skipped=false）。现有构造点语义均为非跳过。 */
+        public ExecutionResult(boolean success, int exitCode, String stdout, String stderr,
+                               boolean truncated, boolean timedOut, String message) {
+            this(success, exitCode, stdout, stderr, truncated, timedOut, message, false);
+        }
+
+        /** 环境缺失跳过（FR-008）：{@code success=false, exitCode=0, skipped=true, message=reason}。 */
+        public static ExecutionResult skipped(String reason) {
+            return new ExecutionResult(false, 0, "", "", false, false, reason, true);
+        }
     }
 }

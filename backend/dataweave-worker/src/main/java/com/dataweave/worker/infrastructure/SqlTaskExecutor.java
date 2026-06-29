@@ -21,8 +21,9 @@ import java.util.function.Consumer;
  * <p>按任务绑定的业务数据源连接执行 SQL，逐行回调诊断日志（连接、开始、每条语句影响/返回行数摘要、耗时）。
  * **本期不打印结果集**（{@code SELECT} 的行数据）——结果集展示对齐 open-db-studio 留作后续变更。
  *
- * <p>**方案 A 回退**：未绑定数据源 / 数据源不可用 / 无 JDBC 騼动 / 连接失败 / 隔离加载失败时，
- * 回退「模拟成功 + 日志显式标注」，绝不抛错中断调度——保住 all-in-one / H2 克隆即跑、CI 零外部依赖底线。
+ * <p>**环境缺失 → SKIPPED（FR-008 / contracts C3）**：未绑定数据源 / 数据源不可用 / 无 JDBC 驱动 /
+ * 连接失败 / 隔离加载失败时，返回可辨识的 SKIPPED（不再伪装成功），绝不抛错中断调度——保住
+ * all-in-one / H2 克隆即跑、CI 零外部依赖底线（无数据源环境 SQL 表现为 SKIPPED，不阻塞下游）。
  *
  * <p>datasource-driver-isolation：数据源绑定上传 jar（driverJarId/storageKey/driverClass 齐全）时，
  * 走隔离 ClassLoader 加载（{@link IsolatedDriverLoader#connect}，绕过 DriverManager 的 ClassLoader 校验）；
@@ -51,11 +52,11 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             return new ExecutionResult(false, -1, "", "", false, false, "执行内容为空");
         }
 
-        // 方案 A 回退①：未绑定可用数据源 → 模拟成功 + 标注。
+        // 环境缺失：未绑定可用数据源 → SKIPPED（不伪装成功、不阻塞下游，FR-008 / contracts C3）
         if (ds == null || ds.jdbcUrl() == null || ds.jdbcUrl().isBlank()) {
-            emit(onLine, "未配置可用数据源，模拟执行（绑定数据源后走真实连库执行）");
+            emit(onLine, "未配置可用数据源，已跳过（绑定数据源后走真实连库执行）");
             emit(onLine, "脚本预览：" + firstLine(content));
-            return new ExecutionResult(true, 0, "[simulated] 未配置数据源", "", false, false, "模拟执行成功（无数据源）");
+            return ExecutionResult.skipped("已跳过：未配置可用数据源");
         }
 
         emit(onLine, "连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + ds.jdbcUrl());
@@ -84,19 +85,17 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             emit(onLine, "全部语句执行完成，共 " + statements.size() + " 条，总耗时 " + total + "ms");
             return new ExecutionResult(true, 0, "", "", false, false, "执行完成");
         } catch (SQLException e) {
-            // 连接期失败（无驱动 / 无法建连）→ 方案 A 回退模拟；语句级 SQL 错误 → 如实置失败。
+            // 连接期失败（无驱动 / 无法建连）→ SKIPPED（环境缺失）；语句级 SQL 错误 → 如实置失败。
             if (isConnectionFailure(e)) {
-                emit(onLine, "数据源连接失败，模拟执行：" + e.getMessage());
-                return new ExecutionResult(true, 0, "[simulated] 连接失败", "", false, false,
-                        "模拟执行成功（连接失败回退）");
+                emit(onLine, "数据源连接失败，已跳过：" + e.getMessage());
+                return ExecutionResult.skipped("已跳过：数据源连接失败（" + e.getMessage() + "）");
             }
             emit(onLine, "SQL 执行失败：" + e.getMessage());
             return new ExecutionResult(false, -1, "", e.getMessage(), false, false, "SQL 执行失败");
         } catch (Exception e) {
-            // 隔离加载失败（上传 jar 损坏 / 驱动类缺失等 RuntimeException）→ 降级方案 A 模拟执行，不中断调度闭环
-            emit(onLine, "驱动隔离加载/执行失败，模拟执行：" + e.getMessage());
-            return new ExecutionResult(true, 0, "[simulated] 驱动加载失败", "", false, false,
-                    "模拟执行成功（驱动加载失败回退）");
+            // 隔离加载失败（上传 jar 损坏 / 驱动类缺失等 RuntimeException）→ SKIPPED（环境缺失），不中断调度闭环
+            emit(onLine, "驱动隔离加载/执行失败，已跳过：" + e.getMessage());
+            return ExecutionResult.skipped("已跳过：驱动隔离加载失败（" + e.getMessage() + "）");
         }
     }
 

@@ -202,8 +202,17 @@ public class SchedulerKernel {
                         return;  // 占位符解析失败：已 CAS 置 FAILED，不下发
                     }
                     int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
+                    // SPARK 任务：从 params_json 提取 _sparkMode/_jarRef/_mainClass 带入下发链（端到端 sparkMode 注入）
+                    String sparkMode = null, jarRef = null, mainClass = null;
+                    if ("SPARK".equalsIgnoreCase(r.taskType)) {
+                        String pj = paramsJsonOf(r);
+                        sparkMode = jsonStr(pj, "_sparkMode");
+                        jarRef = jsonStr(pj, "_jarRef");
+                        mainClass = jsonStr(pj, "_mainClass");
+                    }
                     out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale));
+                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
+                            sparkMode, jarRef, mainClass));
                 }
             });
         }
@@ -396,6 +405,20 @@ public class SchedulerKernel {
         List<String> p = jdbc.query("SELECT params_json FROM task_def WHERE id=?",
                 (rs, n) -> rs.getString("params_json"), r.taskId);
         return p.isEmpty() ? null : p.get(0);
+    }
+
+    /**
+     * 从扁平 JSON 提取字符串值（params_json 由平台生成，{@code _sparkMode} 等键值为字符串，
+     * 无需引 ObjectMapper；与 {@code LocalRunMain} 的 ds-json 解析同法）。
+     */
+    static String jsonStr(String json, String key) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        var m = java.util.regex.Pattern
+                .compile("\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
+                .matcher(json);
+        return m.find() ? m.group(1).replace("\\\"", "\"").replace("\\\\", "\\") : null;
     }
 
     /**

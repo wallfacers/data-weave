@@ -1,5 +1,6 @@
 package com.dataweave.api.infrastructure;
 
+import com.dataweave.master.application.DatasourceResolver;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +25,15 @@ class DistributedTaskExecutionGatewayTest {
     @Mock
     private WorkerNodeRepository nodeRepository;
 
+    @Mock
+    private DatasourceResolver datasourceResolver;
+
     private DistributedTaskExecutionGateway gateway;
 
     @BeforeEach
     void setUp() {
         gateway = new DistributedTaskExecutionGateway(
-                WebClient.builder(), "tok", "http", nodeRepository);
+                WebClient.builder(), "tok", "http", nodeRepository, datasourceResolver);
     }
 
     private WorkerNode node(String code, String host) {

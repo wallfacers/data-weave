@@ -1,0 +1,14 @@
+# sample-spark-jar.task.yaml —— 最小可仿写的 Spark JAR 任务模板
+# sparkMode=jar：无脚本体，引用上传的 application jar 资产 + mainClass。
+# 本地 dw run：jarPath 为本地文件路径；服务端：jarRef 为资产 storageKey（复用 driver_jars 上传链路）。
+name: 示例 Spark JAR
+type: SPARK
+sparkMode: jar
+datasource: spark_local        # SPARK 数据源逻辑名（承载 sparkHome/master/confs）
+jarRef: my-app.jar             # 服务端：资产 storageKey（本地 dw run 替换为 jarPath）
+# jarPath: /home/user/my-app.jar  # 本地 dw run：文件路径（与 jarRef 二选一）
+mainClass: com.example.MyApp
+timeoutSec: 3600
+description: 提交预编译 application jar 到 Spark 集群的最小示例
+params: {}
+enabled: true

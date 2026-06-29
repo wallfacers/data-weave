@@ -26,6 +26,10 @@ class WorkerExecServiceTest {
         return new WorkerExecService(executors);
     }
 
+    private ExecutionContext ctx(String content, String bizDate, int attempt, int timeout) {
+        return new ExecutionContext(content, bizDate, attempt, timeout, null, "SHELL", null);
+    }
+
     @Test
     void idempotencyKey_deterministic() {
         UUID id = UUID.randomUUID();
@@ -42,7 +46,7 @@ class WorkerExecServiceTest {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> result = new AtomicReference<>();
 
-        service.submit(instanceId, 1, "2026-06-12", "echo hello", 10, null,
+        service.submit(instanceId, 1, ctx("echo hello", "2026-06-12", 1, 10), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog) {
@@ -80,11 +84,11 @@ class WorkerExecServiceTest {
         };
 
         // 第一次提交（接受），用 sleep 保证幂等键在第二次提交时仍在
-        boolean accepted1 = service.submit(instanceId, 1, null, "sleep 5 && echo ok", 60, null, cb);
+        boolean accepted1 = service.submit(instanceId, 1, ctx("sleep 5 && echo ok", null, 1, 60), null, cb);
         assertThat(accepted1).isTrue();
 
         // 立即重复提交（应被幂等拒绝）
-        boolean accepted2 = service.submit(instanceId, 1, null, "echo ok", 10, null, cb);
+        boolean accepted2 = service.submit(instanceId, 1, ctx("echo ok", null, 1, 10), null, cb);
         assertThat(accepted2).isFalse();
 
         assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
@@ -111,8 +115,8 @@ class WorkerExecServiceTest {
             }
         };
 
-        boolean a1 = service.submit(instanceId, 1, null, "echo attempt1", 10, null, cb);
-        boolean a2 = service.submit(instanceId, 2, null, "echo attempt2", 10, null, cb);
+        boolean a1 = service.submit(instanceId, 1, ctx("echo attempt1", null, 1, 10), null, cb);
+        boolean a2 = service.submit(instanceId, 2, ctx("echo attempt2", null, 2, 10), null, cb);
         assertThat(a1).isTrue();
         assertThat(a2).isTrue();
 
@@ -128,7 +132,7 @@ class WorkerExecServiceTest {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<String> result = new AtomicReference<>();
 
-        service.submit(instanceId, 1, null, "exit 1", 10, null,
+        service.submit(instanceId, 1, ctx("exit 1", null, 1, 10), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog) {
@@ -151,7 +155,7 @@ class WorkerExecServiceTest {
         UUID instanceId = UUID.randomUUID();
 
         TaskExecutor.ExecutionResult result = service.executeSync(
-                instanceId, 1, "2026-06-12", "echo sync", 10, null);
+                instanceId, 1, ctx("echo sync", "2026-06-12", 1, 10), null);
 
         assertThat(result).isNotNull();
         assertThat(result.success()).isTrue();
@@ -159,13 +163,13 @@ class WorkerExecServiceTest {
     }
 
     @Test
-    void executeSync_idempotentReturnsNull() {
+    void executeSync_idempotentReturnsNull() throws Exception {
         WorkerExecService service = createService();
         UUID instanceId = UUID.randomUUID();
 
         // 先提交异步（占住幂等键）
         CountDownLatch latch = new CountDownLatch(1);
-        service.submit(instanceId, 1, null, "sleep 10", 60, null,
+        service.submit(instanceId, 1, ctx("sleep 10", null, 1, 60), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog) { latch.countDown(); }
@@ -173,7 +177,7 @@ class WorkerExecServiceTest {
                 });
 
         // 同步执行同一幂等键 → null（幂等拒绝）
-        TaskExecutor.ExecutionResult result = service.executeSync(instanceId, 1, null, "echo x", 10, null);
+        TaskExecutor.ExecutionResult result = service.executeSync(instanceId, 1, ctx("echo x", null, 1, 10), null);
         assertThat(result).isNull();
     }
 }

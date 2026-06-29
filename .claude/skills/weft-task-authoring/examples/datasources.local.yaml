@@ -14,3 +14,15 @@ analytics_mysql:
   username: dev
   password: devpass
   driver: com.mysql.cj.jdbc.Driver
+
+# SPARK 数据源：承载 spark-submit 提交配置（不需 jdbcUrl）。
+# 本地配 master: local[*]；服务端同名数据源配 master: yarn —— 同一 .task 文件零改动漂移。
+# 未装 Spark（sparkHome 缺失 / bin/spark-submit 不可用）→ dw run 呈现 SKIPPED（非失败、非伪装成功）。
+spark_local:
+  typeCode: SPARK
+  master: local[*]
+  sparkHome: /opt/spark       # SPARK_HOME；缺失或 bin/spark-submit 不存在 → SKIPPED
+  deployMode: client
+  # queue: etl                # yarn 队列（local 模式省略）
+  # conf:                     # 附加 spark.* 配置（MVP 本地不注入，服务端由 props_json 解析）
+  #   spark.executor.memory: 2g

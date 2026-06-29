@@ -13,24 +13,34 @@ import java.util.Map;
  * @param attempt         本次尝试序号（注入环境变量 {@code DW_ATTEMPT}）
  * @param timeoutSeconds  超时秒数（≤ 0 表示不限时）
  * @param runMode         运行模式（NORMAL / TEST），用于启动日志标注
- * @param taskType        任务类型（SQL / SHELL / ECHO），用于启动日志标注
- * @param datasource      业务数据源连接信息（SQL 执行用）；null=未配置/不可用，SQL 执行端回退模拟
+ * @param taskType        任务类型（SQL / SHELL / ECHO / SPARK），用于启动日志标注
+ * @param datasource      业务数据源连接信息（SQL 执行用）；null=未配置/不可用，SQL 执行端判 SKIPPED
  * @param shellEnvVars    Shell 任务数据源环境变量（DW_DS_* 系列）；null=无数据源注入
  * @param pythonConfigPath Python 任务数据源 JSON 配置文件路径；null=无数据源注入
+ * @param spark           Spark 提交配置（SPARK 任务用）；null=非 SPARK 任务或未配置，执行器侧判 SKIPPED
  */
 public record ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
                                String runMode, String taskType, DataSourceRef datasource,
-                               Map<String, String> shellEnvVars, String pythonConfigPath) {
+                               Map<String, String> shellEnvVars, String pythonConfigPath,
+                               SparkSubmitRef spark) {
 
     /** 向后兼容的精简构造（无数据源/模式信息，SHELL/ECHO 用）。 */
     public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds) {
-        this(content, bizDate, attempt, timeoutSeconds, null, null, null, null, null);
+        this(content, bizDate, attempt, timeoutSeconds, null, null, null, null, null, null);
     }
 
-    /** 向后兼容构造（有数据源但无 Shell/Python 注入）。 */
+    /** 向后兼容构造（有数据源但无 Shell/Python/Spark 注入）。 */
     public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
                            String runMode, String taskType, DataSourceRef datasource) {
-        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource, null, null);
+        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource, null, null, null);
+    }
+
+    /** 向后兼容构造（无 Spark 注入，老调用点 9 参全参 → spark=null）。 */
+    public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
+                           String runMode, String taskType, DataSourceRef datasource,
+                           Map<String, String> shellEnvVars, String pythonConfigPath) {
+        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource,
+                shellEnvVars, pythonConfigPath, null);
     }
 
     /**
@@ -53,5 +63,22 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
                              String username, String password) {
             this(name, typeCode, jdbcUrl, username, password, null, null, null);
         }
+    }
+
+    /**
+     * Spark 提交配置引用（SPARK 数据源解析 + 任务声明 sparkMode/jar 合成）。
+     *
+     * @param sparkHome  SPARK_HOME；空 / {@code ${sparkHome}/bin/spark-submit} 不存在 → SKIPPED
+     * @param master     local[*] | yarn | spark://... ；空 → SKIPPED
+     * @param deployMode client | cluster（可空，默认 client）
+     * @param queue      yarn 队列（可空）
+     * @param conf       附加 spark.* 配置项（可空）
+     * @param sparkMode  pyspark | spark-sql | jar（内容形态判别，FR-002）
+     * @param jarPath    jar 形态的 application jar 路径（其它形态 null）
+     * @param mainClass  jar 形态的 --class 主类（其它形态 null）
+     */
+    public record SparkSubmitRef(String sparkHome, String master, String deployMode, String queue,
+                                 Map<String, String> conf, String sparkMode, String jarPath,
+                                 String mainClass) {
     }
 }

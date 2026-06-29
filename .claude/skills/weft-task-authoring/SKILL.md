@@ -39,8 +39,9 @@ dw run --test <task>       # 6. TEST 模式提交服务器验证
 4. `dw run` 额外需要：
    - **JVM**（`java` 在 PATH）
    - **worker classpath**：设 `DW_WORKER_CP` 或执行 `cd backend && ./mvnw -pl dataweave-worker -am package -DskipTests` 生成 fat jar（自动探测）
-   - **python3**（跑 PYTHON 任务时需要）
-   - **`.weft/datasources.local.yaml`**（SQL/PYTHON 任务的数据源连接凭据）
+   - **python3**（跑 PYTHON / PySpark 任务时需要）
+   - **Spark**（跑 SPARK 任务时需要）：`SPARK_HOME` 环境变量或数据源 `sparkHome` 指向有效 Spark 安装；无 Spark 环境时 `dw run` 呈现 SKIPPED（非失败）
+   - **`.weft/datasources.local.yaml`**（SQL/PYTHON/SPARK 任务的数据源连接凭据）
 
 ## Step 1: Pull — 拉取项目为本地文件树
 
@@ -149,6 +150,88 @@ warehouse_pg:
   jdbcUrl: jdbc:postgresql://localhost:5432/warehouse
   username: dev
   password: devpass
+```
+
+### Spark 任务（type: SPARK）
+
+Spark 任务以 `spark-submit` 子进程提交，支持三种内容形态（`sparkMode`）：
+
+| sparkMode | 脚本体 | 说明 |
+|-----------|--------|------|
+| `pyspark` | `<task>.py` | PySpark 代码，`spark-submit body.py` |
+| `spark-sql` | `<task>.sql` | Spark SQL 语句，经内置 sql_runner.py 提交 |
+| `jar` | 无脚本体 | 引用已上传的 application jar 资产 + `mainClass` |
+
+**SPARK 数据源**（`typeCode: SPARK`）承载 `spark-submit` 提交配置，不需 `jdbcUrl`：
+
+```yaml
+# .weft/datasources.local.yaml
+spark_cluster:
+  typeCode: SPARK
+  master: local[*]              # local[*] | yarn | spark://...
+  sparkHome: /opt/spark         # SPARK_HOME；缺失 → SKIPPED
+  deployMode: client            # client | cluster（可选）
+  # queue: etl                  # yarn 队列（可选，local 模式省略）
+  # conf:                       # 附加 spark.* 配置（可选）
+  #   spark.executor.memory: 2g
+```
+
+**环境漂移**：同一数据源逻辑名在本地配 `master: local[*]`、服务端配 `master: yarn` —— 同一 `.task` 文件零改动漂移。
+
+**jar 资产引用**：
+- 本地 `dw run`：`jarPath` 为绝对/相对文件路径（如 `/home/user/app.jar`）
+- 服务端运行：`jarRef` 为资产存储 key（复用 `driver_jars` 上传链路），worker 自动下载到临时文件并清理
+
+**SKIPPED 语义**：未绑 SPARK 数据源 / `SPARK_HOME` 缺失 / `spark-submit` 不可用 / `master` 为空 → `dw run` 输出「已跳过：…」，**退出码不作失败处理**（不阻塞开发流）。jar 资产缺失（storage 无对应 key）→ **真实失败**（非 SKIPPED）。
+
+**Spark 任务定义示例**：
+
+```yaml
+# sample-spark.task.yaml
+name: 示例 Spark 抽取
+type: SPARK
+sparkMode: pyspark             # pyspark | spark-sql | jar
+script: sample-spark.py        # 脚本体文件名（jar 形态省略）
+datasource: spark_cluster      # SPARK 数据源逻辑名
+timeoutSec: 1800
+# jar 形态额外字段：
+# sparkMode: jar
+# jarPath: /home/user/app.jar  # 本地 dw run 用（文件路径）
+# jarRef: abc123.jar            # 服务端用（storageKey，与 jarPath 二选一）
+# mainClass: com.example.Main
+```
+
+**spark-sql 示例**：
+
+```yaml
+# sample-spark-sql.task.yaml
+name: 示例 Spark SQL
+type: SPARK
+sparkMode: spark-sql
+script: sample-spark-sql.sql
+datasource: spark_cluster
+timeoutSec: 1800
+```
+
+spark-sql 脚本体（`.sql`）朴素分号切分，逐句 `spark.sql(stmt)` 执行：
+
+```sql
+-- sample-spark-sql.sql
+SELECT count(*) FROM orders;
+SELECT dt, count(*) FROM orders GROUP BY dt ORDER BY dt;
+```
+
+**jar 示例**（无脚本体）：
+
+```yaml
+# sample-spark-jar.task.yaml
+name: 示例 Spark JAR
+type: SPARK
+sparkMode: jar
+datasource: spark_cluster
+jarRef: my-app.jar             # 服务端资产 storageKey
+mainClass: com.example.MyApp
+timeoutSec: 3600
 ```
 
 ## Step 3: dw run — 本机真跑验证

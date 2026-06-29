@@ -43,7 +43,7 @@ sortOrder: 1          # 同级排序（可选，默认 0）
 | 字段 | 必填 | 类型 | 说明 |
 |------|------|------|------|
 | `name` | 是 | string | 显示名（可含中文/空格，不唯一） |
-| `type` | 是 | string | 开放字符串：SQL/SHELL/PYTHON/DATA_SYNC/ECHO… |
+| `type` | 是 | string | 开放字符串：SQL/SHELL/PYTHON/DATA_SYNC/ECHO/SPARK… |
 | `script` | 否 | string | 脚本体文件名（同目录下）；无脚本任务可省略 |
 | `datasource` | 否 | string | 数据源逻辑名，从 datasources.local.yaml 查 |
 | `timeoutSec` | 否 | int | 超时秒数 |
@@ -55,6 +55,20 @@ sortOrder: 1          # 同级排序（可选，默认 0）
 | `params[].name` | 是 | string | 参数名（slug） |
 | `params[].type` | 否 | string | DATE/NUMBER/STRING（默认 STRING） |
 | `params[].defaultValue` | 否 | string | 默认值，支持 `{{placeholder}}` |
+
+### SPARK 类型额外字段
+
+| 字段 | 必填 | 类型 | 说明 |
+|------|------|------|------|
+| `sparkMode` | 是 | string | `pyspark` / `spark-sql` / `jar`（内容形态判别） |
+| `jarPath` | 否 | string | jar 形态本地文件路径（本地 dw run 用） |
+| `jarRef` | 否 | string | jar 形态资产 storageKey（服务端用，复用 driver_jars 上传链路） |
+| `mainClass` | 否 | string | jar 形态 `--class` 主类全名 |
+
+**脚本扩展名**（round-trip 保真）：
+- `sparkMode=pyspark` → `.py`
+- `sparkMode=spark-sql` → `.sql`
+- `sparkMode=jar` → 无脚本体（`script` 字段省略） |
 
 ## *.flow.yaml（任务流定义）
 
@@ -118,5 +132,20 @@ sortOrder: 1          # 同级排序（可选，默认 0）
   password: ...
   driver: ...（可选）
 ```
+
+**SPARK 数据源**（`typeCode: SPARK`）：
+
+```yaml
+spark_cluster:
+  typeCode: SPARK
+  master: local[*]              # local[*] | yarn | spark://...
+  sparkHome: /opt/spark         # SPARK_HOME；缺失 → SKIPPED
+  deployMode: client            # client | cluster（可选）
+  queue: etl                    # yarn 队列（可选）
+  conf:                         # 附加 spark.* 配置（可选）
+    spark.executor.memory: 2g
+```
+
+SPARK 数据源不需 `jdbcUrl`/`username`/`password`。同一逻辑名本地 `local[*]` / 服务端 `yarn` 分别配置，`.task` 文件不感知环境。
 
 此文件 git-ignored，凭据绝不随 push 上行。

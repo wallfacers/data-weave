@@ -6,6 +6,10 @@ import java.util.Map;
 /**
  * File shape for {@code <slug>.task.yaml} — task metadata (data-model §4).
  * The script body lives in a separate native file ({@code <slug>.<ext>}), not in this doc.
+ *
+ * @param sparkMode  SPARK sub-mode: {@code pyspark | spark-sql | jar}；null for non-SPARK tasks
+ * @param jarRef     jar asset reference (jar mode); null otherwise
+ * @param mainClass  {@code --class} main class (jar mode); null otherwise
  */
 public record TaskDoc(
         int formatVersion,
@@ -19,7 +23,10 @@ public record TaskDoc(
         String datasource,
         String targetDatasource,
         Map<String, Object> params,
-        List<String> tags
+        List<String> tags,
+        String sparkMode,
+        String jarRef,
+        String mainClass
 ) {
     public static final int CURRENT_FORMAT_VERSION = 1;
 }

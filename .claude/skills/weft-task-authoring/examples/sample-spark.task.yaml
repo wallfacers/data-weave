@@ -1,0 +1,12 @@
+# sample-spark.task.yaml —— 最小可仿写的 Spark(PySpark) 任务模板
+# 文件名即身份 slug（sample-spark），name 是独立显示名字段。
+# 三种 sparkMode：pyspark（本例，脚本体 .py）/ spark-sql（.sql）/ jar（引用 jar 资产 + mainClass，无脚本体）。
+name: 示例 Spark 抽取
+type: SPARK
+sparkMode: pyspark
+script: sample-spark.py
+datasource: spark_local        # SPARK 数据源逻辑名（承载 sparkHome/master/confs，见 datasources.local.yaml）
+timeoutSec: 1800
+description: 用 PySpark 读取并统计订单数据的最小示例
+params: {}
+enabled: true

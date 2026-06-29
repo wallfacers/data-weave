@@ -16,7 +16,7 @@ import java.util.*;
  *   <li>{@code paramsJson} (JSON string) ↔ {@code params} (expanded YAML map, D6)</li>
  *   <li>{@code datasourceId/targetDatasourceId} (Long) ↔ {@code datasource/targetDatasource} (code string, D5/FR-009)</li>
  *   <li>{@code content} (script body) ↔ separate native-language file (FR-001)</li>
- *   <li>{@code type} → script file extension mapping (D7)</li>
+ *   <li>{@code type} → script file extension mapping (D7); SPARK 按 sparkMode 细分（pyspark→.py, spark-sql→.sql, jar→无脚本体）</li>
  *   <li>{@code frozen} (Integer 0/1) ↔ boolean (D4)</li>
  * </ul>
  */
@@ -25,13 +25,14 @@ public class TaskMapper {
     private final DeterministicYaml yaml;
     private final ObjectMapper jsonMapper;
 
-    /** Script extension mapping (D7): task type → file extension. */
+    /** Script extension mapping (D7): task type → file extension. SPARK default pyspark .py；spark-sql/jar 由 sparkMode 覆盖。 */
     private static final Map<String, String> TYPE_EXTENSION = Map.of(
             "SQL", ".sql",
             "SHELL", ".sh",
             "PYTHON", ".py",
             "DATA_SYNC", ".json",
-            "ECHO", ".txt"
+            "ECHO", ".txt",
+            "SPARK", ".py"   // 默认 pyspark .py；spark-sql→.sql / jar→无脚本体 由 getScriptExtension(type, sparkMode) 覆盖
     );
     private static final String DEFAULT_EXTENSION = ".txt";
 
@@ -54,6 +55,10 @@ public class TaskMapper {
         if (task.getParamsJson() != null && !task.getParamsJson().isBlank()) {
             paramsMap = parseJsonToMap(task.getParamsJson());
         }
+        // SPARK 子模式：从 params_json 中提取 _sparkMode/_jarRef/_mainClass（push 时落盘用）
+        String sparkMode = sparkMeta(paramsMap, "_sparkMode");
+        String jarRef = sparkMeta(paramsMap, "_jarRef");
+        String mainClass = sparkMeta(paramsMap, "_mainClass");
         return new TaskDoc(
                 TaskDoc.CURRENT_FORMAT_VERSION,
                 task.getName(),
@@ -63,10 +68,13 @@ public class TaskMapper {
                 task.getTimeoutSec(),
                 task.getRetryMax(),
                 task.getFrozen() != null && task.getFrozen() == 1,
-                null,   // datasourceId → code: resolved by C layer, stored as code
+                null,   // datasourceId → code
                 null,   // targetDatasourceId → code
                 paramsMap,
-                null    // tags: set externally when caller knows tag names
+                null,   // tags
+                sparkMode,
+                jarRef,
+                mainClass
         );
     }
 
@@ -82,12 +90,15 @@ public class TaskMapper {
         DeterministicYaml.putIfPresent(map, "priority", doc.priority());
         DeterministicYaml.putIfPresent(map, "timeoutSec", doc.timeoutSec());
         DeterministicYaml.putIfPresent(map, "retryMax", doc.retryMax());
-        // frozen: only write if true (D4: false = default = omit)
         if (doc.frozen() != null && doc.frozen()) {
             DeterministicYaml.put(map, "frozen", true);
         }
         DeterministicYaml.putIfPresent(map, "datasource", doc.datasource());
         DeterministicYaml.putIfPresent(map, "targetDatasource", doc.targetDatasource());
+        // SPARK 子模式字段（非空才写，保持 .task.yaml 清洁）
+        DeterministicYaml.putIfPresent(map, "sparkMode", doc.sparkMode());
+        DeterministicYaml.putIfPresent(map, "jarRef", doc.jarRef());
+        DeterministicYaml.putIfPresent(map, "mainClass", doc.mainClass());
         if (doc.params() != null && !doc.params().isEmpty()) {
             DeterministicYaml.put(map, "params", toOrderedParamsMap(doc.params()));
         }
@@ -97,9 +108,22 @@ public class TaskMapper {
         return yaml.dump(map);
     }
 
-    /** Get script file extension for a task type (D7). */
+    /** Get script file extension for a task type (D7). SPARK + sparkMode 细分。 */
     public static String getScriptExtension(String type) {
-        return TYPE_EXTENSION.getOrDefault(type != null ? type.toUpperCase() : null, DEFAULT_EXTENSION);
+        return getScriptExtension(type, null);
+    }
+
+    /** Get script file extension for a task type with an optional sparkMode (F2 round-trip fidelity). */
+    public static String getScriptExtension(String type, String sparkMode) {
+        String key = type != null ? type.toUpperCase() : null;
+        if ("SPARK".equals(key)) {
+            return switch (sparkMode != null ? sparkMode.toLowerCase() : "pyspark") {
+                case "spark-sql" -> ".sql";
+                case "jar" -> "";       // jar 形态无独立脚本体
+                default -> ".py";       // pyspark (default)
+            };
+        }
+        return TYPE_EXTENSION.getOrDefault(key, DEFAULT_EXTENSION);
     }
 
     // ---- Deserialize (file → domain) ----
@@ -122,8 +146,13 @@ public class TaskMapper {
         String targetDatasource = optionalString(raw, "targetDatasource", filePath);
         Map<String, Object> paramsMap = optionalMap(raw, "params", filePath);
         List<String> tags = optionalStringList(raw, "tags", filePath);
+        // SPARK 子模式字段（F1 file contract）
+        String sparkMode = optionalString(raw, "sparkMode", filePath);
+        String jarRef = optionalString(raw, "jarRef", filePath);
+        String mainClass = optionalString(raw, "mainClass", filePath);
         return new TaskDoc(formatVersion, name, type, description, priority,
-                timeoutSec, retryMax, frozen, datasource, targetDatasource, paramsMap, tags);
+                timeoutSec, retryMax, frozen, datasource, targetDatasource, paramsMap, tags,
+                sparkMode, jarRef, mainClass);
     }
 
     /**
@@ -139,13 +168,30 @@ public class TaskMapper {
         task.setRetryMax(doc.retryMax());
         task.setFrozen(doc.frozen() != null && doc.frozen() ? 1 : 0);
         task.setContent(scriptContent);
-        // params: map → canonical JSON string
-        if (doc.params() != null && !doc.params().isEmpty()) {
-            task.setParamsJson(mapToCanonicalJson(doc.params()));
+        // params: map → canonical JSON string; SPARK sub-mode fields injected into params_json (_sparkMode etc.)
+        Map<String, Object> params = doc.params() != null ? new LinkedHashMap<>(doc.params()) : new LinkedHashMap<>();
+        if (doc.sparkMode() != null && !doc.sparkMode().isBlank()) {
+            params.put("_sparkMode", doc.sparkMode());
         }
-        // datasource: code is preserved as-is; id resolution is C's job
-        // (datasourceId field stays null from file; C fills it during ingest)
+        if (doc.jarRef() != null && !doc.jarRef().isBlank()) {
+            params.put("_jarRef", doc.jarRef());
+        }
+        if (doc.mainClass() != null && !doc.mainClass().isBlank()) {
+            params.put("_mainClass", doc.mainClass());
+        }
+        if (!params.isEmpty()) {
+            task.setParamsJson(mapToCanonicalJson(params));
+        }
         return task;
+    }
+
+    // ---- SPARK sub-mode helpers ----
+
+    /** Extract a SPARK sub-mode metadata value from a params map (map may be null). */
+    private static String sparkMeta(Map<String, Object> params, String key) {
+        if (params == null) return null;
+        Object v = params.get(key);
+        return v instanceof String s && !s.isBlank() ? s : null;
     }
 
     // ---- Params JSON ↔ Map (D6) ----
@@ -155,7 +201,6 @@ public class TaskMapper {
         try {
             return jsonMapper.readValue(json, LinkedHashMap.class);
         } catch (Exception e) {
-            // Non-JSON string — store as single key
             var m = new LinkedHashMap<String, Object>();
             m.put("value", json);
             return m;
@@ -164,20 +209,22 @@ public class TaskMapper {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> toOrderedParamsMap(Map<String, Object> params) {
+        // Filter out SPARK sub-mode keys from user-facing params (they live under sparkMode/jarRef/mainClass in YAML)
         var sorted = new LinkedHashMap<String, Object>();
-        params.keySet().stream().sorted().forEach(k -> {
-            var v = params.get(k);
-            if (v instanceof Map<?, ?> m) {
-                v = toOrderedParamsMap((Map<String, Object>) m);
-            }
-            sorted.put(k, v);
-        });
+        params.keySet().stream().sorted()
+                .filter(k -> !k.startsWith("_spark") && !"_jarRef".equals(k) && !"_mainClass".equals(k))
+                .forEach(k -> {
+                    var v = params.get(k);
+                    if (v instanceof Map<?, ?> m) {
+                        v = toOrderedParamsMap((Map<String, Object>) m);
+                    }
+                    sorted.put(k, v);
+                });
         return sorted;
     }
 
     private String mapToCanonicalJson(Map<String, Object> map) {
         try {
-            // recursively key-sorted → deterministic canonical JSON (D6, all levels)
             return jsonMapper.writeValueAsString(toOrderedParamsMap(map));
         } catch (Exception e) {
             throw new FileContractException("params", "params",
@@ -196,7 +243,6 @@ public class TaskMapper {
         throw typeError(file, key, "integer", val);
     }
 
-    /** Optional integer: missing → null; present-but-wrong-type → located error (no silent drop). */
     static Integer optionalInt(Map<String, Object> map, String key, String file) {
         var val = map.get(key);
         if (val == null) return null;

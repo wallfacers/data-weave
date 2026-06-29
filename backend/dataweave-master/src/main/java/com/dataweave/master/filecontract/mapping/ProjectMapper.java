@@ -101,7 +101,8 @@ public class ProjectMapper {
                     export.taskDatasourceCodes().get(task.getId()),
                     export.taskTargetDatasourceCodes().get(task.getId()),
                     baseDoc.params(),
-                    tagNames.isEmpty() ? null : tagNames.stream().sorted().toList());
+                    tagNames.isEmpty() ? null : tagNames.stream().sorted().toList(),
+                    baseDoc.sparkMode(), baseDoc.jarRef(), baseDoc.mainClass());
             var taskPath = dirPath.isEmpty() ? slug + TASK_SUFFIX : dirPath + "/" + slug + TASK_SUFFIX;
             files.put(taskPath, taskMapper.serialize(docWithExtras));
 

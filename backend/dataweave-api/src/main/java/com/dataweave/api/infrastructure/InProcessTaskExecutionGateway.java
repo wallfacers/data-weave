@@ -115,14 +115,15 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             if (executor == null) {
                 String msg = "type=" + type + " 无内置执行器，模拟执行成功";
                 lineConsumer.accept(msg);
-                emitEndBanner(lineConsumer, locale, true, 0, false, Duration.between(startInstant, Instant.now()));
+                emitEndBanner(lineConsumer, locale, true, 0, false, false, Duration.between(startInstant, Instant.now()));
                 reportService.reportFinished(cmd.taskInstanceId(), 0, msg);
                 return;
             }
 
-            // 构建 ExecutionContext（含 Shell 环境变量 / Python 配置路径）
+            // 构建 ExecutionContext（含 Shell 环境变量 / Python 配置路径 / Spark 提交配置）
             Map<String, String> envVarMap = resolved != null ? resolved.shellEnvVars() : null;
             String pythonConfigPath = resolved != null ? resolved.pythonConfigPath() : null;
+            ExecutionContext.SparkSubmitRef sparkRef = buildSparkRef(type, resolved, cmd);
 
             ExecutionContext ctx = new ExecutionContext(
                     cmd.content(),
@@ -133,14 +134,15 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     type,
                     dsRef,
                     envVarMap,
-                    pythonConfigPath
+                    pythonConfigPath,
+                    sparkRef
             );
 
             try {
                 TaskExecutor.ExecutionResult result = executor.execute(ctx, lineConsumer);
 
                 emitEndBanner(lineConsumer, locale, result.success(), result.exitCode(), result.timedOut(),
-                        Duration.between(startInstant, Instant.now()));
+                        result.skipped(), Duration.between(startInstant, Instant.now()));
 
                 // 尾部摘要（最后 4000 字符）写 task_instance.log
                 String stdout = result.stdout();
@@ -149,7 +151,12 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     tail = tail + "\n[stderr] " + result.stderr();
                 }
 
-                if (result.success()) {
+                if (result.skipped()) {
+                    // SKIPPED（环境缺失）：按「非失败完成」处理，不阻塞下游、不报失败；
+                    // tail 显式带 [SKIPPED] 标记 + 跳过原因，使人/测试/AI 可辨识（FR-008/009/012）。
+                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(),
+                            "[SKIPPED] " + result.message());
+                } else if (result.success()) {
                     reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail);
                 } else {
                     String reason = result.timedOut() ? "TIMEOUT" : "EXIT_CODE_" + result.exitCode();
@@ -180,6 +187,31 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
         }
     }
 
+    /**
+     * SPARK 装配：把解析后的 SparkClusterRef（master 侧，不含 sparkMode/jar）合成为 worker 侧
+     * SparkSubmitRef 入 ExecutionContext。MVP sparkMode 留空 → SparkTaskExecutor 默认 pyspark；
+     * spark-sql/jar 形态的 sparkMode/jarPath/mainClass 在 US3 由 DispatchCommand 扩展传入。
+     */
+    /**
+     * 合成 SparkSubmitRef：集群配置（sparkHome/master/...）来自 SPARK 数据源解析，
+     * 内容形态（sparkMode/jarRef/mainClass）来自下发指令（任务定义 params）。
+     * SPARK 任务即使未绑数据源也建 ref（sparkHome/master 为 null → 执行器判 SKIPPED，而非丢 sparkMode）。
+     */
+    private ExecutionContext.SparkSubmitRef buildSparkRef(String type, ResolvedConnection resolved,
+                                                          DispatchCommand cmd) {
+        if (!"SPARK".equals(type)) {
+            return null;
+        }
+        ResolvedConnection.SparkClusterRef s = resolved != null ? resolved.spark() : null;
+        return new ExecutionContext.SparkSubmitRef(
+                s != null ? s.sparkHome() : null,
+                s != null ? s.master() : null,
+                s != null ? s.deployMode() : null,
+                s != null ? s.queue() : null,
+                s != null ? s.conf() : null,
+                cmd.sparkMode(), cmd.jarRef(), cmd.mainClass());
+    }
+
     /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间（按触发者 locale 渲染）。 */
     private void emitStartBanner(Consumer<String> onLine, Locale locale, DispatchCommand cmd, String type,
                                  ExecutionContext.DataSourceRef ds) {
@@ -193,11 +225,18 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
         onLine.accept("=========================================");
     }
 
-    /** DataWorks 风收尾 banner：状态 / 退出码 / 执行耗时 / 结束时间（按触发者 locale 渲染）。 */
+    /** DataWorks 风收尾 banner：状态 / 退出码 / 执行耗时 / 结束时间（按触发者 locale 渲染）。
+     *  skipped 优先于 timeout/success/failed（SKIPPED 按非失败完成、不阻塞下游，FR-012 不新增状态枚举）。 */
     private void emitEndBanner(Consumer<String> onLine, Locale locale, boolean success, int exitCode,
-                               boolean timedOut, Duration duration) {
-        String statusKey = timedOut ? "taskrun.banner.status.timeout"
-                : (success ? "taskrun.banner.status.success" : "taskrun.banner.status.failed");
+                               boolean timedOut, boolean skipped, Duration duration) {
+        String statusKey;
+        if (skipped) {
+            statusKey = "taskrun.banner.status.skipped";
+        } else if (timedOut) {
+            statusKey = "taskrun.banner.status.timeout";
+        } else {
+            statusKey = success ? "taskrun.banner.status.success" : "taskrun.banner.status.failed";
+        }
         onLine.accept("=========== " + messages.get("taskrun.banner.end.title", locale) + " ===========");
         onLine.accept(messages.get("taskrun.banner.end.line", locale,
                 messages.get(statusKey, locale), exitCode));

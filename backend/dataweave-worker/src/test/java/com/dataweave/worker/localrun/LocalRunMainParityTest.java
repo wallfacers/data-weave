@@ -3,8 +3,10 @@ package com.dataweave.worker.localrun;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor.ExecutionResult;
+import com.dataweave.worker.infrastructure.EchoTaskExecutor;
 import com.dataweave.worker.infrastructure.PythonTaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
+import com.dataweave.worker.infrastructure.SparkTaskExecutor;
 import com.dataweave.worker.infrastructure.SqlTaskExecutor;
 import org.junit.jupiter.api.Test;
 
@@ -156,6 +158,39 @@ class LocalRunMainParityTest {
         String serverLog = String.join("\n", serverLines);
         assertThat(serverLog).contains("连接成功", "影响 1 行");
         assertThat(captured).contains("连接成功", "影响 1 行");
+    }
+
+    @Test
+    void echoParityExitCodeStdoutSuccess() {
+        // ECHO 经 LocalRunMain 与经 new EchoTaskExecutor exitCode/stdout/success 逐项相等（FR-010/011）。
+        String content = "parity-echo-line";
+        ExecutionResult server = new EchoTaskExecutor().execute(ctx(content, 10, "ECHO"), l -> {});
+
+        String captured = captureStdout(() -> {
+            ExecutionResult local = runner.runResult(LocalRunArgs.of("ECHO", 10, null, content));
+            assertThat(local.exitCode()).isEqualTo(server.exitCode()).isEqualTo(0);
+            assertThat(local.success()).isEqualTo(server.success()).isTrue();
+            assertThat(local.stdout()).isEqualTo(server.stdout());
+        });
+        assertThat(captured).contains("parity-echo-line");
+    }
+
+    @Test
+    void sparkParityNoSparkEnv_bothSkipped() {
+        // 无 Spark 环境：server 用空 sparkHome ref → SKIPPED；local 不传 ds-json → ctx.spark()=null → SKIPPED。
+        // 同实现 → 同 SKIPPED，parity 成立（SC-002 / FR-011）。
+        ExecutionContext serverCtx = new ExecutionContext(
+                "print('parity-spark')", null, 1, 10, "TEST", "SPARK", null, null, null,
+                new ExecutionContext.SparkSubmitRef(null, null, null, null, null, null, null, null));
+        ExecutionResult server = new SparkTaskExecutor().execute(serverCtx, l -> {});
+
+        captureStdout(() -> {
+            ExecutionResult local = runner.runResult(LocalRunArgs.of("SPARK", 10, null, "print('parity-spark')"));
+            assertThat(local.skipped()).isTrue();
+            assertThat(server.skipped()).isTrue();
+            assertThat(local.exitCode()).isEqualTo(server.exitCode()); // 双方约定 0
+            assertThat(local.success()).isEqualTo(server.success()).isFalse();
+        });
     }
 
     @Test

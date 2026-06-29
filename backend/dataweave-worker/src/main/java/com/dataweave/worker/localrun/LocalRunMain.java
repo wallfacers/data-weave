@@ -3,8 +3,10 @@ package com.dataweave.worker.localrun;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
+import com.dataweave.worker.infrastructure.EchoTaskExecutor;
 import com.dataweave.worker.infrastructure.PythonTaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
+import com.dataweave.worker.infrastructure.SparkTaskExecutor;
 import com.dataweave.worker.infrastructure.SqlTaskExecutor;
 
 import java.nio.charset.StandardCharsets;
@@ -19,7 +21,7 @@ import java.util.regex.Pattern;
  * 本地轻量 runtime 入口（子特性 D / FR-005/006，US2 核心）。
  *
  * <p>脱离 master/scheduler 独立运行（**不启 Spring 上下文**），复用 {@code dataweave-worker}
- * 的真实执行器（Shell/Sql/Python）执行 stdin 传入的脚本体，逐行 stdout 直出，
+ * 的真实执行器（Shell/Sql/Python/Spark）执行 stdin 传入的脚本体，逐行 stdout 直出，
  * {@code System.exit(exitCode)} 忠实透传执行结果。被 Go CLI 以子进程调起。
  *
  * <p><b>SC-002 不变量</b>：同一 (type, content, ds) 经本 runner 与经服务器执行器执行，
@@ -40,7 +42,7 @@ public class LocalRunMain {
             LocalRunArgs parsed = LocalRunArgs.parse(args);
             LocalRunMain m = new LocalRunMain();
             TaskExecutor.ExecutionResult r = m.runResult(parsed);
-            // 失败时把执行器摘要写到 stderr（可定位，如缺 python3 / 超时），stdout 仍为执行输出。
+            // 失败或跳过时把执行器摘要写到 stderr（可定位，如缺 Spark 环境 / 超时），stdout 仍为执行输出。
             if (!r.success() && r.message() != null && !r.message().isBlank()) {
                 System.err.println(r.message());
             }
@@ -85,14 +87,17 @@ public class LocalRunMain {
             // SqlTaskExecutor 构造需 IsolatedDriverLoader；本地走 DriverManager 分支，loader 不会被真正调用。
             case "SQL" -> new SqlTaskExecutor(new IsolatedDriverLoader(new NoopDriverJarStorage()));
             case "PYTHON" -> new PythonTaskExecutor();
+            case "SPARK" -> new SparkTaskExecutor();
+            case "ECHO" -> new EchoTaskExecutor();
             default -> throw new IllegalArgumentException(
-                    "不支持的任务类型: " + type + "（本地 MVP 仅 SHELL/SQL/PYTHON，FR-007）");
+                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK，FR-010）");
         };
     }
 
     private ExecutionContext buildContext(LocalRunArgs args) throws Exception {
         ExecutionContext.DataSourceRef dsRef = null;
         String pythonConfigPath = null;
+        ExecutionContext.SparkSubmitRef sparkRef = null;
         if (args.dsJsonPath() != null && !args.dsJsonPath().isBlank()) {
             if ("SQL".equals(args.type())) {
                 dsRef = readDataSourceRef(args.dsJsonPath());
@@ -102,24 +107,47 @@ public class LocalRunMain {
             }
             // SHELL 不消费 ds-json（Shell 数据源走 shellEnvVars，本期本地不注入）
         }
+        // SPARK：集群配置来自 ds-json（若绑数据源），内容形态来自 CLI flag；
+        // 即使未绑数据源也建 ref（sparkHome/master 缺 → 执行器判 SKIPPED，不丢 sparkMode）。
+        if ("SPARK".equals(args.type())) {
+            sparkRef = readSparkRef(args);
+        }
         return new ExecutionContext(args.content(), null, 1, args.timeoutSeconds(),
-                "TEST", args.type(), dsRef, null, pythonConfigPath);
+                "TEST", args.type(), dsRef, null, pythonConfigPath, sparkRef);
     }
 
     /** 读 --ds-json 文件 → DataSourceRef（{name,typeCode,jdbcUrl,username,password}）。 */
     private ExecutionContext.DataSourceRef readDataSourceRef(String path) throws Exception {
-        String json = Files.readString(Path.of(path), StandardCharsets.UTF_8);
-        Map<String, String> m = new LinkedHashMap<>();
-        Matcher matcher = JSON_KV.matcher(json);
-        while (matcher.find()) {
-            m.put(matcher.group(1), unescape(matcher.group(2)));
-        }
+        Map<String, String> m = parseFlatKv(Files.readString(Path.of(path), StandardCharsets.UTF_8));
         if (!m.containsKey("jdbcUrl")) {
             throw new IllegalArgumentException("ds-json 缺少 jdbcUrl: " + path);
         }
         return new ExecutionContext.DataSourceRef(
                 m.getOrDefault("name", ""), m.getOrDefault("typeCode", ""),
                 m.get("jdbcUrl"), m.get("username"), m.get("password"));
+    }
+
+    /**
+     * 合成本地 SparkSubmitRef：集群配置（sparkHome/master/deployMode/queue）从扁平 ds-json 读（绑数据源时），
+     * 内容形态（sparkMode/jarPath/mainClass）来自 CLI flag（任务属性，与服务端 DispatchCommand 顶层对称）。
+     */
+    private ExecutionContext.SparkSubmitRef readSparkRef(LocalRunArgs args) throws Exception {
+        Map<String, String> m = (args.dsJsonPath() != null && !args.dsJsonPath().isBlank())
+                ? parseFlatKv(Files.readString(Path.of(args.dsJsonPath()), StandardCharsets.UTF_8))
+                : new LinkedHashMap<>();
+        return new ExecutionContext.SparkSubmitRef(
+                m.get("sparkHome"), m.get("master"), m.get("deployMode"),
+                m.get("queue"), null, args.sparkMode(), args.jarPath(), args.mainClass());
+    }
+
+    /** 扁平 JSON "key":"value" → Map（ds-json 由 Go CLI 生成，扁平无嵌套；conf 等嵌套结构 MVP 不支持）。 */
+    private static Map<String, String> parseFlatKv(String json) {
+        Map<String, String> m = new LinkedHashMap<>();
+        Matcher matcher = JSON_KV.matcher(json);
+        while (matcher.find()) {
+            m.put(matcher.group(1), unescape(matcher.group(2)));
+        }
+        return m;
     }
 
     private static String unescape(String s) {

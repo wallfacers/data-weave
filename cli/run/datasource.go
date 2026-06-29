@@ -8,6 +8,7 @@ package run
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dataweave/dw/sync"
 	"gopkg.in/yaml.v3"
@@ -20,10 +21,15 @@ import (
 // YAML tag 用于解析 .weft/datasources.local.yaml。
 type Datasource struct {
 	Name     string `json:"name" yaml:"-"`          // 逻辑名（= map key，YAML 不重复解析）
-	TypeCode string `json:"typeCode" yaml:"typeCode"` // MYSQL/POSTGRESQL/H2/...
+	TypeCode string `json:"typeCode" yaml:"typeCode"` // MYSQL/POSTGRESQL/H2/SPARK/...
 	JdbcURL  string `json:"jdbcUrl" yaml:"jdbcUrl"`
 	Username string `json:"username" yaml:"username"`
 	Password string `json:"password" yaml:"password"`
+	// SPARK 集群提交配置（typeCode=SPARK 时用；SQL/PYTHON/SHELL 忽略）。缺失由执行器判 SKIPPED。
+	SparkHome  string `json:"sparkHome,omitempty" yaml:"sparkHome"`
+	Master     string `json:"master,omitempty" yaml:"master"`         // local[*] | yarn | spark://...
+	DeployMode string `json:"deployMode,omitempty" yaml:"deployMode"` // client | cluster
+	Queue      string `json:"queue,omitempty" yaml:"queue"`
 }
 
 // LoadDatasources 解析 `.weft/datasources.local.yaml` → 逻辑名→连接 映射（FR-008）。
@@ -46,8 +52,12 @@ func LoadDatasources(workDir string) (map[string]Datasource, error) {
 		raw[name] = ds
 	}
 
-		// FR-017：加载即校验必填字段，错误左移到运行前（可定位：数据源名 + 缺哪个字段）
+		// FR-017：加载即校验必填字段，错误左移到运行前（可定位：数据源名 + 缺哪个字段）。
+		// SPARK 数据源不要求 jdbcUrl（提交配置走 sparkHome/master，缺失由执行器判 SKIPPED）。
 		for name, ds := range raw {
+			if strings.ToUpper(ds.TypeCode) == "SPARK" {
+				continue
+			}
 			if ds.JdbcURL == "" {
 				return nil, fmt.Errorf("数据源 %q 配置不完整：缺少 jdbcUrl（%s）", name, path)
 			}
@@ -73,7 +83,7 @@ func LookupDatasource(workDir, logicalName string) (*Datasource, error) {
 		return nil, fmt.Errorf("本地未配置数据源逻辑名 %q（请在 %s 添加；凭据本地持有，绝不上行）",
 			logicalName, sync.DatasourcePath(workDir))
 	}
-	if ds.JdbcURL == "" {
+	if strings.ToUpper(ds.TypeCode) != "SPARK" && ds.JdbcURL == "" {
 		return nil, fmt.Errorf("数据源 %q 配置不完整：缺少 jdbcUrl（%s）",
 			logicalName, sync.DatasourcePath(workDir))
 	}

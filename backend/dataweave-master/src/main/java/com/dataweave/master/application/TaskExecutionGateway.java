@@ -29,9 +29,13 @@ public interface TaskExecutionGateway {
      * @param taskType       任务类型（SQL / SHELL / …），执行端按此选执行器
      * @param datasourceId   任务绑定的业务数据源 id（SQL 执行连库用；null=未绑定，执行端回退模拟）
      * @param locale          触发者 BCP-47 locale tag（如 en-US/zh-CN）；null=老数据/占位实例，消费端兜底 zh-CN
+     * @param sparkMode       SPARK 任务内容形态（pyspark / spark-sql / jar）；非 SPARK 任务为 null
+     * @param jarRef          SPARK jar 形态的 application jar 引用（本地路径 / 资产标识）；其它形态 null
+     * @param mainClass       SPARK jar 形态的 --class 主类；其它形态 null
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
                            Integer taskVersionNo, String runMode, String bizDate, String content,
-                           int timeoutSeconds, String taskType, Long datasourceId, String locale) {
+                           int timeoutSeconds, String taskType, Long datasourceId, String locale,
+                           String sparkMode, String jarRef, String mainClass) {
     }
 }

@@ -30,24 +30,27 @@ class SqlTaskExecutorTest {
     }
 
     @Test
-    void noDatasource_fallsBackToSimulated() {
+    void noDatasource_returnsSkippedNotSuccess() {
         List<String> lines = new ArrayList<>();
         TaskExecutor.ExecutionResult r = executor.execute(sqlCtx("select 1", null), lines::add);
 
-        assertThat(r.success()).isTrue();
+        // 环境缺失 → SKIPPED（不再伪装成功），可辨识、不阻塞下游（FR-008 / contracts C3）
+        assertThat(r.skipped()).isTrue();
+        assertThat(r.success()).isFalse();
         assertThat(String.join("\n", lines)).contains("未配置可用数据源");
     }
 
     @Test
-    void unreachableDatasource_fallsBackToSimulated_doesNotThrow() {
+    void unreachableDatasource_returnsSkipped_doesNotThrow() {
         DataSourceRef ds = new DataSourceRef("orders_mysql", "MYSQL",
                 "jdbc:mysql://10.0.0.20:3306/shop", "app", "***");
         List<String> lines = new ArrayList<>();
         TaskExecutor.ExecutionResult r = executor.execute(sqlCtx("select 1", ds), lines::add);
 
-        // 无 mysql 驱动 / 连接失败 → 方案 A 回退模拟成功，不让调度崩
-        assertThat(r.success()).isTrue();
-        assertThat(String.join("\n", lines)).contains("模拟执行");
+        // 无 mysql 驱动 / 连接失败 → SKIPPED（环境缺失），不让调度崩
+        assertThat(r.skipped()).isTrue();
+        assertThat(r.success()).isFalse();
+        assertThat(String.join("\n", lines)).contains("已跳过");
     }
 
     @Test

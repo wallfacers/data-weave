@@ -42,16 +42,28 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	}
 
 	typeUp := strings.ToUpper(meta.Type)
-	if typeUp != "SHELL" && typeUp != "SQL" && typeUp != "PYTHON" {
-		return client.UsageError("任务类型 %s 本地不支持（MVP 仅 SHELL/SQL/PYTHON，FR-007；DATA_SYNC 排除）", meta.Type)
+	if typeUp != "SHELL" && typeUp != "SQL" && typeUp != "PYTHON" && typeUp != "SPARK" {
+		return client.UsageError("任务类型 %s 本地不支持（MVP 仅 SHELL/SQL/PYTHON/SPARK，FR-007；DATA_SYNC 排除）", meta.Type)
 	}
 
 	// 脚本体：与 .task.yaml 同名、扩展名由 type 决定（B 的 D7 约定）。
-	scriptPath := ScriptForTask(taskPath, typeUp)
-	content, err := os.ReadFile(scriptPath)
-	if err != nil {
-		return client.UsageError("读取任务脚本失败（%s）：%v（脚本应与 .task.yaml 同目录同名，扩展名 .sql/.sh/.py 由 type 决定）",
-			scriptPath, err)
+	// SPARK 按 sparkMode 细分：pyspark→.py / spark-sql→.sql / jar→无脚本体（content 留空）。
+	var content []byte
+	if typeUp == "SPARK" {
+		if sp := ScriptForSparkTask(taskPath, meta.SparkMode); sp != "" {
+			content, err = os.ReadFile(sp)
+			if err != nil {
+				return client.UsageError("读取 Spark 脚本失败（%s）：%v（pyspark/spark-sql 脚本应与 .task.yaml 同目录同名）",
+					sp, err)
+			}
+		}
+	} else {
+		scriptPath := ScriptForTask(taskPath, typeUp)
+		content, err = os.ReadFile(scriptPath)
+		if err != nil {
+			return client.UsageError("读取任务脚本失败（%s）：%v（脚本应与 .task.yaml 同目录同名，扩展名 .sql/.sh/.py 由 type 决定）",
+				scriptPath, err)
+		}
 	}
 
 	timeout := opts.Timeout
@@ -59,9 +71,9 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 		timeout = meta.TimeoutSec
 	}
 
-	// SQL/PYTHON 数据源连接（凭据本地持有，绝不上行）
+	// SQL/PYTHON/SPARK 数据源连接（凭据本地持有，绝不上行）
 	var dsJSONPath string
-	if (typeUp == "SQL" || typeUp == "PYTHON") && meta.Datasource != "" {
+	if (typeUp == "SQL" || typeUp == "PYTHON" || typeUp == "SPARK") && meta.Datasource != "" {
 		ds, derr := LookupDatasource(workDir, meta.Datasource)
 		if derr != nil {
 			return derr
@@ -78,7 +90,11 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	cmd := BuildLocalRunCmd(classpath, typeUp, timeout, dsJSONPath, content)
+	var sparkOpts *SparkRunOpts
+	if typeUp == "SPARK" {
+		sparkOpts = &SparkRunOpts{SparkMode: meta.SparkMode, JarPath: meta.JarRef, MainClass: meta.MainClass}
+	}
+	cmd := BuildLocalRunCmd(classpath, typeUp, timeout, dsJSONPath, content, sparkOpts)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
@@ -97,19 +113,29 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	return nil
 }
 
+// SparkRunOpts 是 SPARK 任务的内容形态参数（任务属性，与服务端 DispatchCommand 顶层对称）；
+// 非 SPARK 任务传 nil。
+type SparkRunOpts struct {
+	SparkMode string // pyspark / spark-sql / jar
+	JarPath   string // jar 形态的本地 application jar 路径
+	MainClass string // jar 形态的 --class 主类
+}
+
 // BuildLocalRunCmd 构造 java LocalRunMain 子进程命令；脚本体 content 经 stdin 传入。
+// spark 非 nil 时追加 --spark-mode/--jar-path/--main-class（SPARK 三形态注入）。
 //
 // classpath 为 Spring Boot fat jar（*-exec.jar）时，classes 在 BOOT-INF/classes/，无法
 // 直接 `java -cp <jar> <main>`，须用 PropertiesLauncher + -Dloader.main 访问；
 // 普通 classpath（target/classes:deps 列表）则直接 `java -cp <cp> <main>`。
-func BuildLocalRunCmd(classpath, taskType string, timeout int, dsJSONPath string, content []byte) *exec.Cmd {
-	args := buildLocalRunArgs(classpath, taskType, timeout, dsJSONPath)
+func BuildLocalRunCmd(classpath, taskType string, timeout int, dsJSONPath string, content []byte,
+	spark *SparkRunOpts) *exec.Cmd {
+	args := buildLocalRunArgs(classpath, taskType, timeout, dsJSONPath, spark)
 	cmd := exec.Command("java", args...)
 	cmd.Stdin = strings.NewReader(string(content))
 	return cmd
 }
 
-func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath string) []string {
+func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath string, spark *SparkRunOpts) []string {
 	var head []string
 	if isFatJarClasspath(classpath) {
 		head = []string{"-cp", classpath, "-Dloader.main=" + localRunMainClass, propertiesLauncher}
@@ -122,6 +148,17 @@ func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath strin
 	}
 	if dsJSONPath != "" {
 		args = append(args, "--ds-json", dsJSONPath)
+	}
+	if spark != nil {
+		if spark.SparkMode != "" {
+			args = append(args, "--spark-mode", spark.SparkMode)
+		}
+		if spark.JarPath != "" {
+			args = append(args, "--jar-path", spark.JarPath)
+		}
+		if spark.MainClass != "" {
+			args = append(args, "--main-class", spark.MainClass)
+		}
 	}
 	return args
 }
