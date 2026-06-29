@@ -148,8 +148,8 @@ export function FreshnessView() {
   )
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="shrink-0 border-b px-6 py-4">
+    <div className="flex flex-1 flex-col gap-3 px-6">
+      <div className="shrink-0 border-b py-4">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={RefreshIcon} className="size-5 text-primary" />
           <h1 className="text-lg font-semibold tracking-tight">{t("title")}</h1>
