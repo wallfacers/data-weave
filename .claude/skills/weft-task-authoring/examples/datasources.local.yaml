@@ -1,0 +1,16 @@
+# datasources.local.yaml —— 本地数据源配置样例
+# 放在项目根 .weft/datasources.local.yaml
+# 凭据本地持有，git-ignored，绝不随 push 上行
+
+warehouse_pg:
+  typeCode: POSTGRESQL
+  jdbcUrl: jdbc:postgresql://localhost:5432/warehouse
+  username: dev
+  password: devpass
+
+analytics_mysql:
+  typeCode: MYSQL
+  jdbcUrl: jdbc:mysql://localhost:3306/analytics
+  username: dev
+  password: devpass
+  driver: com.mysql.cj.jdbc.Driver

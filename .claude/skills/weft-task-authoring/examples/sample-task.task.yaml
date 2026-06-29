@@ -1,0 +1,17 @@
+# sample-task.task.yaml —— 最小可仿写任务模板
+# 文件名即身份 slug（sample-task），name 是独立显示名字段。
+name: 示例每日数据抽取
+type: SQL
+script: sample-task.sql
+datasource: warehouse_pg
+timeoutSec: 600
+retryCount: 2
+description: 从订单表按业务日期抽取数据
+params:
+  - name: bizdate
+    type: DATE
+    defaultValue: "{{bizdate}}"
+  - name: threshold
+    type: NUMBER
+    defaultValue: "100"
+enabled: true
