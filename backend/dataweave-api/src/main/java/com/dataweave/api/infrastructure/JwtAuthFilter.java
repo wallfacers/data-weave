@@ -36,7 +36,6 @@ public class JwtAuthFilter implements WebFilter {
 
     private static final Set<String> PREFIX_WHITELIST = Set.of(
             "/mcp",
-            
             "/api/health",
             "/api/cluster"
     );
@@ -84,14 +83,14 @@ public class JwtAuthFilter implements WebFilter {
             }
         }
 
-		// 过渡期兼容：/api/cli 端点若无 Bearer token，但携带 X-DW-Token header，
-		// 则放行至 CliController 自行校验（保持旧 CLI 兼容）。
-		if (token == null && path.startsWith("/api/cli")) {
-			String xDwToken = exchange.getRequest().getHeaders().getFirst("X-DW-Token");
-			if (xDwToken != null && !xDwToken.isBlank()) {
-				return chain.filter(exchange);
-			}
-		}
+        // 过渡期兼容：/api/cli 端点若无 Bearer token，但携带 X-DW-Token header，
+        // 则放行至 CliController 自行校验（保持旧 CLI 兼容）。
+        if (token == null && path.startsWith("/api/cli")) {
+            String xDwToken = exchange.getRequest().getHeaders().getFirst("X-DW-Token");
+            if (xDwToken != null && !xDwToken.isBlank()) {
+                return chain.filter(exchange);
+            }
+        }
         if (token == null) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();

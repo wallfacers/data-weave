@@ -10,47 +10,22 @@ import (
 
 // skillLintTest 校验 SKILL.md 引用的 dw 子命令/flag 在 CLI 中真实存在（FR-027）。
 // 不一致即 test fail —— 防止文档-实现漂移。
+//
+// 命令表通过解析 cli/main.go 源码自省获取（非手抄），消除二阶漂移风险。
+// 标志表保留手写枚举——flag 通常由后端契约约束，数量远少于命令，且标志变更必伴随
+// SKILL.md 正文同步更新，lint 会在那时 fail。
 
-// dw 实际命令表（来自 cli/main.go switch + 子命令分支）。
-var dwCommands = map[string]bool{
-	// 顶层命令
-	"task":    true,
-	"logs":    true,
-	"pull":    true,
-	"push":    true,
-	"diff":    true,
-	"run":     true,
-	"version": true,
-	"help":    true,
-}
-
-// dw 子命令表（subcommand → parent）。
-var dwSubcommands = map[string]string{
-	"list":      "task",
-	"show":      "task",
-	"instances": "task",
-	"rerun":     "task",
-	"cat":       "logs",
-}
-
-// dw flag 表（flag → 适用的命令）。
-var dwFlags = map[string]bool{
-	"--json":     true,
-	"--force":    true,
-	"--clean":    true,
-	"--dir":      true,
-	"--timeout":  true,
-	"--remark":   true,
-	"--biz-date": true,
-	"--test":     true,
-	"--help":     true,
-	"-h":         true,
-	"--version":  true,
-}
-
-// TestSkillLintCommandsAndFlags 解析 SKILL.md 引用，比对实际 CLI 命令表。
+// TestSkillLintCommandsAndFlags 解析 SKILL.md 引用，比对 CLI 实际命令（自省 main.go）。
 func TestSkillLintCommandsAndFlags(t *testing.T) {
-	// 定位 SKILL.md（相对于仓库根）
+	mainPath := filepath.Join(repoRoot(t), "cli", "main.go")
+	mainSrc, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Skipf("main.go not found at %s; skipping lint", mainPath)
+	}
+
+	cmdTable := parseCommands(mainSrc)
+	flagTable := builtinFlags()
+
 	skillPath := filepath.Join(repoRoot(t), ".claude", "skills", "weft-task-authoring", "SKILL.md")
 	content, err := os.ReadFile(skillPath)
 	if err != nil {
@@ -59,25 +34,23 @@ func TestSkillLintCommandsAndFlags(t *testing.T) {
 
 	text := string(content)
 
-	// 提取所有 `dw <subcommand>` 引用（反引号包裹的命令行）。
+	// 提取所有 dw <subcommand> 引用（反引号包裹的命令行）。
 	backtickRe := regexp.MustCompile("`dw ([a-z][a-z-]*(?: [a-z][a-z-]*)*)`")
 	var failures []string
 
 	for _, match := range backtickRe.FindAllStringSubmatch(text, -1) {
-		cmdLine := match[1] // 如 "pull demo" 或 "run --test task"
+		cmdLine := match[1]
 		parts := strings.Fields(cmdLine)
 		if len(parts) == 0 {
 			continue
 		}
 
 		cmd := parts[0]
-		// 检查顶层命令
-		if !dwCommands[cmd] {
+		if !cmdTable.topLevel[cmd] {
 			failures = append(failures, "SKILL.md 引用了不存在的 dw 命令: dw "+cmd)
 			continue
 		}
 
-		// 检查后续 token
 		for i := 1; i < len(parts); i++ {
 			tok := parts[i]
 			// 跳过占位符 <xxx> 和参数值示例
@@ -86,22 +59,101 @@ func TestSkillLintCommandsAndFlags(t *testing.T) {
 				continue
 			}
 			// 子命令
-			if parent, ok := dwSubcommands[tok]; ok && parent == cmd {
+			if parent, ok := cmdTable.sub[tok]; ok && parent == cmd {
 				continue
 			}
 			// flag
 			if strings.HasPrefix(tok, "-") {
-				if !dwFlags[tok] {
+				if !flagTable[tok] {
 					failures = append(failures, "SKILL.md 引用了不存在的 flag: "+tok+" (在 `dw "+cmdLine+"` 中)")
 				}
 				continue
 			}
-			// 其他 token（如任务路径参数等）放过
 		}
 	}
 
 	if len(failures) > 0 {
 		t.Fatalf("Skill 一致性 lint 失败（FR-027）:\n%s", strings.Join(failures, "\n"))
+	}
+}
+
+// cmdTable 自省 main.go 获得的命令注册表。
+type cmdTable struct {
+	topLevel map[string]bool   // 顶层命令
+	sub      map[string]string // subcommand -> parent command
+}
+
+// parseCommands 解析 main.go 源码，提取 switch case 字面值作为命令表。
+func parseCommands(src []byte) cmdTable {
+	t := cmdTable{
+		topLevel: map[string]bool{},
+		sub:      map[string]string{},
+	}
+	s := string(src)
+
+	// 顶层命令：main() 中 switch args[0] { case "xxx": ... }
+	t.topLevel = switchCases(s, "func main(")
+
+	// task 子命令：cmdTask() 中 switch args[0] { case "xxx": ... }
+	for sc := range switchCases(s, "func cmdTask(") {
+		t.sub[sc] = "task"
+	}
+
+	// logs 子命令：cmdLogs() 中 switch args[0] { case "xxx": ... }
+	for sc := range switchCases(s, "func cmdLogs(") {
+		t.sub[sc] = "logs"
+	}
+
+	// --version / version 也计入顶层
+	t.topLevel["version"] = true
+	t.topLevel["help"] = true
+
+	return t
+}
+
+// switchCases 在 src 中找到给定 funcPattern 后的第一个 switch 语句，
+// 提取其 case "literal": 字面值。仅处理 case "xxx": 形式，忽略逗号分隔的多值 case。
+func switchCases(src, funcPattern string) map[string]bool {
+	idx := strings.Index(src, funcPattern)
+	if idx < 0 {
+		return map[string]bool{}
+	}
+	// 从函数开始，找到下一个 switch 关键字
+	tail := src[idx:]
+	switchIdx := strings.Index(tail, "\tswitch ")
+	if switchIdx < 0 {
+		return map[string]bool{}
+	}
+	tail = tail[switchIdx:]
+	// 取 switch body（保守取 2400 字符——单个 switch 远小于此）
+	end := len(tail)
+	if end > 2400 {
+		end = 2400
+	}
+	body := tail[:end]
+
+	re := regexp.MustCompile(`case "([a-z][a-z0-9-]*)"`)
+	result := map[string]bool{}
+	for _, m := range re.FindAllStringSubmatch(body, -1) {
+		result[m[1]] = true
+	}
+	return result
+}
+
+// builtinFlags 返回 dw CLI 已知的标志集（flag 由 CLI 主控，数量少且随 flag 新增须同步 SKILL.md）。
+func builtinFlags() map[string]bool {
+	return map[string]bool{
+		"--json":     true,
+		"--force":    true,
+		"--clean":    true,
+		"--dir":      true,
+		"--timeout":  true,
+		"--remark":   true,
+		"--biz-date": true,
+		"--test":     true,
+		"--help":     true,
+		"-h":         true,
+		"--version":  true,
 	}
 }
 
