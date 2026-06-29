@@ -1,32 +1,29 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale (MINOR): Amend Principle III to add a phased-implementation clause —
-the current phase MAY satisfy local execution fidelity by reusing the platform's
-ACTUAL executor as a local subprocess (requires local JVM), with a Go-native
-lightweight runtime as the future target. This relaxes the "lightweight" expectation
-for the current phase while STRENGTHENING "reuse executor semantics" (code-level
-identity = zero drift). Adjudicated by the project owner during D (009) clarify; this
-sanctions the explicit deviation from 005 总纲 FR-010 ("Go-native / contract-level /
-lightweight"). Principle list unchanged (I–V); only III's normative body refined.
+Version change: 1.1.0 → 1.2.0
+Bump rationale (MINOR): Amend Principle IV to broaden agent operating surface from
+"through MCP" to "through MCP and/or the dw CLI" and document Skill as the local
+agent's knowledge layer. The non-negotiable kernel (no server-side AI brain, AI
+lives in local agent, teardown must not damage observability/scheduling) is unchanged.
+This is a governance sync to reflect the Skill-first authoring reality (015-agent-authoring-skill).
 
 Modified principles:
-  III. Two-Legged Debugging — normative body amended (phased runtime clause added);
-       name, NON-NEGOTIABLE status, and rationale unchanged.
+  IV. AI Lives in the Local Agent — operative clause broadened ("through MCP" →
+       "through MCP and/or the dw CLI"); Skill documented as agent knowledge layer;
+       non-negotiable kernel (3 items) preserved unchanged.
 Added principles: (none)
 Removed principles/sections: (none)
 
 Templates requiring updates:
   ✅ .specify/memory/constitution.md (this file)
-  ⚠ .specify/templates/plan-template.md — Constitution Check for D MUST accept the
-     phased III (Java-executor subprocess in current phase); no structural template
-     change required, list of principles unchanged.
-  ✅ .specify/templates/spec-template.md — unaffected
-  ✅ .specify/templates/tasks-template.md — unaffected (work-type categories still hold)
+  ✅ plan-template.md — Constitution Check for IV now accepts Skill+dw as valid
+     agent operating surface; no structural template change required.
+  ✅ spec-template.md — unaffected
+  ✅ tasks-template.md — unaffected
 
 Follow-up TODOs: none deferred. RATIFICATION_DATE unchanged (2026-06-26).
-Prior 1.0.0 report: initial ratification of Principles I–V from specs/005-weft-pivot/spec.md.
+Prior 1.1.0 report: amended Principle III (phased runtime clause).
 -->
 
 # Weft Constitution
@@ -97,11 +94,23 @@ contract is pinned by tests, not a precondition for shipping local debugging.
 The server MUST NOT embed an AI brain. The chat cockpit, AG-UI protocol, workhorse bridge,
 IntentRouter, and proactive-notify/findings MUST be removed cleanly (no active code or
 dependency residue). AI capability is provided exclusively by the developer's local coding
-agent operating the platform through MCP. Teardown MUST NOT damage run-time observability
-(ops overview, metrics, run logs, DAG instance views) or the scheduling kernel.
+agent operating the platform through MCP and/or the dw CLI.
+
+**Agent 知识层**：面向本地 agent 的任务创作知识以 **Skill**（`.claude/skills/weft-task-authoring/`）
+形态随仓库分发——渐进披露（仅 `description` 常驻上下文，正文按需加载），Skill 正文即 golden path
+单一真相；Skill 不绑定特定 agent 二进制（BYO-agent）。
+
+**不可让渡内核**（修订不改以下三条）：
+1. 服务端无 AI 大脑（不嵌入推理/决策/agent 逻辑）。
+2. AI 能力由开发者本地 agent 提供（Claude Code / Codex 或兼容者）。
+3. 拆除不得损伤运行态观测（ops overview / metrics / run logs / DAG instance views）与调度内核。
+
+Teardown MUST NOT damage run-time observability or the scheduling kernel.
 
 Rationale: The AI is already in the developer's editor; a second server-side agent brain is
-redundant and fragmented. Removing it nets a leaner, un-polluted platform.
+redundant and fragmented. Removing it nets a leaner, un-polluted platform. Skill + dw CLI
+provides a leaner, context-efficient authoring surface than maintaining a large set of MCP
+tool schemas in the agent's permanent context window.
 
 ### V. Reuse the Kernel (内核复用而非重写)
 
@@ -157,4 +166,4 @@ guidance; PATCH for clarifications and non-semantic refinements.
 Compliance is reviewed at plan time (Constitution Check) and before merge (cross-feature
 boundary and seam-closure check). Runtime development guidance lives in `CLAUDE.md`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-27
+**Version**: 1.2.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-29

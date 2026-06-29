@@ -66,12 +66,14 @@ Frontend `:4000`, backend `:8000`.
 - **Metrics**: `GET /api/ops/metrics` (JSON snapshot), `/actuator/metrics` (Micrometer), `/actuator/prometheus`.
 - **SSE**: logs `GET /api/ops/instances/{id}/logs/stream`; DAG status `GET /api/ops/workflow-instances/{id}/events/stream`.
 
-### MCP & CLI
+### MCP、CLI 与 Agent 创作
 
-- **MCP**: `POST /mcp` (JSON-RPC initialize/tools.list/tools.call, Bearer `mcp.auth.token`).
+**创作主路径：Skill + dw CLI**。面向本地 AI agent 的任务创作入口为随仓库分发的 Weft 任务创作 Skill（`.claude/skills/weft-task-authoring/SKILL.md`），渐进披露（仅 `description` 常驻，正文按需加载），指挥 `dw` CLI 完成 golden path（`pull → 写/改 → dw run → dw diff → dw push → dw run --test`）。MCP 工具面保留为自动化/查询的**可选**面——创作能力不在 MCP 扩展，避免 26 工具 schema 常驻上下文膨胀。
+
+- **MCP（可选自动化/查询面）**: `POST /mcp` (JSON-RPC initialize/tools.list/tools.call, Bearer `mcp.auth.token`)。
 - **MCP 身份隔离（E1）**: `mcp.auth.token` 绑定 `mcp.auth.tenant-id`/`mcp.auth.user-id` 配置；`McpAuthFilter` 校验 token 后解析身份置入 exchange 属性；`McpController` 分发工具前 `TenantContext.set(tenantId, userId)`、`finally` clear。所有读写工具按 `TenantContext.tenantId()` 隔离，缺身份返回 `mcp.tenant_required`。
 - **MCP 工具集**: 只读 `query_task_definitions/instances/fleet/metric/lineage`（已补租户隔离）、`project_pull/diff`（复用 C `ProjectSyncService`）、`instance_logs`（复用 `OpsService.getLog`）、`approve_and_execute`；写 `project_push`（风险自适应闸门：纯增改 L1 直通、含删除/force L2 审批挂起，`policy_rules` 数据驱动 + `DefaultPlatformActionExecutor` case → `ProjectSyncService.push`）、`task_rerun`/`node_exec`（tenant-scoped + 安全解析不弱化）。另有遗留 ops/工作流运维工具（`pause/resume/kill_instance`、`trigger/resume/rerun_workflow`、`test_run`、`*_backfill` 等）与上述并存——**完整清单以 `McpToolRegistry.registerTools()` 为准**。E 重塑已移除 `create_task/update_task/delete_task`（定义写入一律走 `project_push`）。
-- **dw CLI**: `cd cli && ./build.sh`；`DW_API`（默认 `http://localhost:8000`）。两类命令两套认证：① `task`/`logs cat` 走 `/api/cli/*`，写操作用 `X-DW-Token`(`cli.auth.token`)；② `pull/push/diff/run` 走 `/api/projects|tasks|ops/*`，`DW_TOKEN` 作 Bearer JWT。`dw run <task>` 本地真跑复用 worker 执行器子进程（classpath 经 `DW_WORKER_CP` 或自动探测 worker fat jar），`dw run --test` 提交服务器 TEST。详见 `cli/README.md`。
+- **dw CLI**: `cd cli && ./build.sh`；`DW_API`（默认 `http://localhost:8000`）。统一单一 Bearer 凭据（`DW_TOKEN` → `Authorization: Bearer`），覆盖全部端点。`dw run <task>` 本地真跑复用 worker 执行器子进程（classpath 经 `DW_WORKER_CP` 或自动探测 worker fat jar），`dw run --test` 提交服务器 TEST。退出码 0 成功 / 2 用法错误 / 3 越权 / 4 服务端业务 / 5 网络 / 6 任务执行失败 / 7 环境错误。详见 `cli/README.md`。
 - **Audit trail**: every write action records `agent_action`; PolicyEngine gate applies uniformly.
 
 ## Key Conventions
