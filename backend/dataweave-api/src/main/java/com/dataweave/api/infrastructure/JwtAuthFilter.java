@@ -22,7 +22,7 @@ import java.util.Set;
  * <ul>
  *   <li>{@code /api/auth/login} — 登录</li>
  *   <li>{@code /mcp} — MCP 端点（由 McpAuthFilter 独立守护）</li>
- *   <li>{@code /api/cli} — CLI 端点（由 CliController 的 X-DW-Token 独立守护，CLI 客户端无 JWT）</li>
+ *   <li>{@code /api/cli} — CLI 端点：优先 Bearer JWT，若仅携带 X-DW-Token 则放行至 CliController 自行校验（过渡期双接受）</li>
  * </ul>
  */
 @Component
@@ -36,7 +36,6 @@ public class JwtAuthFilter implements WebFilter {
 
     private static final Set<String> PREFIX_WHITELIST = Set.of(
             "/mcp",
-            "/api/cli",
             "/api/health",
             "/api/cluster"
     );
@@ -81,6 +80,15 @@ public class JwtAuthFilter implements WebFilter {
             String queryToken = exchange.getRequest().getQueryParams().getFirst("token");
             if (queryToken != null && !queryToken.isBlank()) {
                 token = queryToken.trim();
+            }
+        }
+
+        // 过渡期兼容：/api/cli 端点若无 Bearer token，但携带 X-DW-Token header，
+        // 则放行至 CliController 自行校验（保持旧 CLI 兼容）。
+        if (token == null && path.startsWith("/api/cli")) {
+            String xDwToken = exchange.getRequest().getHeaders().getFirst("X-DW-Token");
+            if (xDwToken != null && !xDwToken.isBlank()) {
+                return chain.filter(exchange);
             }
         }
         if (token == null) {

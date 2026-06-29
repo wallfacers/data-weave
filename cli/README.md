@@ -35,10 +35,10 @@ dw logs cat <instanceId>
 | 变量 | 用途 |
 |---|---|
 | `DW_API` | 后端地址（默认 `http://localhost:8000`） |
-| `DW_TOKEN` | `task/logs` 写类操作用 `X-DW-Token`；`pull/push/diff/run` 用**登录 JWT**（`Authorization: Bearer`） |
+| `DW_TOKEN` | 统一 Bearer 凭据，所有命令共用（`Authorization: Bearer`） |
 | `DW_WORKER_CP` | `dw run` 的 Java runtime classpath 或 worker fat jar 路径（缺省从 cwd 向上探测 `backend/dataweave-worker/target/*-exec.jar`） |
 
-## 退出码（FR-013：区分用法错误 vs 服务端/网络）
+## 退出码
 
 | 码 | 含义 |
 |---|---|
@@ -47,7 +47,8 @@ dw logs cat <instanceId>
 | 3 | 鉴权 / 越权（HTTP 401 或 `access_denied`） |
 | 4 | 服务端业务错误（基线过期 / 校验失败 / not_found …） |
 | 5 | 网络不可达 / HTTP 5xx |
-| 6 | `dw run` 环境错误（缺 JVM）；**任务失败透传 runner 退出码**（如 42/255） |
+| 6 | `dw run` 任务执行失败（透传 runner 退出码） |
+| 7 | 环境/前置错误（缺 JVM / worker classpath） |
 
 ## 本地真跑前置（`dw run`）
 

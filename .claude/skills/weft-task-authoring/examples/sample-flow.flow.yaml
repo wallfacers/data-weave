@@ -1,0 +1,27 @@
+# sample-flow.flow.yaml —— 最小可仿写任务流模板
+name: 示例每日数据流水线
+schedule:
+  type: CRON
+  cron: "0 6 * * *"
+nodes:
+  - key: extract_orders
+    task: ../etl/sample-task.task.yaml
+    type: TASK
+  - key: transform_orders
+    task: ../etl/transform.task.yaml
+    type: TASK
+  - key: load_report
+    task: ../etl/report.task.yaml
+    type: TASK
+  - key: notify
+    type: VIRTUAL
+edges:
+  - from: extract_orders
+    to: transform_orders
+    strength: STRONG
+  - from: transform_orders
+    to: load_report
+    strength: STRONG
+  - from: load_report
+    to: notify
+    strength: WEAK

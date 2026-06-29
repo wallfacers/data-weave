@@ -243,3 +243,52 @@ func TestRunLocalUnsupportedType(t *testing.T) {
 		t.Fatalf("expected ExitUsage, got code=%d", ee.Code)
 	}
 }
+
+// ---- 退出码语义（FR-016） ----
+
+func TestExitEnvironmentCodeIs7(t *testing.T) {
+	if client.ExitEnvironment != 7 {
+		t.Fatalf("ExitEnvironment = %d, want 7", client.ExitEnvironment)
+	}
+}
+
+func TestExitRunFailedCodeIs6(t *testing.T) {
+	if client.ExitRunFailed != 6 {
+		t.Fatalf("ExitRunFailed = %d, want 6", client.ExitRunFailed)
+	}
+}
+
+func TestExitCodeSemanticsDistinct(t *testing.T) {
+	// FR-016：环境错误 (7) 与任务执行失败 (6) 必须可区分
+	if client.ExitEnvironment == client.ExitRunFailed {
+		t.Fatal("ExitEnvironment(7) MUST be distinct from ExitRunFailed(6)")
+	}
+}
+
+func TestRunLocalMissingClasspathReturnsUsageError(t *testing.T) {
+	// FindWorkerClasspath 找不到 → ExitUsage(2)（配置问题，非环境错误）
+	t.Setenv("DW_WORKER_CP", "")
+	// 在一个没有 backend/ 的临时目录中，findClasspathFrom 应失败
+	dir := t.TempDir()
+	writeTaskYAML(t, dir, "foo.task.yaml", "name: foo\ntype: SHELL\n")
+	writeTaskYAML(t, dir, "foo.sh", "echo hi")
+	// 改变工作目录到 temp dir 以影响 findClasspathFrom 的起点
+	origWd, _ := os.Getwd()
+	_ = os.Chdir(dir)
+	defer func() { _ = os.Chdir(origWd) }()
+
+	err := RunLocal(LocalOpts{WorkDir: dir, Task: "foo"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error for missing classpath")
+	}
+	ee, ok := err.(*client.ExitError)
+	if !ok {
+		t.Fatalf("expected *ExitError, got %T: %v", err, err)
+	}
+	if ee.Code != client.ExitUsage {
+		t.Fatalf("missing classpath exit = %d, want ExitUsage(%d)", ee.Code, client.ExitUsage)
+	}
+	if !strings.Contains(ee.Message, "DW_WORKER_CP") && !strings.Contains(ee.Message, "classpath") {
+		t.Fatalf("error should mention DW_WORKER_CP or classpath: %v", ee)
+	}
+}

@@ -45,7 +45,13 @@ func RunPush(opts PushOpts, cfg client.Config) error {
 	}
 	data, err := client.Do(cfg, "POST", fmt.Sprintf("/api/projects/%d/push", state.ProjectID), body)
 	if err != nil {
-		// 基线过期(stale)/校验失败 → *ExitError，直接透传退出码（FR-004/FR-013）。
+		// FR-018：基线过期 → 可读提示（说明原因 + 推荐处置），服务端检测不动
+		if ee, ok := err.(*client.ExitError); ok && ee.ErrorCode == "project.sync.stale" {
+			return &client.ExitError{Code: ee.Code, ErrorCode: ee.ErrorCode,
+				Message: fmt.Sprintf("本地基线过期（%s）：他人可能已推送变更。"+
+					"推荐处置：① dw pull 拉取最新后再 dw push；② 若确认覆盖他人变更，dw push --force。", ee.Message)}
+		}
+		// 其他错误 → 直接透传
 		return err
 	}
 	var pr pushResult

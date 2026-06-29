@@ -13,6 +13,7 @@
 //	4  服务端业务错误（stale/incomplete/unknown_datasource/not_found/…）
 //	5  网络不可达 / HTTP 5xx
 //	6  dw run 任务执行失败（透传 runner 非0退出码）
+//	7  环境/前置错误（缺 JVM/worker classpath）
 package client
 
 import (
@@ -28,12 +29,13 @@ import (
 
 // 进程退出码（FR-013）。
 const (
-	ExitOK         = 0
-	ExitUsage      = 2
+	ExitOK          = 0
+	ExitUsage       = 2
 	ExitUnauthorized = 3
-	ExitServer     = 4
-	ExitNetwork    = 5
-	ExitRunFailed  = 6
+	ExitServer      = 4
+	ExitNetwork     = 5
+	ExitRunFailed   = 6 // 任务执行失败（透传 runner 非零退出码）
+	ExitEnvironment = 7 // 环境/前置错误（缺 JVM/worker classpath）
 )
 
 // DefaultAPIBase 与现有 main.go 一致：DW_API 缺省 http://localhost:8000。

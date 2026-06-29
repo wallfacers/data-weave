@@ -28,7 +28,8 @@ import java.util.UUID;
 
 /**
  * `dw` CLI 的 REST 契约。读类直通领域查询；写类（rerun）经 {@link GatedActionService} 闸门——
- * 人手工执行与 agent 经 node_exec 同闸同审计（dw-cli spec）。写类需 token（无 token → 401）。
+ * 人手工执行与 agent 经 node_exec 同闸同审计（dw-cli spec）。
+ * 认证：优先 Bearer JWT（由 JwtAuthFilter 统一处理），过渡期兼容 X-DW-Token。
  */
 @RestController
 @RequestMapping("/api/cli")
@@ -103,22 +104,35 @@ public class CliController {
 
     @PostMapping("/instances/{id}/rerun")
     public ApiResponse<GateResult> rerun(@PathVariable UUID id,
-                            @RequestHeader(value = "X-DW-Token", required = false) String token,
+                            @RequestHeader(value = "X-DW-Token", required = false) String xDwToken,
                             ServerWebExchange exchange) {
-        requireToken(token);
+        String actor = requireToken(xDwToken, exchange);
         ActionRequest req = ActionRequest.builder()
                 .toolName("task_rerun").actionType("TASK_RERUN")
                 .targetType("TASK_INSTANCE").targetId(String.valueOf(id))
-                .actor("cli:" + mask(token)).actorSource("CLI")
+                .actor(actor).actorSource("CLI")
                 .summary("CLI 重跑实例 #" + id)
                 .build();
         return ApiResponse.ok(gatedActionService.submit(req, Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
-    private void requireToken(String token) {
-        if (token == null || token.isBlank() || !token.equals(cliToken)) {
-            throw new BizException("cli.auth.invalid").withHttpStatus(401);
+    /**
+     * 认证校验：优先 Bearer JWT（exchange attributes，由 JwtAuthFilter 注入），
+     * 否则回退 X-DW-Token（过渡期兼容旧 CLI）。
+     * @return actor 标识（用于审计）
+     */
+    private String requireToken(String xDwToken, ServerWebExchange exchange) {
+        // 优先 Bearer JWT
+        Object userId = exchange.getAttribute("userId");
+        if (userId != null) {
+            String username = String.valueOf(exchange.getAttributeOrDefault("username", "jwt-user"));
+            return "cli:" + username;
         }
+        // 过渡期兼容：X-DW-Token
+        if (xDwToken != null && !xDwToken.isBlank() && xDwToken.equals(cliToken)) {
+            return "cli:" + mask(xDwToken);
+        }
+        throw new BizException("cli.auth.invalid").withHttpStatus(401);
     }
 
     private String mask(String token) {
