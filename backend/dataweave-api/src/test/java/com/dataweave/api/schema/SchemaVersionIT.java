@@ -156,13 +156,13 @@ class SchemaVersionIT {
 
         String content = Files.readString(Path.of(schemaResource.getURI()));
 
+        // 按 CREATE TABLE 粒度断言：匹配 CREATE TABLE <table> 定义，避免裸子串误杀
+        Pattern removedTablePattern = Pattern.compile(
+                "CREATE\\s+TABLE\\s+(task_diagnosis|finding)\\b",
+                Pattern.CASE_INSENSITIVE);
         assertThat(content)
-                .as("schema.sql 不应包含已移除表 task_diagnosis")
-                .doesNotContain("task_diagnosis");
-
-        assertThat(content)
-                .as("schema.sql 不应包含已移除表 finding")
-                .doesNotContain("finding");
+                .as("schema.sql 不应包含已移除表 task_diagnosis / finding 的 CREATE TABLE 定义")
+                .doesNotContainPattern(removedTablePattern);
     }
 
     /**
