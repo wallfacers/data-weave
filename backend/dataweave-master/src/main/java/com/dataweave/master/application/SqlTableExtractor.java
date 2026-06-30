@@ -14,6 +14,7 @@ import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlWith;
 import org.apache.calcite.sql.SqlWithItem;
 import org.apache.calcite.sql.parser.SqlParser;
+import com.dataweave.master.application.lineage.NameNormalizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -142,10 +143,10 @@ public class SqlTableExtractor {
         }
     }
 
-    /** SqlIdentifier → 点分表名（保留 schema 前缀，去引号）。 */
+    /** SqlIdentifier → 点分表名（保留 schema 前缀，去引号）。规范化规则与列级共用，见 {@link NameNormalizer}。 */
     private String tableName(SqlNode node) {
         if (node instanceof SqlIdentifier id) {
-            return String.join(".", id.names);
+            return NameNormalizer.table(id);
         }
         return null;
     }
