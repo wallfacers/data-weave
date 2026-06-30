@@ -29,7 +29,11 @@ import jakarta.annotation.PreDestroy;
  *   <li>进程退出</li>
  * </ol>
  */
-@SpringBootApplication
+@SpringBootApplication(excludeName = {
+    "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration",
+    "org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration",
+    "org.springframework.boot.autoconfigure.data.jdbc.JdbcRepositoriesAutoConfiguration"
+})
 @EnableScheduling
 public class WorkerApplication {
 

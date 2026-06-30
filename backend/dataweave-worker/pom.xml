@@ -66,11 +66,10 @@
             <artifactId>jcc</artifactId>
             <scope>runtime</scope>
         </dependency>
-        <!-- H2：SqlTaskExecutor 真实执行路径的测试用内存库（仅 test scope） -->
+        <!-- H2：worker 独立进程 DataSource auto-config + 测试用内存库 -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 

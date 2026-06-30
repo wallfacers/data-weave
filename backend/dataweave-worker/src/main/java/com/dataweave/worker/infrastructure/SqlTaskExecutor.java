@@ -5,6 +5,7 @@ import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.AbstractTaskExecutor;
 import com.dataweave.worker.domain.ExecutionContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -35,7 +36,8 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
 
     private final IsolatedDriverLoader isolatedLoader;
 
-    public SqlTaskExecutor(IsolatedDriverLoader isolatedLoader) {
+    @Autowired
+    public SqlTaskExecutor(@Autowired(required = false) IsolatedDriverLoader isolatedLoader) {
         this.isolatedLoader = isolatedLoader;
     }
 
@@ -116,7 +118,11 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             Properties props = new Properties();
             if (ds.username() != null) props.setProperty("user", ds.username());
             if (ds.password() != null) props.setProperty("password", ds.password());
-            return isolatedLoader.connect(jar, ds.jdbcUrl(), props);
+            if (isolatedLoader != null) {
+                return isolatedLoader.connect(jar, ds.jdbcUrl(), props);
+            }
+            // 028: distributed worker 无 IsolatedDriverLoader bean，回退 DriverManager
+            return DriverManager.getConnection(ds.jdbcUrl(), ds.username(), ds.password());
         }
         return DriverManager.getConnection(ds.jdbcUrl(), ds.username(), ds.password());
     }

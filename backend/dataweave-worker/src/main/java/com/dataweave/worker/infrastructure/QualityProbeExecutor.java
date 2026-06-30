@@ -2,6 +2,7 @@ package com.dataweave.worker.infrastructure;
 
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -32,6 +33,7 @@ import java.util.function.Consumer;
  * 映射收录（按 {@link #type()} 大写作键），无需额外注册。
  */
 @Component
+@ConditionalOnBean(IsolatedDriverLoader.class)
 public class QualityProbeExecutor extends SqlTaskExecutor {
 
     public QualityProbeExecutor(IsolatedDriverLoader isolatedLoader) {
