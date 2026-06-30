@@ -3,6 +3,8 @@ package com.dataweave.api.infrastructure;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -57,8 +59,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.ok(ApiResponse.err(code, reason));
     }
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e, ServerWebExchange exchange) {
+        log.error("Unhandled exception: path={} method={}",
+                exchange.getRequest().getPath().value(),
+                exchange.getRequest().getMethod(), e);
         Locale locale = Locales.uiLocale(exchange.getRequest().getHeaders());
         return ResponseEntity.ok(ApiResponse.err(500, messages.get("common.internal_error", locale)));
     }

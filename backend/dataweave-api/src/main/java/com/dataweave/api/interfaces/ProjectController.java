@@ -3,6 +3,7 @@ package com.dataweave.api.interfaces;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.domain.*;
+import com.dataweave.master.filecontract.naming.EntityNaming;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -117,10 +118,15 @@ public class ProjectController {
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
+        String code = body.get("code");
+        String name = body.get("name");
+        if (code == null || code.isBlank()) {
+            code = EntityNaming.slugOf(name);
+        }
         Project p = new Project();
         p.setTenantId(tenantId);
-        p.setCode(body.get("code"));
-        p.setName(body.get("name"));
+        p.setCode(code);
+        p.setName(name);
         p.setOwnerId(TenantContext.userId());
         p.setStatus("ACTIVE");
         p.setCreatedBy(TenantContext.userId());
