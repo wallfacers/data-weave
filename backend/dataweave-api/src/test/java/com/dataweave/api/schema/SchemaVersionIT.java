@@ -45,8 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Schema 版本契约 (C1–C6)")
 class SchemaVersionIT {
 
-    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。 */
-    static final String BASELINE_VERSION = "0.0.1";
+    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。023 升至 0.3.0（占位，合并期定终值）。 */
+    static final String BASELINE_VERSION = "0.3.0";
 
     /** 合法 SemVer 正则：MAJOR.MINOR.PATCH，纯数字。 */
     static final Pattern SEMVER_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
@@ -62,7 +62,7 @@ class SchemaVersionIT {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("C1 schema_version 恰好 1 行，version 为合法 SemVer 且 = 0.0.1，applied_at 非空")
+    @DisplayName("C1 schema_version 恰好 1 行，version 为合法 SemVer 且 = 0.3.0，applied_at 非空")
     void c1SingleRowValidSemVerBaseline() {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT version, applied_at FROM schema_version");
@@ -92,7 +92,7 @@ class SchemaVersionIT {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("C2 库内 version = 基线常量 0.0.1（= 项目发布版本）")
+    @DisplayName("C2 库内 version = 基线常量 0.3.0（= 项目发布版本）")
     void c2VersionEqualsProjectVersion() {
         String dbVersion = jdbc.queryForObject(
                 "SELECT version FROM schema_version", String.class);

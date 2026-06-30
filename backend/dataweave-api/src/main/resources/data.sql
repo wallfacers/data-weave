@@ -600,6 +600,10 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (37, 'TOOL', 'rerun_workflow',          NULL, 'L1', '整流重跑工作流（可逆例行）',       1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (44, 'TOOL', 'PROJECT_PUSH',             NULL, 'L1', '项目推送（纯增改，租户项目内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (45, 'TOOL', 'PROJECT_PUSH_DESTRUCTIVE', NULL, 'L2', '项目推送含删除/force（破坏性，需审批）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 023 资产目录 + 指标市场写工具（pattern 匹配 ActionRequest.toolName；id 取 PROJECT_PUSH 段之后）
+(46, 'TOOL', 'ASSET_WRITE',             NULL, 'L1', '资产编目/上架/复用写（租户项目内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(47, 'TOOL', 'METRIC_CERTIFY',          NULL, 'L2', '指标认证（可信背书，需审批）',         1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(48, 'TOOL', 'ASSET_SUBSCRIBE',         NULL, 'L1', '资产/指标订阅（可逆例行）',           1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 (40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
@@ -677,6 +681,25 @@ INSERT INTO task_run_table_io (id, tenant_id, project_id, task_instance_id, tabl
 ALTER TABLE data_table ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE task_table_io ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE task_run_table_io ALTER COLUMN id RESTART WITH 100;
+
+-- ============================================================
+-- 域 J · 资产目录 + 指标市场种子（023）：编目既有血缘链上的表 + 上架既有指标，供目录/市场开屏即见
+-- lineage_table_ref = 对应 data_table.id（喂 LineageQueryService 的 tableId；neo4j 离线时血缘入口降级）
+-- ============================================================
+INSERT INTO data_asset (id, tenant_id, project_id, datasource_id, qualified_name, name, description, owner_id, steward_id, glossary_terms, sensitivity, schema_snapshot_json, lineage_table_ref, status, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+  (1, 1, 1, 1, 'dwd_order',      '订单明细表',   'DWD 层订单明细，按天分区',       1, 1, '["订单","明细"]',   'INTERNAL',     '[{"col":"order_id","type":"bigint"},{"col":"amount","type":"decimal"}]', '3', 'ACTIVE', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (2, 1, 1, 1, 'ads_gmv',        'GMV 汇总表',    'ADS 层 GMV 汇总，供驾驶舱',       1, 1, '["GMV","汇总"]',    'CONFIDENTIAL', '[{"col":"biz_date","type":"varchar"},{"col":"gmv","type":"decimal"}]',  '5', 'ACTIVE', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (3, 1, 1, 1, 'ods_user',       '用户原始表',   'ODS 层用户信息，含敏感字段',     1, 1, '["用户","PII"]',    'PII',          '[{"col":"user_id","type":"bigint"},{"col":"phone","type":"varchar"}]', '2', 'ACTIVE', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (4, 1, 1, 1, 'orphan_legacy_tbl', '孤儿遗留表', '底层表已不存在，供 STALE 对账演示', 1, 1, '["遗留"]',          'INTERNAL',     '[{"col":"x","type":"int"}]',                                          NULL, 'ACTIVE', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+
+INSERT INTO metric_listing (id, tenant_id, project_id, metric_type, metric_id, metric_code, owner_id, certification, certified_by, certified_at, freshness_info, description, status, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+  (1, 1, 1, 'ATOMIC', 1, 'GMV',       1, 'CERTIFIED', 1, CURRENT_TIMESTAMP, 'T+1 每日 06:00 刷新', '全站成交总额，口径唯一权威', 'LISTED', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
+  (2, 1, 1, 'ATOMIC', 2, 'ORDER_CNT', 1, 'NONE',      NULL, NULL,           'T+1 每日 06:00 刷新', '订单数量',                   'LISTED', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
+
+ALTER TABLE data_asset ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE metric_listing ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE metric_reuse_ref ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE asset_subscription ALTER COLUMN id RESTART WITH 100;
 
 -- ETA 预测演示种子（task 5.4）：独立任务 9101「实时GMV增量同步」，3 条历史 SUCCESS（时长 28/30/32min，中位 30min）
 -- + 1 条「此刻起跑」RUNNING（started_at=CURRENT_TIMESTAMP），供顶条「最迟看板 ETA」算出约 +30min 的真预测。

@@ -40,6 +40,8 @@ import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
+import { AssetCatalogView } from "@/components/workspace/views/asset-catalog-view"
+import { MetricMarketplaceView } from "@/components/workspace/views/metric-marketplace-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -77,7 +79,11 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   },
   catalog: {
     icon: CatalogueIcon,
-    component: placeholder("catalog", "descCatalog"),
+    component: AssetCatalogView,
+  },
+  marketplace: {
+    icon: Analytics01Icon,
+    component: MetricMarketplaceView,
   },
   quality: {
     icon: Shield01Icon,

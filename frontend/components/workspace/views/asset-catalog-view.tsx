@@ -1,0 +1,259 @@
+"use client"
+
+/**
+ * 数据资产目录视图（023 US1/US2/US5）：左分面搜索 + 中列表 + 右详情（元数据 + 血缘入口 + 质量徽章 + 订阅）。
+ * 血缘/质量「懒加载 + 降级安全」：不可达隐藏入口，不阻断主功能（SC-002）。
+ */
+
+import { useCallback, useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Search01Icon, Database01Icon, Shield01Icon, GitBranchIcon, Notification01Icon } from "@hugeicons/core-free-icons"
+import {
+  searchAssets,
+  fetchAsset,
+  fetchAssetLineage,
+  fetchAssetQuality,
+  subscribe,
+  type AssetSummary,
+  type AssetDetail,
+  type LineageEntryView,
+  type QualityBadgeView,
+  type SearchResult,
+} from "@/lib/catalog-api"
+
+const SENSITIVITY_TONE: Record<string, string> = {
+  PUBLIC: "text-muted-foreground",
+  INTERNAL: "text-foreground",
+  CONFIDENTIAL: "text-amber-600",
+  PII: "text-red-600",
+}
+
+export function AssetCatalogView() {
+  const t = useTranslations("assetCatalog")
+
+  const [keyword, setKeyword] = useState("")
+  const [sensitivity, setSensitivity] = useState("")
+  const [result, setResult] = useState<SearchResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<AssetDetail | null>(null)
+  const [lineage, setLineage] = useState<LineageEntryView | null>(null)
+  const [quality, setQuality] = useState<QualityBadgeView | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const runSearch = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await searchAssets({ keyword, sensitivity })
+      setResult(res.data ?? null)
+    } finally {
+      setLoading(false)
+    }
+  }, [keyword, sensitivity])
+
+  useEffect(() => {
+    void runSearch()
+  }, [runSearch])
+
+  const openDetail = useCallback(async (a: AssetSummary) => {
+    const res = await fetchAsset(a.id)
+    if (res.code !== 0 || !res.data) {
+      setToast(res.message ?? t("loadFailed"))
+      return
+    }
+    setSelected(res.data)
+    setLineage(null)
+    setQuality(null)
+    // 懒加载血缘 + 质量（降级安全）
+    void fetchAssetLineage(a.id).then((r) => setLineage(r.data ?? null))
+    void fetchAssetQuality(a.id).then((r) => setQuality(r.data ?? null))
+  }, [t])
+
+  const doSubscribe = useCallback(async () => {
+    if (!selected) return
+    const res = await subscribe({ targetType: "ASSET", targetId: selected.id, changeFilter: "schema,quality,freshness" })
+    if (res.code === 0 && res.data?.outcome === "EXECUTED") {
+      setToast(t("subscribed"))
+    } else if (res.data?.outcome === "PENDING_APPROVAL") {
+      setToast(t("pendingApproval"))
+    } else {
+      setToast(res.message ?? t("actionFailed"))
+    }
+  }, [selected, t])
+
+  const facets = result?.facets ?? {}
+
+  return (
+    <div className="flex h-full min-h-0">
+      {/* 左：分面搜索 */}
+      <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-border p-4">
+        <div className="flex items-center gap-2 rounded-md border border-input px-2">
+          <HugeiconsIcon icon={Search01Icon} className="size-4 text-muted-foreground" />
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="h-9 w-full bg-transparent text-sm outline-none"
+          />
+        </div>
+        <div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetSensitivity")}</div>
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setSensitivity("")}
+              className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === "" ? "bg-accent" : "hover:bg-accent/50"}`}
+            >
+              <span>{t("all")}</span>
+            </button>
+            {Object.entries(facets.sensitivity ?? {}).map(([k, c]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setSensitivity(k)}
+                className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === k ? "bg-accent" : "hover:bg-accent/50"}`}
+              >
+                <span className={SENSITIVITY_TONE[k] ?? ""}>{k}</span>
+                <span className="text-muted-foreground">{c}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {Object.keys(facets.owner ?? {}).length > 0 && (
+          <div>
+            <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetOwner")}</div>
+            <div className="flex flex-col gap-1">
+              {Object.entries(facets.owner ?? {}).map(([k, c]) => (
+                <div key={k} className="flex justify-between px-2 py-1 text-sm text-muted-foreground">
+                  <span>#{k}</span>
+                  <span>{c}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* 中：列表 */}
+      <section className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2 text-sm">
+          <span className="font-medium">{t("title")}</span>
+          <span className="text-muted-foreground">
+            {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
+            {result?.truncated ? ` · ${t("truncated")}` : ""}
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {(result?.items ?? []).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => openDetail(a)}
+              className={`flex w-full items-center gap-3 border-b border-border/50 px-4 py-3 text-left hover:bg-accent/40 ${selected?.id === a.id ? "bg-accent/60" : ""}`}
+            >
+              <HugeiconsIcon icon={Database01Icon} className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{a.name || a.qualifiedName}</div>
+                <div className="truncate text-xs text-muted-foreground">{a.qualifiedName}</div>
+              </div>
+              <span className={`text-xs ${SENSITIVITY_TONE[a.sensitivity] ?? ""}`}>{a.sensitivity}</span>
+              {a.status !== "ACTIVE" && (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">{a.status}</span>
+              )}
+            </button>
+          ))}
+          {!loading && (result?.items.length ?? 0) === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</div>
+          )}
+        </div>
+      </section>
+
+      {/* 右：详情 */}
+      <aside className="flex w-80 shrink-0 flex-col border-l border-border">
+        {selected ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
+            <div className="mb-1 text-base font-semibold">{selected.name || selected.qualifiedName}</div>
+            <div className="mb-3 text-xs text-muted-foreground">{selected.qualifiedName}</div>
+
+            {selected.status !== "ACTIVE" && (
+              <div className="mb-3 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                {t("staleHint")}
+              </div>
+            )}
+
+            <dl className="space-y-2 text-sm">
+              <Row label={t("owner")} value={selected.ownerId ? `#${selected.ownerId}` : "—"} />
+              <Row label={t("steward")} value={selected.stewardId ? `#${selected.stewardId}` : "—"} />
+              <Row label={t("sensitivity")} value={selected.sensitivity} valueClass={SENSITIVITY_TONE[selected.sensitivity]} />
+              <Row label={t("status")} value={selected.status} />
+            </dl>
+
+            {selected.description && (
+              <p className="mt-3 text-sm text-muted-foreground">{selected.description}</p>
+            )}
+
+            {selected.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1">
+                {selected.tags.map((tg) => (
+                  <span key={tg} className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">{tg}</span>
+                ))}
+              </div>
+            )}
+
+            {/* 血缘入口（降级隐藏） */}
+            {lineage && lineage.available && !lineage.degraded && (
+              <div className="mt-4 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                <HugeiconsIcon icon={GitBranchIcon} className="size-4 text-muted-foreground" />
+                <span>{t("lineage")}</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  ↑{lineage.upstreamCount} ↓{lineage.downstreamCount}
+                </span>
+              </div>
+            )}
+
+            {/* 质量徽章（降级隐藏） */}
+            {quality && quality.available && !quality.degraded && quality.score != null && (
+              <div className="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+                <HugeiconsIcon icon={Shield01Icon} className="size-4 text-emerald-600" />
+                <span>{t("quality")}</span>
+                <span className="ml-auto text-xs">{quality.grade ?? quality.score}</span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={doSubscribe}
+              className="mt-4 flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+            >
+              <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+              {t("subscribe")}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+            {t("selectHint")}
+          </div>
+        )}
+      </aside>
+
+      {toast && (
+        <div
+          className="fixed bottom-4 right-4 z-50 rounded-md bg-foreground px-3 py-2 text-sm text-background shadow-lg"
+          onAnimationEnd={() => setToast(null)}
+          role="status"
+        >
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Row({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`text-right ${valueClass ?? ""}`}>{value}</dd>
+    </div>
+  )
+}
