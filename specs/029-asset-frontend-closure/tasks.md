@@ -110,14 +110,14 @@
 
 ### Tests（先行,失败）
 
-- [ ] T026 [P] [US4] 单测 `frontend/lib/asset-search-query.test.ts`：搜索查询构建器——keyword/sensitivity/owner/tag/status/qualityMin/page 组装与切换（点选/取消）逻辑正确。
+- [ ] T026 [P] [US4] 单测 `frontend/lib/asset-search-query.test.ts`：搜索查询构建器——keyword/sensitivity/owner/tag/qualityMin/page 组装与切换（点选/取消）逻辑正确。**不含 status**（后端无 status 入参,analyze F1）。
 
 ### Implementation
 
 - [ ] T027 [US4] 实现 `frontend/lib/asset-search-query.ts`：查询状态构建/切换纯逻辑,令 T026 通过。
-- [ ] T028 [US4] `asset-catalog-view.tsx`：owner/tag/status 分面改为可点选真过滤（toggle + 已选高亮),经 builder 传 `searchAssets`（现 owner 仅显示→改为可过滤）。
+- [ ] T028 [US4] `asset-catalog-view.tsx`：**owner/tag** 分面改为可点选真过滤（sensitivity 现已可点；toggle + 已选高亮),经 builder 传 `searchAssets`（现 owner 仅显示→改为可过滤）。**`status` 分面仅只读展示计数,不可点选**（后端搜索无 status 入参且恒排除 RETIRED,analyze F1）。
 - [ ] T029 [US4] `asset-catalog-view.tsx`：接 `components/ui/pagination` 接管 page,显示 total + `truncated`「结果已截断」,替换写死 page=1/size=20。
-- [ ] T030 [US4] `asset-catalog-view.tsx`：加质量分数下限输入,透传 `qualityMin`;控件旁常驻静态声明「质量数据来自 022 评分卡、当前环境可能为空」（clarify Q2）。
+- [ ] T030 [US4] `asset-catalog-view.tsx`：加质量分数下限输入,透传 `qualityMin`;控件旁常驻静态声明「质量数据来自 022 评分卡、当前环境可能为空」（clarify Q2）。注释点明**后端 v1 对 `qualityMin` 为 no-op**（缺 022 评分卡表,`AssetSearchService` 不施加该过滤,analyze F2）,纯前端入口 + 声明,避免后人误判生效。
 - [ ] T031 [US4] `metric-marketplace-view.tsx`：certification 分面可点过滤（NONE/CERTIFIED）+ 接分页。
 - [ ] T032 [P] [US4] i18n：补分面标签（owner/tag/status/certification）、分页、质量声明 key（两 bundle 同集）。
 

@@ -5,9 +5,11 @@
 ## 读
 
 ### GET /api/catalog/assets — 搜索（分面/分页/质量）
-Query: `keyword?`, `owner?`, `tag?`, `sensitivity?`, `status?`(经 type/状态)、`qualityMin?:number`, `page=1`, `size=20`, `projectId=1`
-→ `data: SearchResult { items: AssetSummary[], total, facets: {sensitivity|owner|tag|status: {值:计数}}, truncated }`
-- 本特性新增前端用法：传 `owner`/`tag`/`status` 实现分面真过滤；传 `qualityMin` 实现质量过滤；`page` 实现分页。
+Query（后端实际入参,`AssetDtos.SearchQuery`）: `keyword?`, `type?`, `owner?`, `tag?`, `sensitivity?`, `qualityMin?:number`, `page=1`, `size=20`, `projectId=1`
+→ `data: SearchResult { items: AssetSummary[], total, facets: {sensitivity|status|owner|tag: {值:计数}}, truncated }`
+- **无 `status` 入参**；基础查询恒含 `a.status <> 'RETIRED'`（`AssetSearchService` L58）→ 返回项只可能 ACTIVE/STALE。
+- 本特性前端用法：传 `owner`/`tag`/`sensitivity` 实现分面真过滤；`status` facet **仅只读展示**（analyze F1）；`page` 实现分页。
+- `qualityMin`：后端 v1 **no-op**（缺 022 评分卡表,`AssetSearchService` L84 不施加过滤）→ 前端透传 + 静态声明（analyze F2）。
 
 ### GET /api/catalog/assets/{id} — 详情
 → `data: AssetDetail`（PII 仅 owner/steward,否则 `catalog.forbidden_sensitivity`）
