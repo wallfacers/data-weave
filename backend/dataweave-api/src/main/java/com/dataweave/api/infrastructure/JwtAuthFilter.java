@@ -37,7 +37,8 @@ public class JwtAuthFilter implements WebFilter {
     private static final Set<String> PREFIX_WHITELIST = Set.of(
             "/mcp",
             "/api/health",
-            "/api/cluster"
+            "/api/cluster",
+            "/api/fleet"
     );
 
     private final JwtUtil jwtUtil;
