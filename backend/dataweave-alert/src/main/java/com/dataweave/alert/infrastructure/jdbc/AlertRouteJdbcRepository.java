@@ -55,12 +55,12 @@ public class AlertRouteJdbcRepository implements AlertRouteRepository {
     }
 
     private AlertRoute insert(AlertRoute r) {
-        jdbc.update(
+        long id = JdbcInsertSupport.insertReturningId(jdbc,
                 "INSERT INTO alert_route (tenant_id, match_json, channel_ids, sort_order, enabled, " +
                 "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?)",
                 r.getTenantId(), r.getMatchJson(), r.getChannelIds(), r.getSortOrder(), r.getEnabled(),
                 r.getCreatedBy(), LocalDateTime.now(), 0, 0);
-        r.setId(jdbc.queryForObject("CALL IDENTITY()", Long.class));
+        r.setId(id);
         return r;
     }
 

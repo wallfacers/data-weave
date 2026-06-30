@@ -59,12 +59,12 @@ public class AlertSilenceJdbcRepository implements AlertSilenceRepository {
     }
 
     private AlertSilence insert(AlertSilence s) {
-        jdbc.update(
+        long id = JdbcInsertSupport.insertReturningId(jdbc,
                 "INSERT INTO alert_silence (tenant_id, match_json, starts_at, ends_at, reason, creator, " +
                 "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 s.getTenantId(), s.getMatchJson(), s.getStartsAt(), s.getEndsAt(), s.getReason(),
                 s.getCreator(), s.getCreatedBy(), LocalDateTime.now(), 0, 0);
-        s.setId(jdbc.queryForObject("CALL IDENTITY()", Long.class));
+        s.setId(id);
         return s;
     }
 

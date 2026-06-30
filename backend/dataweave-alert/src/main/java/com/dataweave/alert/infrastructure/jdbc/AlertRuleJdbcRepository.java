@@ -89,7 +89,7 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
     }
 
     private AlertRule insert(AlertRule r) {
-        jdbc.update(
+        long generated = JdbcInsertSupport.insertReturningId(jdbc,
                 "INSERT INTO alert_rule (tenant_id, name, description, enabled, signal_source, eval_mode, " +
                 "eval_interval_sec, condition_json, severity, for_duration, dedup_key_template, " +
                 "suppress_window_sec, auto_resolve, labels_json, created_by, created_at, deleted, version) " +
@@ -98,8 +98,6 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
                 r.getEvalMode(), r.getEvalIntervalSec(), r.getConditionJson(), r.getSeverity(),
                 r.getForDuration(), r.getDedupKeyTemplate(), r.getSuppressWindowSec(), r.getAutoResolve(),
                 r.getLabelsJson(), r.getCreatedBy(), LocalDateTime.now(), 0, 0);
-        // retrieve generated id
-        var generated = jdbc.queryForObject("CALL IDENTITY()", Long.class);
         r.setId(generated);
         return r;
     }

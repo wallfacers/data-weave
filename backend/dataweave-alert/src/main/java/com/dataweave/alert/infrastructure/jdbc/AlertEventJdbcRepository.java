@@ -96,7 +96,7 @@ public class AlertEventJdbcRepository implements AlertEventRepository {
     }
 
     private AlertEvent insert(AlertEvent e) {
-        jdbc.update(
+        long id = JdbcInsertSupport.insertReturningId(jdbc,
                 "INSERT INTO alert_event (tenant_id, rule_id, state, severity, fingerprint, \"value\", " +
                 "context_json, count, first_fired_at, last_fired_at, resolved_at, acked_by, acked_at, " +
                 "created_by, created_at, deleted, version) " +
@@ -104,7 +104,7 @@ public class AlertEventJdbcRepository implements AlertEventRepository {
                 e.getTenantId(), e.getRuleId(), e.getState(), e.getSeverity(), e.getFingerprint(),
                 e.getValue(), e.getContextJson(), e.getCount(), e.getFirstFiredAt(), e.getLastFiredAt(),
                 e.getResolvedAt(), e.getAckedBy(), e.getAckedAt(), e.getCreatedBy(), LocalDateTime.now(), 0, 0);
-        e.setId(jdbc.queryForObject("CALL IDENTITY()", Long.class));
+        e.setId(id);
         return e;
     }
 

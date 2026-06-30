@@ -69,12 +69,12 @@ public class AlertChannelJdbcRepository implements AlertChannelRepository {
     }
 
     private AlertChannel insert(AlertChannel c) {
-        jdbc.update(
+        long id = JdbcInsertSupport.insertReturningId(jdbc,
                 "INSERT INTO alert_channel (tenant_id, name, type, config_json, rate_limit_per_min, enabled, " +
                 "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 c.getTenantId(), c.getName(), c.getType(), c.getConfigJson(), c.getRateLimitPerMin(),
                 c.getEnabled(), c.getCreatedBy(), LocalDateTime.now(), 0, 0);
-        c.setId(jdbc.queryForObject("CALL IDENTITY()", Long.class));
+        c.setId(id);
         return c;
     }
 

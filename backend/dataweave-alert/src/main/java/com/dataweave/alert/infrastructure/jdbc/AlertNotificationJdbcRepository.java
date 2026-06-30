@@ -40,13 +40,13 @@ public class AlertNotificationJdbcRepository implements AlertNotificationReposit
     @Override
     public AlertNotification save(AlertNotification n) {
         if (n.getId() == null) {
-            jdbc.update(
+            long id = JdbcInsertSupport.insertReturningId(jdbc,
                     "INSERT INTO alert_notification (tenant_id, event_id, channel_id, status, attempts, " +
                     "sent_at, error, response_digest, created_by, created_at, deleted, version) " +
                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     n.getTenantId(), n.getEventId(), n.getChannelId(), n.getStatus(), n.getAttempts(),
                     n.getSentAt(), n.getError(), n.getResponseDigest(), n.getCreatedBy(), LocalDateTime.now(), 0, 0);
-            n.setId(jdbc.queryForObject("CALL IDENTITY()", Long.class));
+            n.setId(id);
         } else {
             jdbc.update(
                     "UPDATE alert_notification SET status=?, attempts=?, sent_at=?, error=?, response_digest=?, " +
