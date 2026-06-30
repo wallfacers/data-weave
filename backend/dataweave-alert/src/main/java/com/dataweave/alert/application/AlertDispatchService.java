@@ -147,6 +147,13 @@ public class AlertDispatchService {
                     notif.setSentAt(LocalDateTime.now());
                     return notifRepo.save(notif);
                 }
+                // 026: 未配置（缺收件人/未配 SMTP）短路——不重试、不记 FAILED，标 SKIPPED
+                if (!result.configured()) {
+                    notif.setStatus("SKIPPED");
+                    notif.setError(result.error());
+                    log.warn("[AlertDispatch] channel {} not configured: {}", channel.getId(), result.error());
+                    return notifRepo.save(notif);
+                }
                 notif.setError(result.error());
             } catch (Exception e) {
                 notif.setError(e.getMessage());

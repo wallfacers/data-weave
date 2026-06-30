@@ -2,6 +2,8 @@ package com.dataweave.alert.application;
 
 import com.dataweave.alert.domain.AlertRule;
 import com.dataweave.alert.domain.repository.AlertRuleRepository;
+import com.dataweave.master.application.MetricService;
+import com.dataweave.master.domain.AtomicMetric;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -13,9 +15,13 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Metric 轮询评估器：对 eval_mode=POLL 的规则定时评估。
+ * Metric 轮询评估器：对 eval_mode=POLL 的规则定时评估（全租户）。
+ *
+ * <p>取值复用 master {@link MetricService#findLatestByCode}+{@link MetricService#evaluate}（只读，进程内）。
+ * 取不到/非数值/异常 → 跳过该规则 + WARN，不误报、不阻断其它规则（FR-003）。
  *
  * <p>HA 单点保证：评估前 INSERT {@code alert_poll_fire} guard 行，
  * 捕获 {@link DataIntegrityViolationException} = 别的 master 已认领本轮 → 跳过。
@@ -29,35 +35,33 @@ public class MetricPollEvaluator {
     private final AlertEvaluator evaluator;
     private final AlertLifecycleService lifecycle;
     private final AlertDispatchService dispatch;
+    private final MetricService metricService;
     private final JdbcTemplate jdbc;
 
     public MetricPollEvaluator(AlertRuleRepository ruleRepo, AlertEvaluator evaluator,
                                AlertLifecycleService lifecycle, AlertDispatchService dispatch,
-                               JdbcTemplate jdbc) {
+                               MetricService metricService, JdbcTemplate jdbc) {
         this.ruleRepo = ruleRepo;
         this.evaluator = evaluator;
         this.lifecycle = lifecycle;
         this.dispatch = dispatch;
+        this.metricService = metricService;
         this.jdbc = jdbc;
     }
 
     /**
-     * 默认 30s 轮询一次（可配 {@code alert.poll.interval-ms}）。
+     * 默认 30s 轮询一次（可配 {@code alert.poll.interval-ms}）。遍历**所有租户**的启用 POLL 规则。
      */
     @Scheduled(fixedDelayString = "${alert.poll.interval-ms:30000}", initialDelayString = "${alert.poll.initial-ms:15000}")
     public void evaluate() {
-        List<AlertRule> rules = ruleRepo.findByTenantIdAndEvalModeAndEnabled(null, "POLL", 1);
-        // tenantId 为 null 时查询所有租户...但该查询当前按 tenant_id 精确匹配，
-        // 这里改为遍历所有租户获取规则。简化实现：假设只查 tenant 1
-        // TODO: 遍历所有租户的 POLL 规则
-        List<AlertRule> allRules = ruleRepo.findByTenantIdAndEvalModeAndEnabled(1L, "POLL", 1);
-        for (AlertRule rule : allRules) {
+        List<AlertRule> rules = ruleRepo.findByEvalModeAndEnabled("POLL", 1);
+        for (AlertRule rule : rules) {
             evaluateRule(rule);
         }
     }
 
     void evaluateRule(AlertRule rule) {
-        // 1. claim guard slot
+        // 1. claim guard slot（HA 去重，按 rule_id 唯一，与租户无关）
         Instant now = Instant.now();
         long slotSec = (now.getEpochSecond() / getEvalIntervalSec(rule)) * getEvalIntervalSec(rule);
         LocalDateTime pollSlot = LocalDateTime.ofInstant(Instant.ofEpochSecond(slotSec), ZoneId.systemDefault());
@@ -72,12 +76,14 @@ public class MetricPollEvaluator {
         }
 
         try {
-            // 2. 评估 metric（简化：这里需要真实的 metric 数据源）
-            // v1: 通过 condition_json 中 metric_key 查询指标值（桩）
-            double currentValue = fetchMetricValue(rule);
+            // 2. 取真实指标值（替代桩）；取不到 → 跳过 + WARN，不触发
+            String metricKey = extractMetricKey(rule);
+            Double currentValue = fetchMetricValue(rule, metricKey);
+            if (currentValue == null) {
+                return; // fetchMetricValue 已记 WARN
+            }
+            // 3. 阈值判定
             if (evaluator.evaluateMetric(rule, currentValue)) {
-                // 3. 触发告警
-                String metricKey = extractMetricKey(rule);
                 String fp = evaluator.fingerprint(rule, metricKey);
                 com.dataweave.alert.domain.AlertEvent event = new com.dataweave.alert.domain.AlertEvent();
                 event.setTenantId(rule.getTenantId());
@@ -94,9 +100,38 @@ public class MetricPollEvaluator {
         }
     }
 
-    private double fetchMetricValue(AlertRule rule) {
-        // v1 桩：返回 0（后续接入真实 metrics）
-        return 0.0;
+    /**
+     * 取规则指标的真实当前值。{@code Optional.empty} / 非数值 / 异常 → 返回 {@code null}（跳过 + WARN）。
+     */
+    Double fetchMetricValue(AlertRule rule, String metricKey) {
+        try {
+            Optional<AtomicMetric> metricOpt = metricService.findLatestByCode(metricKey);
+            if (metricOpt.isEmpty()) {
+                log.warn("[MetricPoll] metric not found: {} (rule {}), skipping", metricKey, rule.getId());
+                return null;
+            }
+            Object raw = metricService.evaluate(metricOpt.get());
+            Double val = toDouble(raw);
+            if (val == null) {
+                log.warn("[MetricPoll] non-numeric metric value for {}: {} (rule {}), skipping",
+                        metricKey, raw, rule.getId());
+            }
+            return val;
+        } catch (Exception e) {
+            log.warn("[MetricPoll] fetch metric value failed for rule {} (metric_key={}): {}",
+                    rule.getId(), metricKey, e.getMessage());
+            return null;
+        }
+    }
+
+    private static Double toDouble(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof Number n) return n.doubleValue();
+        try {
+            return Double.parseDouble(raw.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String extractMetricKey(AlertRule rule) {

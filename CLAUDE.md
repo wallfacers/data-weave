@@ -173,9 +173,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [021-alert-engine](specs/021-alert-engine/spec.md)
-Implementation plan: [plan.md](specs/021-alert-engine/plan.md)
-Research: [research.md](specs/021-alert-engine/research.md)
-Data model: [data-model.md](specs/021-alert-engine/data-model.md)
-API contracts: [contracts/](specs/021-alert-engine/contracts/)
+Current feature: [026-alert-engine-closure](specs/026-alert-engine-closure/spec.md)
+Implementation plan: [plan.md](specs/026-alert-engine-closure/plan.md)
+Research: [research.md](specs/026-alert-engine-closure/research.md)
+Data model: [data-model.md](specs/026-alert-engine-closure/data-model.md)
+API contracts: [contracts/](specs/026-alert-engine-closure/contracts/)
 <!-- SPECKIT END -->
