@@ -961,5 +961,19 @@
     "selected": "{count} selected",
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "qualityView": {
+    "checkNow": "Check Now",
+    "emptyResults": "No results",
+    "emptyRules": "No quality rules",
+    "emptyRuns": "No run history",
+    "emptyScorecards": "No scorecards",
+    "fetchError": "Failed to load data",
+    "loading": "Loading",
+    "resultDetail": "Result Detail",
+    "sampled": "Sampled",
+    "tabRules": "Rules",
+    "tabRuns": "Run History",
+    "tabScorecards": "Scorecards"
   }
 }

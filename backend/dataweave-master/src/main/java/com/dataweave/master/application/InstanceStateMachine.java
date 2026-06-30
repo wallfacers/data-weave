@@ -1,6 +1,8 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.quality.application.TaskSucceededEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -29,10 +31,13 @@ public class InstanceStateMachine {
 
     private final JdbcTemplate jdbc;
     private final EventBus eventBus;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus) {
+    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus,
+                                 ApplicationEventPublisher eventPublisher) {
         this.jdbc = jdbc;
         this.eventBus = eventBus;
+        this.eventPublisher = eventPublisher;
     }
 
     // ─── task_instance ───────────────────────────────────
@@ -68,6 +73,20 @@ public class InstanceStateMachine {
                 to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
         if (n == 1) {
             publishTaskState(id, to);
+            // 022-data-quality: post-task 门禁钩子（D2.1）—— 任务 SUCCESS 后触发质量断言
+            if ("SUCCESS".equals(to)) {
+                try {
+                    Long taskId = jdbc.queryForObject(
+                            "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
+                    Long tenantId = jdbc.queryForObject(
+                            "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
+                    if (taskId != null && tenantId != null) {
+                        eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
+                    }
+                } catch (Exception e) {
+                    // 事件仅作门禁辅助，发布失败不影响状态推进（同 publishTaskState 纪律）
+                }
+            }
         }
         return n == 1;
     }

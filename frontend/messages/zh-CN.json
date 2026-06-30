@@ -961,5 +961,19 @@
     "selected": "已选 {count} 项",
     "today": "今天",
     "yesterday": "昨天"
+  },
+  "qualityView": {
+    "checkNow": "立即检查",
+    "emptyResults": "暂无结果",
+    "emptyRules": "暂无断言规则",
+    "emptyRuns": "暂无执行记录",
+    "emptyScorecards": "暂无评分卡",
+    "fetchError": "数据加载失败",
+    "loading": "加载中",
+    "resultDetail": "结果详情",
+    "sampled": "采样",
+    "tabRules": "断言",
+    "tabRuns": "执行历史",
+    "tabScorecards": "评分卡"
   }
 }
