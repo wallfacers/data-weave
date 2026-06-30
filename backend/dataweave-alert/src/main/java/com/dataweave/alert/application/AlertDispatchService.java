@@ -87,6 +87,13 @@ public class AlertDispatchService {
         return sendWithRetry(dummyEvent, channel);
     }
 
+    /**
+     * 027：直发指定通道（不经路由匹配），供事件中心订阅触达复用既有重试/限流/审计。
+     */
+    public AlertNotification dispatchToChannel(AlertEvent event, AlertChannel channel) {
+        return sendWithRetry(event, channel);
+    }
+
     private Set<Long> findMatchingChannels(AlertEvent event, List<AlertRoute> routes) {
         Set<Long> result = new LinkedHashSet<>();
         for (AlertRoute route : routes) {

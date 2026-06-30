@@ -1,7 +1,7 @@
 package com.dataweave.master.quality.application;
 
-import com.dataweave.master.quality.domain.AlertSignal;
-import com.dataweave.master.quality.domain.AlertSignal.Type;
+import com.dataweave.master.domain.signal.AlertSignal;
+import com.dataweave.master.domain.signal.AlertSignal.Type;
 import com.dataweave.master.quality.domain.QualityCheckResult;
 import com.dataweave.master.quality.domain.QualityRule;
 import org.slf4j.Logger;
@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -49,13 +48,14 @@ public class QualitySignalEmitter {
         context.put("action", rule.getAction());
         context.put("message", result.getMessage());
 
+        // 027：统一为 domain.signal.AlertSignal（AlertSignalListener 实际监听的类型）。
+        // 修复孤儿：此前用 quality.domain.AlertSignal，无人 @EventListener，质量信号从未到达告警引擎。
         AlertSignal signal = new AlertSignal(
                 Type.QUALITY_FAILED,
                 result.getTenantId(),
-                rule.getDatasetRef(),         // fingerprintHint=datasetRef（参与 021 fingerprint 去重）
-                rule.getSeverity(),            // severityHint=rule.severity（021 规则可覆盖）
-                context,
-                Instant.now());
+                rule.getDatasetRef(),         // fingerprintHint=datasetRef（参与 fingerprint 去重）
+                rule.getSeverity(),            // severityHint=rule.severity（规则可覆盖）
+                context);                      // occurredAt 由构造器取 now
 
         log.info("[QualitySignal] QUALITY_FAILED tenant={} datasetRef={} rule={} measured={}",
                 result.getTenantId(), rule.getDatasetRef(), result.getRuleId(), result.getMeasuredValue());
