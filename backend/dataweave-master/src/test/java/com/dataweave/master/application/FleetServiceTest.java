@@ -123,6 +123,46 @@ class FleetServiceTest {
         verify(stateMachine, org.mockito.Mockito.times(2)).renewLease(any(), any());
     }
 
+    // ── 028: 新节点注册默认容量（SlotManager 0 槽回归防护） ──
+
+    @Test
+    void report_newNode_fillsDefaultCapacityIfNull() {
+        when(repository.findByNodeCode("node-2")).thenReturn(Optional.empty());
+        when(repository.save(any(WorkerNode.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkerNode result = fleetService.report("node-2", "host-2", "4C/8G",
+                0.3, 0.45, 0.5, 1.2, 0, 100L, null, 120);
+
+        // 028: 新节点 maxConcurrentTasks/reservedTestSlots 为 null 时补默认值，
+        // 否则 INSERT NULL → SlotManager 当 0 槽 → distributed worker 永收不到下发
+        assertThat(result.getMaxConcurrentTasks()).isEqualTo(10);
+        assertThat(result.getReservedTestSlots()).isEqualTo(1);
+    }
+
+    @Test
+    void report_existingNode_preservesCustomCapacity() {
+        WorkerNode existing = new WorkerNode();
+        existing.setId(1L);
+        existing.setNodeCode("node-3");
+        existing.setMaxConcurrentTasks(20);
+        existing.setReservedTestSlots(5);
+        existing.setStatus("ONLINE");
+        existing.setIncarnation(100L);
+        existing.setCreatedAt(LocalDateTime.now().minusDays(1));
+        existing.setDeleted(0);
+        existing.setVersion(0);
+
+        when(repository.findByNodeCode("node-3")).thenReturn(Optional.of(existing));
+        when(repository.save(any(WorkerNode.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WorkerNode result = fleetService.report("node-3", "host-3", "4C/8G",
+                0.3, 0.45, 0.5, 1.2, 2, 100L, null, 120);
+
+        // 已有节点保留其自定义容量，不被默认值覆盖
+        assertThat(result.getMaxConcurrentTasks()).isEqualTo(20);
+        assertThat(result.getReservedTestSlots()).isEqualTo(5);
+    }
+
     @Test
     void markStaleOffline_shouldMarkOnlyStaleNodes() {
         WorkerNode staleNode = new WorkerNode();
