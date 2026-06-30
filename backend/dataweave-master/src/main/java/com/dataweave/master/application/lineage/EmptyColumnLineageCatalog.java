@@ -2,6 +2,7 @@ package com.dataweave.master.application.lineage;
 
 import java.util.Optional;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,12 +17,16 @@ import org.springframework.stereotype.Component;
  * <p>真实列元数据来源在全仓尚不存在（鸡生蛋：019 产 {@code ColumnEdge} 靠 catalog，
  * 018 写 {@code :Column} 又靠 019 的 {@code ColumnEdge}），列为后续 feature
  * （见 specs/019 research D2 / contracts §5）。
+ *
+ * <p>024：改为 {@code @ConditionalOnProperty(lineage.column-catalog.type=empty)}（matchIfMissing=true），
+ * H2/默认 fallback 空实现。neo4j 环境装配 {@link com.dataweave.master.infrastructure.lineage.Neo4jColumnLineageCatalog}。
  */
 @Component
+@ConditionalOnProperty(name = "lineage.column-catalog.type", havingValue = "empty", matchIfMissing = true)
 public class EmptyColumnLineageCatalog implements ColumnLineageCatalog {
 
     @Override
-    public Optional<TableSchema> lookupTable(String qualifiedName) {
+    public Optional<TableSchema> lookupTable(long tenantId, long projectId, String qualifiedName) {
         return Optional.empty();
     }
 }

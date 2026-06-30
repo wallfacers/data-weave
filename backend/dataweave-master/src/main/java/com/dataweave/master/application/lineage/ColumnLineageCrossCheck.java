@@ -14,7 +14,7 @@ import java.util.Set;
  * <ul>
  *   <li>声明与解析<b>一致</b> → {@link Confidence#CONFIRMED}；</li>
  *   <li><b>仅解析</b>有 → 保留解析可信度（CONFIRMED/UNVERIFIED）；</li>
- *   <li><b>仅声明</b>有（解析未触及该目标列）→ {@link Confidence#CONFIRMED}（Agent 源）；</li>
+ *   <li><b>仅声明</b>有（解析未触及该目标列）→ {@link Confidence#DECLARED}（声明兜底）；</li>
  *   <li>同一目标列上声明与解析的<b>源不同</b> → {@link Confidence#CONFLICT}，<b>不静默丢弃</b>。</li>
  * </ul>
  */
@@ -55,7 +55,7 @@ public final class ColumnLineageCrossCheck {
             }
             Set<String> par = parsedSrcByDst.get(dk);
             Confidence c = (par == null || par.isEmpty())
-                    ? Confidence.CONFIRMED            // 仅声明（Agent 源）
+                    ? Confidence.DECLARED             // 仅声明（Agent 源，推导未印证）
                     : Confidence.CONFLICT;           // 解析对该 dst 给了别的源 → 声明边冲突
             out.put(key, withConfidence(d, c));
         }

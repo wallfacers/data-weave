@@ -26,7 +26,9 @@ public record TaskDoc(
         List<String> tags,
         String sparkMode,
         String jarRef,
-        String mainClass
+        String mainClass,
+        Map<String, java.util.List<ColumnSchemaDecl>> declaredSchema,
+        java.util.List<Map<String, String>> declaredColumnLineage
 ) {
     public static final int CURRENT_FORMAT_VERSION = 1;
 }

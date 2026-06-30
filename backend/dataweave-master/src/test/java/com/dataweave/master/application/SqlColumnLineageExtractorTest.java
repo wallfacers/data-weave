@@ -31,7 +31,7 @@ class SqlColumnLineageExtractorTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd_order (id, uid, amt) "
-                        + "SELECT id, user_id, amount FROM ods_order", cat);
+                        + "SELECT id, user_id, amount FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -54,7 +54,7 @@ class SqlColumnLineageExtractorTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd_order (id, uid, amt) "
-                        + "SELECT id, user_id, amount * 1.1 FROM ods_order", cat);
+                        + "SELECT id, user_id, amount * 1.1 FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(edge(r, "amt").transform()).isEqualTo(Transform.EXPRESSION);
@@ -70,7 +70,7 @@ class SqlColumnLineageExtractorTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd_order (id, total) "
-                        + "SELECT id, price * qty FROM ods_order", cat);
+                        + "SELECT id, price * qty FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -90,7 +90,7 @@ class SqlColumnLineageExtractorTest {
                 table("dwd_order", "id", "uid", "amt"));
 
         ColumnLineageResult r = extractor.extract(
-                "INSERT INTO dwd_order (id, uid, amt) SELECT * FROM ods_order", cat);
+                "INSERT INTO dwd_order (id, uid, amt) SELECT * FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())

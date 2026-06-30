@@ -100,6 +100,9 @@ lineage:
     uri: ${NEO4J_URI:bolt://localhost:7687}
     username: ${NEO4J_USERNAME:neo4j}
     password: ${NEO4J_PASSWORD:dataweave}
+  # 024 列级 catalog 类型：neo4j→读:Column图 / empty→恒空（H2 fallback）
+  column-catalog:
+    type: ${LINEAGE_COLUMN_CATALOG_TYPE:neo4j}
 
 ---
 # h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）

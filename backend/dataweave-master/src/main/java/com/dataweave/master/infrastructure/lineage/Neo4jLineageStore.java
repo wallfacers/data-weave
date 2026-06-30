@@ -48,7 +48,8 @@ public class Neo4jLineageStore implements LineageStore {
     @Override
     public void recordTaskIo(long tenantId, long projectId, long taskDefId,
                              Integer versionNo, String taskName,
-                             List<IoEdge> ioEdges, List<ColumnEdge> columnEdges) {
+                             List<IoEdge> ioEdges, List<ColumnEdge> columnEdges,
+                             java.util.Map<String, ? extends java.util.List<? extends com.dataweave.master.domain.lineage.LineageStore.DeclaredColumn>> declaredSchemas) {
         String taskKey = taskKey(tenantId, taskDefId);
         int v = versionNo == null ? 0 : versionNo;
         List<IoEdge> edges = ioEdges == null ? List.of() : ioEdges;
@@ -70,6 +71,22 @@ public class Neo4jLineageStore implements LineageStore {
                         params("td", taskDefId)).consume();
                 tx.run("MATCH ()-[d:DERIVES_FROM {taskDefId:$td}]->() DELETE d",
                         params("td", taskDefId)).consume();
+
+                // 2.5-024: 独立 seed :Column（声明 schema → 先于 extract，FR-009）
+                if (declaredSchemas != null && !declaredSchemas.isEmpty()) {
+                    for (var entry : declaredSchemas.entrySet()) {
+                        String tableName = entry.getKey();
+                        // 用占位 datasource 临时确保表节点存在（无坐标→降级身份）
+                        var dummyCoord = new DatasourceCoord(tenantId, projectId, null, null, null, "declared");
+                        var tempRef = new TableRef(dummyCoord, tableName, null);
+                        String tk = ensureTable(tx, tempRef, tenantId, projectId);
+                        var schemaCols = entry.getValue();
+                        for (int i = 0; i < schemaCols.size(); i++) {
+                            var col = schemaCols.get(i);
+                            ensureColumn(tx, tk, col.name(), col.dataType(), col.ordinal() >= 0 ? col.ordinal() : i, tenantId, projectId);
+                        }
+                    }
+                }
 
                 // 3+4. MERGE 表节点 + CREATE READS/WRITES（顺带建 datasource/HAS_TABLE）
                 List<String> readTableKeys = new ArrayList<>();

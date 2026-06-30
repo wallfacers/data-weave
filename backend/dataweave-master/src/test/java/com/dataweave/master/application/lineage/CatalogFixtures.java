@@ -39,6 +39,6 @@ public final class CatalogFixtures {
         for (TableSchema t : tables) {
             m.put(t.qualifiedName().toLowerCase(), t);
         }
-        return q -> q == null ? Optional.empty() : Optional.ofNullable(m.get(q.toLowerCase()));
+        return (tenantId, projectId, q) -> q == null ? Optional.empty() : Optional.ofNullable(m.get(q.toLowerCase()));
     }
 }

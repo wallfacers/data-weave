@@ -41,7 +41,8 @@ public class SqlColumnLineageExtractor {
      * @param catalog 解析期列元数据来源（由 018 提供）；可为 {@code null}（则全降级）
      * @return {@link ColumnLineageResult}（parsed/edges/degraded），永不为 {@code null}
      */
-    public ColumnLineageResult extract(String sql, ColumnLineageCatalog catalog) {
+    public ColumnLineageResult extract(String sql, ColumnLineageCatalog catalog,
+                                       long tenantId, long projectId) {
         if (sql == null || sql.isBlank()) {
             return ColumnLineageResult.unparsed();
         }
@@ -50,7 +51,7 @@ public class SqlColumnLineageExtractor {
             Set<String> candidates = new LinkedHashSet<>();
             candidates.addAll(tables.reads());
             candidates.addAll(tables.writes());
-            return engine.analyze(sql, catalog, candidates);
+            return engine.analyze(sql, catalog, candidates, tenantId, projectId);
         } catch (Throwable t) {
             // 任何异常（含 Calcite 内部错误/StackOverflow 之外的 Error 不拦）→ 退表级
             log.debug("列级解析整体失败，退表级：{}", t.toString());
@@ -65,8 +66,9 @@ public class SqlColumnLineageExtractor {
      * @return 合并后的列级结果；声明与解析冲突的边标 {@link com.dataweave.master.application.lineage.Confidence#CONFLICT}
      */
     public ColumnLineageResult extractAndCrossCheck(String sql, ColumnLineageCatalog catalog,
-                                                    List<ColumnEdge> declared) {
-        ColumnLineageResult base = extract(sql, catalog);
+                                                    List<ColumnEdge> declared,
+                                                    long tenantId, long projectId) {
+        ColumnLineageResult base = extract(sql, catalog, tenantId, projectId);
         if (declared == null || declared.isEmpty()) {
             return base;
         }

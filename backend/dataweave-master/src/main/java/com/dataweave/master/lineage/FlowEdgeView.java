@@ -45,7 +45,8 @@ public record FlowEdgeView(
     public enum Confidence {
         CONFIRMED,
         UNVERIFIED,
-        CONFLICT
+        CONFLICT,
+        DECLARED
     }
 
     /** 列级转换类型枚举。 */

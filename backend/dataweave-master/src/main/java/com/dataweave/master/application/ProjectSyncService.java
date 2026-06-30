@@ -852,11 +852,37 @@ public class ProjectSyncService {
                 LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                         tenantId, projectId, t.getType(), t.getContent(),
                         null, null, t.getDatasourceId(), t.getTargetDatasourceId());
+
+                // 024-声明 schema 转换
+                java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>
+                        rawSchemas = imported.taskDeclaredSchema().get(taskId);
+                java.util.Map<String, java.util.List<com.dataweave.master.domain.lineage.LineageStore.DeclaredColumn>>
+                        declaredSchemaMap = null;
+                if (rawSchemas != null && !rawSchemas.isEmpty()) {
+                    declaredSchemaMap = new java.util.LinkedHashMap<>();
+                    for (var e : rawSchemas.entrySet()) {
+                        int idx = 0;
+                        var declaredCols = new java.util.ArrayList<com.dataweave.master.domain.lineage.LineageStore.DeclaredColumn>();
+                        for (var col : e.getValue()) {
+                            int ord = idx++;
+                            declaredCols.add(new DeclaredColAdapter(col.name(), col.type(), ord));
+                        }
+                        declaredSchemaMap.put(e.getKey(), declaredCols);
+                    }
+                }
+
+                // 024-FR-009：声明 schema 的 seed 提至 extract 之前
+                if (declaredSchemaMap != null && !declaredSchemaMap.isEmpty()) {
+                    lineageStore.recordTaskIo(tenantId, projectId, taskId,
+                            t.getCurrentVersionNo(), t.getName(),
+                            java.util.List.of(), java.util.List.of(), declaredSchemaMap);
+                }
+
                 // 列级边：019 解析 → adapter 转 domain（源←读侧 coord，目标←写侧 coord）
                 java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
                 if ("SQL".equalsIgnoreCase(t.getType())) {
                     var colResult = sqlColumnLineageExtractor.extract(
-                            t.getContent(), columnLineageCatalog);
+                            t.getContent(), columnLineageCatalog, tenantId, projectId);
                     columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                             colResult,
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),
@@ -865,7 +891,7 @@ public class ProjectSyncService {
                 if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
                     lineageStore.recordTaskIo(tenantId, projectId, taskId,
                             t.getCurrentVersionNo(), t.getName(),
-                            assembly.ioEdges(), columnEdges);
+                            assembly.ioEdges(), columnEdges, null);
                 }
             } catch (Exception e) {
                 log.warn("push lineage record skipped for task {} (FR-007): {}", taskId, e.toString());
@@ -1084,5 +1110,10 @@ public class ProjectSyncService {
         // 5. 返回只读预览（不写库，FR-011）
         return new ProjectSyncDtos.DiffPreview(
                 recon.added(), recon.modified(), recon.removed(), stale);
+    }
+
+    /** 024 DeclaredColumn 适配器（ColumnSchemaDecl → DeclaredColumn）。 */
+    private record DeclaredColAdapter(String name, String dataType, int ordinal)
+            implements com.dataweave.master.domain.lineage.LineageStore.DeclaredColumn {
     }
 }

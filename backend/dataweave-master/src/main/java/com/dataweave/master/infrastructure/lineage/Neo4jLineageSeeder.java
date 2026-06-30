@@ -67,18 +67,18 @@ public class Neo4jLineageSeeder implements ApplicationRunner {
         lineageStore.recordTaskIo(T, P, 9001L, 1, "订单明细加工 ODS→DWD",
                 List.of(io(ods, Direction.READS, Source.SQL_PARSED, Confidence.CONFIRMED),
                         io(dwd, Direction.WRITES, Source.SQL_PARSED, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         // 9002：READS ods_user(SQL_PARSED) + READS dwd_order(AGENT) → WRITES dws_user_order(AGENT)
         lineageStore.recordTaskIo(T, P, 9002L, 1, "用户订单聚合 DWD→DWS",
                 List.of(io(odsUser, Direction.READS, Source.SQL_PARSED, Confidence.CONFIRMED),
                         io(dwd, Direction.READS, Source.AGENT, Confidence.CONFIRMED),
                         io(dws, Direction.WRITES, Source.AGENT, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         // 9003：READS dws_user_order(SQL_PARSED) → WRITES ads_gmv(AGENT/CONFLICT)
         lineageStore.recordTaskIo(T, P, 9003L, 1, "GMV 汇总 DWS→ADS",
                 List.of(io(dws, Direction.READS, Source.SQL_PARSED, Confidence.CONFIRMED),
                         io(ads, Direction.WRITES, Source.AGENT, Confidence.CONFLICT)),
-                List.of());
+                List.of(), null);
 
         // 1 指标：ATOMIC#1 (GMV) → orders 表
         lineageStore.recordMetricLineage(

@@ -52,7 +52,7 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         IoEdge read = edge("ods_order", "ODS", Direction.READS);
         IoEdge write = edge("dwd_order", "DWD", Direction.WRITES);
 
-        store.recordTaskIo(1L, 1L, 9001L, 1, "订单明细加工", List.of(read, write), List.of());
+        store.recordTaskIo(1L, 1L, 9001L, 1, "订单明细加工", List.of(read, write), List.of(), null);
 
         assertThat(count("MATCH (t:Table) WHERE t.qualifiedName IN ['ods_order','dwd_order'] RETURN count(t) AS c"))
                 .as(":Table 节点数").isEqualTo(2L);
@@ -78,8 +78,8 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         IoEdge write = edge("dwd_order", "DWD", Direction.WRITES);
         List<IoEdge> edges = List.of(read, write);
 
-        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", edges, List.of());
-        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", edges, List.of());
+        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", edges, List.of(), null);
+        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", edges, List.of(), null);
 
         assertThat(count("MATCH (:Task {taskDefId:9001})-[r:READS|WRITES]->() RETURN count(r) AS c"))
                 .as("两次记录后读写边不翻倍").isEqualTo(2L);
@@ -95,11 +95,11 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         // 第一次：READ ods_order / WRITE dwd_order
         store.recordTaskIo(1L, 1L, 9001L, 1, "etl",
                 List.of(edge("ods_order", "ODS", Direction.READS), edge("dwd_order", "DWD", Direction.WRITES)),
-                List.of());
+                List.of(), null);
         // 第二次：READ 改为 ods_user / WRITE 仍 dwd_order
         store.recordTaskIo(1L, 1L, 9001L, 1, "etl",
                 List.of(edge("ods_user", "ODS", Direction.READS), edge("dwd_order", "DWD", Direction.WRITES)),
-                List.of());
+                List.of(), null);
 
         assertThat(count("MATCH (:Task {taskDefId:9001})-[:READS]->(:Table {qualifiedName:'ods_order'}) RETURN count(*) AS c"))
                 .as("旧 READS 陈边已删").isEqualTo(0L);
@@ -123,7 +123,7 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
                 write.table(), "order_id",
                 Transform.DIRECT, Confidence.CONFIRMED);
 
-        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", List.of(read, write), List.of(col));
+        store.recordTaskIo(1L, 1L, 9001L, 1, "etl", List.of(read, write), List.of(col), null);
 
         assertThat(count("MATCH (:Table {qualifiedName:'ods_order'})-[:HAS_COLUMN]->(:Column {name:'order_id'}) RETURN count(*) AS c"))
                 .as("源表 HAS_COLUMN").isEqualTo(1L);
@@ -145,8 +145,8 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
                 Source.SQL_PARSED, Confidence.CONFIRMED);
         IoEdge e2 = new IoEdge(new TableRef(coord, "dwd_order", "DWD"), Direction.READS,
                 Source.SQL_PARSED, Confidence.CONFIRMED);
-        store.recordTaskIo(1L, 1L, 9101L, 1, "t1", List.of(e1), List.of());
-        store.recordTaskIo(1L, 1L, 9102L, 1, "t2", List.of(e2), List.of());
+        store.recordTaskIo(1L, 1L, 9101L, 1, "t1", List.of(e1), List.of(), null);
+        store.recordTaskIo(1L, 1L, 9102L, 1, "t2", List.of(e2), List.of(), null);
 
         assertThat(count("MATCH (d:Datasource {ip:'10.0.0.1',port:5432,database:'warehouse'}) RETURN count(d) AS c"))
                 .as(":Datasource 唯一").isEqualTo(1L);
@@ -161,10 +161,10 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         DatasourceCoord an = new DatasourceCoord(1L, 1L, "10.0.0.1", 5432, "analytics", null);
         store.recordTaskIo(1L, 1L, 9201L, 1, "t1",
                 List.of(new IoEdge(new TableRef(wh, "a", "DWD"), Direction.WRITES, Source.SQL_PARSED, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         store.recordTaskIo(1L, 1L, 9202L, 1, "t2",
                 List.of(new IoEdge(new TableRef(an, "b", "DWD"), Direction.WRITES, Source.SQL_PARSED, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         assertThat(count("MATCH (d:Datasource {ip:'10.0.0.1',port:5432}) RETURN count(d) AS c"))
                 .as("同 ip/port 不同 database → 2 个 :Datasource").isEqualTo(2L);
 
@@ -172,10 +172,10 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         DatasourceCoord miss = new DatasourceCoord(1L, 1L, null, null, null, "local-files");
         store.recordTaskIo(1L, 1L, 9203L, 1, "t3",
                 List.of(new IoEdge(new TableRef(miss, "logs", null), Direction.WRITES, Source.SQL_PARSED, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         store.recordTaskIo(1L, 1L, 9204L, 1, "t4",
                 List.of(new IoEdge(new TableRef(miss, "logs2", null), Direction.WRITES, Source.SQL_PARSED, Confidence.CONFIRMED)),
-                List.of());
+                List.of(), null);
         assertThat(count("MATCH (d:Datasource {dsKey:'1|datasource:local-files'}) RETURN count(d) AS c"))
                 .as("缺坐标降级身份唯一").isEqualTo(1L);
     }
@@ -189,7 +189,7 @@ class Neo4jLineageStoreIT extends Neo4jTestSupport {
         DatasourceCoord coord = new DatasourceCoord(1L, 1L, "10.0.0.1", 5432, "warehouse", null);
         store.recordTaskIo(1L, 1L, 9301L, 1, "etl",
                 List.of(new IoEdge(new TableRef(coord, "dwd_order", "DWD"), Direction.WRITES,
-                        Source.SQL_PARSED, Confidence.CONFIRMED)), List.of());
+                        Source.SQL_PARSED, Confidence.CONFIRMED)), List.of(), null);
 
         store.recordMetricLineage(new MetricEdge(1L, 1L, "ATOMIC", 1L, "order_count", "TABLE", "dwd_order"));
 

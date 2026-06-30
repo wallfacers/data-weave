@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 /**
- * 列级 SQL 血缘 —— Phase 6：A×B 交叉校验（一致 CONFIRMED / 仅解析 CONFIRMED / 冲突 CONFLICT）。
+ * 列级 SQL 血缘 —— Phase 6：A×B 交叉校验（一致 CONFIRMED / 仅解析 CONFIRMED / 冲突 CONFLICT / 仅声明 DECLARED）。
  */
 class ColumnLineageCrossCheckTest {
 
@@ -36,7 +36,7 @@ class ColumnLineageCrossCheckTest {
 
         ColumnLineageResult r = extractor.extractAndCrossCheck(
                 "INSERT INTO dwd (id) SELECT id FROM ods_order", cat,
-                List.of(declared("ods_order", "id", "dwd", "id")));
+                List.of(declared("ods_order", "id", "dwd", "id")), 0L, 0L);
 
         assertThat(r.edges())
                 .extracting(ColumnEdge::dstCol, ColumnEdge::confidence)
@@ -50,7 +50,7 @@ class ColumnLineageCrossCheckTest {
         ColumnLineageCatalog cat = catalog(table("ods_order", "id"), table("dwd", "id"));
 
         ColumnLineageResult r = extractor.extractAndCrossCheck(
-                "INSERT INTO dwd (id) SELECT id FROM ods_order", cat, List.of());
+                "INSERT INTO dwd (id) SELECT id FROM ods_order", cat, List.of(), 0L, 0L);
 
         assertThat(r.edges())
                 .extracting(ColumnEdge::confidence)
@@ -65,7 +65,7 @@ class ColumnLineageCrossCheckTest {
 
         ColumnLineageResult r = extractor.extractAndCrossCheck(
                 "INSERT INTO dwd (amt) SELECT amount FROM ods_order", cat,
-                List.of(declared("ods_other", "amount", "dwd", "amt")));
+                List.of(declared("ods_other", "amount", "dwd", "amt")), 0L, 0L);
 
         assertThat(r.edges())
                 .extracting(e -> e.srcTable().qualifiedName(), ColumnEdge::dstCol, ColumnEdge::confidence)
@@ -74,19 +74,19 @@ class ColumnLineageCrossCheckTest {
                         tuple("ods_other", "amt", Confidence.CONFLICT)); // 声明边，未被静默丢弃
     }
 
-    // ---- 仅声明（解析未触及该 dst）→ CONFIRMED（Agent 源） ----
+    // ---- 仅声明（解析未触及该 dst）→ DECLARED（024 声明兜底） ----
 
     @Test
-    void declarationOnlyForUntouchedColumnIsConfirmed() {
+    void declarationOnlyForUntouchedColumnIsDeclared() {
         ColumnLineageCatalog cat = catalog(table("ods_order", "id"), table("dwd", "id", "tag"));
 
         ColumnLineageResult r = extractor.extractAndCrossCheck(
                 "INSERT INTO dwd (id) SELECT id FROM ods_order", cat,
-                List.of(declared("ext_dim", "tag", "dwd", "tag")));
+                List.of(declared("ext_dim", "tag", "dwd", "tag")), 0L, 0L);
 
         assertThat(r.edges())
                 .filteredOn(e -> e.dstCol().equals("tag"))
                 .extracting(e -> e.srcTable().qualifiedName(), ColumnEdge::confidence)
-                .containsExactly(tuple("ext_dim", Confidence.CONFIRMED));
+                .containsExactly(tuple("ext_dim", Confidence.DECLARED));
     }
 }

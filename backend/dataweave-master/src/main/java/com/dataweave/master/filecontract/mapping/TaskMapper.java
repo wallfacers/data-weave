@@ -74,7 +74,9 @@ public class TaskMapper {
                 null,   // tags
                 sparkMode,
                 jarRef,
-                mainClass
+                mainClass,
+                null,   // declaredSchema — TaskDef 不存声明，仅反序列化时设
+                null    // declaredColumnLineage
         );
     }
 
@@ -104,6 +106,24 @@ public class TaskMapper {
         }
         if (doc.tags() != null && !doc.tags().isEmpty()) {
             DeterministicYaml.put(map, "tags", doc.tags().stream().sorted().toList());
+        }
+        // 024 声明列 schema（round-trip）
+        if (doc.declaredSchema() != null && !doc.declaredSchema().isEmpty()) {
+            var schemaMap = new LinkedHashMap<String, java.util.List<? extends Map<String, String>>>();
+            doc.declaredSchema().forEach((table, cols) -> {
+                var colMaps = cols.stream().map(c -> {
+                    var cm = new LinkedHashMap<String, String>();
+                    cm.put("name", c.name());
+                    cm.put("type", c.type());
+                    return cm;
+                }).toList();
+                schemaMap.put(table, colMaps);
+            });
+            DeterministicYaml.put(map, "schema", schemaMap);
+        }
+        // 024 声明 columnLineage（round-trip）
+        if (doc.declaredColumnLineage() != null && !doc.declaredColumnLineage().isEmpty()) {
+            DeterministicYaml.put(map, "columnLineage", doc.declaredColumnLineage());
         }
         return yaml.dump(map);
     }
@@ -150,9 +170,14 @@ public class TaskMapper {
         String sparkMode = optionalString(raw, "sparkMode", filePath);
         String jarRef = optionalString(raw, "jarRef", filePath);
         String mainClass = optionalString(raw, "mainClass", filePath);
+        // 024 声明列 schema + columnLineage（两块均可选，独立）
+        Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>> declaredSchema =
+                parseDeclaredSchema(raw, filePath);
+        java.util.List<Map<String, String>> declaredColumnLineage =
+                parseDeclaredColumnLineage(raw, filePath);
         return new TaskDoc(formatVersion, name, type, description, priority,
                 timeoutSec, retryMax, frozen, datasource, targetDatasource, paramsMap, tags,
-                sparkMode, jarRef, mainClass);
+                sparkMode, jarRef, mainClass, declaredSchema, declaredColumnLineage);
     }
 
     /**
@@ -291,5 +316,75 @@ public class TaskMapper {
         return new FileContractException(file, key,
                 "field '" + key + "' expected " + expected + ", got "
                         + (actual == null ? "null" : actual.getClass().getSimpleName()));
+    }
+
+    // ---- 024 声明列元数据解析 ----
+
+    /** 解析 schema 块（表名→有序列{name,type}）；缺失/格式非法→null+日志，不阻断 push。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>
+            parseDeclaredSchema(Map<String, Object> raw, String filePath) {
+        try {
+            Object schemaObj = raw.get("schema");
+            if (schemaObj == null) {
+                return null;
+            }
+            if (!(schemaObj instanceof Map<?, ?> m)) {
+                return null; // 格式非法，跳过
+            }
+            var result = new LinkedHashMap<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>();
+            for (var entry : ((Map<String, Object>) m).entrySet()) {
+                String tableName = entry.getKey();
+                Object colsObj = entry.getValue();
+                if (!(colsObj instanceof List<?> cols)) {
+                    continue; // 跳过格式非法表
+                }
+                var colList = new ArrayList<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>();
+                for (Object colObj : cols) {
+                    if (colObj instanceof Map<?, ?> colMap) {
+                        Object nameObj = colMap.get("name");
+                        Object typeObj = colMap.get("type");
+                        String colName = nameObj != null ? String.valueOf(nameObj) : "";
+                        String colType = typeObj != null ? String.valueOf(typeObj) : "";
+                        colList.add(new com.dataweave.master.filecontract.dto.ColumnSchemaDecl(colName, colType));
+                    }
+                }
+                if (!colList.isEmpty()) {
+                    result.put(tableName, colList);
+                }
+            }
+            return result.isEmpty() ? null : result;
+        } catch (Exception e) {
+            return null; // 声明解析失败不阻断
+        }
+    }
+
+    /** 解析 columnLineage 块（{from:表.列, to:表.列} 列表）；缺失/格式非法→null+跳过。 */
+    @SuppressWarnings("unchecked")
+    private static java.util.List<Map<String, String>>
+            parseDeclaredColumnLineage(Map<String, Object> raw, String filePath) {
+        try {
+            Object lineageObj = raw.get("columnLineage");
+            if (lineageObj == null) {
+                return null;
+            }
+            if (!(lineageObj instanceof List<?> l)) {
+                return null; // 格式非法，跳过
+            }
+            var result = new ArrayList<Map<String, String>>();
+            for (Object item : l) {
+                if (item instanceof Map<?, ?> m) {
+                    var entry = new LinkedHashMap<String, String>();
+                    Object fromObj = m.get("from");
+                    Object toObj = m.get("to");
+                    entry.put("from", fromObj != null ? String.valueOf(fromObj) : "");
+                    entry.put("to", toObj != null ? String.valueOf(toObj) : "");
+                    result.add(entry);
+                }
+            }
+            return result.isEmpty() ? null : result;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

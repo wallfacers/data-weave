@@ -40,11 +40,11 @@ class BackfillDownstreamNeo4jIT extends Neo4jTestSupport {
 
         // 9001: READS ods → WRITES dwd；9002: READS dwd → WRITES dws；9003: READS dws → WRITES ads
         store.recordTaskIo(T, P, 9001L, 1, "etl_ods_to_dwd",
-                List.of(io(ods, Direction.READS), io(dwd, Direction.WRITES)), List.of());
+                List.of(io(ods, Direction.READS), io(dwd, Direction.WRITES)), List.of(), null);
         store.recordTaskIo(T, P, 9002L, 1, "etl_dwd_to_dws",
-                List.of(io(dwd, Direction.READS), io(dws, Direction.WRITES)), List.of());
+                List.of(io(dwd, Direction.READS), io(dws, Direction.WRITES)), List.of(), null);
         store.recordTaskIo(T, P, 9003L, 1, "etl_dws_to_ads",
-                List.of(io(dws, Direction.READS), io(ads, Direction.WRITES)), List.of());
+                List.of(io(dws, Direction.READS), io(ads, Direction.WRITES)), List.of(), null);
 
         LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver));
 

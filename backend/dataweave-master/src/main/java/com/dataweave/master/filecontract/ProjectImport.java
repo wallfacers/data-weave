@@ -34,6 +34,8 @@ public record ProjectImport(
         Map<Long, String> workflowSlugs,
         Map<Long, String> taskDatasourceCodes,
         Map<Long, String> taskTargetDatasourceCodes,
+        Map<Long, java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>> taskDeclaredSchema,
+        Map<Long, java.util.List<Map<String, String>>> taskDeclaredColumnEdges,
         List<String> warnings
 ) {
     public ProjectImport {
@@ -48,7 +50,8 @@ public record ProjectImport(
         return new ProjectExport(
                 project, catalogs, tags, entityTags,
                 tasks, workflows, workflowNodes, workflowEdges,
-                taskSlugs, workflowSlugs, taskDatasourceCodes, taskTargetDatasourceCodes);
+                taskSlugs, workflowSlugs, taskDatasourceCodes, taskTargetDatasourceCodes,
+                taskDeclaredSchema, taskDeclaredColumnEdges);
     }
 
     /** Builder pattern for incremental assembly by mappers. */
@@ -65,6 +68,10 @@ public record ProjectImport(
         private final Map<Long, String> workflowSlugs = new LinkedHashMap<>();
         private final Map<Long, String> taskDatasourceCodes = new LinkedHashMap<>();
         private final Map<Long, String> taskTargetDatasourceCodes = new LinkedHashMap<>();
+        private final Map<Long, java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>>
+                taskDeclaredSchema = new LinkedHashMap<>();
+        private final Map<Long, java.util.List<Map<String, String>>>
+                taskDeclaredColumnEdges = new LinkedHashMap<>();
         private final List<String> warnings = new ArrayList<>();
 
         public Builder project(Project v) { this.project = v; return this; }
@@ -86,12 +93,22 @@ public record ProjectImport(
             if (id != null && code != null) taskTargetDatasourceCodes.put(id, code);
             return this;
         }
+        public Builder taskDeclaredSchema(Long id,
+                java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>> schema) {
+            if (id != null && schema != null && !schema.isEmpty()) taskDeclaredSchema.put(id, schema);
+            return this;
+        }
+        public Builder taskDeclaredColumnEdges(Long id, java.util.List<Map<String, String>> edges) {
+            if (id != null && edges != null && !edges.isEmpty()) taskDeclaredColumnEdges.put(id, edges);
+            return this;
+        }
         public Builder addWarning(String w) { warnings.add(w); return this; }
 
         public ProjectImport build() {
             return new ProjectImport(project, catalogs, tags, entityTags,
                     tasks, workflows, workflowNodes, workflowEdges,
                     taskSlugs, workflowSlugs, taskDatasourceCodes, taskTargetDatasourceCodes,
+                    taskDeclaredSchema, taskDeclaredColumnEdges,
                     warnings);
         }
     }

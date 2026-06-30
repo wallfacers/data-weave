@@ -483,7 +483,7 @@ public class TaskService {
             java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
             if ("SQL".equalsIgnoreCase(type)) {
                 var colResult = sqlColumnLineageExtractor.extract(
-                        content, columnLineageCatalog);
+                        content, columnLineageCatalog, 1L, 1L);
                 columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                         colResult,
                         lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
@@ -492,7 +492,7 @@ public class TaskService {
             if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
                 // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
-                        assembly.ioEdges(), columnEdges);
+                        assembly.ioEdges(), columnEdges, null);
             }
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）

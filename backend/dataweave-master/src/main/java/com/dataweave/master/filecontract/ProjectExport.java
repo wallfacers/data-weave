@@ -31,8 +31,30 @@ public record ProjectExport(
         Map<Long, String> taskSlugs,
         Map<Long, String> workflowSlugs,
         Map<Long, String> taskDatasourceCodes,
-        Map<Long, String> taskTargetDatasourceCodes
+        Map<Long, String> taskTargetDatasourceCodes,
+        Map<Long, java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>> taskDeclaredSchema,
+        Map<Long, java.util.List<Map<String, String>>> taskDeclaredColumnEdges
 ) {
+    /** Convenience constructor with slug + datasource maps but no schema maps. */
+    public ProjectExport(
+            Project project,
+            List<CatalogNode> catalogs,
+            List<Tag> tags,
+            List<EntityTag> entityTags,
+            List<TaskDef> tasks,
+            List<WorkflowDef> workflows,
+            List<WorkflowNode> workflowNodes,
+            List<WorkflowEdge> workflowEdges,
+            Map<Long, String> taskSlugs,
+            Map<Long, String> workflowSlugs,
+            Map<Long, String> taskDatasourceCodes,
+            Map<Long, String> taskTargetDatasourceCodes
+    ) {
+        this(project, catalogs, tags, entityTags, tasks, workflows,
+                workflowNodes, workflowEdges, taskSlugs, workflowSlugs,
+                taskDatasourceCodes, taskTargetDatasourceCodes, Map.of(), Map.of());
+    }
+
     /** Convenience constructor with slug maps but no datasource codes. */
     public ProjectExport(
             Project project,
@@ -47,7 +69,8 @@ public record ProjectExport(
             Map<Long, String> workflowSlugs
     ) {
         this(project, catalogs, tags, entityTags, tasks, workflows,
-                workflowNodes, workflowEdges, taskSlugs, workflowSlugs, Map.of(), Map.of());
+                workflowNodes, workflowEdges, taskSlugs, workflowSlugs, Map.of(), Map.of(),
+                Map.of(), Map.of());
     }
 
     /** Convenience constructor with empty slug + datasource maps. */
@@ -62,6 +85,7 @@ public record ProjectExport(
             List<WorkflowEdge> workflowEdges
     ) {
         this(project, catalogs, tags, entityTags, tasks, workflows,
-                workflowNodes, workflowEdges, Map.of(), Map.of(), Map.of(), Map.of());
+                workflowNodes, workflowEdges, Map.of(), Map.of(), Map.of(), Map.of(),
+                Map.of(), Map.of());
     }
 }

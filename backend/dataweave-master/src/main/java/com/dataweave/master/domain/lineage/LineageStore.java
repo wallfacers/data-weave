@@ -1,6 +1,7 @@
 package com.dataweave.master.domain.lineage;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 血缘写入底座契约。neo4j 实现 = {@code Neo4jLineageStore}（infrastructure）。
@@ -23,17 +24,26 @@ public interface LineageStore {
     /**
      * 记录某任务的设计态血缘（replace-per-task，单事务）。
      *
-     * @param tenantId    租户
-     * @param projectId   项目
-     * @param taskDefId   任务定义 id（边按此私有，replace 锚点）
-     * @param versionNo   任务版本号（写入 READS/WRITES 边 version 属性）
-     * @param taskName    任务名（写入 :Task 镜像节点）
-     * @param ioEdges     表级读写边（设计态）
-     * @param columnEdges 列级边（019 产出；本期可传 {@code List.of()}，能写 :Column/DERIVES_FROM）
+     * @param tenantId        租户
+     * @param projectId       项目
+     * @param taskDefId       任务定义 id（边按此私有，replace 锚点）
+     * @param versionNo       任务版本号（写入 READS/WRITES 边 version 属性）
+     * @param taskName        任务名（写入 :Task 镜像节点）
+     * @param ioEdges         表级读写边（设计态）
+     * @param columnEdges     列级边（019 产出 + 024 声明兜底）
+     * @param declaredSchemas 声明 schema（表名→有序列元数据）；可为空/null（零回归）；先于 columnEdges seed（FR-009）
      */
     void recordTaskIo(long tenantId, long projectId, long taskDefId,
                       Integer versionNo, String taskName,
-                      List<IoEdge> ioEdges, List<ColumnEdge> columnEdges);
+                      List<IoEdge> ioEdges, List<ColumnEdge> columnEdges,
+                      Map<String, ? extends List<? extends DeclaredColumn>> declaredSchemas);
+
+    /** 声明的列元数据（入参委托给 implementation）。 */
+    interface DeclaredColumn {
+        String name();
+        String dataType();
+        int ordinal();
+    }
 
     /** 记录/替换某指标的血缘（迁 metric_lineage → :Metric-[:COMPUTED_FROM]->:Table|:Column）。 */
     void recordMetricLineage(MetricEdge edge);
