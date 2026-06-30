@@ -248,10 +248,7 @@ function UsersTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>{t("addUser")}</Button>
-      </div>
+      <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
 
       <DataTable<User>
         columns={columns}
@@ -259,6 +256,9 @@ function UsersTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        toolbarActions={
+          <Button size="sm" onClick={openCreate}>{t("addUser")}</Button>
+        }
         emptyTitle={t("emptyTitleUsers")}
         pageSize={15}
         className="min-h-[300px]"
@@ -413,10 +413,7 @@ function RolesTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>{t("addRole")}</Button>
-      </div>
+      <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
 
       <DataTable<Role>
         columns={columns}
@@ -424,6 +421,9 @@ function RolesTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        toolbarActions={
+          <Button size="sm" onClick={openCreate}>{t("addRole")}</Button>
+        }
         emptyTitle={t("emptyTitleRoles")}
         pageSize={15}
         className="min-h-[300px]"
@@ -582,10 +582,7 @@ function ProjectsTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
-        <Button size="sm" onClick={openCreate}>{t("addProject")}</Button>
-      </div>
+      <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
 
       <DataTable<Project>
         columns={columns}
@@ -593,6 +590,9 @@ function ProjectsTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        toolbarActions={
+          <Button size="sm" onClick={openCreate}>{t("addProject")}</Button>
+        }
         emptyTitle={t("emptyTitleProjects")}
         pageSize={15}
         className="min-h-[300px]"
@@ -655,18 +655,28 @@ export function SettingsView() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      {/* Tab 条 */}
-      <div className="flex gap-1">
-        {TABS.map((tabItem) => (
-          <Button
-            key={tabItem.key}
-            variant={tab === tabItem.key ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setTab(tabItem.key)}
-          >
-            {t(tabItem.labelKey)}
-          </Button>
-        ))}
+      {/* Tab 条 — 下划线式 */}
+      <div className="flex items-center gap-1 border-b h-11" role="tablist">
+        {TABS.map((tabItem) => {
+          const isActive = tab === tabItem.key
+          return (
+            <button
+              key={tabItem.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setTab(tabItem.key)}
+              className={
+                "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
+                (isActive
+                  ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {t(tabItem.labelKey)}
+            </button>
+          )
+        })}
       </div>
 
       {/* 内容 */}
