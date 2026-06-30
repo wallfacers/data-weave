@@ -301,7 +301,8 @@
     "settings": "Settings",
     "datasources": "Datasources",
     "alerts": "Alert Center",
-    "marketplace": "Metric Marketplace"
+    "marketplace": "Metric Marketplace",
+    "eventCenter": "Event Center"
   },
   "catalog": {
     "title": "Catalog",
@@ -963,6 +964,22 @@
     "selected": "{count} selected",
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "eventCenter": {
+    "tab": { "events": "Events", "subscriptions": "Subscriptions" },
+    "filter": { "allTypes": "All types", "allSeverities": "All severities" },
+    "refresh": "Refresh",
+    "loading": "Loading",
+    "empty": "No events yet",
+    "total": "{count} total",
+    "openRef": "Open {kind}",
+    "sub": {
+      "anySeverity": "Any severity",
+      "selectChannel": "Select channel",
+      "create": "Create subscription",
+      "empty": "No subscriptions",
+      "delete": "Delete"
+    }
   },
   "alerts": {
     "title": "Alert Center",

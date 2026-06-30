@@ -301,7 +301,8 @@
     "settings": "系统设置",
     "datasources": "数据源管理",
     "alerts": "告警中心",
-    "marketplace": "指标市场"
+    "marketplace": "指标市场",
+    "eventCenter": "事件中心"
   },
   "catalog": {
     "title": "类目",
@@ -963,6 +964,22 @@
     "selected": "已选 {count} 项",
     "today": "今天",
     "yesterday": "昨天"
+  },
+  "eventCenter": {
+    "tab": { "events": "事件", "subscriptions": "订阅" },
+    "filter": { "allTypes": "全部类型", "allSeverities": "全部级别" },
+    "refresh": "刷新",
+    "loading": "加载中",
+    "empty": "暂无事件",
+    "total": "共 {count} 条",
+    "openRef": "跳转到 {kind}",
+    "sub": {
+      "anySeverity": "不限级别",
+      "selectChannel": "选择通道",
+      "create": "创建订阅",
+      "empty": "暂无订阅",
+      "delete": "删除"
+    }
   },
   "alerts": {
     "title": "告警中心",
