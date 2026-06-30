@@ -8,6 +8,11 @@ import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
+import com.dataweave.master.quality.application.QualityCheckRunner;
+import com.dataweave.master.quality.application.QualityRuleService;
+import com.dataweave.master.quality.domain.QualityRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.type.TypeReference;
 import org.springframework.beans.factory.ObjectProvider;
@@ -32,6 +37,8 @@ import java.util.UUID;
 @Component
 public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
 
+    private static final Logger log = LoggerFactory.getLogger(DefaultPlatformActionExecutor.class);
+
     private final TaskInstanceRepository instanceRepository;
     private final FleetService fleetService;
     private final TaskService taskService;
@@ -46,6 +53,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final ObjectProvider<ProjectSyncService> projectSyncService;
     // SPI：业务模块（alert 等）注入的 handler，兜底遍历委派（master 编译期只依赖接口，不反向依赖业务模块）。
     private final List<PlatformActionHandler> handlers;
+    // ObjectProvider 延迟查找：质量断言写 + on-demand 触发（022-data-quality，D5）
+    private final ObjectProvider<QualityRuleService> qualityRuleService;
+    private final ObjectProvider<QualityCheckRunner> qualityCheckRunner;
     private final Messages messages;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -60,6 +70,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<OpsService> opsService,
                                          ObjectProvider<ProjectSyncService> projectSyncService,
                                          List<PlatformActionHandler> handlers,
+                                         ObjectProvider<QualityRuleService> qualityRuleService,
+                                         ObjectProvider<QualityCheckRunner> qualityCheckRunner,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -72,6 +84,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.opsService = opsService;
         this.projectSyncService = projectSyncService;
         this.handlers = handlers != null ? handlers : List.of();
+        this.qualityRuleService = qualityRuleService;
+        this.qualityCheckRunner = qualityCheckRunner;
         this.messages = messages;
     }
 
@@ -97,8 +111,11 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "ROLLBACK_WORKFLOW" -> rollbackWorkflow(action, locale);
             // E 子特性：project_push 执行接线（E4）
             case "PROJECT_PUSH", "PROJECT_PUSH_DESTRUCTIVE" -> projectPush(action, locale);
+            // 022-data-quality：断言写 + on-demand 触发（D5，镜像 PROJECT_PUSH）
+            case "QUALITY_RULE_WRITE" -> qualityRuleWrite(action, locale);
+            case "QUALITY_RUN" -> qualityRun(action, locale);
             default -> {
-                // SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
+                // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {
                     if (h.supports(type)) {
                         yield h.handle(action, locale);
@@ -284,6 +301,121 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             return new ExecOutcome(false,
                     messages.get("executor.project_push.failed", locale, e.getMessage()),
                     json(Map.of("error", "push_failed", "detail", String.valueOf(e.getMessage()))), null);
+        }
+    }
+
+    /**
+     * 022-data-quality: 断言定义写（建/改/删），镜像 PROJECT_PUSH。L1 直通+审计。
+     * <p>tenantId 由上游 MCP filter（TenantContext）注入 payload——调用方不可篡改；
+     * API 层 QualityController 也经 requireTenant() 二次校验。本方法信任上游已校验。
+     */
+    private ExecOutcome qualityRuleWrite(AgentAction action, Locale locale) {
+        String cmd = action.getCommand();
+        if (cmd == null || cmd.isBlank()) {
+            return new ExecOutcome(false,
+                    messages.get("executor.project_push.missing_payload", locale),
+                    json(Map.of("error", "missing_rule_payload")), null);
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(cmd,
+                    new TypeReference<Map<String, Object>>() {});
+            String op = (String) payload.getOrDefault("op", "upsert");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ruleData = (Map<String, Object>) payload.get("rule");
+            Long tenantId = longVal(payload, "tenantId");
+            Long userId = longVal(payload, "userId");
+
+            QualityRuleService svc = qualityRuleService.getObject();
+            if ("delete".equals(op)) {
+                Long ruleId = ruleData != null ? longVal(ruleData, "id") : null;
+                if (ruleId != null && tenantId != null) {
+                    svc.delete(ruleId, tenantId);
+                }
+                return new ExecOutcome(true,
+                        "质量断言已删除", json(Map.of("op", "delete", "ruleId", ruleId)), null);
+            }
+
+            // upsert: 建或改
+            QualityRule rule = new QualityRule();
+            rule.setTenantId(tenantId != null ? tenantId : 1L);
+            if (ruleData != null) {
+                if (ruleData.get("id") instanceof Number n) rule.setId(n.longValue());
+                rule.setName((String) ruleData.getOrDefault("name", "unnamed"));
+                rule.setDescription((String) ruleData.get("description"));
+                rule.setDatasetRef((String) ruleData.get("datasetRef"));
+                rule.setDatasourceId(ruleData.get("datasourceId") instanceof Number n ? n.longValue() : null);
+                rule.setAssertionType((String) ruleData.get("assertionType"));
+                rule.setExpectationJson((String) ruleData.get("expectationJson"));
+                rule.setSeverity((String) ruleData.getOrDefault("severity", "WARNING"));
+                rule.setAction((String) ruleData.getOrDefault("action", "WARN"));
+                rule.setSamplingJson((String) ruleData.get("samplingJson"));
+                rule.setBoundTaskId(ruleData.get("boundTaskId") instanceof Number n ? n.longValue() : null);
+                rule.setScheduleCron((String) ruleData.get("scheduleCron"));
+                rule.setCreatedBy(userId);
+                rule.setUpdatedBy(userId);
+            }
+            QualityRule saved = rule.getId() != null
+                    ? svc.update(svc.get(rule.getId(), rule.getTenantId())
+                            .orElseThrow(() -> new BizException("quality.rule_not_found")), rule)
+                    : svc.create(rule);
+            return new ExecOutcome(true,
+                    "质量断言已保存", json(Map.of("op", "upsert", "ruleId", saved.getId())), null);
+        } catch (BizException e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getCode(), "detail", e.getMessage())), null);
+        } catch (Exception e) {
+            log.error("[QualityRuleWrite] rule write failed", e);
+            return new ExecOutcome(false,
+                    "质量断言写失败",
+                    json(Map.of("error", "quality_rule_write_failed")), null);
+        }
+    }
+
+    /** 022-data-quality: on-demand 触发质量检查。L2（真连业务库读副作用，需审批）。
+     *  <p>tenantId 由上游 MCP filter（TenantContext）注入 payload——调用方不可篡改。 */
+    private ExecOutcome qualityRun(AgentAction action, Locale locale) {
+        String cmd = action.getCommand();
+        try {
+            Map<String, Object> payload = cmd != null && !cmd.isBlank()
+                    ? objectMapper.readValue(cmd, new TypeReference<Map<String, Object>>() {})
+                    : Map.of();
+            Long ruleId = payload.get("ruleId") instanceof Number n ? n.longValue() : null;
+            Long tenantId = longVal(payload, "tenantId");
+            if (tenantId == null) tenantId = 1L;
+
+            QualityCheckRunner runner = qualityCheckRunner.getObject();
+            QualityRuleService svc = qualityRuleService.getObject();
+
+            List<QualityRule> rules;
+            if (ruleId != null) {
+                QualityRule r = svc.get(ruleId, tenantId)
+                        .orElseThrow(() -> new BizException("quality.rule_not_found"));
+                rules = List.of(r);
+            } else {
+                String datasetRef = (String) payload.get("datasetRef");
+                if (datasetRef != null) {
+                    rules = svc.findByDataset(tenantId, datasetRef);
+                } else {
+                    rules = svc.list(tenantId);
+                }
+            }
+
+            if (rules.isEmpty()) {
+                return new ExecOutcome(false, "无匹配的质量断言",
+                        json(Map.of("error", "no_rules")), null);
+            }
+
+            Long runId = runner.run(rules, "ON_DEMAND", null, tenantId);
+            return new ExecOutcome(true, "质量检查已执行",
+                    json(Map.of("runId", runId, "ruleCount", rules.size())), null);
+        } catch (BizException e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getCode())), null);
+        } catch (Exception e) {
+            log.error("[QualityRun] run trigger failed", e);
+            return new ExecOutcome(false,
+                    "质量检查触发失败",
+                    json(Map.of("error", "quality_run_failed")), null);
         }
     }
 

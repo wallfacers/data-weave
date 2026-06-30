@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <h3>覆盖契约</h3>
  * <ul>
- *   <li><b>C1</b>：单行 + 合法 SemVer + {@code = 0.0.2}</li>
+ *   <li><b>C1</b>：单行 + 合法 SemVer + {@code = 0.2.0}</li>
  *   <li><b>C2</b>：库内版本 = 基线常量 = 项目版本</li>
  *   <li><b>C3</b>：上下文成功启动 → H2 建库成功（双库兼容）</li>
  *   <li><b>C4</b>：db/migration/ 死目录不存在（防回退重现）</li>
@@ -45,8 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Schema 版本契约 (C1–C6)")
 class SchemaVersionIT {
 
-    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。021 升至 0.1.0（main 0.0.2 之上的 MINOR）。 */
-    static final String BASELINE_VERSION = "0.1.0";
+    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。021→0.1.0、022 合并后升至 0.2.0（main 0.0.2 之上累计 MINOR）。 */
+    static final String BASELINE_VERSION = "0.2.0";
 
     /** 合法 SemVer 正则：MAJOR.MINOR.PATCH，纯数字。 */
     static final Pattern SEMVER_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
@@ -62,7 +62,7 @@ class SchemaVersionIT {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("C1 schema_version 恰好 1 行，version 为合法 SemVer 且 = 0.0.2，applied_at 非空")
+    @DisplayName("C1 schema_version 恰好 1 行，version 为合法 SemVer 且 = 0.2.0，applied_at 非空")
     void c1SingleRowValidSemVerBaseline() {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT version, applied_at FROM schema_version");
@@ -79,7 +79,7 @@ class SchemaVersionIT {
                 .matches(SEMVER_PATTERN);
 
         assertThat(version)
-                .as("version 应等于基线 0.0.2")
+                .as("version 应等于基线 0.2.0")
                 .isEqualTo(BASELINE_VERSION);
 
         assertThat(row.get("applied_at"))
@@ -92,7 +92,7 @@ class SchemaVersionIT {
     // ═══════════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("C2 库内 version = 基线常量 0.0.2（= 项目发布版本）")
+    @DisplayName("C2 库内 version = 基线常量 0.2.0（= 项目发布版本）")
     void c2VersionEqualsProjectVersion() {
         String dbVersion = jdbc.queryForObject(
                 "SELECT version FROM schema_version", String.class);

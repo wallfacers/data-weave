@@ -42,6 +42,7 @@ import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
 import { AlertsView } from "@/components/workspace/views/alerts-view"
+import { QualityView } from "@/components/workspace/views/quality-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -87,7 +88,7 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   },
   quality: {
     icon: Shield01Icon,
-    component: placeholder("quality", "descQuality"),
+    component: QualityView,
   },
   integration: {
     icon: DatabaseSyncIcon,

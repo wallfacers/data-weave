@@ -173,9 +173,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [017-sql-schema-versioning](specs/017-sql-schema-versioning/spec.md)
-Implementation plan: [plan.md](specs/017-sql-schema-versioning/plan.md)
-Research: [research.md](specs/017-sql-schema-versioning/research.md)
-Data model: [data-model.md](specs/017-sql-schema-versioning/data-model.md)
-API contracts: [contracts/](specs/017-sql-schema-versioning/contracts/)
+Current feature: [021-alert-engine](specs/021-alert-engine/spec.md)
+Implementation plan: [plan.md](specs/021-alert-engine/plan.md)
+Research: [research.md](specs/021-alert-engine/research.md)
+Data model: [data-model.md](specs/021-alert-engine/data-model.md)
+API contracts: [contracts/](specs/021-alert-engine/contracts/)
 <!-- SPECKIT END -->

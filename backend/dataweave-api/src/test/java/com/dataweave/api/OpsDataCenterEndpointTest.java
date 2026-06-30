@@ -227,41 +227,11 @@ class OpsDataCenterEndpointTest {
     }
 
     // ─── 下游影响范围预览（backfill-target-and-downstream-ux）────
-
-    /** 自建血缘链：7701 WRITE 表 7710；7702 READ 表 7710 → 7702 是 7701 的下游。 */
-    private void seedDownstreamChain() {
-        LocalDateTime now = LocalDateTime.now();
-        jdbc.update("INSERT INTO task_def (id, tenant_id, project_id, name, type, status, "
-                + "created_at, updated_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,0,0)",
-                7701L, "上游测试任务", "SQL", "ONLINE", now, now);
-        jdbc.update("INSERT INTO task_def (id, tenant_id, project_id, name, type, status, "
-                + "created_at, updated_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,0,0)",
-                7702L, "下游测试任务", "SQL", "ONLINE", now, now);
-        jdbc.update("INSERT INTO data_table (id, tenant_id, project_id, datasource_id, qualified_name, "
-                + "layer, created_at, deleted, version) VALUES (?,1,1,0,?,?,?,0,0)",
-                7710L, "test.bf_chain_out", "DWD", now);
-        jdbc.update("INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, table_id, "
-                + "direction, source, confidence, created_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,?,0,0)",
-                7720L, 7701L, 7710L, "WRITE", "FORM", "CONFIRMED", now);
-        jdbc.update("INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, table_id, "
-                + "direction, source, confidence, created_at, deleted, version) VALUES (?,1,1,?,?,?,?,?,?,0,0)",
-                7721L, 7702L, 7710L, "READ", "FORM", "CONFIRMED", now);
-    }
-
-    @Test
-    void downstreamPreview_沿血缘返回下游任务() {
-        seedDownstreamChain();
-
-        client.get().uri("/api/ops/backfill/downstream-preview?targetType=task&targetId=7701")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data").isArray()
-                .jsonPath("$.data[0].id").isEqualTo(7702)
-                .jsonPath("$.data[0].name").isEqualTo("下游测试任务")
-                .jsonPath("$.data[0].level").isEqualTo(1);
-    }
+    //
+    // 任务级下游的「真实血缘返回下游任务」场景已随 PG 血缘四表退役（3ff396f）迁移到
+    // neo4j 单一底座，等价性验证见 master 模块 BackfillDownstreamNeo4jIT（真 neo4j 容器）。
+    // 原 PG 版 downstreamPreview_沿血缘返回下游任务 依赖已删除的 data_table/task_table_io，
+    // 故在此 H2 端点测试中移除；此处仅保留无血缘依赖的 workflow 目标空集回归。
 
     @Test
     void downstreamPreview_workflow目标返回空() {
