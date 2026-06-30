@@ -43,6 +43,7 @@ public class ProjectSyncService {
     private final LineageStore lineageStore;
     private final LineageEdgeAssembler lineageEdgeAssembler;
     private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
+    private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
 
     public ProjectSyncService(ProjectRepository projectRepository,
                               CatalogNodeRepository catalogNodeRepository,
@@ -57,7 +58,8 @@ public class ProjectSyncService {
                               WorkflowService workflowService,
                               LineageStore lineageStore,
                               LineageEdgeAssembler lineageEdgeAssembler,
-                              SqlColumnLineageExtractor sqlColumnLineageExtractor) {
+                              SqlColumnLineageExtractor sqlColumnLineageExtractor,
+                              com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog) {
         this.projectRepository = projectRepository;
         this.catalogNodeRepository = catalogNodeRepository;
         this.taskDefRepository = taskDefRepository;
@@ -72,6 +74,7 @@ public class ProjectSyncService {
         this.lineageStore = lineageStore;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
         this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
+        this.columnLineageCatalog = columnLineageCatalog;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -853,7 +856,7 @@ public class ProjectSyncService {
                 java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
                 if ("SQL".equalsIgnoreCase(t.getType())) {
                     var colResult = sqlColumnLineageExtractor.extract(
-                            t.getContent(), com.dataweave.master.application.lineage.ColumnLineageCatalog.EMPTY);
+                            t.getContent(), columnLineageCatalog);
                     columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                             colResult,
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),

@@ -289,7 +289,7 @@ public class McpToolRegistry {
                             .map(p -> (Object) Map.of(
                                     "metric", p.metric().getName(),
                                     "exprSql", p.metric().getMeasureExpr(),
-                                    "edges", p.edges()))
+                                    "lineage", p.lineage()))
                             .orElse(Map.of("found", false, "code", code));
                 });
 

@@ -1,7 +1,6 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
-import com.dataweave.master.application.LineageGraphService;
 import com.dataweave.master.application.LineageQueryService;
 import com.dataweave.master.lineage.*;
 import org.springframework.web.bind.annotation.*;
@@ -11,8 +10,7 @@ import java.util.List;
 /**
  * 多粒度血缘 REST（020 重设计）—— 基于 neo4j Cypher 变长路径。
  *
- * <p>图谱读写分离：写侧由 {@link LineageGraphService#recordDesignTimeIo} 继续服务
- * （待 018 迁移），读侧统一经 {@link LineageQueryService} → Cypher 变长路径。
+ * <p>读写均经 {@link LineageQueryService}（neo4j 读侧）；写侧由 018 {@code LineageStore} 落图。
  * Tenant/project 当前固定 1/1，预留 {@code TenantContext}。
  */
 @RestController
@@ -22,12 +20,9 @@ public class LineageGraphController {
     private static final long TENANT = 1L;
     private static final long PROJECT = 1L;
 
-    private final LineageGraphService lineageGraphService;
     private final LineageQueryService lineageQueryService;
 
-    public LineageGraphController(LineageGraphService lineageGraphService,
-                                   LineageQueryService lineageQueryService) {
-        this.lineageGraphService = lineageGraphService;
+    public LineageGraphController(LineageQueryService lineageQueryService) {
         this.lineageQueryService = lineageQueryService;
     }
 
@@ -105,7 +100,7 @@ public class LineageGraphController {
     /** 指标血缘：COMPUTED_FROM 的表/列。 */
     @GetMapping("/metrics/{id}/lineage")
     public ApiResponse<MetricLineage> metricLineage(@PathVariable String id) {
-        return ApiResponse.ok(lineageQueryService.metricLineage(TENANT, PROJECT, id));
+        return ApiResponse.ok(lineageQueryService.metricLineage(TENANT, PROJECT, "ATOMIC", Long.parseLong(id)));
     }
 
     /** 今日同步行数。 */

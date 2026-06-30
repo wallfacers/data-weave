@@ -43,20 +43,20 @@ public class BackfillService {
     private final WorkflowTriggerService triggerService;
     private final TaskDefRepository taskDefRepository;
     private final WorkflowDefRepository workflowDefRepository;
-    private final LineageGraphService lineageGraphService;
+    private final LineageQueryService lineageQueryService;
     private final JdbcTemplate jdbc;
 
     public BackfillService(BackfillRunRepository backfillRunRepository,
                            WorkflowTriggerService triggerService,
                            TaskDefRepository taskDefRepository,
                            WorkflowDefRepository workflowDefRepository,
-                           LineageGraphService lineageGraphService,
+                           LineageQueryService lineageQueryService,
                            JdbcTemplate jdbc) {
         this.backfillRunRepository = backfillRunRepository;
         this.triggerService = triggerService;
         this.taskDefRepository = taskDefRepository;
         this.workflowDefRepository = workflowDefRepository;
-        this.lineageGraphService = lineageGraphService;
+        this.lineageQueryService = lineageQueryService;
         this.jdbc = jdbc;
     }
 
@@ -73,7 +73,28 @@ public class BackfillService {
         }
         TaskDef def = taskDefRepository.findById(targetId)
                 .orElseThrow(() -> new IllegalStateException("Task def not found: " + targetId));
-        return lineageGraphService.downstreamTasks(def.getTenantId(), def.getProjectId(), targetId);
+        // A1 迁移：任务级下游来自 neo4j（downstreamTaskLevels），name/catalog_node_id 回查 task_def。
+        java.util.LinkedHashMap<Long, Integer> levels = lineageQueryService.downstreamTaskLevels(
+                def.getTenantId(), def.getProjectId(), targetId);
+        if (levels.isEmpty()) {
+            return List.of();
+        }
+        String ph = String.join(",", java.util.Collections.nCopies(levels.size(), "?"));
+        java.util.Map<Long, Object[]> meta = new java.util.HashMap<>();
+        jdbc.query(
+                "SELECT id, name, catalog_node_id FROM task_def WHERE deleted = 0 AND id IN (" + ph + ")",
+                rs -> {
+                    meta.put(rs.getLong("id"),
+                            new Object[]{rs.getString("name"), (Long) rs.getObject("catalog_node_id")});
+                },
+                levels.keySet().toArray());
+        List<OpsContracts.DownstreamTaskView> out = new ArrayList<>(levels.size());
+        for (var en : levels.entrySet()) {
+            Object[] m = meta.get(en.getKey());
+            if (m == null) continue; // 任务已删/不存在则跳过
+            out.add(new OpsContracts.DownstreamTaskView(en.getKey(), (String) m[0], (Long) m[1], en.getValue()));
+        }
+        return out;
     }
 
     /** 发起补数据：校验 → 落 backfill_run → 逐 bizDate 生成实例 → 回填 total → 返回视图。 */
@@ -133,8 +154,8 @@ public class BackfillService {
             targetTaskIds.add(req.targetId());
             List<Long> requested = req.downstreamTaskIds();
             if (requested != null && !requested.isEmpty()) {
-                java.util.Set<Long> valid = new java.util.HashSet<>(
-                        lineageGraphService.downstreamTaskDefIds(tenantId, projectId, req.targetId()));
+                java.util.Set<Long> valid = lineageQueryService.downstreamTaskLevels(
+                        tenantId, projectId, req.targetId()).keySet();
                 for (Long d : requested) {
                     if (d != null && valid.contains(d) && !targetTaskIds.contains(d)) {
                         targetTaskIds.add(d);

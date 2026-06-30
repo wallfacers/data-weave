@@ -539,9 +539,6 @@ VALUES (1, 1, 1, 'AOV', '客单价', 'GMV / ORDER_CNT', '["GMV","ORDER_CNT"]', '
 INSERT INTO metric_dimension (id, tenant_id, project_id, metric_type, metric_id, dimension_id, created_by, updated_by, created_at, updated_at, deleted, version)
 VALUES (1, 1, 1, 'ATOMIC', 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
-INSERT INTO metric_lineage (id, tenant_id, project_id, metric_type, metric_id, downstream_type, downstream_id, created_by, updated_by, created_at, updated_at, deleted, version)
-VALUES (1, 1, 1, 'ATOMIC', 1, 'TABLE', 'orders', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
-
 -- ===== 域 E · 资源与诊断 =====
 -- node-3 内存吃紧(95%)且并发2，是失败根因现场；node-4 心跳超时离线
 INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, load_avg, running_tasks, status, last_heartbeat, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
@@ -636,7 +633,6 @@ ALTER TABLE dimensions ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE atomic_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE derived_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE metric_dimension ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE metric_lineage ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE worker_nodes ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE audit_log ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE policy_rules ALTER COLUMN id RESTART WITH 100;
@@ -650,33 +646,6 @@ INSERT INTO task_def (id, tenant_id, project_id, name, type, content, datasource
   (9001, 1, 1, '订单明细加工 ODS→DWD', 'SQL', 'insert into dwd_order select * from ods_order', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
   (9002, 1, 1, '用户订单聚合 DWD→DWS', 'SQL', 'insert into dws_user_order select * from dwd_order join ods_user', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0),
   (9003, 1, 1, 'GMV 汇总 DWS→ADS', 'SQL', 'insert into ads_gmv select sum(amount) from dws_user_order', 1, 'ONLINE', 1, 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 0);
-
-INSERT INTO data_table (id, tenant_id, project_id, datasource_id, qualified_name, layer, created_at, deleted, version) VALUES
-  (1, 1, 1, 1, 'ods_order',      'ODS', CURRENT_TIMESTAMP, 0, 0),
-  (2, 1, 1, 1, 'ods_user',       'ODS', CURRENT_TIMESTAMP, 0, 0),
-  (3, 1, 1, 1, 'dwd_order',      'DWD', CURRENT_TIMESTAMP, 0, 0),
-  (4, 1, 1, 1, 'dws_user_order', 'DWS', CURRENT_TIMESTAMP, 0, 0),
-  (5, 1, 1, 1, 'ads_gmv',        'ADS', CURRENT_TIMESTAMP, 0, 0);
-
-INSERT INTO task_table_io (id, tenant_id, project_id, task_def_id, task_version_no, table_id, direction, source, confidence, created_at, deleted, version) VALUES
-  (1, 1, 1, 9001, 1, 1, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (2, 1, 1, 9001, 1, 3, 'WRITE', 'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (3, 1, 1, 9002, 1, 2, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (4, 1, 1, 9002, 1, 3, 'READ',  'AGENT',      'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (5, 1, 1, 9002, 1, 4, 'WRITE', 'AGENT',      'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (6, 1, 1, 9003, 1, 4, 'READ',  'SQL_PARSED', 'CONFIRMED', CURRENT_TIMESTAMP, 0, 0),
-  (7, 1, 1, 9003, 1, 5, 'WRITE', 'AGENT',      'CONFLICT',  CURRENT_TIMESTAMP, 0, 0);
-
--- 运行态血缘种子（task_run_table_io）：今日各 WRITE 表实际同步行数，供顶条「今日同步」显真数
-INSERT INTO task_run_table_io (id, tenant_id, project_id, task_instance_id, table_id, direction, row_count, bytes, biz_date, created_at, deleted, version) VALUES
-  (1, 1, 1, '019ef700-0000-7000-8000-000000000001', 1, 'READ',  120000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
-  (2, 1, 1, '019ef700-0000-7000-8000-000000000001', 3, 'WRITE',  98000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
-  (3, 1, 1, '019ef700-0000-7000-8000-000000000002', 4, 'WRITE',  76000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0),
-  (4, 1, 1, '019ef700-0000-7000-8000-000000000003', 5, 'WRITE',  12000000, NULL, '2026-06-24', CURRENT_TIMESTAMP, 0, 0);
-
-ALTER TABLE data_table ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE task_table_io ALTER COLUMN id RESTART WITH 100;
-ALTER TABLE task_run_table_io ALTER COLUMN id RESTART WITH 100;
 
 -- ETA 预测演示种子（task 5.4）：独立任务 9101「实时GMV增量同步」，3 条历史 SUCCESS（时长 28/30/32min，中位 30min）
 -- + 1 条「此刻起跑」RUNNING（started_at=CURRENT_TIMESTAMP），供顶条「最迟看板 ETA」算出约 +30min 的真预测。

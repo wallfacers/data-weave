@@ -107,8 +107,8 @@ public class Neo4jLineageStore implements LineageStore {
                 for (ColumnEdge ce : cols) {
                     String srcTk = ensureTable(tx, ce.srcTable(), tenantId, projectId);
                     String dstTk = ensureTable(tx, ce.dstTable(), tenantId, projectId);
-                    String srcCk = ensureColumn(tx, srcTk, ce.srcCol(), tenantId, projectId);
-                    String dstCk = ensureColumn(tx, dstTk, ce.dstCol(), tenantId, projectId);
+                    String srcCk = ensureColumn(tx, srcTk, ce.srcCol(), null, null, tenantId, projectId);
+                    String dstCk = ensureColumn(tx, dstTk, ce.dstCol(), null, null, tenantId, projectId);
                     tx.run("""
                             MATCH (a:Column {columnKey:$sck}),(b:Column {columnKey:$dck})
                             CREATE (a)-[:DERIVES_FROM {taskDefId:$td,transform:$tr,confidence:$cf}]->(b)
@@ -201,15 +201,17 @@ public class Neo4jLineageStore implements LineageStore {
         return tk;
     }
 
-    /** MERGE :Column + HAS_COLUMN，返回 columnKey（幂等）。 */
+    /** MERGE :Column + HAS_COLUMN，返回 columnKey（幂等）。dataType/ordinal 预留写入位（catalog 方案 D，v1 透传 null）。 */
     private String ensureColumn(TransactionContext tx, String tableKey, String colName,
+                                String dataType, Integer ordinal,
                                 long tenantId, long projectId) {
         String ck = columnKey(tableKey, colName);
         tx.run("""
                 MERGE (c:Column {columnKey:$ck})
-                  ON CREATE SET c.id=$ck, c.tenantId=$t, c.projectId=$p, c.name=$nm, c.tableKey=$tk
+                  ON CREATE SET c.id=$ck, c.tenantId=$t, c.projectId=$p, c.name=$nm,
+                                c.tableKey=$tk, c.dataType=$dt, c.ordinal=$ord
                 """, params("ck", ck, "t", tenantId, "p", projectId,
-                "nm", colName, "tk", tableKey)).consume();
+                "nm", colName, "tk", tableKey, "dt", dataType, "ord", ordinal)).consume();
         tx.run("MATCH (t:Table {tableKey:$tk}),(c:Column {columnKey:$ck}) MERGE (t)-[:HAS_COLUMN]->(c)",
                 params("tk", tableKey, "ck", ck)).consume();
         return ck;
