@@ -55,6 +55,12 @@ class DefaultPlatformActionExecutorTest {
     private ObjectProvider<com.dataweave.master.quality.application.QualityRuleService> qualityRuleServiceProvider;
     @Mock
     private ObjectProvider<com.dataweave.master.quality.application.QualityCheckRunner> qualityCheckRunnerProvider;
+    @Mock
+    private ObjectProvider<com.dataweave.master.application.asset.AssetCatalogService> assetCatalogServiceProvider;
+    @Mock
+    private ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingServiceProvider;
+    @Mock
+    private ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionServiceProvider;
 
     private DefaultPlatformActionExecutor executor;
 
@@ -72,7 +78,8 @@ class DefaultPlatformActionExecutorTest {
         executor = new DefaultPlatformActionExecutor(instanceRepository,
                 fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
                 opsServiceProvider, projectSyncServiceProvider, java.util.List.of(),
-                qualityRuleServiceProvider, qualityCheckRunnerProvider, realMessages());
+                qualityRuleServiceProvider, qualityCheckRunnerProvider,
+                assetCatalogServiceProvider, metricListingServiceProvider, assetSubscriptionServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));

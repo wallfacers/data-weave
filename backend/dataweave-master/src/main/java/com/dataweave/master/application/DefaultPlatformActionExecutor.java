@@ -56,6 +56,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     // ObjectProvider 延迟查找：质量断言写 + on-demand 触发（022-data-quality，D5）
     private final ObjectProvider<QualityRuleService> qualityRuleService;
     private final ObjectProvider<QualityCheckRunner> qualityCheckRunner;
+    // 023 资产目录 + 指标市场写执行（ObjectProvider 延迟查找，避免装配期循环依赖）。
+    private final ObjectProvider<com.dataweave.master.application.asset.AssetCatalogService> assetCatalogService;
+    private final ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingService;
+    private final ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionService;
     private final Messages messages;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -72,6 +76,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          List<PlatformActionHandler> handlers,
                                          ObjectProvider<QualityRuleService> qualityRuleService,
                                          ObjectProvider<QualityCheckRunner> qualityCheckRunner,
+                                         ObjectProvider<com.dataweave.master.application.asset.AssetCatalogService> assetCatalogService,
+                                         ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingService,
+                                         ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionService,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -86,6 +93,9 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.handlers = handlers != null ? handlers : List.of();
         this.qualityRuleService = qualityRuleService;
         this.qualityCheckRunner = qualityCheckRunner;
+        this.assetCatalogService = assetCatalogService;
+        this.metricListingService = metricListingService;
+        this.assetSubscriptionService = assetSubscriptionService;
         this.messages = messages;
     }
 
@@ -114,6 +124,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             // 022-data-quality：断言写 + on-demand 触发（D5，镜像 PROJECT_PUSH）
             case "QUALITY_RULE_WRITE" -> qualityRuleWrite(action, locale);
             case "QUALITY_RUN" -> qualityRun(action, locale);
+            // 023 资产目录 + 指标市场写执行（command=JSON payload，含 op 分流）
+            case "ASSET_WRITE" -> assetWrite(action, locale);
+            case "METRIC_CERTIFY" -> metricCertify(action, locale);
+            case "ASSET_SUBSCRIBE" -> assetSubscribe(action, locale);
             default -> {
                 // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {
@@ -426,6 +440,131 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             try { return Long.parseLong(s.trim()); } catch (NumberFormatException ignored) {}
         }
         return null;
+    }
+
+    // ═══ 023 资产目录 + 指标市场写执行（command=JSON：tenantId/projectId/userId + op + 载荷）═══
+
+    /** 资产编目/上架/复用写：op ∈ asset.create|asset.update|asset.retire|asset.reconcile|metric.list|metric.delist|metric.reuse。 */
+    @SuppressWarnings("unchecked")
+    private ExecOutcome assetWrite(AgentAction action, Locale locale) {
+        Map<String, Object> p = parsePayload(action);
+        if (p == null) {
+            return new ExecOutcome(false, messages.get("executor.asset.missing_payload", locale),
+                    json(Map.of("error", "missing_payload")), null);
+        }
+        Long tenantId = longVal(p, "tenantId");
+        Long projectId = longVal(p, "projectId");
+        Long userId = longVal(p, "userId");
+        String op = strVal(p, "op");
+        if (tenantId == null || projectId == null || userId == null || op == null) {
+            return new ExecOutcome(false, messages.get("executor.asset.missing_params", locale),
+                    json(Map.of("error", "missing_tenant_project_user_or_op")), null);
+        }
+        // 业务校验错误（BizException：duplicate/reuse_cycle/not_found…）有意透传 → GlobalExceptionHandler 出稳定错误码。
+        Map<String, Object> out = new LinkedHashMap<>();
+        switch (op) {
+            case "asset.create" -> {
+                var a = assetCatalogService.getObject().create(tenantId, projectId, userId,
+                        (Map<String, Object>) p.getOrDefault("asset", Map.of()));
+                out.put("assetId", a.getId());
+            }
+            case "asset.update" -> {
+                Long id = longVal(p, "id");
+                var a = assetCatalogService.getObject().update(tenantId, userId, id,
+                        (Map<String, Object>) p.getOrDefault("patch", Map.of()));
+                out.put("assetId", a.getId());
+            }
+            case "asset.retire" -> {
+                Long id = longVal(p, "id");
+                var a = assetCatalogService.getObject().retire(tenantId, userId, id);
+                out.put("assetId", a.getId());
+                out.put("status", a.getStatus());
+            }
+            case "asset.reconcile" -> {
+                Long id = longVal(p, "id");
+                var a = assetCatalogService.getObject().reconcile(tenantId, userId, id);
+                out.put("assetId", a.getId());
+                out.put("status", a.getStatus());
+            }
+            case "metric.list" -> {
+                var m = metricListingService.getObject().list(tenantId, projectId, userId,
+                        (Map<String, Object>) p.getOrDefault("metric", Map.of()));
+                out.put("listingId", m.getId());
+            }
+            case "metric.delist" -> {
+                Long id = longVal(p, "id");
+                var m = metricListingService.getObject().delist(tenantId, userId, id);
+                out.put("listingId", m.getId());
+                out.put("status", m.getStatus());
+            }
+            case "metric.reuse" -> {
+                Long id = longVal(p, "id");
+                var ref = metricListingService.getObject().reuse(tenantId, projectId, userId, id,
+                        strVal(p, "consumerType"), strVal(p, "consumerRef"));
+                out.put("reuseId", ref.getId());
+            }
+            default -> {
+                return new ExecOutcome(false, messages.get("executor.asset.unknown_op", locale, op),
+                        json(Map.of("error", "unknown_op", "op", op)), null);
+            }
+        }
+        return new ExecOutcome(true, messages.get("executor.asset.success", locale, op), json(out), null);
+    }
+
+    /** 指标认证（L2）：targetId=listingId 或 payload.id。 */
+    private ExecOutcome metricCertify(AgentAction action, Locale locale) {
+        Map<String, Object> p = parsePayload(action);
+        Long tenantId = p != null ? longVal(p, "tenantId") : null;
+        Long userId = p != null ? longVal(p, "userId") : null;
+        Long id = p != null ? longVal(p, "id") : null;
+        if (id == null) id = parseLong(action.getTargetId());
+        if (tenantId == null || userId == null || id == null) {
+            return new ExecOutcome(false, messages.get("executor.asset.missing_params", locale),
+                    json(Map.of("error", "missing_tenant_user_or_id")), null);
+        }
+        var m = metricListingService.getObject().certify(tenantId, userId, id); // BizException 透传
+        return new ExecOutcome(true, messages.get("executor.metric.certified", locale, id),
+                json(Map.of("listingId", m.getId(), "certification", m.getCertification())), null);
+    }
+
+    /** 订阅/退订：op ∈ subscribe|unsubscribe。 */
+    private ExecOutcome assetSubscribe(AgentAction action, Locale locale) {
+        Map<String, Object> p = parsePayload(action);
+        if (p == null) {
+            return new ExecOutcome(false, messages.get("executor.asset.missing_payload", locale),
+                    json(Map.of("error", "missing_payload")), null);
+        }
+        Long tenantId = longVal(p, "tenantId");
+        Long userId = longVal(p, "userId");
+        String op = strVal(p, "op");
+        if (tenantId == null || userId == null || op == null) {
+            return new ExecOutcome(false, messages.get("executor.asset.missing_params", locale),
+                    json(Map.of("error", "missing_tenant_user_or_op")), null);
+        }
+        if ("unsubscribe".equals(op)) {
+            assetSubscriptionService.getObject().unsubscribe(tenantId, userId, longVal(p, "id"));
+            return new ExecOutcome(true, messages.get("executor.asset.unsubscribed", locale),
+                    json(Map.of("unsubscribed", true)), null);
+        }
+        var sub = assetSubscriptionService.getObject().subscribe(tenantId, userId,
+                strVal(p, "targetType"), longVal(p, "targetId"), strVal(p, "changeFilter"));
+        return new ExecOutcome(true, messages.get("executor.asset.subscribed", locale),
+                json(Map.of("subscriptionId", sub.getId())), null);
+    }
+
+    private Map<String, Object> parsePayload(AgentAction action) {
+        String cmd = action.getCommand();
+        if (cmd == null || cmd.isBlank()) return null;
+        try {
+            return objectMapper.readValue(cmd, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String strVal(Map<String, Object> m, String key) {
+        Object v = m.get(key);
+        return v == null ? null : String.valueOf(v);
     }
 
     /** 断点恢复：targetId=workflowInstanceId(UUID)。 */

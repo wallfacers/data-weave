@@ -38,11 +38,14 @@ class QualitySchemaSmokeTest {
                             .isTrue();
                 }
             }
-            // schema_version 升版到 0.2.0（占位，合并期与 021/023 对齐）
+            // schema_version 已升版且为合法 SemVer（确切版本契约由 SchemaVersionIT 守，此处不 pin 死值，
+            // 免每个并行特性合并都要改本断言；022 落地时 ≥0.2.0，023 合并后为 0.3.0）。
             try (Statement s = c.createStatement();
                  ResultSet rs = s.executeQuery("SELECT version FROM schema_version")) {
                 assertThat(rs.next()).isTrue();
-                assertThat(rs.getString("version")).isEqualTo("0.2.0");
+                assertThat(rs.getString("version"))
+                        .as("schema_version 应为合法 SemVer 且已升版")
+                        .matches("\\d+\\.\\d+\\.\\d+");
             }
             // policy_rules seed：QUALITY_RULE_WRITE(L1) / QUALITY_RUN(L2) 已落
             try (Statement s = c.createStatement();

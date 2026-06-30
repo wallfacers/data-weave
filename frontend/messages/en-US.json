@@ -300,7 +300,8 @@
     "service": "Data Service",
     "settings": "Settings",
     "datasources": "Datasources",
-    "alerts": "Alert Center"
+    "alerts": "Alert Center",
+    "marketplace": "Metric Marketplace"
   },
   "catalog": {
     "title": "Catalog",
@@ -1015,5 +1016,50 @@
     "tabRules": "Rules",
     "tabRuns": "Run History",
     "tabScorecards": "Scorecards"
+  },
+  "assetCatalog": {
+    "title": "Data Assets",
+    "searchPlaceholder": "Search name/description/glossary",
+    "facetSensitivity": "Sensitivity",
+    "facetOwner": "Owner",
+    "all": "All",
+    "loading": "Loading",
+    "totalCount": "{count} items",
+    "truncated": "Truncated",
+    "empty": "No assets",
+    "staleHint": "Underlying table changed; asset pending review (trust hidden)",
+    "owner": "Owner",
+    "steward": "Steward",
+    "sensitivity": "Sensitivity",
+    "status": "Status",
+    "lineage": "Lineage",
+    "quality": "Quality",
+    "subscribe": "Subscribe",
+    "subscribed": "Subscribed",
+    "pendingApproval": "Submitted for approval",
+    "actionFailed": "Action failed",
+    "loadFailed": "Load failed",
+    "selectHint": "Select an asset to view details"
+  },
+  "metricMarketplace": {
+    "searchPlaceholder": "Search metric code/description",
+    "loading": "Loading",
+    "totalCount": "{count} items",
+    "empty": "No listed metrics",
+    "certified": "Certified",
+    "loadFailed": "Load failed",
+    "done": "Done",
+    "pendingApproval": "Submitted for approval",
+    "actionFailed": "Action failed",
+    "reusePrompt": "Enter consumer ref (listing id)",
+    "metricType": "Metric type",
+    "owner": "Owner",
+    "freshness": "Freshness",
+    "reuseCount": "Reuse count",
+    "definition": "Definition",
+    "lineageSources": "{count} lineage sources",
+    "certify": "Certify",
+    "reuse": "Reuse",
+    "selectHint": "Select a metric to view details"
   }
 }
