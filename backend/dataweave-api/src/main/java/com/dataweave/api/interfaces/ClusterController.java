@@ -76,7 +76,8 @@ public class ClusterController {
             }
             case "finished" -> {
                 reportService.reportFinished(taskInstanceId, req.getExitCode(),
-                        req.getTailLog() != null ? req.getTailLog() : "");
+                        req.getTailLog() != null ? req.getTailLog() : "",
+                        req.getStatementMetrics());
                 return ResponseEntity.ok(ApiResponse.ok("reported:finished"));
             }
             case "failed" -> {

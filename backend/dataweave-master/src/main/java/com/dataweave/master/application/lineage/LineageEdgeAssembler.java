@@ -103,6 +103,11 @@ public class LineageEdgeAssembler {
         }
     }
 
+    /** 构造 TableRef（复用 inferLayer；供 runtime recordSynced 写表引用，feature 025）。 */
+    public TableRef tableRef(DatasourceCoord coord, String qualifiedName) {
+        return new TableRef(coord, qualifiedName, inferLayer(qualifiedName));
+    }
+
     private List<IoEdge> buildEdges(DatasourceCoord coord, Direction direction, List<String> agent,
                                     Set<String> parsedSet, boolean parsed) {
         // 规范化映射：lower → 原始拼写（声明优先）

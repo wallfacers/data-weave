@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -116,7 +117,7 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 String msg = "type=" + type + " 无内置执行器，模拟执行成功";
                 lineConsumer.accept(msg);
                 emitEndBanner(lineConsumer, locale, true, 0, false, false, Duration.between(startInstant, Instant.now()));
-                reportService.reportFinished(cmd.taskInstanceId(), 0, msg);
+                reportService.reportFinished(cmd.taskInstanceId(), 0, msg, List.of());
                 return;
             }
 
@@ -155,9 +156,10 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     // SKIPPED（环境缺失）：按「非失败完成」处理，不阻塞下游、不报失败；
                     // tail 显式带 [SKIPPED] 标记 + 跳过原因，使人/测试/AI 可辨识（FR-008/009/012）。
                     reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(),
-                            "[SKIPPED] " + result.message());
+                            "[SKIPPED] " + result.message(), List.of());
                 } else if (result.success()) {
-                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail);
+                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail,
+                            result.statementMetrics());
                 } else {
                     String reason = result.timedOut() ? "TIMEOUT" : "EXIT_CODE_" + result.exitCode();
                     reportService.reportFailed(cmd.taskInstanceId(), reason, tail);

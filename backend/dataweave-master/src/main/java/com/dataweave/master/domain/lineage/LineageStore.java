@@ -39,9 +39,14 @@ public interface LineageStore {
     void recordMetricLineage(MetricEdge edge);
 
     /**
-     * 运行态同步行数/字节（迁 task_run_table_io → :TaskRun-[:SYNCED]->:Table）。
-     * 本期定义；运行态采集接入点可随后续埋点。
+     * 运行态同步行数/字节（:TaskRun-[:SYNCED]->:Table）。
+     *
+     * <p>feature 025 接入：{@code WorkerReportService.reportFinished} 仅 SUCCESS 时，对每个 statement 的
+     * 写表调本方法（rowCount=affected-rows，bytes=null）。{@code taskDefId} 顺带 SET 到 :TaskRun，
+     * 供后续「按任务查同步行数」（可 null）。
+     *
+     * @param taskDefId 任务定义 id（:TaskRun.taskDefId；可 null）
      */
     void recordSynced(long tenantId, long projectId, String instanceId,
-                      TableRef table, Long rowCount, Long bytes, String bizDate);
+                      TableRef table, Long rowCount, Long bytes, String bizDate, Long taskDefId);
 }

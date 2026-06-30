@@ -1,5 +1,6 @@
 package com.dataweave.worker.infrastructure;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.ExecutionContext.DataSourceRef;
@@ -68,6 +69,23 @@ class SqlTaskExecutorTest {
         assertThat(log).contains("影响 1 行");           // insert 影响行数
         assertThat(log).contains("返回结果集");           // select 仅汇报，不打印行
         assertThat(log).doesNotContain("[stderr]");
+    }
+
+    @Test
+    void realH2_collectsStatementMetrics_skipsSelectResultSet() {
+        // feature 025：per-statement (sqlText, updateCount>=0) 收集进 statementMetrics；SELECT(hasResultSet) 不收
+        DataSourceRef ds = new DataSourceRef("h2mem", "H2",
+                "jdbc:h2:mem:sqlexec_metrics_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", "");
+        String sql = "create table t(id int); insert into t values (1); insert into t values (2),(3); select * from t";
+        List<String> lines = new ArrayList<>();
+        TaskExecutor.ExecutionResult r = executor.execute(sqlCtx(sql, ds), lines::add);
+
+        assertThat(r.success()).isTrue();
+        List<StatementMetric> metrics = r.statementMetrics();
+        // create(0) + insert(1) + insert(2) 收集；select(hasResultSet=true) 不收
+        assertThat(metrics).hasSize(3);
+        long insertRows = metrics.stream().mapToLong(StatementMetric::updateCount).filter(c -> c > 0).sum();
+        assertThat(insertRows).isEqualTo(3L);   // 1 + 2
     }
 
     @Test
