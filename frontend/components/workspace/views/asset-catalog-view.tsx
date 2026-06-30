@@ -2,32 +2,61 @@
 
 /**
  * 数据资产目录视图（023 US1/US2/US5 + 029 写侧收口）：左分面搜索 + 中列表 + 右详情。
- * 029 新增：编目/编辑/下线/对账操作、可点击 owner 分面、分页、我的订阅入口。
- * 血缘/质量「懒加载 + 降级安全」：不可达隐藏入口，不阻断主功能（SC-002）。
+ * 029：列表头「编目资产」;详情「编辑/下线/对账」(过闸门,三态如实);血缘/质量懒加载降级安全。
  */
 
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Search01Icon, Database01Icon, Shield01Icon, GitBranchIcon, Notification01Icon, PlusSignIcon, Settings01Icon } from "@hugeicons/core-free-icons"
-import { Button } from "@/components/ui/button"
+import {
+  Search01Icon,
+  Database01Icon,
+  Shield01Icon,
+  GitBranchIcon,
+  Notification01Icon,
+  Add01Icon,
+  Edit02Icon,
+  Delete02Icon,
+  RefreshIcon,
+} from "@hugeicons/core-free-icons"
 import {
   searchAssets,
   fetchAsset,
   fetchAssetLineage,
   fetchAssetQuality,
   subscribe,
+  unsubscribe,
+  listSubscriptions,
+  createAsset,
+  updateAsset,
   retireAsset,
   reconcileAsset,
   type AssetSummary,
   type AssetDetail,
+  type AssetSubscription,
   type LineageEntryView,
   type QualityBadgeView,
   type SearchResult,
 } from "@/lib/catalog-api"
-import { AssetDialog, RetireConfirmDialog } from "./asset-dialog"
-import { SubscriptionListDialog } from "./subscription-dialog"
+import { listDatasources } from "@/lib/datasource-api"
+import { resolveGate, gateToast } from "@/lib/gate-outcome"
+import { findAssetSubscription } from "@/lib/subscriptions"
+import {
+  INITIAL_QUERY,
+  toggleFacet,
+  setKeyword as setQueryKeyword,
+  setQualityMin as setQueryQualityMin,
+  setPage as setQueryPage,
+  buildSearchParams,
+  type AssetQueryState,
+} from "@/lib/asset-search-query"
+import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
+import { AssetFormDialog } from "@/components/workspace/views/asset/asset-form-dialog"
+import { SubscriptionsDialog } from "@/components/workspace/views/asset/subscriptions-dialog"
+import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
+
+const PAGE_SIZE = 20
 
 const SENSITIVITY_TONE: Record<string, string> = {
   PUBLIC: "text-muted-foreground",
@@ -36,175 +65,221 @@ const SENSITIVITY_TONE: Record<string, string> = {
   PII: "text-red-600",
 }
 
-const PAGE_SIZE = 20
+/** 已知业务错误码 → 友好文案 key（SC-006）。 */
+const ASSET_ERR_KEYS: Record<string, string> = {
+  "catalog.duplicate_asset": "errDuplicateAsset",
+  "catalog.asset_invalid": "errAssetInvalid",
+  "catalog.forbidden_sensitivity": "errForbiddenSensitivity",
+}
 
 export function AssetCatalogView() {
   const t = useTranslations("assetCatalog")
 
-  // search state
-  const [keyword, setKeyword] = useState("")
-  const [sensitivity, setSensitivity] = useState("")
-  const [owner, setOwner] = useState("")
-  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState<AssetQueryState>(INITIAL_QUERY)
   const [result, setResult] = useState<SearchResult | null>(null)
   const [loading, setLoading] = useState(false)
-
-  // detail state
   const [selected, setSelected] = useState<AssetDetail | null>(null)
   const [lineage, setLineage] = useState<LineageEntryView | null>(null)
   const [quality, setQuality] = useState<QualityBadgeView | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
-  // dialog state (029)
+  // 029 写侧
+  const [datasources, setDatasources] = useState<{ id: number; name: string }[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [retireOpen, setRetireOpen] = useState(false)
-  const [subListOpen, setSubListOpen] = useState(false)
+  const [confirm, setConfirm] = useState<null | "retire" | "reconcile">(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [subscriptions, setSubscriptions] = useState<AssetSubscription[]>([])
+  const [subsOpen, setSubsOpen] = useState(false)
 
   const runSearch = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await searchAssets({ keyword, sensitivity, owner, page, size: PAGE_SIZE })
+      const res = await searchAssets({ ...buildSearchParams(query), size: PAGE_SIZE })
       setResult(res.data ?? null)
     } finally {
       setLoading(false)
     }
-  }, [keyword, sensitivity, owner, page])
+  }, [query])
 
   useEffect(() => {
     void runSearch()
   }, [runSearch])
 
-  // reset page when filter changes
-  useEffect(() => { setPage(1) }, [keyword, sensitivity, owner])
+  useEffect(() => {
+    if (!toast) return
+    const id = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(id)
+  }, [toast])
+
+  const refreshDetail = useCallback(async (id: number) => {
+    const res = await fetchAsset(id)
+    if (res.code === 0 && res.data) setSelected(res.data)
+  }, [])
+
+  const loadSubscriptions = useCallback(async () => {
+    const res = await listSubscriptions()
+    setSubscriptions(res.data ?? [])
+  }, [])
 
   const openDetail = useCallback(async (a: AssetSummary) => {
     const res = await fetchAsset(a.id)
     if (res.code !== 0 || !res.data) {
-      toast.error(res.message ?? t("loadFailed"))
+      setToast(res.message ?? t("loadFailed"))
       return
     }
     setSelected(res.data)
     setLineage(null)
     setQuality(null)
+    // 懒加载血缘 + 质量（降级安全）
     void fetchAssetLineage(a.id).then((r) => setLineage(r.data ?? null))
     void fetchAssetQuality(a.id).then((r) => setQuality(r.data ?? null))
-  }, [t])
+    void loadSubscriptions()
+  }, [t, loadSubscriptions])
 
-  // ─── write actions (029) ──────────────────────────────────────
+  const openCreate = useCallback(async () => {
+    setCreateOpen(true)
+    if (datasources.length === 0) {
+      try {
+        const ds = await listDatasources()
+        setDatasources(ds.map((d) => ({ id: d.id, name: d.name })))
+      } catch {
+        /* 数据源拉取失败不阻断弹窗;Select 空态 */
+      }
+    }
+  }, [datasources.length])
+
+  const submitCreate = useCallback(async (payload: Record<string, unknown>) => {
+    const r = resolveGate(await createAsset(payload))
+    setToast(gateToast(r, t, ASSET_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void runSearch()
+      return true
+    }
+    return false
+  }, [t, runSearch])
+
+  const submitEdit = useCallback(async (payload: Record<string, unknown>) => {
+    if (!selected) return false
+    if (Object.keys(payload).length === 0) {
+      setToast(t("noChanges"))
+      return true
+    }
+    const r = resolveGate(await updateAsset(selected.id, payload))
+    setToast(gateToast(r, t, ASSET_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void runSearch()
+      void refreshDetail(selected.id)
+      return true
+    }
+    return false
+  }, [selected, t, runSearch, refreshDetail])
+
+  const doConfirm = useCallback(async () => {
+    if (!selected || !confirm) return
+    setConfirmBusy(true)
+    const res = confirm === "retire" ? await retireAsset(selected.id) : await reconcileAsset(selected.id)
+    const r = resolveGate(res)
+    setToast(gateToast(r, t, ASSET_ERR_KEYS))
+    setConfirmBusy(false)
+    setConfirm(null)
+    if (r.kind !== "failed") {
+      void runSearch()
+      void refreshDetail(selected.id)
+    }
+  }, [selected, confirm, t, runSearch, refreshDetail])
 
   const doSubscribe = useCallback(async () => {
     if (!selected) return
-    const res = await subscribe({ targetType: "ASSET", targetId: selected.id, changeFilter: "schema,quality,freshness" })
-    if (res.code === 0 && res.data?.outcome === "EXECUTED") {
-      toast.success(t("subscribed"))
-    } else if (res.data?.outcome === "PENDING_APPROVAL") {
-      toast.info(t("pendingApproval"))
-    } else {
-      toast.error(res.message ?? t("actionFailed"))
+    const r = resolveGate(await subscribe({ targetType: "ASSET", targetId: selected.id, changeFilter: "schema,quality,freshness" }))
+    setToast(r.kind === "executed" ? t("subscribed") : gateToast(r, t, ASSET_ERR_KEYS))
+    if (r.kind !== "failed") void loadSubscriptions()
+  }, [selected, t, loadSubscriptions])
+
+  /** 退订（dialog 与详情内联共用）。返回是否成功（已执行/待审批）。 */
+  const doUnsubscribe = useCallback(async (subId: number) => {
+    const r = resolveGate(await unsubscribe(subId))
+    setToast(r.kind === "executed" ? t("unsubscribed") : gateToast(r, t, ASSET_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void loadSubscriptions()
+      return true
     }
-  }, [selected, t])
+    return false
+  }, [t, loadSubscriptions])
 
-  const doRetire = useCallback(async () => {
-    if (!selected) return
-    try {
-      const res = await retireAsset(selected.id)
-      if (res.data?.outcome === "EXECUTED") {
-        toast.success(t("retired") ?? "Asset retired")
-        setSelected(null)
-        runSearch()
-      } else if (res.data?.outcome === "PENDING_APPROVAL") {
-        toast.info(t("pendingApproval"))
-      } else {
-        toast.error(res.message ?? t("actionFailed"))
-      }
-    } catch { toast.error(t("actionFailed")) }
-    setRetireOpen(false)
-  }, [selected, t, runSearch])
-
-  const doReconcile = useCallback(async () => {
-    if (!selected) return
-    try {
-      const res = await reconcileAsset(selected.id)
-      if (res.data?.outcome === "EXECUTED") {
-        toast.success("对账完成")
-        // refresh detail
-        openDetail({ id: selected.id } as AssetSummary)
-      } else if (res.data?.outcome === "PENDING_APPROVAL") {
-        toast.info(t("pendingApproval"))
-      } else {
-        toast.error(res.message ?? t("actionFailed"))
-      }
-    } catch { toast.error(t("actionFailed")) }
-  }, [selected, t, openDetail])
-
-  // ─── facets ───────────────────────────────────────────────────
+  const currentSub = selected ? findAssetSubscription(subscriptions, selected.id) : null
 
   const facets = result?.facets ?? {}
-  const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))
-
-  const facetButton = (key: string, label: string, current: string, onClick: (v: string) => void) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => onClick(current === key ? "" : key)}
-      className={`flex justify-between rounded px-2 py-1 text-left text-sm ${current === key ? "bg-accent" : "hover:bg-accent/50"}`}
-    >
-      <span>{label}</span>
-      <span className="text-muted-foreground">{(facets.owner ?? {})[key] ?? ""}</span>
-    </button>
-  )
 
   return (
     <div className="flex h-full min-h-0">
       {/* 左：分面搜索 */}
-      <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-border p-4">
+      <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-auto border-r border-border p-4">
         <div className="flex items-center gap-2 rounded-md border border-input px-2">
           <HugeiconsIcon icon={Search01Icon} className="size-4 text-muted-foreground" />
           <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            value={query.keyword}
+            onChange={(e) => setQuery((q) => setQueryKeyword(q, e.target.value))}
             placeholder={t("searchPlaceholder")}
             className="h-9 w-full bg-transparent text-sm outline-none"
           />
         </div>
-        <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetSensitivity")}</div>
-          <div className="flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={() => setSensitivity("")}
-              className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === "" ? "bg-accent" : "hover:bg-accent/50"}`}
-            >
-              <span>{t("all")}</span>
-            </button>
-            {Object.entries(facets.sensitivity ?? {}).map(([k, c]) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setSensitivity(k === sensitivity ? "" : k)}
-                className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === k ? "bg-accent" : "hover:bg-accent/50"}`}
-              >
-                <span className={SENSITIVITY_TONE[k] ?? ""}>{k}</span>
-                <span className="text-muted-foreground">{c}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* 029: clickable owner facets */}
-        {Object.keys(facets.owner ?? {}).length > 0 && (
+
+        {/* sensitivity（可点选真过滤） */}
+        <Facet
+          title={t("facetSensitivity")}
+          entries={facets.sensitivity}
+          selected={query.sensitivity}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "sensitivity", v))}
+          tone={(k) => SENSITIVITY_TONE[k] ?? ""}
+        />
+
+        {/* owner（可点选真过滤,T028） */}
+        <Facet
+          title={t("facetOwner")}
+          entries={facets.owner}
+          selected={query.owner}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "owner", v))}
+          renderKey={(k) => `#${k}`}
+        />
+
+        {/* tag（可点选真过滤,T028） */}
+        <Facet
+          title={t("facetTag")}
+          entries={facets.tag}
+          selected={query.tag}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "tag", v))}
+        />
+
+        {/* status（仅只读计数；后端搜索无 status 入参且恒排除 RETIRED，analyze F1） */}
+        {Object.keys(facets.status ?? {}).length > 0 && (
           <div>
-            <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetOwner")}</div>
+            <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetStatus")}</div>
             <div className="flex flex-col gap-1">
-              {Object.entries(facets.owner ?? {}).map(([k]) =>
-                facetButton(k, `#${k}`, owner, setOwner)
-              )}
+              {Object.entries(facets.status ?? {}).map(([k, c]) => (
+                <div key={k} className="flex justify-between px-2 py-1 text-sm text-muted-foreground">
+                  <span>{k}</span>
+                  <span>{c}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
-        {/* 029: quality score filter placeholder */}
+
+        {/* quality 下限（被动透传 + 静态声明；后端 v1 no-op，analyze F2 / clarify Q2） */}
         <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("qualityFilter") ?? "质量分数"}</div>
-          <div className="text-xs text-muted-foreground">{t("qualityFilterHint") ?? "质量数据来自 022 评分卡，当前环境可能为空"}</div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetQuality")}</div>
+          <input
+            value={query.qualityMin}
+            onChange={(e) => setQuery((q) => setQueryQualityMin(q, e.target.value.replace(/[^0-9]/g, "")))}
+            inputMode="numeric"
+            placeholder={t("qualityMinPlaceholder")}
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t("qualityDisclaimer")}</p>
         </div>
       </aside>
 
@@ -212,19 +287,19 @@ export function AssetCatalogView() {
       <section className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-border px-4 py-2 text-sm">
           <span className="font-medium">{t("title")}</span>
-          <div className="flex items-center gap-2">
-            {/* 029: create + subscriptions */}
-            <Button variant="ghost" size="sm" onClick={() => setSubListOpen(true)}>
-              {t("mySubscriptions") ?? "我的订阅"}
-            </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-              <span className="ml-1">{t("create") ?? "编目资产"}</span>
-            </Button>
+          <div className="flex items-center gap-3">
             <span className="text-muted-foreground">
               {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
               {result?.truncated ? ` · ${t("truncated")}` : ""}
             </span>
+            <Button size="sm" variant="outline" onClick={() => setSubsOpen(true)}>
+              <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+              {t("mySubscriptions")}
+            </Button>
+            <Button size="sm" onClick={openCreate}>
+              <HugeiconsIcon icon={Add01Icon} className="size-4" />
+              {t("createAction")}
+            </Button>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
@@ -250,14 +325,15 @@ export function AssetCatalogView() {
             <div className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</div>
           )}
         </div>
-        {/* 029: pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-2 text-sm">
-            <span className="text-muted-foreground">第 {page} / {totalPages} 页</span>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</Button>
-            </div>
+        {(result?.total ?? 0) > PAGE_SIZE && (
+          <div className="border-t border-border px-4 py-2">
+            <Pagination
+              page={query.page}
+              size={PAGE_SIZE}
+              total={result?.total ?? 0}
+              totalPages={Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))}
+              onPageChange={(p) => setQuery((q) => setQueryPage(q, p))}
+            />
           </div>
         )}
       </section>
@@ -266,22 +342,23 @@ export function AssetCatalogView() {
       <aside className="flex w-80 shrink-0 flex-col border-l border-border">
         {selected ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4">
-            <div className="flex items-center justify-between">
-              <div className="mb-1 text-base font-semibold">{selected.name || selected.qualifiedName}</div>
-              {/* 029: edit button */}
-              <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
-                <HugeiconsIcon icon={Settings01Icon} className="size-4" />
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-base font-semibold">{selected.name || selected.qualifiedName}</div>
+                <div className="text-xs text-muted-foreground">{selected.qualifiedName}</div>
+              </div>
+              <Button size="icon-sm" variant="ghost" onClick={() => setEditOpen(true)} aria-label={t("editAction")}>
+                <HugeiconsIcon icon={Edit02Icon} className="size-4" />
               </Button>
             </div>
-            <div className="mb-3 text-xs text-muted-foreground">{selected.qualifiedName}</div>
 
             {selected.status !== "ACTIVE" && (
-              <div className="mb-3 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+              <div className="mb-3 mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-700">
                 {t("staleHint")}
               </div>
             )}
 
-            <dl className="space-y-2 text-sm">
+            <dl className="mt-2 space-y-2 text-sm">
               <Row label={t("owner")} value={selected.ownerId ? `#${selected.ownerId}` : "—"} />
               <Row label={t("steward")} value={selected.stewardId ? `#${selected.stewardId}` : "—"} />
               <Row label={t("sensitivity")} value={selected.sensitivity} valueClass={SENSITIVITY_TONE[selected.sensitivity]} />
@@ -300,7 +377,7 @@ export function AssetCatalogView() {
               </div>
             )}
 
-            {/* 血缘入口 */}
+            {/* 血缘入口（降级隐藏） */}
             {lineage && lineage.available && !lineage.degraded && (
               <div className="mt-4 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                 <HugeiconsIcon icon={GitBranchIcon} className="size-4 text-muted-foreground" />
@@ -311,7 +388,7 @@ export function AssetCatalogView() {
               </div>
             )}
 
-            {/* 质量徽章 */}
+            {/* 质量徽章（降级隐藏） */}
             {quality && quality.available && !quality.degraded && quality.score != null && (
               <div className="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                 <HugeiconsIcon icon={Shield01Icon} className="size-4 text-emerald-600" />
@@ -320,23 +397,30 @@ export function AssetCatalogView() {
               </div>
             )}
 
-            {/* 029: action buttons row */}
+            {/* 写操作 */}
             <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={doSubscribe}
-                className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
-              >
-                <HugeiconsIcon icon={Notification01Icon} className="size-4" />
-                {t("subscribe")}
-              </button>
+              {currentSub ? (
+                <Button variant="outline" onClick={() => void doUnsubscribe(currentSub.id)}>
+                  <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+                  {t("unsubscribeAction")}
+                </Button>
+              ) : (
+                <Button variant="default" onClick={doSubscribe}>
+                  <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+                  {t("subscribe")}
+                </Button>
+              )}
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={doReconcile}>
-                  {t("reconcile") ?? "对账"}
+                <Button variant="outline" className="flex-1" onClick={() => setConfirm("reconcile")}>
+                  <HugeiconsIcon icon={RefreshIcon} className="size-4" />
+                  {t("reconcileAction")}
                 </Button>
-                <Button variant="destructive" size="sm" className="flex-1" onClick={() => setRetireOpen(true)}>
-                  {t("retire") ?? "下线"}
-                </Button>
+                {selected.status !== "RETIRED" && (
+                  <Button variant="outline" className="flex-1" onClick={() => setConfirm("retire")}>
+                    <HugeiconsIcon icon={Delete02Icon} className="size-4" />
+                    {t("retireAction")}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -347,34 +431,45 @@ export function AssetCatalogView() {
         )}
       </aside>
 
-      {/* 029 dialogs */}
-      <AssetDialog
+      {/* 创建 */}
+      <AssetFormDialog
         open={createOpen}
+        onOpenChange={setCreateOpen}
         mode="create"
-        onClose={() => setCreateOpen(false)}
-        onSaved={runSearch}
+        datasources={datasources}
+        onSubmit={submitCreate}
       />
-      {selected && (
-        <>
-          <AssetDialog
-            open={editOpen}
-            mode="edit"
-            asset={selected}
-            onClose={() => setEditOpen(false)}
-            onSaved={() => { runSearch(); openDetail({ id: selected.id } as AssetSummary); }}
-          />
-          <RetireConfirmDialog
-            open={retireOpen}
-            assetName={selected.name ?? selected.qualifiedName}
-            onClose={() => setRetireOpen(false)}
-            onConfirm={doRetire}
-          />
-        </>
+      {/* 编辑 */}
+      <AssetFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        mode="edit"
+        initial={selected}
+        datasources={datasources}
+        onSubmit={submitEdit}
+      />
+      {/* 我的订阅 */}
+      <SubscriptionsDialog open={subsOpen} onOpenChange={setSubsOpen} onUnsubscribe={doUnsubscribe} />
+      {/* 下线 / 对账 确认 */}
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm === "retire" ? t("retireConfirmTitle") : t("reconcileConfirmTitle")}
+        description={confirm === "retire" ? t("retireConfirmDesc") : t("reconcileConfirmDesc")}
+        confirmLabel={confirm === "retire" ? t("retireAction") : t("reconcileAction")}
+        destructive={confirm === "retire"}
+        busy={confirmBusy}
+        onConfirm={doConfirm}
+      />
+
+      {toast && (
+        <div
+          className="fixed bottom-4 right-4 z-50 rounded-md bg-foreground px-3 py-2 text-sm text-background shadow-lg"
+          role="status"
+        >
+          {toast}
+        </div>
       )}
-      <SubscriptionListDialog
-        open={subListOpen}
-        onClose={() => setSubListOpen(false)}
-      />
     </div>
   )
 }
@@ -384,6 +479,53 @@ function Row({ label, value, valueClass }: { label: string; value: string; value
     <div className="flex justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className={`text-right ${valueClass ?? ""}`}>{value}</dd>
+    </div>
+  )
+}
+
+/** 可点选分面：再点已选项取消;无桶时整块隐藏。 */
+function Facet({
+  title,
+  entries,
+  selected,
+  allLabel,
+  onToggle,
+  renderKey,
+  tone,
+}: {
+  title: string
+  entries?: Record<string, number>
+  selected: string
+  allLabel: string
+  onToggle: (value: string) => void
+  renderKey?: (k: string) => string
+  tone?: (k: string) => string
+}) {
+  const buckets = Object.entries(entries ?? {})
+  if (buckets.length === 0) return null
+  return (
+    <div>
+      <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => selected !== "" && onToggle(selected)}
+          className={`flex justify-between rounded px-2 py-1 text-left text-sm ${selected === "" ? "bg-accent" : "hover:bg-accent/50"}`}
+        >
+          <span>{allLabel}</span>
+        </button>
+        {buckets.map(([k, c]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onToggle(k)}
+            className={`flex justify-between rounded px-2 py-1 text-left text-sm ${selected === k ? "bg-accent" : "hover:bg-accent/50"}`}
+          >
+            <span className={tone ? tone(k) : ""}>{renderKey ? renderKey(k) : k}</span>
+            <span className="text-muted-foreground">{c}</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

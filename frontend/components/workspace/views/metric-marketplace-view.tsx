@@ -1,46 +1,48 @@
 "use client"
 
 /**
- * 指标市场视图（023 US3 + 029 收口）：搜索上架指标 + 详情 + 认证 + 复用 + 029 上架/下架。
+ * 指标市场视图（023 US3 + 029 US2 写侧收口）：搜索上架指标 + 详情 + 复用 + 认证。
+ * 029：列表头「上架指标」;详情「下架」(确认式);复用改 Dialog(替换 window.prompt),
+ * 三态如实(resolveGate/gateToast);`catalog.reuse_cycle` 专门「循环依赖」提示(FR-007)。
  */
 
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Search01Icon, Analytics01Icon, CheckmarkBadge01Icon, ArrowReloadHorizontalIcon, PlusSignIcon, Delete01Icon } from "@hugeicons/core-free-icons"
-import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { DropdownSelect } from "@/components/ui/select"
+  Search01Icon,
+  Analytics01Icon,
+  CheckmarkBadge01Icon,
+  ArrowReloadHorizontalIcon,
+  Add01Icon,
+  Delete02Icon,
+} from "@hugeicons/core-free-icons"
 import {
   searchListings,
   fetchListing,
   certifyMetric,
   reuseMetric,
-  publishMetric,
-  unpublishMetric,
+  listMetric,
+  delistMetric,
   type ListingSummary,
   type MarketplaceDetail,
   type ListingSearchResult,
-  type GateResult,
 } from "@/lib/catalog-api"
+import { resolveGate, gateToast } from "@/lib/gate-outcome"
+import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
+import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
+import { MetricListingDialog } from "@/components/workspace/views/metric/metric-listing-dialog"
+import { MetricReuseDialog } from "@/components/workspace/views/metric/metric-reuse-dialog"
 
+/** 已知业务错误码 → 友好文案 key（SC-006）。reuse_cycle 专门提示循环依赖（FR-007）。 */
 const PAGE_SIZE = 20
 
-function handleGate(r: GateResult, okMsg: string) {
-  switch (r.outcome) {
-    case "EXECUTED": toast.success(okMsg); return true;
-    case "PENDING_APPROVAL": toast.info(r.message ?? "Submitted for approval"); return true;
-    default: toast.error(r.message ?? "Action failed"); return false;
-  }
+const METRIC_ERR_KEYS: Record<string, string> = {
+  "catalog.reuse_cycle": "errReuseCycle",
+  "catalog.reuse_invalid": "errReuseInvalid",
+  "catalog.listing_invalid": "errListingInvalid",
+  "catalog.not_certifiable": "errNotCertifiable",
 }
 
 export function MetricMarketplaceView() {
@@ -52,55 +54,87 @@ export function MetricMarketplaceView() {
   const [result, setResult] = useState<ListingSearchResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<MarketplaceDetail | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
-  // 029: publish/unpublish dialogs
-  const [publishOpen, setPublishOpen] = useState(false)
+  // 029 写侧
+  const [listOpen, setListOpen] = useState(false)
   const [reuseOpen, setReuseOpen] = useState(false)
+  const [delistOpen, setDelistOpen] = useState(false)
+  const [delistBusy, setDelistBusy] = useState(false)
 
   const runSearch = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await searchListings({ keyword, certification, page, size: PAGE_SIZE })
+      const res = await searchListings({ keyword, certification: certification || undefined, page, size: PAGE_SIZE })
       setResult(res.data ?? null)
     } finally {
       setLoading(false)
     }
   }, [keyword, certification, page])
 
-  useEffect(() => { void runSearch() }, [runSearch])
-  useEffect(() => { setPage(1) }, [keyword, certification])
+  useEffect(() => {
+    void runSearch()
+  }, [runSearch])
+
+  useEffect(() => {
+    if (!toast) return
+    const id = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(id)
+  }, [toast])
 
   const openDetail = useCallback(async (m: ListingSummary) => {
     const res = await fetchListing(m.id)
     if (res.code === 0 && res.data) setSelected(res.data)
-    else toast.error(res.message ?? t("loadFailed"))
+    else setToast(res.message ?? t("loadFailed"))
   }, [t])
+
+  const refreshDetail = useCallback(async (id: number) => {
+    const res = await fetchListing(id)
+    if (res.code === 0 && res.data) setSelected(res.data)
+  }, [])
 
   const doCertify = useCallback(async () => {
     if (!selected) return
-    const res = await certifyMetric(selected.detail.id)
-    if (handleGate(res.data, t("done")))
-      void openDetail(selected.detail as unknown as ListingSummary)
-  }, [selected, t, openDetail])
+    const r = resolveGate(await certifyMetric(selected.detail.id))
+    setToast(gateToast(r, t, METRIC_ERR_KEYS))
+    if (r.kind !== "failed") void refreshDetail(selected.detail.id)
+  }, [selected, t, refreshDetail])
 
-  const doReuse = useCallback(async (consumerRef: string) => {
-    if (!selected || !consumerRef.trim()) return
-    const res = await reuseMetric(selected.detail.id, { consumerType: "METRIC", consumerRef: consumerRef.trim() })
-    if (handleGate(res.data, "复用成功")) setReuseOpen(false)
-  }, [selected])
-
-  // 029: unpublish
-  const doUnpublish = useCallback(async () => {
-    if (!selected) return
-    const res = await unpublishMetric(selected.detail.id)
-    if (handleGate(res.data, t("unpublished") ?? "已下架")) {
-      setSelected(null)
-      runSearch()
+  const submitList = useCallback(async (payload: Record<string, unknown>) => {
+    const r = resolveGate(await listMetric(payload as Parameters<typeof listMetric>[0]))
+    setToast(gateToast(r, t, METRIC_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void runSearch()
+      return true
     }
-  }, [selected, t, runSearch])
+    return false
+  }, [t, runSearch])
 
-  const facets = result?.facets ?? {}
-  const totalPages = Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))
+  const submitReuse = useCallback(async (body: { consumerType: string; consumerRef: string }) => {
+    if (!selected) return false
+    const r = resolveGate(await reuseMetric(selected.detail.id, body))
+    setToast(gateToast(r, t, METRIC_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void refreshDetail(selected.detail.id)
+      return true
+    }
+    return false
+  }, [selected, t, refreshDetail])
+
+  const doDelist = useCallback(async () => {
+    if (!selected) return
+    setDelistBusy(true)
+    const r = resolveGate(await delistMetric(selected.detail.id))
+    setToast(gateToast(r, t, METRIC_ERR_KEYS))
+    setDelistBusy(false)
+    setDelistOpen(false)
+    if (r.kind !== "failed") {
+      void runSearch()
+      void refreshDetail(selected.detail.id)
+    }
+  }, [selected, t, runSearch, refreshDetail])
+
+  const isDelisted = selected?.detail.status === "DELISTED"
 
   return (
     <div className="flex h-full min-h-0">
@@ -113,24 +147,27 @@ export function MetricMarketplaceView() {
             placeholder={t("searchPlaceholder")}
             className="h-8 w-full bg-transparent text-sm outline-none"
           />
-          {/* 029: certification facet */}
-          <DropdownSelect
-            value={certification}
-            onChange={(v) => setCertification(v ?? "")}
-            options={[
-              { value: "", label: t("all") ?? "全部" },
-              { value: "CERTIFIED", label: t("certified") },
-              { value: "NONE", label: "NONE" },
-            ]}
-          />
-          {/* 029: publish button */}
-          <Button size="sm" onClick={() => setPublishOpen(true)}>
-            <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
-            <span className="ml-1">{t("publish") ?? "上架"}</span>
-          </Button>
           <span className="shrink-0 text-xs text-muted-foreground">
             {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
           </span>
+          <Button size="sm" onClick={() => setListOpen(true)}>
+            <HugeiconsIcon icon={Add01Icon} className="size-4" />
+            {t("listAction")}
+          </Button>
+        </div>
+        {/* certification 分面过滤（T031） */}
+        <div className="flex items-center gap-1 border-b border-border px-4 py-1.5 text-xs">
+          <span className="mr-1 text-muted-foreground">{t("facetCertification")}</span>
+          {["", "CERTIFIED", "NONE"].map((c) => (
+            <button
+              key={c || "ALL"}
+              type="button"
+              onClick={() => { setCertification(c); setPage(1) }}
+              className={`rounded px-2 py-0.5 ${certification === c ? "bg-accent" : "hover:bg-accent/50"}`}
+            >
+              {c === "" ? t("all") : c === "CERTIFIED" ? t("certified") : t("uncertified")}
+            </button>
+          ))}
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {(result?.items ?? []).map((m) => (
@@ -145,6 +182,9 @@ export function MetricMarketplaceView() {
                 <div className="truncate text-sm font-medium">{m.metricCode ?? `#${m.metricId}`}</div>
                 <div className="truncate text-xs text-muted-foreground">{m.metricType} · {m.freshnessInfo ?? "—"}</div>
               </div>
+              {m.status === "DELISTED" && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{m.status}</span>
+              )}
               {m.certification === "CERTIFIED" && (
                 <span className="flex items-center gap-1 text-xs text-emerald-600">
                   <HugeiconsIcon icon={CheckmarkBadge01Icon} className="size-4" />
@@ -157,14 +197,15 @@ export function MetricMarketplaceView() {
             <div className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</div>
           )}
         </div>
-        {/* 029: pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border px-4 py-2 text-sm">
-            <span className="text-muted-foreground">第 {page} / {totalPages} 页</span>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</Button>
-            </div>
+        {(result?.total ?? 0) > PAGE_SIZE && (
+          <div className="border-t border-border px-4 py-2">
+            <Pagination
+              page={page}
+              size={PAGE_SIZE}
+              total={result?.total ?? 0}
+              totalPages={Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))}
+              onPageChange={setPage}
+            />
           </div>
         )}
       </section>
@@ -180,6 +221,9 @@ export function MetricMarketplaceView() {
                   {t("certified")}
                 </span>
               )}
+              {isDelisted && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{selected.detail.status}</span>
+              )}
             </div>
             {selected.detail.description && (
               <p className="mt-1 text-sm text-muted-foreground">{selected.detail.description}</p>
@@ -190,7 +234,6 @@ export function MetricMarketplaceView() {
               <Row label={t("owner")} value={selected.detail.ownerId ? `#${selected.detail.ownerId}` : "—"} />
               <Row label={t("freshness")} value={selected.detail.freshnessInfo ?? "—"} />
               <Row label={t("reuseCount")} value={String(selected.detail.reuseCount)} />
-              <Row label="Status" value={selected.detail.status} />
             </dl>
 
             {Object.keys(selected.detail.definition ?? {}).length > 0 && (
@@ -200,40 +243,38 @@ export function MetricMarketplaceView() {
               </div>
             )}
 
+            {/* 血缘（降级隐藏） */}
             {selected.lineage.available && !selected.lineage.degraded && (
               <div className="mt-2 text-xs text-muted-foreground">
                 {t("lineageSources", { count: selected.lineage.upstreamCount })}
               </div>
             )}
 
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={doCertify}
-                  disabled={selected.detail.certification === "CERTIFIED"}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
-                >
-                  <HugeiconsIcon icon={CheckmarkBadge01Icon} className="size-4" />
-                  {t("certify")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReuseOpen(true)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent"
-                >
-                  <HugeiconsIcon icon={ArrowReloadHorizontalIcon} className="size-4" />
-                  {t("reuse")}
-                </button>
-              </div>
-              {/* 029: unpublish */}
-              {selected.detail.status !== "DELISTED" && (
-                <Button variant="destructive" size="sm" onClick={doUnpublish}>
-                  <HugeiconsIcon icon={Delete01Icon} className="size-4" />
-                  <span className="ml-1">{t("unpublish") ?? "下架"}</span>
-                </Button>
-              )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={doCertify}
+                disabled={selected.detail.certification === "CERTIFIED" || isDelisted}
+                className="flex flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              >
+                <HugeiconsIcon icon={CheckmarkBadge01Icon} className="size-4" />
+                {t("certify")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setReuseOpen(true)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent"
+              >
+                <HugeiconsIcon icon={ArrowReloadHorizontalIcon} className="size-4" />
+                {t("reuse")}
+              </button>
             </div>
+            {!isDelisted && (
+              <Button variant="outline" className="mt-2" onClick={() => setDelistOpen(true)}>
+                <HugeiconsIcon icon={Delete02Icon} className="size-4" />
+                {t("delistAction")}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
@@ -242,11 +283,27 @@ export function MetricMarketplaceView() {
         )}
       </aside>
 
-      {/* 029: publish dialog */}
-      <PublishDialog open={publishOpen} onClose={() => setPublishOpen(false)} onPublished={runSearch} />
+      {/* 上架 */}
+      <MetricListingDialog open={listOpen} onOpenChange={setListOpen} onSubmit={submitList} />
+      {/* 复用 */}
+      <MetricReuseDialog open={reuseOpen} onOpenChange={setReuseOpen} onSubmit={submitReuse} />
+      {/* 下架确认 */}
+      <ConfirmDialog
+        open={delistOpen}
+        onOpenChange={(o) => !o && setDelistOpen(false)}
+        title={t("delistConfirmTitle")}
+        description={t("delistConfirmDesc")}
+        confirmLabel={t("delistAction")}
+        destructive
+        busy={delistBusy}
+        onConfirm={doDelist}
+      />
 
-      {/* 029: reuse dialog */}
-      <ReuseDialog open={reuseOpen} onClose={() => setReuseOpen(false)} onConfirm={doReuse} />
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-md bg-foreground px-3 py-2 text-sm text-background shadow-lg" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
@@ -257,77 +314,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-right">{value}</dd>
     </div>
-  )
-}
-
-// ─── 029: publish dialog ────────────────────────────────────────
-
-function PublishDialog({ open, onClose, onPublished }: { open: boolean; onClose: () => void; onPublished: () => void }) {
-  const [metricType, setMetricType] = useState("ATOMIC")
-  const [metricId, setMetricId] = useState("")
-  const [description, setDescription] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  async function doPublish() {
-    if (!metricId.trim()) { toast.error("指标 ID 不能为空"); return }
-    setSaving(true)
-    try {
-      const res = await publishMetric({ metricType, metricId: Number(metricId), description: description.trim() || undefined })
-      if (handleGate(res.data, "指标已上架")) { onPublished(); onClose() }
-    } catch { toast.error("操作失败") }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>上架指标</DialogTitle>
-          <DialogDescription>从既有指标定义中选择并上架到市场</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm">类型</label>
-            <DropdownSelect className="col-span-3" value={metricType} onChange={(v) => setMetricType(v || "ATOMIC")}
-              options={[{ value: "ATOMIC", label: "ATOMIC" }, { value: "DERIVED", label: "DERIVED" }]} />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm">指标 ID *</label>
-            <Input className="col-span-3" value={metricId} onChange={(e) => setMetricId(e.target.value)} placeholder="数字" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm">描述</label>
-            <Input className="col-span-3" value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>取消</Button>
-          <Button onClick={doPublish} disabled={saving}>{saving ? "提交中…" : "上架"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── 029: reuse dialog ──────────────────────────────────────────
-
-function ReuseDialog({ open, onClose, onConfirm }: { open: boolean; onClose: () => void; onConfirm: (ref: string) => void }) {
-  const [consumerRef, setConsumerRef] = useState("")
-  return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>复用指标</DialogTitle>
-          <DialogDescription>复用会形成依赖关系；成环将被服务端拒绝并给出提示</DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <Input value={consumerRef} onChange={(e) => setConsumerRef(e.target.value)} placeholder="消费方引用（如指标编码）" />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={() => onConfirm(consumerRef)} disabled={!consumerRef.trim()}>确认复用</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

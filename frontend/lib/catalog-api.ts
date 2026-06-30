@@ -72,6 +72,14 @@ export interface QualityBadgeView {
   grade?: string;
 }
 
+export interface AssetSubscription {
+  id: number;
+  targetType: string;
+  targetId: number;
+  changeFilter?: string;
+  createdAt?: string;
+}
+
 export interface ListingSummary {
   id: number;
   metricType: string;
@@ -136,7 +144,16 @@ async function get<T>(path: string, params?: Record<string, string | number | un
     });
   }
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token()}` } });
-  return res.json();
+  return parseEnvelope<T>(res);
+}
+
+/** 解析响应体；非 JSON（如 403/500 空 body）降级为错误包络,避免 res.json() 抛错破坏调用方。 */
+async function parseEnvelope<T>(res: Response): Promise<ApiResponse<T>> {
+  try {
+    return (await res.json()) as ApiResponse<T>;
+  } catch {
+    return { code: res.status || -1, message: res.statusText || `HTTP ${res.status}`, errorCode: null, data: null as T };
+  }
 }
 
 async function send<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -148,7 +165,7 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Ap
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return res.json();
+  return parseEnvelope<T>(res);
 }
 
 // ─── 资产目录 ─────────────────────────────────────────────────
@@ -158,6 +175,8 @@ export interface AssetSearchParams {
   owner?: string;
   tag?: string;
   sensitivity?: string;
+  /** 质量分数下限。注：后端 v1 为 no-op（缺 022 评分卡表,不施加过滤）—— 前端透传 + 静态声明。 */
+  qualityMin?: number;
   page?: number;
   size?: number;
   projectId?: number;
@@ -183,40 +202,28 @@ export function createAsset(body: Record<string, unknown>, projectId = 1) {
   return send<GateResult>("POST", `${CATALOG}/assets?projectId=${projectId}`, body);
 }
 
+export function updateAsset(id: number, patch: Record<string, unknown>, projectId = 1) {
+  return send<GateResult>("PATCH", `${CATALOG}/assets/${id}?projectId=${projectId}`, patch);
+}
+
 export function retireAsset(id: number, projectId = 1) {
   return send<GateResult>("DELETE", `${CATALOG}/assets/${id}?projectId=${projectId}`);
-}
-
-export function subscribe(body: { targetType: string; targetId: number; changeFilter?: string }, projectId = 1) {
-  return send<GateResult>("POST", `${CATALOG}/subscriptions?projectId=${projectId}`, body);
-}
-
-// ─── 029: 资产写侧补齐 ─────────────────────────────────────────
-
-export function updateAsset(id: number, body: Record<string, unknown>, projectId = 1) {
-  return send<GateResult>("PATCH", `${CATALOG}/assets/${id}?projectId=${projectId}`, body);
 }
 
 export function reconcileAsset(id: number, projectId = 1) {
   return send<GateResult>("POST", `${CATALOG}/assets/${id}/reconcile?projectId=${projectId}`);
 }
 
-// ─── 029: 订阅生命周期 ──────────────────────────────────────────
-
-export interface SubscriptionView {
-  id: number;
-  targetType: string;
-  targetId: number;
-  targetName?: string;
-  changeFilter?: string;
+export function listSubscriptions() {
+  return get<AssetSubscription[]>(`${CATALOG}/subscriptions`);
 }
 
-export function listSubscriptions(projectId = 1) {
-  return get<SubscriptionView[]>(`${CATALOG}/subscriptions`, { projectId });
+export function subscribe(body: { targetType: string; targetId: number; changeFilter?: string }, projectId = 1) {
+  return send<GateResult>("POST", `${CATALOG}/subscriptions?projectId=${projectId}`, body);
 }
 
-export function unsubscribe(subscriptionId: number, projectId = 1) {
-  return send<GateResult>("DELETE", `${CATALOG}/subscriptions/${subscriptionId}?projectId=${projectId}`);
+export function unsubscribe(subId: number, projectId = 1) {
+  return send<GateResult>("DELETE", `${CATALOG}/subscriptions/${subId}?projectId=${projectId}`);
 }
 
 // ─── 指标市场 ─────────────────────────────────────────────────
@@ -237,12 +244,28 @@ export function reuseMetric(id: number, body: { consumerType: string; consumerRe
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/reuse?projectId=${projectId}`, body);
 }
 
-// ─── 029: 指标上架/下架 ─────────────────────────────────────────
+/** 指标看板卡片（GET /api/metrics）——上架时选既有指标定义。镜像后端 MetricsController.MetricCard。 */
+export interface MetricCardView {
+  id: number;
+  code: string;
+  name: string;
+  unit?: string;
+  versionNo?: number;
+  status?: string;
+  value?: unknown;
+}
 
-export function publishMetric(body: { metricType: string; metricId: number; ownerId?: number; description?: string }, projectId = 1) {
+export function fetchMetricCards() {
+  return get<MetricCardView[]>("/api/metrics");
+}
+
+export function listMetric(
+  body: { metricId: number; metricType?: string; metricCode?: string; description?: string; freshnessInfo?: string },
+  projectId = 1,
+) {
   return send<GateResult>("POST", `${MARKET}/metrics?projectId=${projectId}`, body);
 }
 
-export function unpublishMetric(id: number, projectId = 1) {
+export function delistMetric(id: number, projectId = 1) {
   return send<GateResult>("DELETE", `${MARKET}/metrics/${id}?projectId=${projectId}`);
 }
