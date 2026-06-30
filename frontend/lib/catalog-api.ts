@@ -144,7 +144,16 @@ async function get<T>(path: string, params?: Record<string, string | number | un
     });
   }
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token()}` } });
-  return res.json();
+  return parseEnvelope<T>(res);
+}
+
+/** 解析响应体；非 JSON（如 403/500 空 body）降级为错误包络,避免 res.json() 抛错破坏调用方。 */
+async function parseEnvelope<T>(res: Response): Promise<ApiResponse<T>> {
+  try {
+    return (await res.json()) as ApiResponse<T>;
+  } catch {
+    return { code: res.status || -1, message: res.statusText || `HTTP ${res.status}`, errorCode: null, data: null as T };
+  }
 }
 
 async function send<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -156,7 +165,7 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<Ap
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return res.json();
+  return parseEnvelope<T>(res);
 }
 
 // ─── 资产目录 ─────────────────────────────────────────────────

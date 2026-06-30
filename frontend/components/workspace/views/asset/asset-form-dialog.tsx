@@ -127,9 +127,12 @@ export function AssetFormDialog({ open, onOpenChange, mode, initial, datasources
       const currentNorm = normalize(form)
       payload = diffPatch(initialNorm, currentNorm, [...EDITABLE])
     }
-    const close = await onSubmit(payload)
-    setBusy(false)
-    if (close) onOpenChange(false)
+    try {
+      const close = await onSubmit(payload)
+      if (close) onOpenChange(false)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const dsOptions = datasources.map((d) => ({ value: String(d.id), label: `${d.name} (#${d.id})` }))
