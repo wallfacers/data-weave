@@ -932,6 +932,24 @@
     "filterType": "Type",
     "presetDisconnected": "Disconnected"
   },
+  "lineageView": {
+    "title": "Data Lineage",
+    "empty": "No lineage data",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "granularityTable": "Table",
+    "granularityColumn": "Column",
+    "impactTitle": "Impact",
+    "impactDownstream": "{count} downstream nodes",
+    "metricOverlay": "Metric",
+    "upstream": "Upstream",
+    "downstream": "Downstream",
+    "truncated": "Results truncated, narrow the scope",
+    "unavailable": "Lineage store unavailable",
+    "noColumns": "Table level only",
+    "estimating": "Estimating",
+    "syncedToday": "{rows} rows synced today"
+  },
   "dataTable": {
     "allLabel": "All",
     "clear": "Clear {count} filters",

@@ -39,6 +39,7 @@ import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-in
 import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
+import { LineageView } from "@/components/workspace/views/lineage-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -72,7 +73,7 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   "workflow-instance-detail": { icon: Flowchart01Icon, component: WorkflowInstanceDetail },
   lineage: {
     icon: GitBranchIcon,
-    component: placeholder("lineage", "descLineage"),
+    component: LineageView,
   },
   catalog: {
     icon: CatalogueIcon,

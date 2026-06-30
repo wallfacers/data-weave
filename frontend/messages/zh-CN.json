@@ -932,6 +932,24 @@
     "filterType": "类型",
     "presetDisconnected": "连接异常"
   },
+  "lineageView": {
+    "title": "数据血缘",
+    "empty": "暂无血缘数据",
+    "expand": "展开",
+    "collapse": "折叠",
+    "granularityTable": "表级",
+    "granularityColumn": "列级",
+    "impactTitle": "影响面",
+    "impactDownstream": "下游 {count} 个节点",
+    "metricOverlay": "指标",
+    "upstream": "上游",
+    "downstream": "下游",
+    "truncated": "结果已截断，请缩小范围",
+    "unavailable": "血缘存储不可达，暂时无法查看",
+    "noColumns": "仅表级",
+    "estimating": "估算中",
+    "syncedToday": "今日同步 {rows} 行"
+  },
   "dataTable": {
     "allLabel": "全部",
     "clear": "清除 {count} 个筛选",
