@@ -125,14 +125,16 @@ public class LineageGraphService {
 
     // ─── 读：全局图 / 邻域 / 上下游 ──────────────────────────
 
-    /** 全局血缘图（某租户+项目下所有表节点 + 表→表流边）。 */
+    /** @deprecated 由 {@link LineageQueryService#datasources}/{@code impact} 取代（Cypher）。 */
+    @Deprecated
     public LineageGraph globalGraph(long tenantId, long projectId) {
         List<GraphNode> nodes = loadNodes(tenantId, projectId);
         List<FlowEdge> edges = loadFlowEdges(tenantId, projectId);
         return new LineageGraph(nodes, edges);
     }
 
-    /** 以某表为中心、depth 跳邻域的诱导子图（双向 BFS）。 */
+    /** @deprecated 由 {@link LineageQueryService#upstream}/{@link LineageQueryService#downstream} 取代。 */
+    @Deprecated
     public LineageGraph neighborhood(long tenantId, long projectId, long centerTableId, int depth) {
         List<GraphNode> allNodes = loadNodes(tenantId, projectId);
         List<FlowEdge> allEdges = loadFlowEdges(tenantId, projectId);
@@ -144,12 +146,14 @@ public class LineageGraphService {
         return new LineageGraph(nodes, edges);
     }
 
-    /** 某表的上游表（谁产出了它，沿流边反向可达）。 */
+    /** @deprecated 由 {@link LineageQueryService#upstream}（Cypher 变长路径）取代。 */
+    @Deprecated
     public List<GraphNode> upstream(long tenantId, long projectId, long tableId) {
         return reachableNodes(tenantId, projectId, tableId, false, true);
     }
 
-    /** 某表的下游表（谁消费了它，影响分析，沿流边正向可达）。 */
+    /** @deprecated 由 {@link LineageQueryService#downstream}（Cypher 变长路径）取代。 */
+    @Deprecated
     public List<GraphNode> downstream(long tenantId, long projectId, long tableId) {
         return reachableNodes(tenantId, projectId, tableId, true, false);
     }
@@ -287,7 +291,9 @@ public class LineageGraphService {
      * 今日同步行数（运行态聚合）：最近业务日期下所有 WRITE 边的 row_count 之和。
      * row_count 为 NULL（未采集）的行不计入——口径为「已采集任务」，避免误导。
      * 无运行态数据时返回 null（前端据此显示「估算中」而非编造 0）。
+     * @deprecated 由 {@link LineageQueryService#syncSummary}（neo4j :TaskRun-[:SYNCED]）取代。
      */
+    @Deprecated
     public Long syncedRowsLatestDay(long tenantId, long projectId) {
         String sql =
                 "SELECT SUM(row_count) FROM task_run_table_io " +
