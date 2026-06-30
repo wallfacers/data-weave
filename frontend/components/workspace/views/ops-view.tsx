@@ -58,14 +58,6 @@ export function OpsView({ params }: ViewProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-        </div>
-      </div>
-
       <OpsTopStrip />
 
       {/* 主舞台 */}

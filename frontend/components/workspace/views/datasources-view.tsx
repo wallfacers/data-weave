@@ -253,15 +253,6 @@ export function DatasourcesView() {
 
   return (
     <div className="flex h-full flex-col gap-3 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex-1" />
-        <Button size="sm" onClick={() => { setEditingDs(null); setDialogOpen(true) }}>
-          <HugeiconsIcon icon={Add01Icon} className="mr-1 size-4" />
-          {t("newDatasource")}
-        </Button>
-      </div>
-
       {/* DataTable */}
       <DataTable<DatasourceVO>
         columns={columns}
@@ -270,6 +261,12 @@ export function DatasourcesView() {
         fetcher={fetcher}
         filters={filters}
         presets={presets}
+        toolbarActions={
+          <Button size="sm" onClick={() => { setEditingDs(null); setDialogOpen(true) }}>
+            <HugeiconsIcon icon={Add01Icon} className="mr-1 size-4" />
+            {t("newDatasource")}
+          </Button>
+        }
         emptyIcon={Database01Icon}
         emptyTitle={t("emptyTitle")}
         emptyHint={t("emptyHint")}
