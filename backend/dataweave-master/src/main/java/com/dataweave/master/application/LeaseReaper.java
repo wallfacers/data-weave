@@ -4,14 +4,18 @@ import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
+import com.dataweave.master.domain.signal.AlertSignal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -37,19 +41,22 @@ public class LeaseReaper {
     private final WorkerNodeRepository nodeRepository;
     private final EventBus eventBus;
     private final SchedulerMetrics metrics;
+    private final ApplicationEventPublisher eventPublisher;
 
     public LeaseReaper(JdbcTemplate jdbc,
                        InstanceStateMachine stateMachine,
                        RetryService retryService,
                        WorkerNodeRepository nodeRepository,
                        EventBus eventBus,
-                       SchedulerMetrics metrics) {
+                       SchedulerMetrics metrics,
+                       ApplicationEventPublisher eventPublisher) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.retryService = retryService;
         this.nodeRepository = nodeRepository;
         this.eventBus = eventBus;
         this.metrics = metrics;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -153,11 +160,12 @@ public class LeaseReaper {
         log.info("[LeaseReaper] 实例 {} 从 {} 回收（{}）", inst.id, inst.state, reason);
 
         // 尝试重试（如果仍有次数）
-        // 重试通过 RetryService 走 WAITING 重派
-        // 但此时实例已是 FAILED 终态，需要用 RetryService 的逻辑判断是否回队
-        // 简化：直接查 task_def.retry_max 判断
         tryRetry(inst, reason);
         metrics.markLeaseReclaim(); // 仅在 casTaskTerminal 成功（真实回收）后计数一次
+        // 021 alert-engine: publish NODE_OFFLINE for heartbeat timeout
+        if ("WORKER_LOST".equals(reason)) {
+            publishNodeOffline(inst);
+        }
         return true;
     }
 
@@ -184,5 +192,24 @@ public class LeaseReaper {
         String state;
         String workerNodeCode;
         int attempt;
+    }
+
+    // ─── 告警信号发布（021 alert-engine）─────────────────────
+
+    private void publishNodeOffline(ExpiredInstance inst) {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT tenant_id, task_id FROM task_instance WHERE id = ?", inst.id);
+            if (row.isEmpty()) return;
+            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            Map<String, Object> ctx = new LinkedHashMap<>();
+            ctx.put("taskInstanceId", inst.id.toString());
+            ctx.put("workerNodeCode", inst.workerNodeCode);
+            ctx.put("failureReason", "WORKER_LOST");
+            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.NODE_OFFLINE, tenantId,
+                    inst.workerNodeCode, null, ctx));
+        } catch (Exception e) {
+            // 告警信号仅作辅助，发布失败不影响回收。
+        }
     }
 }

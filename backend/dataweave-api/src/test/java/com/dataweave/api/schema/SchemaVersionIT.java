@@ -45,8 +45,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Schema 版本契约 (C1–C6)")
 class SchemaVersionIT {
 
-    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。 */
-    static final String BASELINE_VERSION = "0.0.1";
+    /** 基线 schema 版本 = 项目发布版本（去 -SNAPSHOT）。021 升至 0.1.0。 */
+    static final String BASELINE_VERSION = "0.1.0";
 
     /** 合法 SemVer 正则：MAJOR.MINOR.PATCH，纯数字。 */
     static final Pattern SEMVER_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
