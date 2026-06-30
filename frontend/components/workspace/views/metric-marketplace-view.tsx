@@ -30,11 +30,14 @@ import {
 } from "@/lib/catalog-api"
 import { resolveGate, gateToast } from "@/lib/gate-outcome"
 import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
 import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 import { MetricListingDialog } from "@/components/workspace/views/metric/metric-listing-dialog"
 import { MetricReuseDialog } from "@/components/workspace/views/metric/metric-reuse-dialog"
 
 /** 已知业务错误码 → 友好文案 key（SC-006）。reuse_cycle 专门提示循环依赖（FR-007）。 */
+const PAGE_SIZE = 20
+
 const METRIC_ERR_KEYS: Record<string, string> = {
   "catalog.reuse_cycle": "errReuseCycle",
   "catalog.reuse_invalid": "errReuseInvalid",
@@ -46,6 +49,8 @@ export function MetricMarketplaceView() {
   const t = useTranslations("metricMarketplace")
 
   const [keyword, setKeyword] = useState("")
+  const [certification, setCertification] = useState("")
+  const [page, setPage] = useState(1)
   const [result, setResult] = useState<ListingSearchResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<MarketplaceDetail | null>(null)
@@ -60,12 +65,12 @@ export function MetricMarketplaceView() {
   const runSearch = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await searchListings({ keyword })
+      const res = await searchListings({ keyword, certification: certification || undefined, page, size: PAGE_SIZE })
       setResult(res.data ?? null)
     } finally {
       setLoading(false)
     }
-  }, [keyword])
+  }, [keyword, certification, page])
 
   useEffect(() => {
     void runSearch()
@@ -150,6 +155,20 @@ export function MetricMarketplaceView() {
             {t("listAction")}
           </Button>
         </div>
+        {/* certification 分面过滤（T031） */}
+        <div className="flex items-center gap-1 border-b border-border px-4 py-1.5 text-xs">
+          <span className="mr-1 text-muted-foreground">{t("facetCertification")}</span>
+          {["", "CERTIFIED", "NONE"].map((c) => (
+            <button
+              key={c || "ALL"}
+              type="button"
+              onClick={() => { setCertification(c); setPage(1) }}
+              className={`rounded px-2 py-0.5 ${certification === c ? "bg-accent" : "hover:bg-accent/50"}`}
+            >
+              {c === "" ? t("all") : c === "CERTIFIED" ? t("certified") : t("uncertified")}
+            </button>
+          ))}
+        </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {(result?.items ?? []).map((m) => (
             <button
@@ -178,6 +197,17 @@ export function MetricMarketplaceView() {
             <div className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</div>
           )}
         </div>
+        {(result?.total ?? 0) > PAGE_SIZE && (
+          <div className="border-t border-border px-4 py-2">
+            <Pagination
+              page={page}
+              size={PAGE_SIZE}
+              total={result?.total ?? 0}
+              totalPages={Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </section>
 
       <aside className="flex w-96 shrink-0 flex-col">

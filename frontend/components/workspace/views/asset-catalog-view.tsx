@@ -41,10 +41,22 @@ import {
 import { listDatasources } from "@/lib/datasource-api"
 import { resolveGate, gateToast } from "@/lib/gate-outcome"
 import { findAssetSubscription } from "@/lib/subscriptions"
+import {
+  INITIAL_QUERY,
+  toggleFacet,
+  setKeyword as setQueryKeyword,
+  setQualityMin as setQueryQualityMin,
+  setPage as setQueryPage,
+  buildSearchParams,
+  type AssetQueryState,
+} from "@/lib/asset-search-query"
 import { Button } from "@/components/ui/button"
+import { Pagination } from "@/components/ui/pagination"
 import { AssetFormDialog } from "@/components/workspace/views/asset/asset-form-dialog"
 import { SubscriptionsDialog } from "@/components/workspace/views/asset/subscriptions-dialog"
 import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
+
+const PAGE_SIZE = 20
 
 const SENSITIVITY_TONE: Record<string, string> = {
   PUBLIC: "text-muted-foreground",
@@ -63,8 +75,7 @@ const ASSET_ERR_KEYS: Record<string, string> = {
 export function AssetCatalogView() {
   const t = useTranslations("assetCatalog")
 
-  const [keyword, setKeyword] = useState("")
-  const [sensitivity, setSensitivity] = useState("")
+  const [query, setQuery] = useState<AssetQueryState>(INITIAL_QUERY)
   const [result, setResult] = useState<SearchResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<AssetDetail | null>(null)
@@ -84,12 +95,12 @@ export function AssetCatalogView() {
   const runSearch = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await searchAssets({ keyword, sensitivity })
+      const res = await searchAssets({ ...buildSearchParams(query), size: PAGE_SIZE })
       setResult(res.data ?? null)
     } finally {
       setLoading(false)
     }
-  }, [keyword, sensitivity])
+  }, [query])
 
   useEffect(() => {
     void runSearch()
@@ -203,52 +214,73 @@ export function AssetCatalogView() {
   return (
     <div className="flex h-full min-h-0">
       {/* 左：分面搜索 */}
-      <aside className="flex w-64 shrink-0 flex-col gap-4 border-r border-border p-4">
+      <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-auto border-r border-border p-4">
         <div className="flex items-center gap-2 rounded-md border border-input px-2">
           <HugeiconsIcon icon={Search01Icon} className="size-4 text-muted-foreground" />
           <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            value={query.keyword}
+            onChange={(e) => setQuery((q) => setQueryKeyword(q, e.target.value))}
             placeholder={t("searchPlaceholder")}
             className="h-9 w-full bg-transparent text-sm outline-none"
           />
         </div>
-        <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetSensitivity")}</div>
-          <div className="flex flex-col gap-1">
-            <button
-              type="button"
-              onClick={() => setSensitivity("")}
-              className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === "" ? "bg-accent" : "hover:bg-accent/50"}`}
-            >
-              <span>{t("all")}</span>
-            </button>
-            {Object.entries(facets.sensitivity ?? {}).map(([k, c]) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setSensitivity(k)}
-                className={`flex justify-between rounded px-2 py-1 text-left text-sm ${sensitivity === k ? "bg-accent" : "hover:bg-accent/50"}`}
-              >
-                <span className={SENSITIVITY_TONE[k] ?? ""}>{k}</span>
-                <span className="text-muted-foreground">{c}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {Object.keys(facets.owner ?? {}).length > 0 && (
+
+        {/* sensitivity（可点选真过滤） */}
+        <Facet
+          title={t("facetSensitivity")}
+          entries={facets.sensitivity}
+          selected={query.sensitivity}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "sensitivity", v))}
+          tone={(k) => SENSITIVITY_TONE[k] ?? ""}
+        />
+
+        {/* owner（可点选真过滤,T028） */}
+        <Facet
+          title={t("facetOwner")}
+          entries={facets.owner}
+          selected={query.owner}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "owner", v))}
+          renderKey={(k) => `#${k}`}
+        />
+
+        {/* tag（可点选真过滤,T028） */}
+        <Facet
+          title={t("facetTag")}
+          entries={facets.tag}
+          selected={query.tag}
+          allLabel={t("all")}
+          onToggle={(v) => setQuery((q) => toggleFacet(q, "tag", v))}
+        />
+
+        {/* status（仅只读计数；后端搜索无 status 入参且恒排除 RETIRED，analyze F1） */}
+        {Object.keys(facets.status ?? {}).length > 0 && (
           <div>
-            <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetOwner")}</div>
+            <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetStatus")}</div>
             <div className="flex flex-col gap-1">
-              {Object.entries(facets.owner ?? {}).map(([k, c]) => (
+              {Object.entries(facets.status ?? {}).map(([k, c]) => (
                 <div key={k} className="flex justify-between px-2 py-1 text-sm text-muted-foreground">
-                  <span>#{k}</span>
+                  <span>{k}</span>
                   <span>{c}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* quality 下限（被动透传 + 静态声明；后端 v1 no-op，analyze F2 / clarify Q2） */}
+        <div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">{t("facetQuality")}</div>
+          <input
+            value={query.qualityMin}
+            onChange={(e) => setQuery((q) => setQueryQualityMin(q, e.target.value.replace(/[^0-9]/g, "")))}
+            inputMode="numeric"
+            placeholder={t("qualityMinPlaceholder")}
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t("qualityDisclaimer")}</p>
+        </div>
       </aside>
 
       {/* 中：列表 */}
@@ -293,6 +325,17 @@ export function AssetCatalogView() {
             <div className="p-8 text-center text-sm text-muted-foreground">{t("empty")}</div>
           )}
         </div>
+        {(result?.total ?? 0) > PAGE_SIZE && (
+          <div className="border-t border-border px-4 py-2">
+            <Pagination
+              page={query.page}
+              size={PAGE_SIZE}
+              total={result?.total ?? 0}
+              totalPages={Math.max(1, Math.ceil((result?.total ?? 0) / PAGE_SIZE))}
+              onPageChange={(p) => setQuery((q) => setQueryPage(q, p))}
+            />
+          </div>
+        )}
       </section>
 
       {/* 右：详情 */}
@@ -436,6 +479,53 @@ function Row({ label, value, valueClass }: { label: string; value: string; value
     <div className="flex justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className={`text-right ${valueClass ?? ""}`}>{value}</dd>
+    </div>
+  )
+}
+
+/** 可点选分面：再点已选项取消;无桶时整块隐藏。 */
+function Facet({
+  title,
+  entries,
+  selected,
+  allLabel,
+  onToggle,
+  renderKey,
+  tone,
+}: {
+  title: string
+  entries?: Record<string, number>
+  selected: string
+  allLabel: string
+  onToggle: (value: string) => void
+  renderKey?: (k: string) => string
+  tone?: (k: string) => string
+}) {
+  const buckets = Object.entries(entries ?? {})
+  if (buckets.length === 0) return null
+  return (
+    <div>
+      <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => selected !== "" && onToggle(selected)}
+          className={`flex justify-between rounded px-2 py-1 text-left text-sm ${selected === "" ? "bg-accent" : "hover:bg-accent/50"}`}
+        >
+          <span>{allLabel}</span>
+        </button>
+        {buckets.map(([k, c]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onToggle(k)}
+            className={`flex justify-between rounded px-2 py-1 text-left text-sm ${selected === k ? "bg-accent" : "hover:bg-accent/50"}`}
+          >
+            <span className={tone ? tone(k) : ""}>{renderKey ? renderKey(k) : k}</span>
+            <span className="text-muted-foreground">{c}</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
