@@ -25,20 +25,25 @@ import {
   fetchAssetLineage,
   fetchAssetQuality,
   subscribe,
+  unsubscribe,
+  listSubscriptions,
   createAsset,
   updateAsset,
   retireAsset,
   reconcileAsset,
   type AssetSummary,
   type AssetDetail,
+  type AssetSubscription,
   type LineageEntryView,
   type QualityBadgeView,
   type SearchResult,
 } from "@/lib/catalog-api"
 import { listDatasources } from "@/lib/datasource-api"
 import { resolveGate, gateToast } from "@/lib/gate-outcome"
+import { findAssetSubscription } from "@/lib/subscriptions"
 import { Button } from "@/components/ui/button"
 import { AssetFormDialog } from "@/components/workspace/views/asset/asset-form-dialog"
+import { SubscriptionsDialog } from "@/components/workspace/views/asset/subscriptions-dialog"
 import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 
 const SENSITIVITY_TONE: Record<string, string> = {
@@ -73,6 +78,8 @@ export function AssetCatalogView() {
   const [editOpen, setEditOpen] = useState(false)
   const [confirm, setConfirm] = useState<null | "retire" | "reconcile">(null)
   const [confirmBusy, setConfirmBusy] = useState(false)
+  const [subscriptions, setSubscriptions] = useState<AssetSubscription[]>([])
+  const [subsOpen, setSubsOpen] = useState(false)
 
   const runSearch = useCallback(async () => {
     setLoading(true)
@@ -99,6 +106,11 @@ export function AssetCatalogView() {
     if (res.code === 0 && res.data) setSelected(res.data)
   }, [])
 
+  const loadSubscriptions = useCallback(async () => {
+    const res = await listSubscriptions()
+    setSubscriptions(res.data ?? [])
+  }, [])
+
   const openDetail = useCallback(async (a: AssetSummary) => {
     const res = await fetchAsset(a.id)
     if (res.code !== 0 || !res.data) {
@@ -111,7 +123,8 @@ export function AssetCatalogView() {
     // 懒加载血缘 + 质量（降级安全）
     void fetchAssetLineage(a.id).then((r) => setLineage(r.data ?? null))
     void fetchAssetQuality(a.id).then((r) => setQuality(r.data ?? null))
-  }, [t])
+    void loadSubscriptions()
+  }, [t, loadSubscriptions])
 
   const openCreate = useCallback(async () => {
     setCreateOpen(true)
@@ -169,7 +182,21 @@ export function AssetCatalogView() {
     if (!selected) return
     const r = resolveGate(await subscribe({ targetType: "ASSET", targetId: selected.id, changeFilter: "schema,quality,freshness" }))
     setToast(r.kind === "executed" ? t("subscribed") : gateToast(r, t, ASSET_ERR_KEYS))
-  }, [selected, t])
+    if (r.kind !== "failed") void loadSubscriptions()
+  }, [selected, t, loadSubscriptions])
+
+  /** 退订（dialog 与详情内联共用）。返回是否成功（已执行/待审批）。 */
+  const doUnsubscribe = useCallback(async (subId: number) => {
+    const r = resolveGate(await unsubscribe(subId))
+    setToast(r.kind === "executed" ? t("unsubscribed") : gateToast(r, t, ASSET_ERR_KEYS))
+    if (r.kind !== "failed") {
+      void loadSubscriptions()
+      return true
+    }
+    return false
+  }, [t, loadSubscriptions])
+
+  const currentSub = selected ? findAssetSubscription(subscriptions, selected.id) : null
 
   const facets = result?.facets ?? {}
 
@@ -233,6 +260,10 @@ export function AssetCatalogView() {
               {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
               {result?.truncated ? ` · ${t("truncated")}` : ""}
             </span>
+            <Button size="sm" variant="outline" onClick={() => setSubsOpen(true)}>
+              <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+              {t("mySubscriptions")}
+            </Button>
             <Button size="sm" onClick={openCreate}>
               <HugeiconsIcon icon={Add01Icon} className="size-4" />
               {t("createAction")}
@@ -325,10 +356,17 @@ export function AssetCatalogView() {
 
             {/* 写操作 */}
             <div className="mt-4 flex flex-col gap-2">
-              <Button variant="default" onClick={doSubscribe}>
-                <HugeiconsIcon icon={Notification01Icon} className="size-4" />
-                {t("subscribe")}
-              </Button>
+              {currentSub ? (
+                <Button variant="outline" onClick={() => void doUnsubscribe(currentSub.id)}>
+                  <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+                  {t("unsubscribeAction")}
+                </Button>
+              ) : (
+                <Button variant="default" onClick={doSubscribe}>
+                  <HugeiconsIcon icon={Notification01Icon} className="size-4" />
+                  {t("subscribe")}
+                </Button>
+              )}
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setConfirm("reconcile")}>
                   <HugeiconsIcon icon={RefreshIcon} className="size-4" />
@@ -367,6 +405,8 @@ export function AssetCatalogView() {
         datasources={datasources}
         onSubmit={submitEdit}
       />
+      {/* 我的订阅 */}
+      <SubscriptionsDialog open={subsOpen} onOpenChange={setSubsOpen} onUnsubscribe={doUnsubscribe} />
       {/* 下线 / 对账 确认 */}
       <ConfirmDialog
         open={confirm !== null}

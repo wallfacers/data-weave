@@ -89,15 +89,15 @@
 
 ### Tests（先行,失败）
 
-- [ ] T020 [P] [US3] 单测 `frontend/lib/subscriptions.test.ts`：从订阅列表判定「当前资产是否已订阅」+ 取其 subId 的纯逻辑正确。
+- [X] T020 [P] [US3] 单测 `frontend/lib/subscriptions.test.ts`：从订阅列表判定「当前资产是否已订阅」+ 取其 subId 的纯逻辑正确。
 
 ### Implementation
 
-- [ ] T021 [US3] 实现 `frontend/lib/subscriptions.ts`：`findAssetSubscription(list, assetId)` 等纯逻辑,令 T020 通过。
-- [ ] T022 [P] [US3] 新建 `frontend/components/workspace/views/asset/subscriptions-dialog.tsx`：`listSubscriptions` 聚合清单 + 退订（`confirm-dialog` → `unsubscribe` + resolveGate）。
-- [ ] T023 [US3] `asset-catalog-view.tsx` 列表头加「我的订阅」按钮 → 开 subscriptions-dialog（**不**新增顶层 ViewType,clarify 定档）。
-- [ ] T024 [US3] `asset-catalog-view.tsx` 详情面板：用 `findAssetSubscription` 呈现内联订阅态（已订阅→显示退订入口；未订阅→现有订阅按钮）；打开详情时顺带 `listSubscriptions` 比对。
-- [ ] T025 [P] [US3] i18n：补 `assetCatalog` 下「我的订阅」/退订/订阅态 key（两 bundle 同集）。
+- [X] T021 [US3] 实现 `frontend/lib/subscriptions.ts`：`findAssetSubscription(list, assetId)` 等纯逻辑,令 T020 通过。
+- [X] T022 [P] [US3] 新建 `frontend/components/workspace/views/asset/subscriptions-dialog.tsx`：`listSubscriptions` 聚合清单 + 退订（`confirm-dialog` → `unsubscribe` + resolveGate）。
+- [X] T023 [US3] `asset-catalog-view.tsx` 列表头加「我的订阅」按钮 → 开 subscriptions-dialog（**不**新增顶层 ViewType,clarify 定档）。
+- [X] T024 [US3] `asset-catalog-view.tsx` 详情面板：用 `findAssetSubscription` 呈现内联订阅态（已订阅→显示退订入口；未订阅→现有订阅按钮）；打开详情时顺带 `listSubscriptions` 比对。
+- [X] T025 [P] [US3] i18n：补 `assetCatalog` 下「我的订阅」/退订/订阅态 key（两 bundle 同集）。
 
 **Checkpoint**: US1–US3 各自独立可用。
 
