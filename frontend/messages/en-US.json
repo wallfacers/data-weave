@@ -981,6 +981,13 @@
       "delete": "Delete"
     }
   },
+  "viewRefresh": {
+    "lastUpdated": "Updated {time}",
+    "auto": "Auto-refresh",
+    "paused": "Paused",
+    "updateFailed": "Update failed",
+    "stale": "Data may be stale"
+  },
   "alerts": {
     "title": "Alert Center",
     "rules": "Alert Rules",

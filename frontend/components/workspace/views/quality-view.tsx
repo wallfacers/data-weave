@@ -11,6 +11,9 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { authFetch, API_BASE } from "@/lib/types";
+import { useLiveData } from "@/lib/workspace/use-api";
+import type { ViewProps } from "@/lib/workspace/registry";
+import { ViewRefreshControl } from "./view-refresh-control";
 
 /** 质量断言规则 */
 interface QualityRule {
@@ -79,59 +82,63 @@ const TRIGGER_LABELS: Record<string, string> = {
   ON_DEMAND: "on-demand",
 };
 
-export function QualityView() {
+export function QualityView({ active }: ViewProps) {
   const t = useTranslations("qualityView");
 
   const [tab, setTab] = useState<TabKey>("rules");
-  const [rules, setRules] = useState<QualityRule[]>([]);
-  const [runs, setRuns] = useState<QualityCheckRun[]>([]);
-  const [scorecards, setScorecards] = useState<QualityScorecard[]>([]);
   const [selectedRun, setSelectedRun] = useState<QualityCheckRun | null>(null);
   const [results, setResults] = useState<QualityCheckResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchJson = useCallback(async <T,>(path: string): Promise<T | null> => {
+  const fetchJson = useCallback(async <T,>(path: string): Promise<T> => {
     const res = await authFetch(API_BASE + path);
     const json = await res.json();
     if (json.code !== 0 || !json.data) {
-      setError(json.message || t("fetchError"));
-      return null;
+      throw new Error(json.message || t("fetchError"));
     }
     return json.data as T;
   }, [t]);
 
-  const loadRules = useCallback(async () => {
-    setLoading(true);
+  // tab data via useLiveData（deps: [tab]）
+  const tabFetcher = useCallback(async () => {
     setError(null);
-    const data = await fetchJson<QualityRule[]>("/api/quality/rules");
-    if (data) setRules(data);
-    setLoading(false);
-  }, [fetchJson]);
+    switch (tab) {
+      case "rules": return await fetchJson<QualityRule[]>("/api/quality/rules")
+      case "runs": return await fetchJson<QualityCheckRun[]>("/api/quality/runs")
+      case "scorecards": return await fetchJson<QualityScorecard[]>("/api/quality/scorecards")
+      default: return [] as unknown as QualityRule[]
+    }
+  }, [tab, fetchJson])
 
-  const loadRuns = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const data = await fetchJson<QualityCheckRun[]>("/api/quality/runs");
-    if (data) setRuns(data);
-    setLoading(false);
-  }, [fetchJson]);
+  const [autoEnabled, setAutoEnabled] = useState(true)
 
-  const loadScorecards = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const data = await fetchJson<QualityScorecard[]>("/api/quality/scorecards");
-    if (data) setScorecards(data);
-    setLoading(false);
-  }, [fetchJson]);
+  const {
+    data: tabData,
+    loading,
+    refreshing,
+    stale,
+    lastUpdatedAt,
+    refresh,
+  } = useLiveData<QualityRule[] | QualityCheckRun[] | QualityScorecard[]>(
+    tabFetcher,
+    { active, enabled: autoEnabled, deps: [tab] },
+  )
+
+  const rules = (tab === "rules" ? tabData as QualityRule[] : []) as QualityRule[]
+  const runs = (tab === "runs" ? tabData as QualityCheckRun[] : []) as QualityCheckRun[]
+  const scorecards = (tab === "scorecards" ? tabData as QualityScorecard[] : []) as QualityScorecard[]
 
   const loadResults = useCallback(async (runId: number) => {
     setError(null);
-    const data = await fetchJson<QualityCheckResult[]>(
-      `/api/quality/runs/${runId}/results`,
-    );
-    if (data) setResults(data);
-  }, [fetchJson]);
+    try {
+      const data = await fetchJson<QualityCheckResult[]>(
+        `/api/quality/runs/${runId}/results`,
+      );
+      setResults(data);
+    } catch (e) {
+      setError((e as Error).message || t("fetchError"));
+    }
+  }, [fetchJson, t]);
 
   const triggerRun = useCallback(async (ruleId: number) => {
     setError(null);
@@ -140,25 +147,11 @@ export function QualityView() {
     });
     const json = await res.json();
     if (json.code === 0) {
-      await loadRuns();
+      refresh();
     } else {
       setError(json.message || t("fetchError"));
     }
-  }, [loadRuns, t]);
-
-  useEffect(() => {
-    switch (tab) {
-      case "rules":
-        loadRules();
-        break;
-      case "runs":
-        loadRuns();
-        break;
-      case "scorecards":
-        loadScorecards();
-        break;
-    }
-  }, [tab, loadRules, loadRuns, loadScorecards]);
+  }, [refresh, t]);
 
   const selectRun = (run: QualityCheckRun) => {
     setSelectedRun(run);
@@ -173,23 +166,33 @@ export function QualityView() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* tab bar */}
-      <div className="flex gap-1 px-4 pt-3 pb-2 border-b">
-        {TAB_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => { setTab(item.key); setSelectedRun(null); setResults([]); }}
-            className={
-              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors "
-              + (tab === item.key
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted")
-            }
-          >
-            <HugeiconsIcon icon={item.icon} className="size-4" />
-            {item.label}
-          </button>
-        ))}
+      {/* tab bar + refresh control */}
+      <div className="flex items-center justify-between gap-1 px-4 pt-3 pb-2 border-b">
+        <div className="flex gap-1">
+          {TAB_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => { setTab(item.key); setSelectedRun(null); setResults([]); }}
+              className={
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors "
+                + (tab === item.key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted")
+              }
+            >
+              <HugeiconsIcon icon={item.icon} className="size-4" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <ViewRefreshControl
+          lastUpdatedAt={lastUpdatedAt}
+          refreshing={refreshing}
+          stale={stale}
+          autoEnabled={autoEnabled}
+          onToggleAuto={setAutoEnabled}
+          onRefresh={refresh}
+        />
       </div>
 
       {/* content */}
@@ -199,7 +202,7 @@ export function QualityView() {
             {error}
           </div>
         )}
-        {loading && (
+        {loading && tabData == null && (
           <div className="text-sm text-muted-foreground">{t("loading")}</div>
         )}
 

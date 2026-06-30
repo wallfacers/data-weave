@@ -39,7 +39,7 @@ const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "backfill", labelKey: "tabBackfillInstances", icon: Loading03Icon },
 ]
 
-export function OpsView({ params }: ViewProps) {
+export function OpsView({ params, active }: ViewProps) {
   const t = useTranslations("ops")
 
   // 初始 Tab / 筛选来自 ui.open 的 params
@@ -66,7 +66,7 @@ export function OpsView({ params }: ViewProps) {
         </div>
       </div>
 
-      <OpsTopStrip />
+      <OpsTopStrip active={active} />
 
       {/* 主舞台 */}
       <div className="flex min-h-0 flex-1">
@@ -105,13 +105,14 @@ export function OpsView({ params }: ViewProps) {
                 <div className="flex min-h-0 flex-1">
                   {instanceView === "workflow" ? (
                     <WorkflowInstancesPanel
+                      active={active}
                       onRowClick={(row) => {
                         setDagWfInstanceId(row.id)
                         setDagOpen(true)
                       }}
                     />
                   ) : (
-                    <PeriodicInstancesPanel initialFilter={initialFilter} />
+                    <PeriodicInstancesPanel initialFilter={initialFilter} active={active} />
                   )}
                 </div>
               </div>

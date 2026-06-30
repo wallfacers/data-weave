@@ -9,7 +9,7 @@
  * 与 PeriodicInstancesPanel 共享 DataTable<T> + DataTableToolbar 渲染模式。
  */
 
-import { useMemo, useRef, useEffect, useCallback } from "react"
+import { useMemo, useRef, useEffect, useCallback, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlayIcon, StopIcon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
@@ -26,7 +26,9 @@ import {
   type PageResult,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
+import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { ViewRefreshControl } from "../view-refresh-control"
 
 const STATE_BADGE_VARIANT: Record<string, "success" | "info" | "warning" | "destructive" | "outline"> = {
   SUCCESS: "success",
@@ -77,12 +79,23 @@ const STATE_OPTIONS = [
 
 interface WorkflowInstancesPanelProps {
   onRowClick?: (row: WorkflowInstanceRow) => void
+  active?: boolean
 }
 
-export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelProps) {
+export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstancesPanelProps) {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
   const abortRef = useRef<AbortController | null>(null)
+
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+  const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
+  const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
   useEffect(() => {
     return () => abortRef.current?.abort() // 组件卸载时取消进行中的请求
@@ -268,6 +281,19 @@ export function WorkflowInstancesPanel({ onRowClick }: WorkflowInstancesPanelPro
         presets={presets}
         onRowClick={onRowClick}
         selectable
+        reloadSignal={reloadSignal}
+        onLoadingChange={onLoadingChange}
+        onLoaded={onLoaded}
+        toolbarActions={
+          <ViewRefreshControl
+            lastUpdatedAt={lastUpdatedAt}
+            refreshing={refreshing}
+            stale={false}
+            autoEnabled={autoEnabled}
+            onToggleAuto={setAutoEnabled}
+            onRefresh={tickNow}
+          />
+        }
         bulkActions={(ids, reload) => (
           <div className="flex items-center gap-1">
             {ids.length > 100 ? (

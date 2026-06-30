@@ -10,6 +10,9 @@ import {
   Delete01Icon,
   Alert02Icon,
 } from "@hugeicons/core-free-icons"
+import { useLiveData } from "@/lib/workspace/use-api"
+import type { ViewProps } from "@/lib/workspace/registry"
+import { ViewRefreshControl } from "./view-refresh-control"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -34,14 +37,16 @@ interface AlertSilence {
 
 type TabKey = "rules" | "active" | "history" | "channels" | "silences"
 
-export function AlertsView() {
+interface AlertsBundle {
+  rules: AlertRule[]
+  events: AlertEvent[]
+  channels: AlertChannel[]
+  silences: AlertSilence[]
+}
+
+export function AlertsView({ active }: ViewProps) {
   const t = useTranslations("alerts")
   const [tab, setTab] = useState<TabKey>("active")
-  const [rules, setRules] = useState<AlertRule[]>([])
-  const [events, setEvents] = useState<AlertEvent[]>([])
-  const [channels, setChannels] = useState<AlertChannel[]>([])
-  const [silences, setSilences] = useState<AlertSilence[]>([])
-  const [loading, setLoading] = useState(false)
 
   const fetchJson = useCallback(async (path: string) => {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -51,24 +56,37 @@ export function AlertsView() {
     return json.data
   }, [])
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [r, e, c, s] = await Promise.all([
-        fetchJson("/api/alert/rules?limit=100"),
-        fetchJson("/api/alert/events?state=" + (tab === "active" ? "FIRING" : "") + "&limit=100"),
-        fetchJson("/api/alert/channels"),
-        fetchJson("/api/alert/silences"),
-      ])
-      setRules(r?.items || r || [])
-      setEvents(e?.items || e || [])
-      setChannels(c || [])
-      setSilences(s || [])
-    } catch (err) { console.error("Failed to load alerts data", err) }
-    setLoading(false)
+  // 4 端点聚合 fetcher（I2）：任一端点失败 → reject → 保留旧数据置 stale
+  const bundleFetcher = useCallback(async (): Promise<AlertsBundle> => {
+    const [r, e, c, s] = await Promise.all([
+      fetchJson("/api/alert/rules?limit=100"),
+      fetchJson("/api/alert/events?state=" + (tab === "active" ? "FIRING" : "") + "&limit=100"),
+      fetchJson("/api/alert/channels"),
+      fetchJson("/api/alert/silences"),
+    ])
+    return {
+      rules: r?.items || r || [],
+      events: e?.items || e || [],
+      channels: c || [],
+      silences: s || [],
+    }
   }, [tab, fetchJson])
 
-  useEffect(() => { loadData() }, [loadData])
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const {
+    data: bundle,
+    loading,
+    refreshing,
+    stale,
+    lastUpdatedAt,
+    refresh,
+  } = useLiveData<AlertsBundle>(bundleFetcher, { active, enabled: autoEnabled, deps: [tab] })
+
+  const rules = bundle?.rules ?? []
+  const events = bundle?.events ?? []
+  const channels = bundle?.channels ?? []
+  const silences = bundle?.silences ?? []
 
   const handleAck = async (eventId: number) => {
     await fetch(`${API_BASE}/api/alert/events/${eventId}/ack`, {
@@ -79,7 +97,7 @@ export function AlertsView() {
       },
       body: JSON.stringify({ ackedBy: 1 })
     })
-    loadData()
+    refresh()
   }
 
   const tabs: { key: TabKey; label: string }[] = [
@@ -103,8 +121,8 @@ export function AlertsView() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b px-4 py-2">
+      {/* Tab bar + refresh control */}
+      <div className="flex items-center gap-1 border-b px-4 py-2">
         {tabs.map(tb => (
           <button
             key={tb.key}
@@ -119,14 +137,19 @@ export function AlertsView() {
           </button>
         ))}
         <div className="flex-1" />
-        <button className="p-1.5 text-muted-foreground hover:text-foreground" onClick={loadData} title="Refresh">
-          <HugeiconsIcon icon={BellIcon} size={16} />
-        </button>
+        <ViewRefreshControl
+          lastUpdatedAt={lastUpdatedAt}
+          refreshing={refreshing}
+          stale={stale}
+          autoEnabled={autoEnabled}
+          onToggleAuto={setAutoEnabled}
+          onRefresh={refresh}
+        />
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-4">
-        {loading && <p className="text-muted-foreground text-sm">{t("loading")}</p>}
+        {loading && bundle == null && <p className="text-muted-foreground text-sm">{t("loading")}</p>}
 
         {/* Active Alerts & History */}
         {(tab === "active" || tab === "history") && (

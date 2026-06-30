@@ -8,6 +8,7 @@
  */
 
 import { useTranslations } from "next-intl"
+import { useState } from "react"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Alert01Icon,
@@ -17,7 +18,8 @@ import {
   Layers01Icon,
 } from "@hugeicons/core-free-icons"
 
-import { useApi } from "@/lib/workspace/use-api"
+import { useLiveData } from "@/lib/workspace/use-api"
+import { ViewRefreshControl } from "../view-refresh-control"
 import type { DashboardSummary } from "@/lib/types"
 
 interface EtaSummary {
@@ -62,10 +64,11 @@ function TopStat({
   )
 }
 
-export function OpsTopStrip() {
+export function OpsTopStrip({ active }: { active?: boolean }) {
   const t = useTranslations("ops")
-  const { data: summary } = useApi<DashboardSummary>("/api/ops/summary")
-  const { data: eta } = useApi<EtaSummary>("/api/ops/eta-summary")
+  const [autoEnabled, setAutoEnabled] = useState(true)
+  const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>("/api/ops/summary", { active, enabled: autoEnabled })
+  const { data: eta, refreshing: r2, stale: s2, lastUpdatedAt: lu2, refresh: ref2 } = useLiveData<EtaSummary>("/api/ops/eta-summary", { active, enabled: autoEnabled })
 
   const total = summary?.total ?? 0
   const running = summary?.running ?? 0
@@ -73,13 +76,30 @@ export function OpsTopStrip() {
   const failed = summary?.failed ?? 0
   const slaRisk = eta?.riskCount ?? 0
 
+  const lastUpdatedAt = lu1 != null && lu2 != null ? Math.max(lu1, lu2) : lu1 ?? lu2
+
+  const handleRefresh = () => { ref1(); ref2() }
+
   return (
-    <div className="grid gap-3 border-b px-6 py-4 grid-cols-2 sm:grid-cols-3 2xl:grid-cols-5">
-      <TopStat label={t("topTotal")} value={String(total)} icon={Layers01Icon} tone="default" />
-      <TopStat label={t("topRunning")} value={String(running)} icon={Loading03Icon} tone="info" />
-      <TopStat label={t("topSuccess")} value={String(success)} icon={CheckmarkCircle01Icon} tone="success" />
-      <TopStat label={t("topFailed")} value={String(failed)} icon={Alert01Icon} tone={failed > 0 ? "destructive" : "default"} />
-      <TopStat label={t("topSlaRisk")} value={String(slaRisk)} icon={TimeManagementIcon} tone={slaRisk > 0 ? "warning" : "default"} />
+    <div className="border-b px-6 py-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-muted-foreground">{t("subtitle")}</span>
+        <ViewRefreshControl
+          lastUpdatedAt={lastUpdatedAt}
+          refreshing={r1 || r2}
+          stale={s1 || s2}
+          autoEnabled={autoEnabled}
+          onToggleAuto={setAutoEnabled}
+          onRefresh={handleRefresh}
+        />
+      </div>
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 2xl:grid-cols-5">
+        <TopStat label={t("topTotal")} value={String(total)} icon={Layers01Icon} tone="default" />
+        <TopStat label={t("topRunning")} value={String(running)} icon={Loading03Icon} tone="info" />
+        <TopStat label={t("topSuccess")} value={String(success)} icon={CheckmarkCircle01Icon} tone="success" />
+        <TopStat label={t("topFailed")} value={String(failed)} icon={Alert01Icon} tone={failed > 0 ? "destructive" : "default"} />
+        <TopStat label={t("topSlaRisk")} value={String(slaRisk)} icon={TimeManagementIcon} tone={slaRisk > 0 ? "warning" : "default"} />
+      </div>
     </div>
   )
 }

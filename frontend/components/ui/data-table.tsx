@@ -65,6 +65,13 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void
   rowClassName?: (row: T) => string | undefined
   className?: string
+
+  /** 父级递增即触发一次 in-place 重取（不 remount、不重置 page/filter） */
+  reloadSignal?: number
+  /** 取数开始/结束回调（驱动控件 refreshing） */
+  onLoadingChange?: (loading: boolean) => void
+  /** 一次取数成功完成回调（驱动 lastUpdatedAt） */
+  onLoaded?: () => void
 }
 
 const DEFAULT_SIZE = 20
@@ -89,6 +96,9 @@ export function DataTable<T>({
   onRowClick,
   rowClassName,
   className,
+  reloadSignal,
+  onLoadingChange,
+  onLoaded,
 }: DataTableProps<T>) {
   const t = useTranslations("dataTable")
 
@@ -104,27 +114,43 @@ export function DataTable<T>({
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
 
+  // 回调 refs（不进 effect 依赖，避免重复取数）
+  const onLoadingChangeRef = useRef(onLoadingChange)
+  onLoadingChangeRef.current = onLoadingChange
+  const onLoadedRef = useRef(onLoaded)
+  onLoadedRef.current = onLoaded
+
   const reload = useCallback(() => setReloadNonce((n) => n + 1), [])
 
   useEffect(() => {
     if (mode !== "server" || !fetcherRef.current) return
     let cancelled = false
     setLoading(true)
+    onLoadingChangeRef.current?.(true)
     fetcherRef
       .current({ filters: values, page, size })
       .then((res) => {
-        if (!cancelled) setServerData(res)
+        if (!cancelled) {
+          setServerData(res)
+          onLoadedRef.current?.()
+        }
       })
       .catch(() => {
-        if (!cancelled) setServerData(null)
+        if (!cancelled) {
+          // 已有数据时保留（FR-010 无感）；仅初始无数据时置 null
+          setServerData((prev) => (prev ? prev : null))
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          onLoadingChangeRef.current?.(false)
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [mode, values, page, size, reloadNonce])
+  }, [mode, values, page, size, reloadNonce, reloadSignal])
 
   // client 模式：纯函数派生
   const clientResult = useMemo<PageResult<T> | null>(() => {

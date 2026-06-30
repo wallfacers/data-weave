@@ -51,6 +51,8 @@ import { type ViewType } from "./views"
 
 export interface ViewProps {
   params?: Record<string, unknown>
+  /** 本视图是否当前激活 tab（由 workspace 下传） */
+  active?: boolean
 }
 
 interface ViewRender {
