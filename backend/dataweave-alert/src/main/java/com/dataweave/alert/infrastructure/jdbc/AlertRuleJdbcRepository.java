@@ -66,6 +66,14 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
     }
 
     @Override
+    public List<AlertRule> findByEvalModeAndEnabled(String evalMode, Integer enabled) {
+        // 026: 不带 tenant 过滤——全租户 POLL 轮询
+        return jdbc.query(
+                "SELECT * FROM alert_rule WHERE eval_mode = ? AND enabled = ? AND deleted = 0",
+                ROW_MAPPER, evalMode, enabled);
+    }
+
+    @Override
     public List<AlertRule> findByTenantId(Long tenantId, int offset, int limit) {
         return jdbc.query(
                 "SELECT * FROM alert_rule WHERE tenant_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ? OFFSET ?",
