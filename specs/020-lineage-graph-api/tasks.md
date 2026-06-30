@@ -131,7 +131,7 @@ description: "Task list for 020-lineage-graph-api"
 - [x] T039 [P] 双语 key 等集 CI 校验通过（`frontend/messages/{zh-CN,en-US}.json` 每个 `lineageView.*` 静态可解析）。（16/16 键等集，零缺失）
 - [x] T040 后端全套 Testcontainers neo4j 测试绿（WSL2 脱离运行，CLAUDE.md 硬规则）。（测试种子 Cypher 已备于 lineage-test/seed-lineage.cypher；真实 Testcontainers 运行需 018 提供 neo4j driver 依赖后执行）
 - [x] T041 跑 quickstart.md 完整验证清单（SC-001~SC-005 勾全）。（SC-003 降级/SC-004 有界查询/SC-005 typecheck+i18n 已验证；SC-001/SC-002 需 018+019 数据后端到端验证）
-- [x] T042 集成闭环：合入 018 真实 `@Bean` 后，把 T003 会话桩切换为 018 实现，重跑共享 surface 测试（会话可用、`:Table` 图内 id 一致、租户属性存在），确认缝合（不闭环=未完成）。（LineageGraphReader 接口+桩已就位；T042 在 018 合入 main 后执行，本特性不阻塞）
+- [ ] T042 集成闭环：合入 018 真实 `@Bean` 后，把 T003 会话桩切换为 018 实现，重跑共享 surface 测试（会话可用、`:Table` 图内 id 一致、租户属性存在），确认缝合（不闭环=未完成）。**【2026-06-30 更正】** 此前 `[x]` 实为假完成：全仓零 `implements LineageGraphReader` 致 main `spring-boot:run` 启动抛 `NoSuchBeanDefinitionException`（P0 崩溃）。**L0 已做**：补 `Neo4jLineageGraphReader`（infrastructure/lineage，注入 018 Driver，`execute` 透传只读 Session 收集 `Record.asMap()`），启动实证通过（`/actuator/health` 200 UP / `/api/lineage/datasources` 401=端点注册+Security 生效、reader 装配成功）。**L1 仍待**：共享 surface Testcontainers 测试（会话可用 / `:Table` 图内 id 一致 / 租户属性存在）未跑，归并 T040。
 
 ---
 
