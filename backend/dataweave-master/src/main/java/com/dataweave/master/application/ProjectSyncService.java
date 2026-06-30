@@ -6,6 +6,8 @@ import com.dataweave.master.filecontract.ProjectExport;
 import com.dataweave.master.filecontract.ProjectFileBundle;
 import com.dataweave.master.filecontract.ProjectImport;
 import com.dataweave.master.filecontract.naming.EntityNaming;
+import com.dataweave.master.application.lineage.LineageEdgeAssembler;
+import com.dataweave.master.domain.lineage.LineageStore;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,8 @@ public class ProjectSyncService {
     private final DatasourceRepository datasourceRepository;
     private final TaskService taskService;
     private final WorkflowService workflowService;
+    private final LineageStore lineageStore;
+    private final LineageEdgeAssembler lineageEdgeAssembler;
 
     public ProjectSyncService(ProjectRepository projectRepository,
                               CatalogNodeRepository catalogNodeRepository,
@@ -49,7 +53,9 @@ public class ProjectSyncService {
                               WorkflowEdgeRepository workflowEdgeRepository,
                               DatasourceRepository datasourceRepository,
                               TaskService taskService,
-                              WorkflowService workflowService) {
+                              WorkflowService workflowService,
+                              LineageStore lineageStore,
+                              LineageEdgeAssembler lineageEdgeAssembler) {
         this.projectRepository = projectRepository;
         this.catalogNodeRepository = catalogNodeRepository;
         this.taskDefRepository = taskDefRepository;
@@ -61,6 +67,8 @@ public class ProjectSyncService {
         this.datasourceRepository = datasourceRepository;
         this.taskService = taskService;
         this.workflowService = workflowService;
+        this.lineageStore = lineageStore;
+        this.lineageEdgeAssembler = lineageEdgeAssembler;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -825,6 +833,27 @@ public class ProjectSyncService {
             task.setUpdatedAt(now);
             taskDefRepository.save(task);
             deleted = deleted.plusTask();
+        }
+
+        // 5c-lineage. push 落库的新增/修改任务补血缘入图（US2，FR-002 缺口补齐）。
+        // 复用 createAndOnline 同款装配（LineageEdgeAssembler A×B）；try-catch 不阻断 push 主链路（FR-007）。
+        for (Long taskId : changedTaskReal) {
+            try {
+                TaskDef t = taskDefRepository.findById(taskId).orElse(null);
+                if (t == null) {
+                    continue;
+                }
+                LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
+                        tenantId, projectId, t.getType(), t.getContent(),
+                        null, null, t.getDatasourceId(), t.getTargetDatasourceId());
+                if (!assembly.ioEdges().isEmpty()) {
+                    lineageStore.recordTaskIo(tenantId, projectId, taskId,
+                            t.getCurrentVersionNo(), t.getName(),
+                            assembly.ioEdges(), List.of());
+                }
+            } catch (Exception e) {
+                log.warn("push lineage record skipped for task {} (FR-007): {}", taskId, e.toString());
+            }
         }
 
         // 5d. Workflows —— 同样保留 合成→真实 映射。

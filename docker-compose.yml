@@ -1,4 +1,4 @@
-# Weft 生产态依赖：PostgreSQL + Redis + MinIO
+# Weft 生产态依赖：PostgreSQL + Redis + MinIO + Neo4j（血缘图库）
 # 开发态默认用后端内置 H2，无需启动本文件；接真实库时 `docker compose up -d` 后用后端 pg profile。
 services:
   postgres:
@@ -69,6 +69,24 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Neo4j 血缘图库（table/column/metric lineage 唯一存储底座，与 PG/Redis/MinIO 同级）
+  # Bolt: bolt://localhost:7687 · Browser UI: http://localhost:7474 · 凭据 neo4j/dataweave
+  neo4j:
+    image: neo4j:5-community
+    container_name: dataweave-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/dataweave
+    ports:
+      - "7687:7687"  # Bolt
+      - "7474:7474"  # Browser UI
+    volumes:
+      - dataweave-neo4j:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p dataweave 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   # ── distributed 模式（scheduler.mode=distributed）─────────────────────────
   # 用法：docker compose --profile distributed up -d
@@ -168,3 +186,4 @@ volumes:
   dataweave-mysql:
   dataweave-redis:
   dataweave-minio:
+  dataweave-neo4j:
