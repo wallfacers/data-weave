@@ -59,7 +59,7 @@ public class Neo4jLineageStore implements LineageStore {
                 // 1. MERGE :Task 镜像（带 tenantId/projectId 隔离 + versionNo）
                 tx.run("""
                         MERGE (n:Task {taskKey:$k})
-                        SET n.tenantId=$t, n.projectId=$p, n.taskDefId=$td, n.name=$nm, n.versionNo=$v
+                        SET n.id=$k, n.tenantId=$t, n.projectId=$p, n.taskDefId=$td, n.name=$nm, n.versionNo=$v
                         """, params("k", taskKey, "t", tenantId, "p", projectId,
                         "td", taskDefId, "nm", taskName, "v", v)).consume();
 
@@ -132,7 +132,7 @@ public class Neo4jLineageStore implements LineageStore {
             session.executeWrite(tx -> {
                 tx.run("""
                         MERGE (m:Metric {metricKey:$mk})
-                          ON CREATE SET m.tenantId=$t, m.projectId=$p, m.metricType=$mt, m.metricId=$mid, m.name=$nm
+                          ON CREATE SET m.id=$mk, m.tenantId=$t, m.projectId=$p, m.metricType=$mt, m.metricId=$mid, m.name=$nm
                         """, params("mk", metricKey, "t", edge.tenantId(), "p", edge.projectId(),
                         "mt", edge.metricType(), "mid", edge.metricId(), "nm", edge.metricName())).consume();
                 // 下游 TABLE：按 qualifiedName+tenant 匹配已存在表（任务路径建），不存在则建最小节点
@@ -162,7 +162,7 @@ public class Neo4jLineageStore implements LineageStore {
             session.executeWrite(tx -> {
                 tx.run("""
                         MERGE (r:TaskRun {instanceId:$iid})
-                          ON CREATE SET r.tenantId=$t, r.projectId=$p
+                          ON CREATE SET r.id=$iid, r.tenantId=$t, r.projectId=$p
                         """, params("iid", instanceId, "t", tenantId, "p", projectId)).consume();
                 String tk = ensureTable(tx, table, tenantId, projectId);
                 tx.run("""
@@ -184,7 +184,7 @@ public class Neo4jLineageStore implements LineageStore {
         String dsKey = c.dsKey();
         tx.run("""
                 MERGE (d:Datasource {dsKey:$dk})
-                  ON CREATE SET d.tenantId=$t, d.projectId=$p, d.ip=$ip, d.port=$port,
+                  ON CREATE SET d.id=$dk, d.tenantId=$t, d.projectId=$p, d.ip=$ip, d.port=$port,
                                 d.database=$db, d.name=$nm
                 """, params("dk", dsKey, "t", tenantId, "p", projectId, "ip", c.ip(),
                 "port", c.port(), "db", c.database(),
@@ -192,8 +192,9 @@ public class Neo4jLineageStore implements LineageStore {
         String tk = tableKey(c, table.qualifiedName());
         tx.run("""
                 MERGE (t:Table {tableKey:$tk})
-                  ON CREATE SET t.tenantId=$t, t.projectId=$p, t.qualifiedName=$qn, t.layer=$ly
-                """, params("tk", tk, "t", tenantId, "p", projectId,
+                  ON CREATE SET t.id=$tk, t.datasourceId=$dk, t.tenantId=$t, t.projectId=$p,
+                                t.qualifiedName=$qn, t.layer=$ly
+                """, params("tk", tk, "dk", dsKey, "t", tenantId, "p", projectId,
                 "qn", table.qualifiedName(), "ly", table.layer())).consume();
         tx.run("MATCH (d:Datasource {dsKey:$dk}),(t:Table {tableKey:$tk}) MERGE (d)-[:HAS_TABLE]->(t)",
                 params("dk", dsKey, "tk", tk)).consume();
@@ -206,7 +207,7 @@ public class Neo4jLineageStore implements LineageStore {
         String ck = columnKey(tableKey, colName);
         tx.run("""
                 MERGE (c:Column {columnKey:$ck})
-                  ON CREATE SET c.tenantId=$t, c.projectId=$p, c.name=$nm, c.tableKey=$tk
+                  ON CREATE SET c.id=$ck, c.tenantId=$t, c.projectId=$p, c.name=$nm, c.tableKey=$tk
                 """, params("ck", ck, "t", tenantId, "p", projectId,
                 "nm", colName, "tk", tableKey)).consume();
         tx.run("MATCH (t:Table {tableKey:$tk}),(c:Column {columnKey:$ck}) MERGE (t)-[:HAS_COLUMN]->(c)",

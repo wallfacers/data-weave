@@ -42,6 +42,7 @@ public class ProjectSyncService {
     private final WorkflowService workflowService;
     private final LineageStore lineageStore;
     private final LineageEdgeAssembler lineageEdgeAssembler;
+    private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
 
     public ProjectSyncService(ProjectRepository projectRepository,
                               CatalogNodeRepository catalogNodeRepository,
@@ -55,7 +56,8 @@ public class ProjectSyncService {
                               TaskService taskService,
                               WorkflowService workflowService,
                               LineageStore lineageStore,
-                              LineageEdgeAssembler lineageEdgeAssembler) {
+                              LineageEdgeAssembler lineageEdgeAssembler,
+                              SqlColumnLineageExtractor sqlColumnLineageExtractor) {
         this.projectRepository = projectRepository;
         this.catalogNodeRepository = catalogNodeRepository;
         this.taskDefRepository = taskDefRepository;
@@ -69,6 +71,7 @@ public class ProjectSyncService {
         this.workflowService = workflowService;
         this.lineageStore = lineageStore;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
+        this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -846,10 +849,20 @@ public class ProjectSyncService {
                 LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                         tenantId, projectId, t.getType(), t.getContent(),
                         null, null, t.getDatasourceId(), t.getTargetDatasourceId());
-                if (!assembly.ioEdges().isEmpty()) {
+                // 列级边：019 解析 → adapter 转 domain（源←读侧 coord，目标←写侧 coord）
+                java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
+                if ("SQL".equalsIgnoreCase(t.getType())) {
+                    var colResult = sqlColumnLineageExtractor.extract(
+                            t.getContent(), com.dataweave.master.application.lineage.ColumnLineageCatalog.EMPTY);
+                    columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
+                            colResult,
+                            lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),
+                            lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getTargetDatasourceId()));
+                }
+                if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
                     lineageStore.recordTaskIo(tenantId, projectId, taskId,
                             t.getCurrentVersionNo(), t.getName(),
-                            assembly.ioEdges(), List.of());
+                            assembly.ioEdges(), columnEdges);
                 }
             } catch (Exception e) {
                 log.warn("push lineage record skipped for task {} (FR-007): {}", taskId, e.toString());

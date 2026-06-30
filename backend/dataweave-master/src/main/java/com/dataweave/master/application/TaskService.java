@@ -34,6 +34,7 @@ public class TaskService {
     private final JdbcTemplate jdbcTemplate;
     private final LineageStore lineageStore;
     private final LineageEdgeAssembler lineageEdgeAssembler;
+    private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -42,7 +43,8 @@ public class TaskService {
                        FleetService fleetService,
                        JdbcTemplate jdbcTemplate,
                        LineageStore lineageStore,
-                       LineageEdgeAssembler lineageEdgeAssembler) {
+                       LineageEdgeAssembler lineageEdgeAssembler,
+                       SqlColumnLineageExtractor sqlColumnLineageExtractor) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -51,6 +53,7 @@ public class TaskService {
         this.jdbcTemplate = jdbcTemplate;
         this.lineageStore = lineageStore;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
+        this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -473,10 +476,20 @@ public class TaskService {
             LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                     1L, 1L, type, content, agentReads, agentWrites,
                     datasourceId, targetDatasourceId);
-            if (!assembly.ioEdges().isEmpty()) {
-                // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）；列级边由 019 产出，本期 List.of()
+            // 列级边：019 解析 content → adapter 转 domain（源←读侧 coord，目标←写侧 coord，对齐表级节点）
+            java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
+            if ("SQL".equalsIgnoreCase(type)) {
+                var colResult = sqlColumnLineageExtractor.extract(
+                        content, com.dataweave.master.application.lineage.ColumnLineageCatalog.EMPTY);
+                columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
+                        colResult,
+                        lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
+                        lineageEdgeAssembler.resolveCoord(1L, 1L, targetDatasourceId));
+            }
+            if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
+                // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
-                        assembly.ioEdges(), List.of());
+                        assembly.ioEdges(), columnEdges);
             }
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）
