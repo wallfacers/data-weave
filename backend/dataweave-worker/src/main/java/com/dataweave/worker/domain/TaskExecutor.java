@@ -1,5 +1,8 @@
 package com.dataweave.worker.domain;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
+
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -46,14 +49,30 @@ public interface TaskExecutor {
      * @param timedOut  是否超时终止
      * @param message   面向用户/审计的摘要（跳过时含可辨识「已跳过：&lt;原因&gt;」）
      * @param skipped   环境缺失而未真实执行；与 success 互斥（skipped=true 时 success 不得为伪装的 true）
+     * @param statementMetrics per-statement 执行指标（SQL 执行器填 affected-rows；其他执行器空 list）；
+     *                         feature 025 运行态采集，喂 {@code recordSynced}，非 SQL 路径恒空
      */
     record ExecutionResult(boolean success, int exitCode, String stdout, String stderr,
-                           boolean truncated, boolean timedOut, String message, boolean skipped) {
+                           boolean truncated, boolean timedOut, String message, boolean skipped,
+                           List<StatementMetric> statementMetrics) {
 
-        /** 向后兼容：真实成功/失败路径的 7 参构造（skipped=false）。现有构造点语义均为非跳过。 */
+        /** 向后兼容：真实成功/失败路径的 7 参构造（skipped=false, statementMetrics=空）。现有构造点零改动。 */
         public ExecutionResult(boolean success, int exitCode, String stdout, String stderr,
                                boolean truncated, boolean timedOut, String message) {
-            this(success, exitCode, stdout, stderr, truncated, timedOut, message, false);
+            this(success, exitCode, stdout, stderr, truncated, timedOut, message, false, List.of());
+        }
+
+        /** 8 参（带 skipped, statementMetrics=空）：{@link #skipped(String)} 工厂等内部用。 */
+        public ExecutionResult(boolean success, int exitCode, String stdout, String stderr,
+                               boolean truncated, boolean timedOut, String message, boolean skipped) {
+            this(success, exitCode, stdout, stderr, truncated, timedOut, message, skipped, List.of());
+        }
+
+        /** SQL 成功路径带 per-statement 指标（feature 025 运行态采集；非 SQL 执行器走空 list）。 */
+        public static ExecutionResult successWithMetrics(int exitCode, String stdout, String stderr,
+                                                         String message, List<StatementMetric> metrics) {
+            return new ExecutionResult(true, exitCode, stdout, stderr, false, false, message, false,
+                    metrics != null ? metrics : List.of());
         }
 
         /** 环境缺失跳过（FR-008）：{@code success=false, exitCode=0, skipped=true, message=reason}。 */

@@ -12,9 +12,9 @@ import java.util.Optional;
  */
 public interface ColumnLineageCatalog {
 
-    /** 查某表的列元数据；缺失返回 {@link Optional#empty()}。 */
-    Optional<TableSchema> lookupTable(String qualifiedName);
+    /** 查某表的列元数据（按租户+项目隔离）；缺失返回 {@link Optional#empty()}。 */
+    Optional<TableSchema> lookupTable(long tenantId, long projectId, String qualifiedName);
 
     /** 空 catalog：任何表都查不到，迫使全降级。 */
-    ColumnLineageCatalog EMPTY = qualifiedName -> Optional.empty();
+    ColumnLineageCatalog EMPTY = (tenantId, projectId, qualifiedName) -> Optional.empty();
 }

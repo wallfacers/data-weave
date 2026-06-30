@@ -50,7 +50,7 @@ class LineageSeamE2EIT extends Neo4jTestSupport {
         List<ColumnEdge> cols = List.of(
                 new ColumnEdge(src, "id", dst, "id", Transform.DIRECT, Confidence.CONFIRMED));
 
-        store.recordTaskIo(T, P, 100L, 1, "etl_ods_to_dwd", io, cols);
+        store.recordTaskIo(T, P, 100L, 1, "etl_ods_to_dwd", io, cols, null);
 
         LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver));
 

@@ -17,10 +17,12 @@ export type ViewType =
   | "workflow-instance-detail"
   | "lineage"
   | "catalog"
+  | "marketplace"
   | "quality"
   | "integration"
   | "datasources"
   | "service"
+  | "alerts"
   | "settings"
 
 export interface ViewMeta {
@@ -41,9 +43,11 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
   lineage: { title: "views.lineage" },
   catalog: { title: "views.catalog" },
+  marketplace: { title: "views.marketplace" },
   quality: { title: "views.quality" },
   integration: { title: "views.integration" },
   datasources: { title: "views.datasources" },
+  alerts: { title: "views.alerts" },
   service: { title: "views.service" },
   settings: { title: "views.settings" },
 }

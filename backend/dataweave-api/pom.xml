@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.dataweave</groupId>
         <artifactId>dataweave-backend</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.3.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>dataweave-api</artifactId>
@@ -29,6 +29,10 @@
         <dependency>
             <groupId>com.dataweave</groupId>
             <artifactId>dataweave-worker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.dataweave</groupId>
+            <artifactId>dataweave-alert</artifactId>
         </dependency>
         <!-- distributed 模式：把 master 里 optional 的 spring-data-redis 显式打进部署 jar，
              供 RedisEventBus/RedisLogBus（eventbus.type=redis / logbus.type=redis）运行时加载 -->

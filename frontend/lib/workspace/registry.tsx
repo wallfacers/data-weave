@@ -11,6 +11,7 @@ import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
   Analytics01Icon,
+  BellIcon,
   BugIcon,
   CatalogueIcon,
   DashboardSquare01Icon,
@@ -40,6 +41,10 @@ import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
+import { AlertsView } from "@/components/workspace/views/alerts-view"
+import { QualityView } from "@/components/workspace/views/quality-view"
+import { AssetCatalogView } from "@/components/workspace/views/asset-catalog-view"
+import { MetricMarketplaceView } from "@/components/workspace/views/metric-marketplace-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -75,13 +80,21 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
     icon: GitBranchIcon,
     component: LineageView,
   },
+  alerts: {
+    icon: BellIcon,
+    component: AlertsView,
+  },
   catalog: {
     icon: CatalogueIcon,
-    component: placeholder("catalog", "descCatalog"),
+    component: AssetCatalogView,
+  },
+  marketplace: {
+    icon: Analytics01Icon,
+    component: MetricMarketplaceView,
   },
   quality: {
     icon: Shield01Icon,
-    component: placeholder("quality", "descQuality"),
+    component: QualityView,
   },
   integration: {
     icon: DatabaseSyncIcon,

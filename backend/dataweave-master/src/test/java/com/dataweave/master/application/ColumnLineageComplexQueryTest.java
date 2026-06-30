@@ -32,7 +32,7 @@ class ColumnLineageComplexQueryTest {
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd (oid, uname) "
                         + "SELECT o.id, u.name FROM ods_order o "
-                        + "JOIN ods_user u ON o.user_id = u.id", cat);
+                        + "JOIN ods_user u ON o.user_id = u.id", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -52,7 +52,7 @@ class ColumnLineageComplexQueryTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd (id) "
-                        + "WITH t AS (SELECT id FROM ods_order) SELECT id FROM t", cat);
+                        + "WITH t AS (SELECT id FROM ods_order) SELECT id FROM t", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -67,7 +67,7 @@ class ColumnLineageComplexQueryTest {
                 table("dwd", "id"));
 
         ColumnLineageResult r = extractor.extract(
-                "INSERT INTO dwd (id) SELECT id FROM (SELECT id FROM ods_order) x", cat);
+                "INSERT INTO dwd (id) SELECT id FROM (SELECT id FROM ods_order) x", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -86,7 +86,7 @@ class ColumnLineageComplexQueryTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd (id) "
-                        + "SELECT id FROM ods_order UNION ALL SELECT id FROM ods_order2", cat);
+                        + "SELECT id FROM ods_order UNION ALL SELECT id FROM ods_order2", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -106,7 +106,7 @@ class ColumnLineageComplexQueryTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd (uid, total) "
-                        + "SELECT user_id, SUM(amount) FROM ods_order GROUP BY user_id", cat);
+                        + "SELECT user_id, SUM(amount) FROM ods_order GROUP BY user_id", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())

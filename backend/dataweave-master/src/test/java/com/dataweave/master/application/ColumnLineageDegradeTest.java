@@ -30,7 +30,7 @@ class ColumnLineageDegradeTest {
         ColumnLineageCatalog cat = catalog(table("dwd", "id")); // 故意不提供 unknown_tbl
 
         ColumnLineageResult r = extractor.extract(
-                "INSERT INTO dwd (id) SELECT id FROM unknown_tbl", cat);
+                "INSERT INTO dwd (id) SELECT id FROM unknown_tbl", cat, 0L, 0L);
 
         assertThat(r.degraded()).isTrue();
         assertThat(r.edges())
@@ -44,7 +44,7 @@ class ColumnLineageDegradeTest {
         ColumnLineageCatalog cat = catalog(table("dwd", "oid", "uname"));
 
         ColumnLineageResult r = extractor.extract(
-                "INSERT INTO dwd (oid, uname) SELECT o.id, o.name FROM unknown_tbl o", cat);
+                "INSERT INTO dwd (oid, uname) SELECT o.id, o.name FROM unknown_tbl o", cat, 0L, 0L);
 
         assertThat(r.degraded()).isTrue();
         assertThat(r.edges())
@@ -65,7 +65,7 @@ class ColumnLineageDegradeTest {
                 "CREATE TABLE dwd (id INT)",
                 "this is not sql at all",
                 "INSERT INTO dwd (id) VALUES (${dynamic_var})")) {
-            ColumnLineageResult r = extractor.extract(sql, cat);
+            ColumnLineageResult r = extractor.extract(sql, cat, 0L, 0L);
             assertThat(r.parsed()).as("sql=%s", sql).isFalse();
             assertThat(r.edges()).as("sql=%s", sql).isEmpty();
         }
@@ -80,7 +80,7 @@ class ColumnLineageDegradeTest {
                 table("dwd", "id", "flag"));
 
         ColumnLineageResult r = extractor.extract(
-                "INSERT INTO dwd (id, flag) SELECT id, 1 FROM ods_order", cat);
+                "INSERT INTO dwd (id, flag) SELECT id, 1 FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.degraded()).isTrue(); // 常量 flag 无源列 → 标降级
@@ -98,7 +98,7 @@ class ColumnLineageDegradeTest {
 
         ColumnLineageResult r = extractor.extract(
                 "INSERT INTO dwd (id, rn) "
-                        + "SELECT id, ROW_NUMBER() OVER (ORDER BY id) FROM ods_order", cat);
+                        + "SELECT id, ROW_NUMBER() OVER (ORDER BY id) FROM ods_order", cat, 0L, 0L);
 
         assertThat(r.parsed()).isTrue();
         assertThat(r.edges())
@@ -124,8 +124,8 @@ class ColumnLineageDegradeTest {
         };
         for (String sql : inputs) {
             assertThatCode(() -> {
-                ColumnLineageResult r1 = extractor.extract(sql, cat);
-                ColumnLineageResult r2 = extractor.extract(sql, null);
+                ColumnLineageResult r1 = extractor.extract(sql, cat, 0L, 0L);
+                ColumnLineageResult r2 = extractor.extract(sql, null, 0L, 0L);
                 assertThat(r1).isNotNull();
                 assertThat(r2).isNotNull();
                 assertThat(r1.edges()).isNotNull();

@@ -102,7 +102,8 @@ public class ProjectMapper {
                     export.taskTargetDatasourceCodes().get(task.getId()),
                     baseDoc.params(),
                     tagNames.isEmpty() ? null : tagNames.stream().sorted().toList(),
-                    baseDoc.sparkMode(), baseDoc.jarRef(), baseDoc.mainClass());
+                    baseDoc.sparkMode(), baseDoc.jarRef(), baseDoc.mainClass(),
+                    baseDoc.declaredSchema(), baseDoc.declaredColumnLineage());
             var taskPath = dirPath.isEmpty() ? slug + TASK_SUFFIX : dirPath + "/" + slug + TASK_SUFFIX;
             files.put(taskPath, taskMapper.serialize(docWithExtras));
 
@@ -249,6 +250,8 @@ public class ProjectMapper {
                 builder.taskSlug(id, slug);
                 builder.taskDatasourceCode(id, taskDoc.datasource());
                 builder.taskTargetDatasourceCode(id, taskDoc.targetDatasource());
+                builder.taskDeclaredSchema(id, taskDoc.declaredSchema());
+                builder.taskDeclaredColumnEdges(id, taskDoc.declaredColumnLineage());
                 var relPath = dirPath.isEmpty() ? slug : dirPath + "/" + slug;
                 relTaskPathToId.put(relPath, id);
 

@@ -48,7 +48,8 @@ public class Neo4jLineageStore implements LineageStore {
     @Override
     public void recordTaskIo(long tenantId, long projectId, long taskDefId,
                              Integer versionNo, String taskName,
-                             List<IoEdge> ioEdges, List<ColumnEdge> columnEdges) {
+                             List<IoEdge> ioEdges, List<ColumnEdge> columnEdges,
+                             java.util.Map<String, ? extends java.util.List<? extends com.dataweave.master.domain.lineage.LineageStore.DeclaredColumn>> declaredSchemas) {
         String taskKey = taskKey(tenantId, taskDefId);
         int v = versionNo == null ? 0 : versionNo;
         List<IoEdge> edges = ioEdges == null ? List.of() : ioEdges;
@@ -70,6 +71,22 @@ public class Neo4jLineageStore implements LineageStore {
                         params("td", taskDefId)).consume();
                 tx.run("MATCH ()-[d:DERIVES_FROM {taskDefId:$td}]->() DELETE d",
                         params("td", taskDefId)).consume();
+
+                // 2.5-024: 独立 seed :Column（声明 schema → 先于 extract，FR-009）
+                if (declaredSchemas != null && !declaredSchemas.isEmpty()) {
+                    for (var entry : declaredSchemas.entrySet()) {
+                        String tableName = entry.getKey();
+                        // 用占位 datasource 临时确保表节点存在（无坐标→降级身份）
+                        var dummyCoord = new DatasourceCoord(tenantId, projectId, null, null, null, "declared");
+                        var tempRef = new TableRef(dummyCoord, tableName, null);
+                        String tk = ensureTable(tx, tempRef, tenantId, projectId);
+                        var schemaCols = entry.getValue();
+                        for (int i = 0; i < schemaCols.size(); i++) {
+                            var col = schemaCols.get(i);
+                            ensureColumn(tx, tk, col.name(), col.dataType(), col.ordinal() >= 0 ? col.ordinal() : i, tenantId, projectId);
+                        }
+                    }
+                }
 
                 // 3+4. MERGE 表节点 + CREATE READS/WRITES（顺带建 datasource/HAS_TABLE）
                 List<String> readTableKeys = new ArrayList<>();
@@ -107,8 +124,8 @@ public class Neo4jLineageStore implements LineageStore {
                 for (ColumnEdge ce : cols) {
                     String srcTk = ensureTable(tx, ce.srcTable(), tenantId, projectId);
                     String dstTk = ensureTable(tx, ce.dstTable(), tenantId, projectId);
-                    String srcCk = ensureColumn(tx, srcTk, ce.srcCol(), tenantId, projectId);
-                    String dstCk = ensureColumn(tx, dstTk, ce.dstCol(), tenantId, projectId);
+                    String srcCk = ensureColumn(tx, srcTk, ce.srcCol(), null, null, tenantId, projectId);
+                    String dstCk = ensureColumn(tx, dstTk, ce.dstCol(), null, null, tenantId, projectId);
                     tx.run("""
                             MATCH (a:Column {columnKey:$sck}),(b:Column {columnKey:$dck})
                             CREATE (a)-[:DERIVES_FROM {taskDefId:$td,transform:$tr,confidence:$cf}]->(b)
@@ -154,7 +171,7 @@ public class Neo4jLineageStore implements LineageStore {
 
     @Override
     public void recordSynced(long tenantId, long projectId, String instanceId,
-                             TableRef table, Long rowCount, Long bytes, String bizDate) {
+                             TableRef table, Long rowCount, Long bytes, String bizDate, Long taskDefId) {
         if (instanceId == null || table == null) {
             return;
         }
@@ -162,12 +179,14 @@ public class Neo4jLineageStore implements LineageStore {
             session.executeWrite(tx -> {
                 tx.run("""
                         MERGE (r:TaskRun {instanceId:$iid})
-                          ON CREATE SET r.id=$iid, r.tenantId=$t, r.projectId=$p
-                        """, params("iid", instanceId, "t", tenantId, "p", projectId)).consume();
+                          ON CREATE SET r.id=$iid, r.tenantId=$t, r.projectId=$p, r.taskDefId=$td,
+                                        r.bizDate=date($bd)
+                        """, params("iid", instanceId, "t", tenantId, "p", projectId, "td", taskDefId, "bd", bizDate)).consume();
                 String tk = ensureTable(tx, table, tenantId, projectId);
                 tx.run("""
                         MATCH (r:TaskRun {instanceId:$iid}),(t:Table {tableKey:$tk})
-                        MERGE (r)-[:SYNCED {rowCount:$rc,bytes:$b,bizDate:$bd}]->(t)
+                        MERGE (r)-[s:SYNCED {bizDate:$bd}]->(t)
+                        SET s.rowCount = $rc, s.bytes = $b
                         """, params("iid", instanceId, "tk", tk,
                         "rc", rowCount, "b", bytes, "bd", bizDate)).consume();
                 return null;
@@ -201,15 +220,17 @@ public class Neo4jLineageStore implements LineageStore {
         return tk;
     }
 
-    /** MERGE :Column + HAS_COLUMN，返回 columnKey（幂等）。 */
+    /** MERGE :Column + HAS_COLUMN，返回 columnKey（幂等）。dataType/ordinal 预留写入位（catalog 方案 D，v1 透传 null）。 */
     private String ensureColumn(TransactionContext tx, String tableKey, String colName,
+                                String dataType, Integer ordinal,
                                 long tenantId, long projectId) {
         String ck = columnKey(tableKey, colName);
         tx.run("""
                 MERGE (c:Column {columnKey:$ck})
-                  ON CREATE SET c.id=$ck, c.tenantId=$t, c.projectId=$p, c.name=$nm, c.tableKey=$tk
+                  ON CREATE SET c.id=$ck, c.tenantId=$t, c.projectId=$p, c.name=$nm,
+                                c.tableKey=$tk, c.dataType=$dt, c.ordinal=$ord
                 """, params("ck", ck, "t", tenantId, "p", projectId,
-                "nm", colName, "tk", tableKey)).consume();
+                "nm", colName, "tk", tableKey, "dt", dataType, "ord", ordinal)).consume();
         tx.run("MATCH (t:Table {tableKey:$tk}),(c:Column {columnKey:$ck}) MERGE (t)-[:HAS_COLUMN]->(c)",
                 params("tk", tableKey, "ck", ck)).consume();
         return ck;

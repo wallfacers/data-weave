@@ -35,6 +35,7 @@ public class TaskService {
     private final LineageStore lineageStore;
     private final LineageEdgeAssembler lineageEdgeAssembler;
     private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
+    private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -44,7 +45,8 @@ public class TaskService {
                        JdbcTemplate jdbcTemplate,
                        LineageStore lineageStore,
                        LineageEdgeAssembler lineageEdgeAssembler,
-                       SqlColumnLineageExtractor sqlColumnLineageExtractor) {
+                       SqlColumnLineageExtractor sqlColumnLineageExtractor,
+                       com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -54,6 +56,7 @@ public class TaskService {
         this.lineageStore = lineageStore;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
         this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
+        this.columnLineageCatalog = columnLineageCatalog;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -480,7 +483,7 @@ public class TaskService {
             java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
             if ("SQL".equalsIgnoreCase(type)) {
                 var colResult = sqlColumnLineageExtractor.extract(
-                        content, com.dataweave.master.application.lineage.ColumnLineageCatalog.EMPTY);
+                        content, columnLineageCatalog, 1L, 1L);
                 columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                         colResult,
                         lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
@@ -489,7 +492,7 @@ public class TaskService {
             if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
                 // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
-                        assembly.ioEdges(), columnEdges);
+                        assembly.ioEdges(), columnEdges, null);
             }
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）

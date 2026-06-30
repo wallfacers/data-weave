@@ -104,7 +104,7 @@ This file is the map; details live elsewhere:
 | Scheduler kernel / metrics | `dataweave-master/.../application/SchedulerKernel.java` · `SchedulerMetrics.java` · `TriggerEngine.java` (预读+精确触发) · `TimingStrategy.java` (CRON/FIXED_RATE/FIXED_DELAY) · `MasterRegistry.java` (分片注册+心跳) |
 | Frontend metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx`  |
 | Catalog tree (folders+tags) | `dataweave-master/.../application/CatalogTreeService.java` (path/move/cycle guard) + `CatalogController`/`TagController` · frontend `catalog-tree.tsx` (drag MOVE_MIME/TASK_MIME) |
-| Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`)。**push 路径不落表级血缘（有意延迟，发布期 neo4j 重做）——详见 [docs/architecture.md](docs/architecture.md) 演进路线 + specs/014-tech-debt-closure** |
+| Table lineage (build-as-you-create) | `LineageGraphService.java` (表=节点·任务=边二部图; 建任务即建血缘 `recordDesignTimeIo` + 全局/邻域/上下游 + 运行态 `syncedRowsLatestDay`) + `SqlTableExtractor.java` (Calcite reads/writes, A×B 交叉校验) + `LineageGraphController` (`/api/lineage/*`)。**neo4j 单一底座（018/019/020 PG 四表退役）；024 声明驱动列 catalog（push seed :Column + CONFIRMED 列边，破鸡生蛋）+ 025 recordSynced 运行态行数接入已落地（main 5ac79d7）；详见 specs/024-lineage-column-catalog、specs/025-lineage-synced-rows** |
 | ETA prediction         | `SlaService.java` (`durationMedianMs` + `predictLatestEta`) → `GET /api/ops/eta-summary` |
 | L1 真采集 + 故障注入     | `HeartbeatReporter.sample()`(worker, OperatingSystemMXBean) + `NodeTelemetryService`(master) · `scripts/fault-injection.sql` |
 | Project sync (pull/push/diff) | `ProjectSyncService.java`(pull 装配/push 落库+快照/diff 只读对账) + `ProjectSyncController.java`(`POST /api/projects/{id}/pull|push|diff`) — 子特性 C 文件化同步 API |
@@ -173,9 +173,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [017-sql-schema-versioning](specs/017-sql-schema-versioning/spec.md)
-Implementation plan: [plan.md](specs/017-sql-schema-versioning/plan.md)
-Research: [research.md](specs/017-sql-schema-versioning/research.md)
-Data model: [data-model.md](specs/017-sql-schema-versioning/data-model.md)
-API contracts: [contracts/](specs/017-sql-schema-versioning/contracts/)
+Current feature: [021-alert-engine](specs/021-alert-engine/spec.md)
+Implementation plan: [plan.md](specs/021-alert-engine/plan.md)
+Research: [research.md](specs/021-alert-engine/research.md)
+Data model: [data-model.md](specs/021-alert-engine/data-model.md)
+API contracts: [contracts/](specs/021-alert-engine/contracts/)
 <!-- SPECKIT END -->

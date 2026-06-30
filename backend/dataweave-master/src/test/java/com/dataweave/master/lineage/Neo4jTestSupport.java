@@ -28,12 +28,29 @@ import org.testcontainers.neo4j.Neo4jContainer;
  */
 public abstract class Neo4jTestSupport {
 
+    /** 外部 neo4j 模式：设 NEO4J_TEST_URI（如 bolt://localhost:7687）则直连，免 testcontainers/Docker daemon。
+     *  无 Docker Desktop WSL 集成时，可用手工启动的 neo4j 容器跑 IT。可选 NEO4J_TEST_PASSWORD 覆盖密码（默认 dataweave）。 */
+    static final String EXTERNAL_URI = System.getenv("NEO4J_TEST_URI");
+
     static Neo4jContainer neo4j;
+    static String boltUri;
+    static String neo4jPassword = "dataweave";
 
     @BeforeAll
     static void startNeo4j() {
+        if (EXTERNAL_URI != null && !EXTERNAL_URI.isBlank()) {
+            // 外部直连模式：不启 testcontainers 容器
+            boltUri = EXTERNAL_URI;
+            String p = System.getenv("NEO4J_TEST_PASSWORD");
+            if (p != null && !p.isBlank()) {
+                neo4jPassword = p;
+            }
+            return;
+        }
         neo4j = new Neo4jContainer("neo4j:5");
         neo4j.start();
+        boltUri = neo4j.getBoltUrl();
+        neo4jPassword = neo4j.getAdminPassword();
     }
 
     @AfterAll
@@ -43,19 +60,17 @@ public abstract class Neo4jTestSupport {
         }
     }
 
-    /** 供重型 @SpringBootTest 子类：把 lineage.neo4j.{uri,username,password} 指向 Testcontainers 容器。 */
+    /** 供重型 @SpringBootTest 子类：把 lineage.neo4j.{uri,username,password} 指向容器（或外部 neo4j）。 */
     @DynamicPropertySource
     static void neo4jProps(DynamicPropertyRegistry registry) {
-        registry.add("lineage.neo4j.uri", neo4j::getBoltUrl);
+        registry.add("lineage.neo4j.uri", () -> boltUri);
         registry.add("lineage.neo4j.username", () -> "neo4j");
-        registry.add("lineage.neo4j.password", neo4j::getAdminPassword);
+        registry.add("lineage.neo4j.password", () -> neo4jPassword);
     }
 
-    /** 直连容器的新 Driver（短超时，韧性配置与生产 Neo4jConfig 一致）。 */
+    /** 直连容器/外部 neo4j 的新 Driver（短超时，韧性配置与生产 Neo4jConfig 一致）。 */
     protected Driver newDriver() {
-        return GraphDatabase.driver(
-                neo4j.getBoltUrl(),
-                AuthTokens.basic("neo4j", neo4j.getAdminPassword()));
+        return GraphDatabase.driver(boltUri, AuthTokens.basic("neo4j", neo4jPassword));
     }
 
     /** 构造直连容器的新 store：建约束 + 清库，返回全新 store 实例（轻量 IT 用）。 */

@@ -1,6 +1,7 @@
 package com.dataweave.worker.infrastructure;
 
 import com.dataweave.master.domain.DriverJar;
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.AbstractTaskExecutor;
 import com.dataweave.worker.domain.ExecutionContext;
@@ -64,6 +65,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
         try (Connection conn = openConnection(ds)) {
             emit(onLine, "连接成功，开始执行");
             List<String> statements = splitStatements(content);
+            List<StatementMetric> metrics = new ArrayList<>();   // feature 025: per-statement affected-rows（喂 recordSynced）
             int idx = 0;
             for (String sql : statements) {
                 idx++;
@@ -76,14 +78,19 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
                         emit(onLine, String.format("语句 %d/%d 执行完成：返回结果集（本期不展示行数据），耗时 %dms",
                                 idx, statements.size(), cost));
                     } else {
+                        int updateCount = st.getUpdateCount();
                         emit(onLine, String.format("语句 %d/%d 执行完成：影响 %d 行，耗时 %dms",
-                                idx, statements.size(), st.getUpdateCount(), cost));
+                                idx, statements.size(), updateCount, cost));
+                        // feature 025: 收集写语句 affected-rows（>=0；SELECT/DDL hasResultSet 不收）
+                        if (updateCount >= 0) {
+                            metrics.add(new StatementMetric(sql, updateCount));
+                        }
                     }
                 }
             }
             long total = System.currentTimeMillis() - t0;
             emit(onLine, "全部语句执行完成，共 " + statements.size() + " 条，总耗时 " + total + "ms");
-            return new ExecutionResult(true, 0, "", "", false, false, "执行完成");
+            return ExecutionResult.successWithMetrics(0, "", "", "执行完成", metrics);
         } catch (SQLException e) {
             // 连接期失败（无驱动 / 无法建连）→ SKIPPED（环境缺失）；语句级 SQL 错误 → 如实置失败。
             if (isConnectionFailure(e)) {
@@ -99,8 +106,9 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
         }
     }
 
-    /** 建连：绑定了上传 jar（元数据齐全）→ 隔离加载 driver.connect；否则内置 DriverManager。 */
-    private Connection openConnection(ExecutionContext.DataSourceRef ds) throws Exception {
+    /** 建连：绑定了上传 jar（元数据齐全）→ 隔离加载 driver.connect；否则内置 DriverManager。
+     *  <p>可见性提为 protected 以便 {@code QualityProbeExecutor} 复用建连/驱动隔离不变量（022-data-quality）。 */
+    protected Connection openConnection(ExecutionContext.DataSourceRef ds) throws Exception {
         if (ds.driverJarId() != null && ds.storageKey() != null && ds.driverClass() != null) {
             DriverJar jar = new DriverJar();
             jar.setStorageKey(ds.storageKey());
@@ -113,8 +121,9 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
         return DriverManager.getConnection(ds.jdbcUrl(), ds.username(), ds.password());
     }
 
-    /** 连接期失败判定：无驱动 / 无法建连 → 方案 A 回退（非语句级 SQL 错误）。 */
-    private boolean isConnectionFailure(SQLException e) {
+    /** 连接期失败判定：无驱动 / 无法建连 → 方案 A 回退（非语句级 SQL 错误）。
+     *  <p>可见性提为 protected 以便 {@code QualityProbeExecutor} 复用（022-data-quality）。 */
+    protected boolean isConnectionFailure(SQLException e) {
         String state = e.getSQLState();
         // SQLState 08xxx = connection exception；DriverManager 无驱动抛 "No suitable driver"（state 多为 08001/null）。
         if (state != null && state.startsWith("08")) {

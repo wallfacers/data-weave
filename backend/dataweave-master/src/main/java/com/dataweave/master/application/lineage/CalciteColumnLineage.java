@@ -73,13 +73,14 @@ public final class CalciteColumnLineage {
      * @param catalog         列元数据来源
      * @param candidateTables 已规范化的候选表名（源+目标），用于构建 Calcite schema
      */
-    public ColumnLineageResult analyze(String sql, ColumnLineageCatalog catalog, Set<String> candidateTables) {
+    public ColumnLineageResult analyze(String sql, ColumnLineageCatalog catalog, Set<String> candidateTables,
+                                       long tenantId, long projectId) {
         ColumnLineageCatalog cat = catalog == null ? ColumnLineageCatalog.EMPTY : catalog;
 
         // 1. 构建 schema（仅注册 catalog 能解析的表）
         CalciteSchema root = CalciteSchema.createRootSchema(false, false);
         for (String t : candidateTables) {
-            cat.lookupTable(t).ifPresent(ts -> registerTable(root, t, ts));
+            cat.lookupTable(tenantId, projectId, t).ifPresent(ts -> registerTable(root, t, ts));
         }
         Prepare.CatalogReader catalogReader = new CalciteCatalogReader(
                 root, List.of(), typeFactory, connectionConfig());
@@ -99,7 +100,7 @@ public final class CalciteColumnLineage {
                 continue;
             }
             try {
-                StmtOutcome outcome = processInsert(insert, cat, catalogReader);
+                StmtOutcome outcome = processInsert(insert, cat, catalogReader, tenantId, projectId);
                 if (!outcome.edges().isEmpty()) {
                     anyParsed = true;
                     edges.addAll(outcome.edges());
@@ -131,9 +132,10 @@ public final class CalciteColumnLineage {
 
     /** 处理一条 INSERT ... SELECT/UNION，映射目标列 ← 源列。 */
     private StmtOutcome processInsert(SqlInsert insert, ColumnLineageCatalog cat,
-                                      Prepare.CatalogReader catalogReader) {
+                                      Prepare.CatalogReader catalogReader,
+                                      long tenantId, long projectId) {
         String target = NameNormalizer.table((SqlIdentifier) insert.getTargetTable());
-        List<String> targetCols = targetColumns(insert, target, cat);
+        List<String> targetCols = targetColumns(insert, target, cat, tenantId, projectId);
         if (targetCols == null || targetCols.isEmpty()) {
             // 目标列名未知（无显式列清单且 catalog 无该表）→ 列级降级
             return new StmtOutcome(List.of(), true);
@@ -190,7 +192,8 @@ public final class CalciteColumnLineage {
     }
 
     /** 目标列：显式列清单优先，否则取 catalog 中目标表的有序列。 */
-    private List<String> targetColumns(SqlInsert insert, String target, ColumnLineageCatalog cat) {
+    private List<String> targetColumns(SqlInsert insert, String target, ColumnLineageCatalog cat,
+                                       long tenantId, long projectId) {
         SqlNodeList cols = insert.getTargetColumnList();
         if (cols != null && !cols.isEmpty()) {
             List<String> out = new ArrayList<>();
@@ -201,7 +204,7 @@ public final class CalciteColumnLineage {
             }
             return out;
         }
-        return cat.lookupTable(target)
+        return cat.lookupTable(tenantId, projectId, target)
                 .map(ts -> ts.columns().stream().map(ColumnMeta::name).toList())
                 .orElse(null);
     }

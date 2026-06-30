@@ -141,6 +141,41 @@ public class LineageQueryService {
     }
 
     // ═════════════════════════════════════════════════════════════
+    // 任务级下游（补数据展开，A1 迁移自 LineageGraphService.downstreamLevels）
+    // ═════════════════════════════════════════════════════════════
+
+    /**
+     * 某任务的血缘下游任务 + BFS 层级（taskDefId → 层级，首层=1，去重去自身，发现顺序）。
+     * 取代 {@code LineageGraphService.downstreamLevels}（读 {@code task_table_io}）。沿
+     * {@code :Task-[:WRITES]->:Table} 经 {@code :FLOWS_TO} 变长可达的下游表 → 读这些表的
+     * {@code :Task}（含纯消费 leaf）。level = 起点 WRITE 表到下游表的最短 FLOWS_TO 跳数 + 1。
+     * 韧性：neo4j 不可达返回空 map（补数据降级为只补自身，不阻断主链路，对标 FR-007）。
+     */
+    public java.util.LinkedHashMap<Long, Integer> downstreamTaskLevels(long tenantId, long projectId, long taskDefId) {
+        try {
+            String cypher = """
+                    MATCH (start:Task {taskDefId:$taskDefId})
+                    WHERE start.tenantId=$tenantId AND start.projectId=$projectId
+                    MATCH (start)-[:WRITES]->(wt:Table)
+                    MATCH path = (wt)-[:FLOWS_TO*0..20]->(downTable:Table)
+                    MATCH (dt:Task)-[:READS]->(downTable)
+                    WHERE dt.tenantId=$tenantId AND dt.projectId=$projectId AND dt.taskDefId <> $taskDefId
+                    WITH dt, min(length(path)) + 1 AS level
+                    RETURN dt.taskDefId AS taskDefId, level
+                    ORDER BY level, dt.taskDefId""";
+            List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId, "taskDefId", taskDefId));
+            java.util.LinkedHashMap<Long, Integer> out = new java.util.LinkedHashMap<>();
+            for (Map<String, Object> r : rows) {
+                out.put(((Number) r.get("taskDefId")).longValue(), ((Number) r.get("level")).intValue());
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("downstream task query degraded (neo4j unreachable), returning empty: {}", e.toString());
+            return new java.util.LinkedHashMap<>();
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════
     // US2: 上下游 + 影响面（变长路径）
     // ═════════════════════════════════════════════════════════════
 
@@ -296,25 +331,28 @@ public class LineageQueryService {
     // US3: 指标血缘 + 运行态
     // ═════════════════════════════════════════════════════════════
 
-    /** 指标血缘：COMPUTED_FROM 的表/列。T032 */
-    public MetricLineage metricLineage(long tenantId, long projectId, String metricId) {
+    /** 指标血缘：COMPUTED_FROM 的表/列。T032。按 (metricType, metricId) 查（不依赖 metricKey 合成键）。 */
+    public MetricLineage metricLineage(long tenantId, long projectId, String metricType, long metricId) {
         // 指标节点
         String metricCypher = """
-                MATCH (m:Metric {id:$metricId})
+                MATCH (m:Metric)
                 WHERE m.tenantId=$tenantId AND m.projectId=$projectId
+                  AND m.metricType=$metricType AND m.metricId=$metricId
                 RETURN m.id AS id, 'METRIC' AS type, m.name AS name,
                        NULL AS layer, NULL AS granularity, NULL AS parentId,
                        {metricType: m.metricType} AS attrs
                 LIMIT 1""";
-        List<Map<String, Object>> mRows = execute(metricCypher, params(tenantId, projectId, "metricId", metricId));
+        List<Map<String, Object>> mRows = execute(metricCypher, params(tenantId, projectId,
+                "metricType", metricType, "metricId", metricId));
         GraphNodeView metric = mRows.isEmpty()
-                ? new GraphNodeView(metricId, GraphNodeView.NodeType.METRIC, metricId, null)
+                ? new GraphNodeView(String.valueOf(metricId), GraphNodeView.NodeType.METRIC, String.valueOf(metricId), null)
                 : mapNode(mRows.get(0));
 
         // 来源表/列
         String cypher = """
-                MATCH (m:Metric {id:$metricId})-[:COMPUTED_FROM]->(s)
+                MATCH (m:Metric)-[:COMPUTED_FROM]->(s)
                 WHERE m.tenantId=$tenantId AND m.projectId=$projectId
+                  AND m.metricType=$metricType AND m.metricId=$metricId
                 RETURN s.id AS id,
                        CASE labels(s)[0]
                          WHEN 'Table' THEN 'TABLE'
@@ -324,7 +362,8 @@ public class LineageQueryService {
                        COALESCE(s.name, s.qualifiedName) AS name,
                        s.layer AS layer,
                        NULL AS granularity, NULL AS parentId, {} AS attrs""";
-        List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId, "metricId", metricId));
+        List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,
+                "metricType", metricType, "metricId", metricId));
         List<GraphNodeView> sources = rows.stream().map(LineageQueryService::mapNode).toList();
 
         return new MetricLineage(metric, sources, List.of());

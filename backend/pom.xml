@@ -13,7 +13,7 @@
 
     <groupId>com.dataweave</groupId>
     <artifactId>dataweave-backend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>dataweave-backend</name>
     <description>DataWeave AI-Agent-native data platform backend</description>
@@ -37,6 +37,7 @@
         <module>dataweave-master</module>
         <module>dataweave-worker</module>
         <module>dataweave-api</module>
+        <module>dataweave-alert</module>
     </modules>
 
     <dependencyManagement>
@@ -49,6 +50,11 @@
             <dependency>
                 <groupId>com.dataweave</groupId>
                 <artifactId>dataweave-worker</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dataweave</groupId>
+                <artifactId>dataweave-alert</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- 内置默认 JDBC 驱动（datasource-driver-isolation）：集中管理版本，供 master+worker 引用 -->

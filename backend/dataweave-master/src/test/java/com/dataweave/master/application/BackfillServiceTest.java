@@ -36,7 +36,7 @@ class BackfillServiceTest {
     private WorkflowTriggerService triggerService;
     private TaskDefRepository taskDefRepository;
     private WorkflowDefRepository workflowDefRepository;
-    private LineageGraphService lineageGraphService;
+    private LineageQueryService lineageQueryService;
     private JdbcTemplate jdbc;
     private BackfillService backfill;
 
@@ -46,10 +46,10 @@ class BackfillServiceTest {
         triggerService = mock(WorkflowTriggerService.class);
         taskDefRepository = mock(TaskDefRepository.class);
         workflowDefRepository = mock(WorkflowDefRepository.class);
-        lineageGraphService = mock(LineageGraphService.class);
+        lineageQueryService = mock(LineageQueryService.class);
         jdbc = mock(JdbcTemplate.class);
         backfill = new BackfillService(backfillRunRepository, triggerService, taskDefRepository,
-                workflowDefRepository, lineageGraphService, jdbc);
+                workflowDefRepository, lineageQueryService, jdbc);
 
         when(backfillRunRepository.save(any())).thenAnswer(inv -> {
             BackfillRun r = inv.getArgument(0);
@@ -136,8 +136,10 @@ class BackfillServiceTest {
     void selectedDownstreamSubsetGeneratesPerTargetPerDate() {
         // 选定下游子集 [11,12]：单日补数据 → 目标 10 + 下游 11、12 各生成一条实例（held=0）。
         stubTask();
-        when(lineageGraphService.downstreamTaskDefIds(1L, 1L, 10L))
-                .thenReturn(java.util.List.of(11L, 12L));
+        java.util.LinkedHashMap<Long, Integer> levels = new java.util.LinkedHashMap<>();
+        levels.put(11L, 1);
+        levels.put(12L, 1);
+        when(lineageQueryService.downstreamTaskLevels(1L, 1L, 10L)).thenReturn(levels);
         BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-20", "2026-06-20",
                 false, 1, java.util.List.of(11L, 12L));
 
@@ -165,8 +167,9 @@ class BackfillServiceTest {
     void downstreamSelectionConstrainedByLineage() {
         // 越权注入挡掉：请求 [11,99]，但血缘实算下游只有 11 → 99 被忽略，只补 10 + 11。
         stubTask();
-        when(lineageGraphService.downstreamTaskDefIds(1L, 1L, 10L))
-                .thenReturn(java.util.List.of(11L));
+        java.util.LinkedHashMap<Long, Integer> single = new java.util.LinkedHashMap<>();
+        single.put(11L, 1);
+        when(lineageQueryService.downstreamTaskLevels(1L, 1L, 10L)).thenReturn(single);
         BackfillRequest req = new BackfillRequest("task", 10L, "2026-06-20", "2026-06-20",
                 false, 1, java.util.List.of(11L, 99L));
 

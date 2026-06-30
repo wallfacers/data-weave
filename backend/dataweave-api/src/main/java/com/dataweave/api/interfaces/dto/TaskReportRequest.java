@@ -1,6 +1,9 @@
 package com.dataweave.api.interfaces.dto;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import java.util.List;
 
 /**
  * Worker 任务状态回报请求体 DTO。
@@ -25,6 +28,9 @@ public class TaskReportRequest {
 
     /** 尾部日志摘要 */
     private String tailLog;
+
+    /** per-statement 执行指标（feature 025；finished 时由 worker 上报，缺失=旧 worker 跳过 recordSynced） */
+    private List<StatementMetric> statementMetrics;
 
     public TaskReportRequest() {
     }
@@ -67,5 +73,13 @@ public class TaskReportRequest {
 
     public void setTailLog(String tailLog) {
         this.tailLog = tailLog;
+    }
+
+    public List<StatementMetric> getStatementMetrics() {
+        return statementMetrics;
+    }
+
+    public void setStatementMetrics(List<StatementMetric> statementMetrics) {
+        this.statementMetrics = statementMetrics;
     }
 }

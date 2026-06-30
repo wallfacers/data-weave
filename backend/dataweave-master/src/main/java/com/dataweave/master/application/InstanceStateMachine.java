@@ -1,10 +1,15 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.domain.signal.AlertSignal;
+import com.dataweave.master.quality.application.TaskSucceededEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -29,10 +34,13 @@ public class InstanceStateMachine {
 
     private final JdbcTemplate jdbc;
     private final EventBus eventBus;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus) {
+    public InstanceStateMachine(JdbcTemplate jdbc, EventBus eventBus,
+                                ApplicationEventPublisher eventPublisher) {
         this.jdbc = jdbc;
         this.eventBus = eventBus;
+        this.eventPublisher = eventPublisher;
     }
 
     // ─── task_instance ───────────────────────────────────
@@ -68,6 +76,23 @@ public class InstanceStateMachine {
                 to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
         if (n == 1) {
             publishTaskState(id, to);
+            if ("FAILED".equals(to)) {
+                // 021-alert: 终态 FAILED → 发 AlertSignal
+                publishAlertSignalForTask(id, failureReason);
+            } else if ("SUCCESS".equals(to)) {
+                // 022-data-quality: post-task 门禁钩子（D2.1）—— 任务 SUCCESS 后触发质量断言
+                try {
+                    Long taskId = jdbc.queryForObject(
+                            "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
+                    Long tenantId = jdbc.queryForObject(
+                            "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
+                    if (taskId != null && tenantId != null) {
+                        eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
+                    }
+                } catch (Exception e) {
+                    // 事件仅作门禁辅助，发布失败不影响状态推进（同 publishTaskState 纪律）
+                }
+            }
         }
         return n == 1;
     }
@@ -108,7 +133,12 @@ public class InstanceStateMachine {
         int n = jdbc.update(
                 "UPDATE workflow_instance SET state=?, updated_at=? WHERE id=? AND state=? AND deleted=0",
                 to, LocalDateTime.now(), id, from);
-        if (n == 1) publishWorkflowState(id, to);
+        if (n == 1) {
+            publishWorkflowState(id, to);
+            if ("FAILED".equals(to) || "STOPPED".equals(to)) {
+                publishAlertSignalForWorkflow(id, to);
+            }
+        }
         return n == 1;
     }
 
@@ -141,6 +171,59 @@ public class InstanceStateMachine {
                     "{\"workflowState\":\"" + state + "\"}");
         } catch (Exception e) {
             // 同上：事件仅作 UI 辅助。
+        }
+    }
+
+    // ─── 告警信号发布（021 alert-engine）─────────────────────
+
+    /** 任务实例终态 → 发布 AlertSignal（TASK_FAILED / TASK_TIMEOUT）。 */
+    private void publishAlertSignalForTask(UUID taskInstanceId, String failureReason) {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT tenant_id, task_id, workflow_instance_id FROM task_instance WHERE id=?",
+                    taskInstanceId);
+            if (row.isEmpty()) return;
+            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            Long taskId = (Long) row.get("TASK_ID");
+            Object wiIdRaw = row.get("WORKFLOW_INSTANCE_ID");
+            String wiId = wiIdRaw != null ? wiIdRaw.toString() : null;
+
+            AlertSignal.Type type = "TIMEOUT".equalsIgnoreCase(failureReason)
+                    ? AlertSignal.Type.TASK_TIMEOUT : AlertSignal.Type.TASK_FAILED;
+            Map<String, Object> ctx = new LinkedHashMap<>();
+            ctx.put("taskInstanceId", taskInstanceId.toString());
+            ctx.put("taskId", taskId);
+            ctx.put("workflowInstanceId", wiId);
+            ctx.put("failureReason", failureReason);
+
+            eventPublisher.publishEvent(new AlertSignal(type, tenantId,
+                    taskId != null ? taskId.toString() : taskInstanceId.toString(),
+                    null, ctx));
+        } catch (Exception e) {
+            // 告警信号仅作辅助，发布失败不影响状态推进。
+        }
+    }
+
+    /** 工作流实例终态 → 发布 AlertSignal（WORKFLOW_STATE）。 */
+    private void publishAlertSignalForWorkflow(UUID workflowInstanceId, String state) {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT tenant_id, workflow_id FROM workflow_instance WHERE id=?",
+                    workflowInstanceId);
+            if (row.isEmpty()) return;
+            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            Long workflowId = (Long) row.get("WORKFLOW_ID");
+
+            Map<String, Object> ctx = new LinkedHashMap<>();
+            ctx.put("workflowInstanceId", workflowInstanceId.toString());
+            ctx.put("workflowId", workflowId);
+            ctx.put("state", state);
+
+            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.WORKFLOW_STATE, tenantId,
+                    workflowId != null ? workflowId.toString() : workflowInstanceId.toString(),
+                    null, ctx));
+        } catch (Exception e) {
+            // 告警信号仅作辅助，发布失败不影响状态推进。
         }
     }
 }
