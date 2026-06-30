@@ -43,9 +43,9 @@ description: "Task list for 027 统一数据健康事件中心"
 - [X] T009 [US1] `HealthEventRecorder` `@EventListener(domain.signal.AlertSignal)`（旁路，独立于 `AlertSignalListener`）：映射 type/severity/fingerprint/ref/summary 落库；异常不影响告警分发（FR-007）
 - [X] T010 [US1] `EventCenterController` `GET /api/events`：租户隔离 + type/severity/refKind/refId/from/to 过滤 + 分页倒序（契约 health-event-api）
 - [X] T011 [P] [US1] 测试(改 service 层 EventCenterServiceQueryTest：过滤+租户隔离 H2;HTTP WebTestClient 留 api 模块)（WebTestClient + JWT）：返回事件、按 type/severity 过滤、跨租户隔离
-- [ ] T012 [US1] 前端注册 `event-center`：`frontend/lib/workspace/views.ts`（ViewType）+ `registry.tsx`（icon + component）
-- [ ] T013 [US1] 前端 `frontend/components/workspace/views/event-center-view.tsx`：时间线 + 类型/severity/资产/时间筛选 + 关联对象深链（refKind→对应视图，对象不存在优雅降级）
-- [ ] T014 [P] [US1] i18n：`frontend/messages/{zh-CN,en-US}.json` 加 `eventCenter` 命名空间（两 bundle 同键，`pnpm i18n:lint` 过）
+- [X] T012 [US1] 前端注册 `event-center`：`frontend/lib/workspace/views.ts`（ViewType）+ `registry.tsx`（icon + component）
+- [X] T013 [US1] 前端 `frontend/components/workspace/views/event-center-view.tsx`：时间线 + 类型/severity/资产/时间筛选 + 关联对象深链（refKind→对应视图，对象不存在优雅降级）
+- [X] T014 [P] [US1] i18n：`frontend/messages/{zh-CN,en-US}.json` 加 `eventCenter` 命名空间（两 bundle 同键，`pnpm i18n:lint` 过）
 
 **Checkpoint**: 事件可查可视，告警分发零回归
 
@@ -61,7 +61,7 @@ description: "Task list for 027 统一数据健康事件中心"
 - [X] T016 [US3] `HealthEventRecorder` 持久化后匹配订阅（type/severity≥/ref），命中经 026 `AlertDispatchService` 分发到 `channelId`；try-catch 吞失败不阻断（FR-009）
 - [X] T017 [P] [US3] 测试 `EventSubscriptionDispatchTest`：匹配→分发（verify dispatch）、不匹配→不分发、分发抛错→事件仍持久化
 - [X] T018 [US3] `EventCenterController` 订阅端点：POST/DELETE/GET（契约 subscription-contract，租户隔离）
-- [ ] T019 [US3] 前端 event-center-view 加订阅 UI（选 type/severity/通道，列/取消订阅）
+- [X] T019 [US3] 前端 event-center-view 加订阅 UI（选 type/severity/通道，列/取消订阅）
 
 **Checkpoint**: 三 story 各自独立可用
 
@@ -70,7 +70,7 @@ description: "Task list for 027 统一数据健康事件中心"
 ## Phase 5: Polish
 
 - [X] T020 [P] 回归：026 告警分发 + 各信号业务判定全绿（`./mvnw -pl dataweave-alert -am test`，JDK25+setsid）
-- [ ] T021 quickstart 全场景 + 前端 `pnpm typecheck` + 浏览器验证事件中心视图渲染
+- [~] T021 (typecheck+i18n lint 通过;浏览器验证+全栈启动待) quickstart 全场景 + 前端 `pnpm typecheck` + 浏览器验证事件中心视图渲染
 - [X] T022 schema_version 0.4.0 三处恒等核对（库内/文件头/项目版本）
 
 ---

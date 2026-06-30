@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl"
 import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
+  Alert02Icon,
   Analytics01Icon,
   BellIcon,
   BugIcon,
@@ -42,6 +43,7 @@ import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
 import { AlertsView } from "@/components/workspace/views/alerts-view"
+import { EventCenterView } from "@/components/workspace/views/event-center-view"
 import { QualityView } from "@/components/workspace/views/quality-view"
 import { AssetCatalogView } from "@/components/workspace/views/asset-catalog-view"
 import { MetricMarketplaceView } from "@/components/workspace/views/metric-marketplace-view"
@@ -83,6 +85,10 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   alerts: {
     icon: BellIcon,
     component: AlertsView,
+  },
+  "event-center": {
+    icon: Alert02Icon,
+    component: EventCenterView,
   },
   catalog: {
     icon: CatalogueIcon,

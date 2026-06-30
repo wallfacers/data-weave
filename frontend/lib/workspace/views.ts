@@ -23,6 +23,7 @@ export type ViewType =
   | "datasources"
   | "service"
   | "alerts"
+  | "event-center"
   | "settings"
 
 export interface ViewMeta {
@@ -48,6 +49,7 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   integration: { title: "views.integration" },
   datasources: { title: "views.datasources" },
   alerts: { title: "views.alerts" },
+  "event-center": { title: "views.eventCenter" },
   service: { title: "views.service" },
   settings: { title: "views.settings" },
 }
