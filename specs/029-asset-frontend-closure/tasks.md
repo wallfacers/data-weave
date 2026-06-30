@@ -67,16 +67,16 @@
 
 ### Tests（先行,失败）
 
-- [ ] T013 [P] [US2] 单测 `frontend/lib/metric-listing.test.ts`：从 `MetricCard` 选择构建上架载荷 `{metricId, metricType, metricCode, description, freshnessInfo}` 正确（metricId 必填）。
+- [X] T013 [P] [US2] 单测 `frontend/lib/metric-listing.test.ts`：从 `MetricCard` 选择构建上架载荷 `{metricId, metricType, metricCode, description, freshnessInfo}` 正确（metricId 必填）。
 
 ### Implementation
 
-- [ ] T014 [US2] 实现 `frontend/lib/metric-listing.ts`：上架载荷构建器,令 T013 通过。
-- [ ] T015 [P] [US2] 新建 `frontend/components/workspace/views/metric/metric-listing-dialog.tsx`：拉 `GET /api/metrics`（MetricCard）做指标定义 Select + metricType/description/freshnessInfo；提交经 `listMetric` + resolveGate。
-- [ ] T016 [US2] `metric-marketplace-view.tsx` 列表头加「上架指标」按钮 → 开 listing dialog → 成功刷新列表。
-- [ ] T017 [P] [US2] 新建 `frontend/components/workspace/views/metric/metric-reuse-dialog.tsx`：替换现 `window.prompt`；consumerType Select（METRIC/TASK/ASSET）+ consumerRef 输入；提交经 `reuseMetric` + resolveGate，`catalog.reuse_cycle` → 专门「会形成循环依赖」提示（FR-007）。
-- [ ] T018 [US2] `metric-marketplace-view.tsx` 详情面板加「下架」→ `confirm-dialog` → `delistMetric` + resolveGate → 刷新；把现 `doReuse` 改为打开 reuse dialog。
-- [ ] T019 [P] [US2] i18n：补 `metricMarketplace` 下上架/下架/复用/consumerType/防环错误 key（两 bundle 同集）。
+- [X] T014 [US2] 实现 `frontend/lib/metric-listing.ts`：上架载荷构建器,令 T013 通过。
+- [X] T015 [P] [US2] 新建 `frontend/components/workspace/views/metric/metric-listing-dialog.tsx`：拉 `GET /api/metrics`（MetricCard）做指标定义 Select + metricType/description/freshnessInfo；提交经 `listMetric` + resolveGate。
+- [X] T016 [US2] `metric-marketplace-view.tsx` 列表头加「上架指标」按钮 → 开 listing dialog → 成功刷新列表。
+- [X] T017 [P] [US2] 新建 `frontend/components/workspace/views/metric/metric-reuse-dialog.tsx`：替换现 `window.prompt`；consumerType Select（METRIC/TASK/ASSET）+ consumerRef 输入；提交经 `reuseMetric` + resolveGate，`catalog.reuse_cycle` → 专门「会形成循环依赖」提示（FR-007）。
+- [X] T018 [US2] `metric-marketplace-view.tsx` 详情面板加「下架」→ `confirm-dialog` → `delistMetric` + resolveGate → 刷新；把现 `doReuse` 改为打开 reuse dialog。
+- [X] T019 [P] [US2] i18n：补 `metricMarketplace` 下上架/下架/复用/consumerType/防环错误 key（两 bundle 同集）。
 
 **Checkpoint**: US1+US2 各自独立可用。
 

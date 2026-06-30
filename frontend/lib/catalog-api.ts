@@ -244,6 +244,21 @@ export function reuseMetric(id: number, body: { consumerType: string; consumerRe
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/reuse?projectId=${projectId}`, body);
 }
 
+/** 指标看板卡片（GET /api/metrics）——上架时选既有指标定义。镜像后端 MetricsController.MetricCard。 */
+export interface MetricCardView {
+  id: number;
+  code: string;
+  name: string;
+  unit?: string;
+  versionNo?: number;
+  status?: string;
+  value?: unknown;
+}
+
+export function fetchMetricCards() {
+  return get<MetricCardView[]>("/api/metrics");
+}
+
 export function listMetric(
   body: { metricId: number; metricType?: string; metricCode?: string; description?: string; freshnessInfo?: string },
   projectId = 1,
