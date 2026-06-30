@@ -1,10 +1,12 @@
 package com.dataweave.worker.application;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,8 +51,8 @@ public class WorkerExecService {
         /** 任务开始执行。 */
         void onStarted(UUID taskInstanceId);
 
-        /** 任务执行完成（含 SKIPPED——非失败完成，不阻塞下游）。 */
-        void onFinished(UUID taskInstanceId, int exitCode, String tailLog);
+        /** 任务执行完成（含 SKIPPED——非失败完成，不阻塞下游）。statementMetrics = per-statement affected-rows（feature 025）。 */
+        void onFinished(UUID taskInstanceId, int exitCode, String tailLog, List<StatementMetric> statementMetrics);
 
         /** 任务执行失败。 */
         void onFailed(UUID taskInstanceId, String reason, String tailLog);
@@ -155,9 +157,10 @@ public class WorkerExecService {
 
             // SKIPPED（环境缺失）：按「非失败完成」处理，不阻塞下游、不报失败（contracts C3 / FR-008/012）。
             if (result.skipped()) {
-                report.onFinished(taskInstanceId, result.exitCode(), "[SKIPPED] " + result.message());
+                report.onFinished(taskInstanceId, result.exitCode(), "[SKIPPED] " + result.message(),
+                        result.statementMetrics());
             } else if (result.success()) {
-                report.onFinished(taskInstanceId, result.exitCode(), tail);
+                report.onFinished(taskInstanceId, result.exitCode(), tail, result.statementMetrics());
             } else {
                 String reason = result.timedOut() ? "TIMEOUT" : "EXIT_CODE_" + result.exitCode();
                 report.onFailed(taskInstanceId, reason, tail);

@@ -171,7 +171,7 @@ public class Neo4jLineageStore implements LineageStore {
 
     @Override
     public void recordSynced(long tenantId, long projectId, String instanceId,
-                             TableRef table, Long rowCount, Long bytes, String bizDate) {
+                             TableRef table, Long rowCount, Long bytes, String bizDate, Long taskDefId) {
         if (instanceId == null || table == null) {
             return;
         }
@@ -179,12 +179,14 @@ public class Neo4jLineageStore implements LineageStore {
             session.executeWrite(tx -> {
                 tx.run("""
                         MERGE (r:TaskRun {instanceId:$iid})
-                          ON CREATE SET r.id=$iid, r.tenantId=$t, r.projectId=$p
-                        """, params("iid", instanceId, "t", tenantId, "p", projectId)).consume();
+                          ON CREATE SET r.id=$iid, r.tenantId=$t, r.projectId=$p, r.taskDefId=$td,
+                                        r.bizDate=date($bd)
+                        """, params("iid", instanceId, "t", tenantId, "p", projectId, "td", taskDefId, "bd", bizDate)).consume();
                 String tk = ensureTable(tx, table, tenantId, projectId);
                 tx.run("""
                         MATCH (r:TaskRun {instanceId:$iid}),(t:Table {tableKey:$tk})
-                        MERGE (r)-[:SYNCED {rowCount:$rc,bytes:$b,bizDate:$bd}]->(t)
+                        MERGE (r)-[s:SYNCED {bizDate:$bd}]->(t)
+                        SET s.rowCount = $rc, s.bytes = $b
                         """, params("iid", instanceId, "tk", tk,
                         "rc", rowCount, "b", bytes, "bd", bizDate)).consume();
                 return null;

@@ -1,5 +1,6 @@
 package com.dataweave.worker.interfaces;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.worker.WorkerApplication;
 import com.dataweave.worker.application.IncarnationManager;
 import com.dataweave.worker.application.WorkerExecService;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.URI;
@@ -25,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -46,6 +49,7 @@ public class WorkerExecController {
     private final WorkerApplication workerApp;
     private final String clusterToken;
     private final String masterUrl;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
@@ -188,39 +192,45 @@ public class WorkerExecController {
 
         @Override
         public void onStarted(UUID id) {
-            reportToMaster("started", id, null, null, null);
+            reportToMaster("started", id, null, null, null, null);
         }
 
         @Override
-        public void onFinished(UUID id, int exitCode, String tailLog) {
-            reportToMaster("finished", id, exitCode, tailLog, null);
+        public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
+            reportToMaster("finished", id, exitCode, tailLog, null, statementMetrics);
         }
 
         @Override
         public void onFailed(UUID id, String reason, String tailLog) {
-            reportToMaster("failed", id, null, tailLog, reason);
+            reportToMaster("failed", id, null, tailLog, reason, null);
         }
 
-        private void reportToMaster(String event, UUID id, Integer exitCode, String tailLog, String failureReason) {
+        private void reportToMaster(String event, UUID id, Integer exitCode, String tailLog,
+                                    String failureReason, List<StatementMetric> statementMetrics) {
             try {
-                StringBuilder json = new StringBuilder("{\"event\":\"").append(event)
-                        .append("\",\"taskInstanceId\":\"").append(id).append("\"");
+                // Jackson 序列化整 payload（feature 025：正确转义 SQL 文本 "/换行/反斜杠 + statementMetrics 数组）
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("event", event);
+                payload.put("taskInstanceId", String.valueOf(id));
                 if (exitCode != null) {
-                    json.append(",\"exitCode\":").append(exitCode);
+                    payload.put("exitCode", exitCode);
                 }
                 if (tailLog != null) {
-                    json.append(",\"tailLog\":").append(escapeJson(tailLog));
+                    payload.put("tailLog", tailLog);
                 }
                 if (failureReason != null) {
-                    json.append(",\"failureReason\":").append(escapeJson(failureReason));
+                    payload.put("failureReason", failureReason);
                 }
-                json.append("}");
+                if (statementMetrics != null && !statementMetrics.isEmpty()) {
+                    payload.put("statementMetrics", statementMetrics);
+                }
+                String json = objectMapper.writeValueAsString(payload);
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(masterUrl + "/api/cluster/report"))
                         .header("Content-Type", "application/json")
                         .header("Authorization", "Bearer " + clusterToken)
-                        .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
                         .timeout(Duration.ofSeconds(10))
                         .build();
 
@@ -229,10 +239,6 @@ public class WorkerExecController {
                 log.warn("[WorkerExec] 回报 master 失败：instance={}, event={}, error={}",
                         id, event, e.getMessage());
             }
-        }
-
-        private String escapeJson(String s) {
-            return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
         }
     }
 }

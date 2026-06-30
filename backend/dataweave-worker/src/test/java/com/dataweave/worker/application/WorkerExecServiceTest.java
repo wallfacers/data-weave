@@ -1,11 +1,13 @@
 package com.dataweave.worker.application;
 
+import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +51,7 @@ class WorkerExecServiceTest {
         service.submit(instanceId, 1, ctx("echo hello", "2026-06-12", 1, 10), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
-                    @Override public void onFinished(UUID id, int exitCode, String tailLog) {
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                         result.set("FINISHED:" + exitCode);
                         latch.countDown();
                     }
@@ -73,7 +75,7 @@ class WorkerExecServiceTest {
 
         WorkerExecService.ReportCallback cb = new WorkerExecService.ReportCallback() {
             @Override public void onStarted(UUID id) { }
-            @Override public void onFinished(UUID id, int exitCode, String tailLog) {
+            @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                 if (finishCount.incrementAndGet() == 1) {
                     latch.countDown();
                 }
@@ -106,7 +108,7 @@ class WorkerExecServiceTest {
 
         WorkerExecService.ReportCallback cb = new WorkerExecService.ReportCallback() {
             @Override public void onStarted(UUID id) { }
-            @Override public void onFinished(UUID id, int exitCode, String tailLog) {
+            @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                 finishCount.incrementAndGet();
                 latch.countDown();
             }
@@ -135,7 +137,7 @@ class WorkerExecServiceTest {
         service.submit(instanceId, 1, ctx("exit 1", null, 1, 10), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
-                    @Override public void onFinished(UUID id, int exitCode, String tailLog) {
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                         result.set("FINISHED");
                         latch.countDown();
                     }
@@ -172,7 +174,7 @@ class WorkerExecServiceTest {
         service.submit(instanceId, 1, ctx("sleep 10", null, 1, 60), null,
                 new WorkerExecService.ReportCallback() {
                     @Override public void onStarted(UUID id) { }
-                    @Override public void onFinished(UUID id, int exitCode, String tailLog) { latch.countDown(); }
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) { latch.countDown(); }
                     @Override public void onFailed(UUID id, String reason, String tailLog) { latch.countDown(); }
                 });
 
