@@ -598,8 +598,11 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (44, 'TOOL', 'PROJECT_PUSH',             NULL, 'L1', '项目推送（纯增改，租户项目内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (45, 'TOOL', 'PROJECT_PUSH_DESTRUCTIVE', NULL, 'L2', '项目推送含删除/force（破坏性，需审批）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
-(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+	-- 告警引擎写工具（021）
+	(46, 'TOOL', 'ALERT_RULE_WRITE',    NULL, 'L1', '告警规则/通道/静默写（租户内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+	(47, 'TOOL', 'ALERT_TEST_SEND',     NULL, 'L2', '告警 test-send（真发通知副作用，需审批）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO orders (id, order_amount, city, created_at) VALUES
 (1, 120.50, '上海', TIMESTAMP '2026-06-01 09:12:00'),

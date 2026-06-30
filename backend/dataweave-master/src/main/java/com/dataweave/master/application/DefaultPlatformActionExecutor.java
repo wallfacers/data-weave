@@ -14,6 +14,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +44,8 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final ObjectProvider<OpsService> opsService;
     // ObjectProvider 延迟查找：打破 ProjectSyncService→TaskService→Executor 的循环依赖（E 子特性 project_push 执行接线）。
     private final ObjectProvider<ProjectSyncService> projectSyncService;
+    // SPI：业务模块（alert 等）注入的 handler，兜底遍历委派（master 编译期只依赖接口，不反向依赖业务模块）。
+    private final List<PlatformActionHandler> handlers;
     private final Messages messages;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -56,6 +59,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          WorkflowDefRepository workflowDefRepository,
                                          ObjectProvider<OpsService> opsService,
                                          ObjectProvider<ProjectSyncService> projectSyncService,
+                                         List<PlatformActionHandler> handlers,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -67,6 +71,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.workflowDefRepository = workflowDefRepository;
         this.opsService = opsService;
         this.projectSyncService = projectSyncService;
+        this.handlers = handlers != null ? handlers : List.of();
         this.messages = messages;
     }
 
@@ -92,9 +97,17 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "ROLLBACK_WORKFLOW" -> rollbackWorkflow(action, locale);
             // E 子特性：project_push 执行接线（E4）
             case "PROJECT_PUSH", "PROJECT_PUSH_DESTRUCTIVE" -> projectPush(action, locale);
-            default -> new ExecOutcome(false,
-                    messages.get("executor.unsupported_action", locale, action.getActionType()),
-                    json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
+            default -> {
+                // SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
+                for (PlatformActionHandler h : handlers) {
+                    if (h.supports(type)) {
+                        yield h.handle(action, locale);
+                    }
+                }
+                yield new ExecOutcome(false,
+                        messages.get("executor.unsupported_action", locale, action.getActionType()),
+                        json(Map.of("error", "unsupported-action", "actionType", action.getActionType())), null);
+            }
         };
     }
 

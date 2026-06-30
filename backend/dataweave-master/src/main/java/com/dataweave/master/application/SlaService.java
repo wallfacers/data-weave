@@ -2,9 +2,11 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.SlaBaseline;
 import com.dataweave.master.domain.SlaBaselineRepository;
+import com.dataweave.master.domain.signal.AlertSignal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -34,20 +36,24 @@ public class SlaService {
 
     private final SlaBaselineRepository repository;
     private final JdbcTemplate jdbc;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final int baselineWindow;
     private final int thresholdMinutes;
 
     @Autowired
-    public SlaService(SlaBaselineRepository repository, JdbcTemplate jdbc) {
-        this(repository, jdbc, 7, 60);
+    public SlaService(SlaBaselineRepository repository, JdbcTemplate jdbc,
+                      ApplicationEventPublisher eventPublisher) {
+        this(repository, jdbc, eventPublisher, 7, 60);
     }
 
     /** 可测试构造：指定窗口大小与破线阈值。 */
     public SlaService(SlaBaselineRepository repository, JdbcTemplate jdbc,
+                      ApplicationEventPublisher eventPublisher,
                       int baselineWindow, int thresholdMinutes) {
         this.repository = repository;
         this.jdbc = jdbc;
+        this.eventPublisher = eventPublisher;
         this.baselineWindow = baselineWindow;
         this.thresholdMinutes = thresholdMinutes;
     }
@@ -103,6 +109,8 @@ public class SlaService {
                     baseline.setBreachMinutes((int) lateMinutes);
                     log.warn("[SLA] 破线！workflow={} bizDate={} 基线={} 实际={} 晚{}min",
                             workflowId, bizDate, histBaseline, finishedAt, lateMinutes);
+                    // 021 alert-engine: publish SLA_BREACH signal
+                    publishSlaBreach(workflowId, workflowInstanceId, bizDate, (int) lateMinutes);
                 } else {
                     baseline.setBreached(0);
                     baseline.setBreachMinutes(null);
@@ -207,5 +215,26 @@ public class SlaService {
         if (raw instanceof LocalDateTime ldt) return ldt;
         if (raw instanceof java.sql.Timestamp ts) return ts.toLocalDateTime();
         return null;
+    }
+
+    // ─── 告警信号发布（021 alert-engine）─────────────────────
+
+    private void publishSlaBreach(Long workflowId, UUID workflowInstanceId, String bizDate, int breachMinutes) {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT tenant_id FROM workflow_instance WHERE id = ?", workflowInstanceId);
+            if (row.isEmpty()) return;
+            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            java.util.Map<String, Object> ctx = new java.util.LinkedHashMap<>();
+            ctx.put("workflowId", workflowId);
+            ctx.put("workflowInstanceId", workflowInstanceId.toString());
+            ctx.put("bizDate", bizDate);
+            ctx.put("breachMinutes", breachMinutes);
+            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.SLA_BREACH, tenantId,
+                    workflowId != null ? workflowId.toString() : workflowInstanceId.toString(),
+                    "CRITICAL", ctx));
+        } catch (Exception e) {
+            // 告警信号仅作辅助，发布失败不影响 SLA 记录。
+        }
     }
 }

@@ -11,6 +11,7 @@ import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
   Analytics01Icon,
+  BellIcon,
   BugIcon,
   CatalogueIcon,
   DashboardSquare01Icon,
@@ -40,6 +41,7 @@ import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
+import { AlertsView } from "@/components/workspace/views/alerts-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -74,6 +76,10 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   lineage: {
     icon: GitBranchIcon,
     component: LineageView,
+  },
+  alerts: {
+    icon: BellIcon,
+    component: AlertsView,
   },
   catalog: {
     icon: CatalogueIcon,
