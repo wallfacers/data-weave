@@ -9,6 +9,8 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkflowNode;
 import com.dataweave.master.domain.WorkflowNodeRepository;
+import com.dataweave.master.application.lineage.LineageEdgeAssembler;
+import com.dataweave.master.domain.lineage.LineageStore;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -30,8 +32,8 @@ public class TaskService {
     private final WorkflowNodeRepository workflowNodeRepository;
     private final FleetService fleetService;
     private final JdbcTemplate jdbcTemplate;
-    private final LineageGraphService lineageGraphService;
-    private final SqlTableExtractor sqlTableExtractor;
+    private final LineageStore lineageStore;
+    private final LineageEdgeAssembler lineageEdgeAssembler;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -39,16 +41,16 @@ public class TaskService {
                        WorkflowNodeRepository workflowNodeRepository,
                        FleetService fleetService,
                        JdbcTemplate jdbcTemplate,
-                       LineageGraphService lineageGraphService,
-                       SqlTableExtractor sqlTableExtractor) {
+                       LineageStore lineageStore,
+                       LineageEdgeAssembler lineageEdgeAssembler) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
         this.workflowNodeRepository = workflowNodeRepository;
         this.fleetService = fleetService;
         this.jdbcTemplate = jdbcTemplate;
-        this.lineageGraphService = lineageGraphService;
-        this.sqlTableExtractor = sqlTableExtractor;
+        this.lineageStore = lineageStore;
+        this.lineageEdgeAssembler = lineageEdgeAssembler;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -420,7 +422,7 @@ public class TaskService {
         task.setVersion(0L);
         TaskDef saved = taskDefRepository.save(task);
 
-        recordLineage(saved.getId(), type, content, datasourceId, targetDatasourceId,
+        recordLineage(saved.getId(), name, type, content, datasourceId, targetDatasourceId,
                 agentReads, agentWrites);
 
         TaskDefVersion ver = new TaskDefVersion();
@@ -461,69 +463,23 @@ public class TaskService {
         return new TaskCreation(saved, cron, savedInstance.getId());
     }
 
-    // ─── 设计态血缘记录（A×B 交叉校验）─────────────────────
+    // ─── 设计态血缘记录（neo4j 图底座，A×B 交叉校验）─────────────────────
 
-    /** 解析 content + 合并 Agent 声明，落 task_table_io。容错：失败不影响建任务。 */
-    private void recordLineage(Long taskDefId, String type, String content,
+    /** 解析 content + 合并 Agent 声明，把表级血缘写入 neo4j。容错：失败不阻断建任务（FR-007）。 */
+    private void recordLineage(Long taskDefId, String taskName, String type, String content,
                               Long datasourceId, Long targetDatasourceId,
                               List<String> agentReads, List<String> agentWrites) {
         try {
-            SqlTableExtractor.Result parsed = "SQL".equalsIgnoreCase(type)
-                    ? sqlTableExtractor.extract(content)
-                    : new SqlTableExtractor.Result(false, java.util.Set.of(), java.util.Set.of());
-
-            List<LineageGraphService.EdgeInput> edges = new ArrayList<>();
-            edges.addAll(buildEdges(LineageGraphService.READ, agentReads, parsed.reads(),
-                    parsed.parsed(), datasourceId));
-            edges.addAll(buildEdges(LineageGraphService.WRITE, agentWrites, parsed.writes(),
-                    parsed.parsed(), targetDatasourceId));
-            if (!edges.isEmpty()) {
-                lineageGraphService.recordDesignTimeIo(1L, 1L, taskDefId, 1, edges);
+            LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
+                    1L, 1L, type, content, agentReads, agentWrites,
+                    datasourceId, targetDatasourceId);
+            if (!assembly.ioEdges().isEmpty()) {
+                // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）；列级边由 019 产出，本期 List.of()
+                lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
+                        assembly.ioEdges(), List.of());
             }
         } catch (Exception e) {
-            // 血缘是增强，绝不阻断建任务主链路
+            // 血缘是增强，绝不阻断建任务主链路（FR-007）
         }
-    }
-
-    /**
-     * 合并某方向的 Agent 声明与 SQL 解析结果，按 A×B 判定来源与可信度：
-     * 两者皆有→AGENT/CONFIRMED；仅声明且解析成功→AGENT/CONFLICT；仅声明且解析失败→AGENT/UNVERIFIED；
-     * 仅解析→SQL_PARSED/CONFIRMED。表名比对大小写不敏感，呈现保留声明优先的原始拼写。
-     */
-    private List<LineageGraphService.EdgeInput> buildEdges(String direction, List<String> agent,
-                                                           java.util.Set<String> parsedSet,
-                                                           boolean parsed, Long datasourceId) {
-        // 规范化映射：lower → 原始拼写（声明优先）
-        java.util.Map<String, String> canonical = new java.util.LinkedHashMap<>();
-        java.util.Set<String> agentLower = new java.util.LinkedHashSet<>();
-        if (agent != null) {
-            for (String a : agent) {
-                if (a == null || a.isBlank()) continue;
-                String t = a.trim();
-                canonical.put(t.toLowerCase(), t);
-                agentLower.add(t.toLowerCase());
-            }
-        }
-        java.util.Set<String> parsedLower = new java.util.LinkedHashSet<>();
-        for (String p : parsedSet) {
-            String low = p.toLowerCase();
-            parsedLower.add(low);
-            canonical.putIfAbsent(low, p);
-        }
-
-        List<LineageGraphService.EdgeInput> out = new ArrayList<>();
-        for (String low : canonical.keySet()) {
-            boolean inA = agentLower.contains(low);
-            boolean inP = parsedLower.contains(low);
-            String source;
-            String confidence;
-            if (inA && inP) { source = "AGENT"; confidence = "CONFIRMED"; }
-            else if (inA && parsed) { source = "AGENT"; confidence = "CONFLICT"; }
-            else if (inA) { source = "AGENT"; confidence = "UNVERIFIED"; }
-            else { source = "SQL_PARSED"; confidence = "CONFIRMED"; }
-            out.add(new LineageGraphService.EdgeInput(
-                    datasourceId, canonical.get(low), null, direction, source, confidence));
-        }
-        return out;
     }
 }

@@ -29,9 +29,9 @@ description: "Task list for 018-lineage-neo4j-store"
 
 **Purpose**: 引入 neo4j 依赖与运行/测试基础设施
 
-- [ ] T001 在 `docker-compose.yml` 增加 `neo4j` service（image `neo4j:5-community`，ports `7687:7687`/`7474:7474`，`NEO4J_AUTH=neo4j/dataweave`，volume `dataweave-neo4j`，healthcheck cypher-shell ping），与 PG/Redis/MinIO 同级；在 `volumes:` 段加 `dataweave-neo4j:`。
-- [ ] T002 [P] 在 `backend/dataweave-master/pom.xml` 加依赖 `org.neo4j.driver:neo4j-java-driver`（main）与 `org.testcontainers:neo4j` + `org.testcontainers:junit-jupiter`（test scope）；版本走 BOM/parent 管理，对齐已有 testcontainers 用法。
-- [ ] T003 [P] 在 `backend/dataweave-master/src/main/resources/application.yml`（或 api 模块配置）加 `lineage.neo4j.{uri,username,password}` 配置键，默认 `bolt://localhost:7687` / `neo4j` / `dataweave`（开发态；生产经环境变量覆盖）。
+- [X] T001 在 `docker-compose.yml` 增加 `neo4j` service（image `neo4j:5-community`，ports `7687:7687`/`7474:7474`，`NEO4J_AUTH=neo4j/dataweave`，volume `dataweave-neo4j`，healthcheck cypher-shell ping），与 PG/Redis/MinIO 同级；在 `volumes:` 段加 `dataweave-neo4j:`。
+- [X] T002 [P] 在 `backend/dataweave-master/pom.xml` 加依赖 `org.neo4j.driver:neo4j-java-driver`（main）与 `org.testcontainers:neo4j` + `org.testcontainers:junit-jupiter`（test scope）；版本走 BOM/parent 管理，对齐已有 testcontainers 用法。
+- [X] T003 [P] 在 `backend/dataweave-master/src/main/resources/application.yml`（或 api 模块配置）加 `lineage.neo4j.{uri,username,password}` 配置键，默认 `bolt://localhost:7687` / `neo4j` / `dataweave`（开发态；生产经环境变量覆盖）。
 
 ---
 
@@ -43,19 +43,19 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### 领域契约（domain/lineage，纯 record/接口，无框架依赖）
 
-- [ ] T004 [P] [FOUND] 建 `backend/.../master/domain/lineage/DatasourceCoord.java`（record + `dsKey()` 规范化合成键：有坐标→`tenantId|ip|port|database`、缺坐标→`tenantId|datasource:<fallbackName>`），按 contracts/lineage-store.md §1。
-- [ ] T005 [P] [FOUND] 建 `TableRef.java`、`IoEdge.java`、`ColumnEdge.java`、`MetricEdge.java` 及枚举 `Direction/Source/Confidence/Transform`，于 `backend/.../master/domain/lineage/`，签名严格对齐 contracts/lineage-store.md §1。
-- [ ] T006 [FOUND] 建 `backend/.../master/domain/lineage/LineageStore.java` 接口（`recordTaskIo` / `recordMetricLineage` / `recordSynced`），javadoc 写明 replace-per-task / 去重 / 韧性 / 隔离不变量（contracts §2）。依赖 T004、T005。
+- [X] T004 [P] [FOUND] 建 `backend/.../master/domain/lineage/DatasourceCoord.java`（record + `dsKey()` 规范化合成键：有坐标→`tenantId|ip|port|database`、缺坐标→`tenantId|datasource:<fallbackName>`），按 contracts/lineage-store.md §1。
+- [X] T005 [P] [FOUND] 建 `TableRef.java`、`IoEdge.java`、`ColumnEdge.java`、`MetricEdge.java` 及枚举 `Direction/Source/Confidence/Transform`，于 `backend/.../master/domain/lineage/`，签名严格对齐 contracts/lineage-store.md §1。
+- [X] T006 [FOUND] 建 `backend/.../master/domain/lineage/LineageStore.java` 接口（`recordTaskIo` / `recordMetricLineage` / `recordSynced`），javadoc 写明 replace-per-task / 去重 / 韧性 / 隔离不变量（contracts §2）。依赖 T004、T005。
 
 ### neo4j 基础设施（infrastructure/lineage）
 
-- [ ] T007 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jConfig.java`：自建 `Driver` `@Bean`（`GraphDatabase.driver(uri, AuthTokens.basic(...))`，读 `lineage.neo4j.*`），对标 `dataweave-api/.../infrastructure/WebClientConfig.java`（SB4 无自动配置）。`@Bean` 析构 `close()`。依赖 T002、T003。
-- [ ] T008 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jSchemaInitializer.java`：`ApplicationRunner`/`@PostConstruct` 幂等执行 data-model.md §3 的 `CREATE CONSTRAINT ... IF NOT EXISTS`（dsKey/tableKey/columnKey/metricKey/taskKey/instanceId）+ `CREATE INDEX ... IF NOT EXISTS`（tenantId/projectId scope）。neo4j 不可达时记日志不阻断启动。依赖 T007。
-- [ ] T009 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jLineageStore.java` **接口桩**（`implements LineageStore`，方法体先空实现/记日志），让 application 层与 019/020 可编译并行；真实 Cypher 在 US1 填充。依赖 T006、T007。
+- [X] T007 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jConfig.java`：自建 `Driver` `@Bean`（`GraphDatabase.driver(uri, AuthTokens.basic(...))`，读 `lineage.neo4j.*`），对标 `dataweave-api/.../infrastructure/WebClientConfig.java`（SB4 无自动配置）。`@Bean` 析构 `close()`。依赖 T002、T003。
+- [X] T008 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jSchemaInitializer.java`：`ApplicationRunner`/`@PostConstruct` 幂等执行 data-model.md §3 的 `CREATE CONSTRAINT ... IF NOT EXISTS`（dsKey/tableKey/columnKey/metricKey/taskKey/instanceId）+ `CREATE INDEX ... IF NOT EXISTS`（tenantId/projectId scope）。neo4j 不可达时记日志不阻断启动。依赖 T007。
+- [X] T009 [FOUND] 建 `backend/.../master/infrastructure/lineage/Neo4jLineageStore.java` **接口桩**（`implements LineageStore`，方法体先空实现/记日志），让 application 层与 019/020 可编译并行；真实 Cypher 在 US1 填充。依赖 T006、T007。
 
 ### Foundational 测试 harness
 
-- [ ] T010 [P] [FOUND] 建 `backend/.../master/src/test/java/com/dataweave/master/lineage/Neo4jTestSupport.java`：Testcontainers `Neo4jContainer` + `@DynamicPropertySource` 注入 `lineage.neo4j.{uri,username,password}` 到被测 `Neo4jConfig`；提供每测清库工具（`MATCH (n) DETACH DELETE n`），沿用后端测试隔离不变量（`@DirtiesContext`、redis health off）。依赖 T002。
+- [X] T010 [P] [FOUND] 建 `backend/.../master/src/test/java/com/dataweave/master/lineage/Neo4jTestSupport.java`：Testcontainers `Neo4jContainer` + `@DynamicPropertySource` 注入 `lineage.neo4j.{uri,username,password}` 到被测 `Neo4jConfig`；提供每测清库工具（`MATCH (n) DETACH DELETE n`），沿用后端测试隔离不变量（`@DirtiesContext`、redis health off）。依赖 T002。
 
 **Checkpoint**: 图模型契约 + driver Bean + 约束/索引 + Store 桩 + 测试 harness 就绪 —— US1/US2/US3 可并行开工；019/020 可对桩并行。
 
@@ -69,16 +69,16 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### Tests for US1（先写、确保 FAIL）⚠️
 
-- [ ] T011 [P] [US1] 在 `backend/.../master/lineage/Neo4jLineageStoreIT.java` 写 recordTaskIo 核心断言：单任务两表 → `:Table`×2 + `READS`/`WRITES` 边 + `FLOWS_TO` 派生边正确（用 Neo4jTestSupport 真容器）。依赖 T010。
-- [ ] T012 [P] [US1] 同 IT 增 replace-per-task 幂等用例：同任务 recordTaskIo 两次 → 边集合一致、无翻倍、无残留陈边（SC-003）；改写后再记录 → 旧边整体替换（spec US1 验收 #2）。
-- [ ] T013 [P] [US1] 同 IT 增 ColumnEdge 写入用例：传入构造的 `List<ColumnEdge>` → `:Column` 节点 + `HAS_COLUMN` + `DERIVES_FROM {taskDefId,transform}` 正确入图（FR-011，验证 019 接口形参可用）。
+- [X] T011 [P] [US1] 在 `backend/.../master/lineage/Neo4jLineageStoreIT.java` 写 recordTaskIo 核心断言：单任务两表 → `:Table`×2 + `READS`/`WRITES` 边 + `FLOWS_TO` 派生边正确（用 Neo4jTestSupport 真容器）。依赖 T010。
+- [X] T012 [P] [US1] 同 IT 增 replace-per-task 幂等用例：同任务 recordTaskIo 两次 → 边集合一致、无翻倍、无残留陈边（SC-003）；改写后再记录 → 旧边整体替换（spec US1 验收 #2）。
+- [X] T013 [P] [US1] 同 IT 增 ColumnEdge 写入用例：传入构造的 `List<ColumnEdge>` → `:Column` 节点 + `HAS_COLUMN` + `DERIVES_FROM {taskDefId,transform}` 正确入图（FR-011，验证 019 接口形参可用）。
 
 ### Implementation for US1
 
-- [ ] T014 [US1] 实现 `Neo4jLineageStore.recordTaskIo`（替换 T009 桩）：单 `session.executeWrite` 事务内 —— ① `MATCH (:Task{taskKey})-[r:READS|WRITES|READS_COL|WRITES_COL]->() DELETE r` + 删本 taskDefId 的 `FLOWS_TO`/`DERIVES_FROM`；② `MERGE` `:Datasource`(dsKey 去重)/`:Table`(tableKey)/`:Column`(columnKey)/`:Task`(taskKey) 节点；③ `CREATE` `READS`/`WRITES`(含 source/confidence/version) + 派生 `FLOWS_TO {taskDefId}`（READ 表×WRITE 表）+ ColumnEdge 的 `DERIVES_FROM`。`backend/.../infrastructure/lineage/Neo4jLineageStore.java`。依赖 T006、T007。
-- [ ] T015 [US1] 改造 `backend/.../master/application/TaskService.java` 的 `recordLineage`/`buildEdges`：保留 A×B 交叉校验逻辑，产出 `List<IoEdge>`（替代 `LineageGraphService.EdgeInput`），调用 `lineageStore.recordTaskIo(...)`（注入 `LineageStore` 替代 `LineageGraphService` 写路径）；保留 try-catch 不阻断（FR-007）。`tenantId/projectId` 从现 `1L,1L` 占位沿用（与现状一致，租户化随上游）。依赖 T014。
-- [ ] T016 [US1] 实现 `:Datasource` 去重解析：在 store 写入前，由 `DatasourceCoord` → 查 `datasources`/`datasource_types`（host/port/database/default_port）拼 `dsKey`，缺坐标走 `fallbackName`；`:Table` 的 `datasourceId` 绑定去重后的 `:Datasource`。可置于 store 内部辅助方法或 application 装配。依赖 T014。
-- [ ] T017 [US1] 实现韧性：`Neo4jConfig` driver 设短连接/获取超时；store 写入异常向调用方抛后由 T015 try-catch 吞并记可诊断日志（taskDefId+原因）。验证 neo4j 不可达建任务仍成功（手动或 IT 关容器场景）。依赖 T014、T015。
+- [X] T014 [US1] 实现 `Neo4jLineageStore.recordTaskIo`（替换 T009 桩）：单 `session.executeWrite` 事务内 —— ① `MATCH (:Task{taskKey})-[r:READS|WRITES|READS_COL|WRITES_COL]->() DELETE r` + 删本 taskDefId 的 `FLOWS_TO`/`DERIVES_FROM`；② `MERGE` `:Datasource`(dsKey 去重)/`:Table`(tableKey)/`:Column`(columnKey)/`:Task`(taskKey) 节点；③ `CREATE` `READS`/`WRITES`(含 source/confidence/version) + 派生 `FLOWS_TO {taskDefId}`（READ 表×WRITE 表）+ ColumnEdge 的 `DERIVES_FROM`。`backend/.../infrastructure/lineage/Neo4jLineageStore.java`。依赖 T006、T007。
+- [X] T015 [US1] 改造 `backend/.../master/application/TaskService.java` 的 `recordLineage`/`buildEdges`：保留 A×B 交叉校验逻辑，产出 `List<IoEdge>`（替代 `LineageGraphService.EdgeInput`），调用 `lineageStore.recordTaskIo(...)`（注入 `LineageStore` 替代 `LineageGraphService` 写路径）；保留 try-catch 不阻断（FR-007）。`tenantId/projectId` 从现 `1L,1L` 占位沿用（与现状一致，租户化随上游）。依赖 T014。
+- [X] T016 [US1] 实现 `:Datasource` 去重解析：在 store 写入前，由 `DatasourceCoord` → 查 `datasources`/`datasource_types`（host/port/database/default_port）拼 `dsKey`，缺坐标走 `fallbackName`；`:Table` 的 `datasourceId` 绑定去重后的 `:Datasource`。可置于 store 内部辅助方法或 application 装配。依赖 T014。
+- [X] T017 [US1] 实现韧性：`Neo4jConfig` driver 设短连接/获取超时；store 写入异常向调用方抛后由 T015 try-catch 吞并记可诊断日志（taskDefId+原因）。验证 neo4j 不可达建任务仍成功（手动或 IT 关容器场景）。依赖 T014、T015。
 
 **Checkpoint**: US1 独立可测 —— `createAndOnline` 血缘真入图、replace 幂等、列级形参可写、韧性不阻断。
 
@@ -98,7 +98,7 @@ description: "Task list for 018-lineage-neo4j-store"
 ### Implementation for US2
 
 - [ ] T020 [US2] 改造 `backend/.../master/application/ProjectSyncService.java` 的 `push`：对本次 push 落库的每个新增/修改任务，解析其 content（复用 `SqlTableExtractor` + 与 TaskService 同款 A×B/IoEdge 装配，宜抽公共 helper 避免重复）→ 调用 `lineageStore.recordTaskIo(...)`；try-catch 包裹不阻断 push 主链路（FR-002 缺口补齐 + FR-007）。注入 `LineageStore`。依赖 T014、T015。
-- [ ] T021 [US2] 抽取 TaskService 与 ProjectSyncService 共用的「content → IoEdge 装配（含 A×B 交叉校验）」为一个可复用方法/小服务（如 `LineageEdgeAssembler`），消除两处重复并保证语义一致。`backend/.../master/application/lineage/`。依赖 T015、T020。
+- [X] T021 [US2] 抽取 TaskService 与 ProjectSyncService 共用的「content → IoEdge 装配（含 A×B 交叉校验）」为一个可复用方法/小服务（如 `LineageEdgeAssembler`），消除两处重复并保证语义一致。`backend/.../master/application/lineage/`。依赖 T015、T020。
 
 **Checkpoint**: US1 + US2 均独立可测 —— createAndOnline 与 push 两条创作路径血缘语义一致。
 
@@ -117,7 +117,7 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### Implementation for US3
 
-- [ ] T024 [US3] 完善 `DatasourceCoord.dsKey()` 规范化（ip 小写 trim、port 缺省补 `default_port`、database 小写 trim、凭据不进键、缺坐标 fallbackName），并在 `Neo4jLineageStore` 的 `:Datasource` `MERGE` 用 `dsKey` 做匹配键（依赖 datasource_key `IS UNIQUE` 约束 T008 保证并发去重）。`backend/.../domain/lineage/DatasourceCoord.java` + `Neo4jLineageStore.java`。依赖 T004、T014、T016。
+- [X] T024 [US3] 完善 `DatasourceCoord.dsKey()` 规范化（ip 小写 trim、port 缺省补 `default_port`、database 小写 trim、凭据不进键、缺坐标 fallbackName），并在 `Neo4jLineageStore` 的 `:Datasource` `MERGE` 用 `dsKey` 做匹配键（依赖 datasource_key `IS UNIQUE` 约束 T008 保证并发去重）。`backend/.../domain/lineage/DatasourceCoord.java` + `Neo4jLineageStore.java`。依赖 T004、T014、T016。
 
 **Checkpoint**: 三个 P1 user story 全部独立可测通过。
 

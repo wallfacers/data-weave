@@ -93,6 +93,14 @@ jwt:
   secret: dataweave-local-jwt-secret-key-must-be-at-least-32-chars-long-for-hs256
   expiration-seconds: 86400       # 24h
 
+# 血缘图库（lineage-neo4j-store）：表级/列级/指标血缘唯一存储底座。
+# driver 懒连接，bean 创建不要求 neo4j 在线；不可达时 SchemaInitializer/Seeder/recordTaskIo 降级记日志不阻断主链路（FR-007）。
+lineage:
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    username: ${NEO4J_USERNAME:neo4j}
+    password: ${NEO4J_PASSWORD:dataweave}
+
 ---
 # h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）
 spring:
