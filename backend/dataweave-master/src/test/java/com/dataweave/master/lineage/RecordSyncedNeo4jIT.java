@@ -70,7 +70,7 @@ class RecordSyncedNeo4jIT extends Neo4jTestSupport {
 
     private static String containerToday(Driver driver) {
         try (Session s = driver.session()) {
-            return s.run("RETURN date() AS today").single().get("today").asString();
+            return s.run("RETURN date() AS today").single().get("today").asLocalDate().toString();
         }
     }
 

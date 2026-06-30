@@ -168,7 +168,8 @@ public class Neo4jLineageStore implements LineageStore {
                 String tk = ensureTable(tx, table, tenantId, projectId);
                 tx.run("""
                         MATCH (r:TaskRun {instanceId:$iid}),(t:Table {tableKey:$tk})
-                        MERGE (r)-[:SYNCED {rowCount:$rc,bytes:$b,bizDate:$bd}]->(t)
+                        MERGE (r)-[s:SYNCED {bizDate:$bd}]->(t)
+                        SET s.rowCount = $rc, s.bytes = $b
                         """, params("iid", instanceId, "tk", tk,
                         "rc", rowCount, "b", bytes, "bd", bizDate)).consume();
                 return null;
