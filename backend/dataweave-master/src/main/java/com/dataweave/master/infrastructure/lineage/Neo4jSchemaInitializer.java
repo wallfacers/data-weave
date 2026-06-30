@@ -68,6 +68,10 @@ public class Neo4jSchemaInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        initialize();
+        // 后台守护线程异步初始化：neo4j 不可达时（driver 连接获取超时 5s）不阻塞应用启动序列，
+        // 也不扰动同上下文内调度器等时序敏感组件。约束/索引均 IF NOT EXISTS，幂等可后补。
+        Thread t = new Thread(this::initialize, "neo4j-schema-init");
+        t.setDaemon(true);
+        t.start();
     }
 }
