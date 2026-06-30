@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { useTranslations } from "next-intl"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { BoxIcon, RefreshIcon } from "@hugeicons/core-free-icons"
+import { BoxIcon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { DataTable } from "@/components/ui/data-table"
@@ -148,14 +147,7 @@ export function FreshnessView() {
   )
 
   return (
-    <div className="flex flex-1 flex-col gap-3 px-6">
-      <div className="shrink-0 border-b py-4">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={RefreshIcon} className="size-5 text-primary" />
-          <h1 className="text-lg font-semibold tracking-tight">{t("title")}</h1>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{t("subtitle")}</p>
-      </div>
+    <div className="flex flex-1 flex-col p-6">
       <div className="flex-1 overflow-hidden">
         <DataTable<FreshnessRow>
           columns={columns}

@@ -122,25 +122,8 @@ export function MetricsView() {
 
   return (
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
-      {/* Header */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={Activity02Icon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {t("subtitle")}
-        </p>
-      </div>
-
-      {/* ─── 第 1 层：调度性能 ──────────────────────────── */}
+      {/* ─── 调度性能 ──────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={TimeManagementIcon} className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            {t("sectionSchedulingPerformance")}
-          </h2>
-        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label={t("dispatchLatencyMean")}
@@ -198,14 +181,8 @@ export function MetricsView() {
         </div>
       </section>
 
-      {/* ─── 第 2 层：资源与执行 ───────────────────────── */}
+      {/* ─── 资源与执行 ───────────────────────── */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={CpuIcon} className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            {t("sectionResourceExecution")}
-          </h2>
-        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label={t("slotUtilization")}
@@ -234,14 +211,8 @@ export function MetricsView() {
         </div>
       </section>
 
-      {/* ─── 第 3 层：管道健康 ──────────────────────────── */}
+      {/* ─── 管道健康 ──────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={SignalIcon} className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
-            {t("sectionPipelineHealth")}
-          </h2>
-        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             label={t("logStreamBacklog")}

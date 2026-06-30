@@ -1,8 +1,6 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Analytics01Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,16 +18,6 @@ export function ReportsView() {
 
   return (
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-6 p-6 md:p-10">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {t("subtitle")}
-        </p>
-      </div>
-
       {metrics.length === 0 ? (
         <div className="flex flex-1 items-center justify-center p-10 text-center">
           <p className="text-muted-foreground">
