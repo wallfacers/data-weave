@@ -6,7 +6,11 @@ import com.dataweave.master.filecontract.ProjectExport;
 import com.dataweave.master.filecontract.ProjectFileBundle;
 import com.dataweave.master.filecontract.ProjectImport;
 import com.dataweave.master.filecontract.naming.EntityNaming;
+import com.dataweave.master.application.lineage.ColumnEdge;
+import com.dataweave.master.application.lineage.Confidence;
 import com.dataweave.master.application.lineage.LineageEdgeAssembler;
+import com.dataweave.master.application.lineage.TableRef;
+import com.dataweave.master.application.lineage.Transform;
 import com.dataweave.master.domain.lineage.LineageStore;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
@@ -878,11 +882,13 @@ public class ProjectSyncService {
                             java.util.List.of(), java.util.List.of(), declaredSchemaMap);
                 }
 
-                // 列级边：019 解析 → adapter 转 domain（源←读侧 coord，目标←写侧 coord）
+                // 列级边：019 解析 + 024 声明对账 → adapter 转 domain（源←读侧 coord，目标←写侧 coord）
                 java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
                 if ("SQL".equalsIgnoreCase(t.getType())) {
-                    var colResult = sqlColumnLineageExtractor.extract(
-                            t.getContent(), columnLineageCatalog, tenantId, projectId);
+                    java.util.List<ColumnEdge> declaredEdges =
+                            buildDeclaredEdges(imported.taskDeclaredColumnEdges().get(taskId));
+                    var colResult = sqlColumnLineageExtractor.extractAndCrossCheck(
+                            t.getContent(), columnLineageCatalog, declaredEdges, tenantId, projectId);
                     columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                             colResult,
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),
@@ -1110,6 +1116,37 @@ public class ProjectSyncService {
         // 5. 返回只读预览（不写库，FR-011）
         return new ProjectSyncDtos.DiffPreview(
                 recon.added(), recon.modified(), recon.removed(), stale);
+    }
+
+    /**
+     * 024-US2：将声明的列边（from "table.col" / to "table.col"）转为 ColumnEdge 列表用于 cross-check。
+     */
+    static java.util.List<ColumnEdge> buildDeclaredEdges(
+            java.util.List<java.util.Map<String, String>> rawEdges) {
+        if (rawEdges == null || rawEdges.isEmpty()) {
+            return java.util.List.of();
+        }
+        java.util.List<ColumnEdge> edges = new java.util.ArrayList<>();
+        for (var raw : rawEdges) {
+            String fromRaw = raw.get("from");
+            String toRaw = raw.get("to");
+            if (fromRaw == null || toRaw == null || fromRaw.isBlank() || toRaw.isBlank()) {
+                continue;
+            }
+            int fromDot = fromRaw.lastIndexOf('.');
+            int toDot = toRaw.lastIndexOf('.');
+            if (fromDot <= 0 || toDot <= 0) {
+                continue; // malformed, skip
+            }
+            var srcTable = new TableRef(fromRaw.substring(0, fromDot), null);
+            var dstTable = new TableRef(toRaw.substring(0, toDot), null);
+            String srcCol = fromRaw.substring(fromDot + 1);
+            String dstCol = toRaw.substring(toDot + 1);
+            edges.add(new ColumnEdge(
+                    srcTable, srcCol, dstTable, dstCol,
+                    Transform.DIRECT, Confidence.DECLARED));
+        }
+        return edges;
     }
 
     /** 024 DeclaredColumn 适配器（ColumnSchemaDecl → DeclaredColumn）。 */

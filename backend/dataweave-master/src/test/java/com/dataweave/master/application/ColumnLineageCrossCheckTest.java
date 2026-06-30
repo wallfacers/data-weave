@@ -89,4 +89,38 @@ class ColumnLineageCrossCheckTest {
                 .extracting(e -> e.srcTable().qualifiedName(), ColumnEdge::confidence)
                 .containsExactly(tuple("ext_dim", Confidence.DECLARED));
     }
+
+    // ---- US3: SQL 完全无法解析（空结果）+ 声明兜底 → 全部 DECLARED ----
+
+    @Test
+    void parseCompletelyFailed_declaredEdgesAreDECLARED() {
+        // 空 catalog + DDL 语句 → Calcite 完全解析不了 → edges=empty
+        ColumnLineageCatalog cat = catalog();
+
+        ColumnLineageResult r = extractor.extractAndCrossCheck(
+                "ALTER TABLE orders_clean ADD COLUMN discount DECIMAL(10,2)", cat,
+                List.of(
+                        declared("ext_price", "discount", "orders_clean", "discount"),
+                        declared("ext_tax", "tax", "orders_clean", "tax")),
+                0L, 0L);
+
+        // 解析失败但声明边全部以 DECLARED 写入（兜底建图可用性下限，US3 SC-003）
+        assertThat(r.edges()).hasSize(2);
+        assertThat(r.edges())
+                .extracting(ColumnEdge::confidence)
+                .containsOnly(Confidence.DECLARED);
+    }
+
+    // ---- US3: 无声明时解析失败 → 空结果（零回归） ----
+
+    @Test
+    void parseCompletelyFailed_noDeclaration_emptyResult() {
+        ColumnLineageCatalog cat = catalog();
+
+        ColumnLineageResult r = extractor.extractAndCrossCheck(
+                "ALTER TABLE t ADD COLUMN x INT", cat, List.of(), 0L, 0L);
+
+        assertThat(r.parsed()).isFalse();
+        assertThat(r.edges()).isEmpty(); // 零回归：不声明则无列边
+    }
 }

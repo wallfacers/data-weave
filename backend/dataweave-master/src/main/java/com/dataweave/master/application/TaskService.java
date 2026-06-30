@@ -479,11 +479,11 @@ public class TaskService {
             LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                     1L, 1L, type, content, agentReads, agentWrites,
                     datasourceId, targetDatasourceId);
-            // 列级边：019 解析 content → adapter 转 domain（源←读侧 coord，目标←写侧 coord，对齐表级节点）
+            // 列级边：019 解析 + 024 声明对账（createAndOnline 不经 FileContract，无声明边）
             java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
             if ("SQL".equalsIgnoreCase(type)) {
-                var colResult = sqlColumnLineageExtractor.extract(
-                        content, columnLineageCatalog, 1L, 1L);
+                var colResult = sqlColumnLineageExtractor.extractAndCrossCheck(
+                        content, columnLineageCatalog, java.util.List.of(), 1L, 1L);
                 columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                         colResult,
                         lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
