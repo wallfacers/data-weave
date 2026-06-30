@@ -32,7 +32,7 @@ import {
   toQueryParams,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
-import { useWorkspaceStore } from "@/lib/workspace/store"
+import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 
 /** 契约① InstanceRow */
@@ -120,7 +120,6 @@ export function PeriodicInstancesPanel({
 }) {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
-  const open = useWorkspaceStore((s) => s.open)
 
   /** cron → 简短可读形式（仅处理标准 6 段 Quartz cron），文案走 i18n */
   const humanizeCron = useMemo(
@@ -289,14 +288,20 @@ export function PeriodicInstancesPanel({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-xs"
-            onClick={() => open("workflow-instance-detail", { instanceId: r.id })}
+            onClick={() =>
+              useLogPanelStore.getState().open(r.id, {
+                taskId: r.taskDefId,
+                startedAt: r.startedAt,
+                finishedAt: r.finishedAt,
+              })
+            }
           >
             {t("btnLog")}
           </Button>
         ),
       },
     ],
-    [t, formatDateTime, humanizeCron, taskName, open],
+    [t, formatDateTime, humanizeCron, taskName],
   )
 
   // ── server 模式取数：复用契约①，兼容 数组 / Spring Page 两种返回 ──

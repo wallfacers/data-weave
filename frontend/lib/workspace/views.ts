@@ -13,8 +13,6 @@ export type ViewType =
   | "reports"
   | "metrics"
   | "fleet"
-  | "instance-log"
-  | "workflow-instance-detail"
   | "lineage"
   | "catalog"
   | "marketplace"
@@ -40,8 +38,6 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   reports: { title: "views.reports", defaultPinned: true },
   metrics: { title: "views.metrics", defaultPinned: true },
   fleet: { title: "views.fleet" },
-  "instance-log": { title: "views.instanceLog" },
-  "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
   lineage: { title: "views.lineage" },
   catalog: { title: "views.catalog" },
   marketplace: { title: "views.marketplace" },

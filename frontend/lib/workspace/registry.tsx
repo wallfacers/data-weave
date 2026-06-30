@@ -18,8 +18,6 @@ import {
   DashboardSquare01Icon,
   Database01Icon,
   DatabaseSyncIcon,
-  DocumentCodeIcon,
-  Flowchart01Icon,
   GitBranchIcon,
   RefreshIcon,
   ServerStackIcon,
@@ -36,8 +34,6 @@ import { ReportsView } from "@/components/workspace/views/reports-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
 import { FleetView } from "@/components/workspace/views/fleet-view"
 import { SettingsView } from "@/components/workspace/views/settings-view"
-import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
-import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { PlaceholderView } from "@/components/workspace/views/placeholder-view"
@@ -76,8 +72,6 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   reports: { icon: Analytics01Icon, component: ReportsView },
   metrics: { icon: Activity02Icon, component: MetricsView },
   fleet: { icon: ServerStackIcon, component: FleetView },
-  "instance-log": { icon: DocumentCodeIcon, component: InstanceLogView },
-  "workflow-instance-detail": { icon: Flowchart01Icon, component: WorkflowInstanceDetail },
   lineage: {
     icon: GitBranchIcon,
     component: LineageView,

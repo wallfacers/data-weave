@@ -27,8 +27,8 @@ describe("Pinned 底座", () => {
 
 describe("open 去重激活", () => {
   it("打开新 Ephemeral tab 并激活", () => {
-    store().open("instance-log", { instanceId: 17 })
-    const tab = store().tabs.find((t) => t.view === "instance-log")
+    store().open("ops", { tab: "instances" })
+    const tab = store().tabs.find((t) => t.view === "ops")
     expect(tab).toBeDefined()
     expect(tab!.pinned).toBe(false)
     expect(store().activeTabId).toBe(tab!.id)
@@ -44,10 +44,10 @@ describe("open 去重激活", () => {
   })
 
   it("params 顺序无关，去重键一致", () => {
-    expect(tabKey("instance-log", { a: 1, b: 2 })).toBe(tabKey("instance-log", { b: 2, a: 1 }))
-    store().open("instance-log", { a: 1, b: 2 })
-    store().open("instance-log", { b: 2, a: 1 })
-    expect(store().tabs.filter((t) => t.view === "instance-log")).toHaveLength(1)
+    expect(tabKey("ops", { a: 1, b: 2 })).toBe(tabKey("ops", { b: 2, a: 1 }))
+    store().open("ops", { a: 1, b: 2 })
+    store().open("ops", { b: 2, a: 1 })
+    expect(store().tabs.filter((t) => t.view === "ops")).toHaveLength(1)
   })
 
   it("activate:false 打开但不抢焦点", () => {
@@ -70,7 +70,7 @@ describe("open 去重激活", () => {
 describe("close / pin / unpin", () => {
   it("关闭激活 tab 后焦点落到相邻 tab", () => {
     store().open("fleet")
-    store().open("instance-log", { instanceId: 1 })
+    store().open("ops", { tab: "instances" })
     const diagId = store().activeTabId
     store().close(diagId)
     expect(store().tabs.some((t) => t.id === diagId)).toBe(false)
@@ -92,22 +92,22 @@ describe("close / pin / unpin", () => {
 describe("snapshot / restore", () => {
   it("快照只含 Ephemeral（含 pin 升级者）与激活态", () => {
     store().open("fleet")
-    store().open("instance-log", { instanceId: 9 })
+    store().open("ops", { tab: "instances" })
     store().pin(tabKey("fleet"))
     const snap = store().snapshot()
-    expect(snap.tabs.map((t) => t.view).sort()).toEqual(["instance-log", "fleet"])
+    expect(snap.tabs.map((t) => t.view).sort()).toEqual(["fleet", "ops"])
     expect(snap.tabs.find((t) => t.view === "fleet")!.pinned).toBe(true)
-    expect(snap.activeTabId).toBe(tabKey("instance-log", { instanceId: 9 }))
+    expect(snap.activeTabId).toBe(tabKey("ops", { tab: "instances" }))
   })
 
   it("restore 恢复 Ephemeral 与激活态，Pinned 底座始终在位", () => {
     store().open("fleet")
-    store().open("instance-log", { instanceId: 9 })
+    store().open("ops", { tab: "instances" })
     const snap = JSON.stringify(store().snapshot())
     store().reset()
     store().restore(snap)
-    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet", "instance-log"])
-    expect(store().activeTabId).toBe(tabKey("instance-log", { instanceId: 9 }))
+    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet", "ops"])
+    expect(store().activeTabId).toBe(tabKey("ops", { tab: "instances" }))
   })
 
   it("损坏快照回退纯 Pinned 底座", () => {
