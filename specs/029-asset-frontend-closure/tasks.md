@@ -105,7 +105,7 @@
 
 ## Phase 6: User Story 4 - 检索体验补全 (P2)
 
-**Goal**: 分面真过滤（owner/tag/status/certification）、分页、质量过滤被动透传+静态声明。
+**Goal**: 分面真过滤（owner/tag/sensitivity/certification；status 仅只读展示）、分页、质量过滤被动透传+静态声明。
 **Independent Test**: quickstart 步骤 12–14。
 
 ### Tests（先行,失败）
