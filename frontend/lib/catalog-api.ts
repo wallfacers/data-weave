@@ -72,6 +72,14 @@ export interface QualityBadgeView {
   grade?: string;
 }
 
+export interface AssetSubscription {
+  id: number;
+  targetType: string;
+  targetId: number;
+  changeFilter?: string;
+  createdAt?: string;
+}
+
 export interface ListingSummary {
   id: number;
   metricType: string;
@@ -158,6 +166,8 @@ export interface AssetSearchParams {
   owner?: string;
   tag?: string;
   sensitivity?: string;
+  /** 质量分数下限。注：后端 v1 为 no-op（缺 022 评分卡表,不施加过滤）—— 前端透传 + 静态声明。 */
+  qualityMin?: number;
   page?: number;
   size?: number;
   projectId?: number;
@@ -183,12 +193,28 @@ export function createAsset(body: Record<string, unknown>, projectId = 1) {
   return send<GateResult>("POST", `${CATALOG}/assets?projectId=${projectId}`, body);
 }
 
+export function updateAsset(id: number, patch: Record<string, unknown>, projectId = 1) {
+  return send<GateResult>("PATCH", `${CATALOG}/assets/${id}?projectId=${projectId}`, patch);
+}
+
 export function retireAsset(id: number, projectId = 1) {
   return send<GateResult>("DELETE", `${CATALOG}/assets/${id}?projectId=${projectId}`);
 }
 
+export function reconcileAsset(id: number, projectId = 1) {
+  return send<GateResult>("POST", `${CATALOG}/assets/${id}/reconcile?projectId=${projectId}`);
+}
+
+export function listSubscriptions() {
+  return get<AssetSubscription[]>(`${CATALOG}/subscriptions`);
+}
+
 export function subscribe(body: { targetType: string; targetId: number; changeFilter?: string }, projectId = 1) {
   return send<GateResult>("POST", `${CATALOG}/subscriptions?projectId=${projectId}`, body);
+}
+
+export function unsubscribe(subId: number, projectId = 1) {
+  return send<GateResult>("DELETE", `${CATALOG}/subscriptions/${subId}?projectId=${projectId}`);
 }
 
 // ─── 指标市场 ─────────────────────────────────────────────────
@@ -207,4 +233,15 @@ export function certifyMetric(id: number, projectId = 1) {
 
 export function reuseMetric(id: number, body: { consumerType: string; consumerRef: string }, projectId = 1) {
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/reuse?projectId=${projectId}`, body);
+}
+
+export function listMetric(
+  body: { metricId: number; metricType?: string; metricCode?: string; description?: string; freshnessInfo?: string },
+  projectId = 1,
+) {
+  return send<GateResult>("POST", `${MARKET}/metrics?projectId=${projectId}`, body);
+}
+
+export function delistMetric(id: number, projectId = 1) {
+  return send<GateResult>("DELETE", `${MARKET}/metrics/${id}?projectId=${projectId}`);
 }

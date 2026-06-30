@@ -21,7 +21,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 在 worktree `frontend/` 跑基线绿：`pnpm install` → `pnpm typecheck` → `pnpm test`，并确认 shadcn `dialog/select/input/checkbox/pagination/badge` 均已存在（无需 add）。记录基线通过。
+- [X] T001 在 worktree `frontend/` 跑基线绿：`pnpm install` → `pnpm typecheck` → `pnpm test`，并确认 shadcn `dialog/select/input/checkbox/pagination/badge` 均已存在（无需 add）。记录基线通过。
 
 ---
 
@@ -29,10 +29,10 @@
 
 **⚠️ 完成前任何写侧用户故事不能开工。**
 
-- [ ] T002 [P] 写单测（先行,失败）`frontend/lib/gate-outcome.test.ts`：覆盖 `outcome=EXECUTED→done / PENDING_APPROVAL→pending / REJECTED 或 code≠0→失败取后端 message`，以及已知 `errorCode` 映射（`catalog.duplicate_asset`/`catalog.asset_invalid`/`catalog.listing_invalid`/`catalog.reuse_cycle`/`catalog.reuse_invalid`/`catalog.not_certifiable`/`catalog.forbidden_sensitivity`）。
-- [ ] T003 实现 `frontend/lib/gate-outcome.ts`：纯函数 `resolveGate(res, t) → {kind, message}`，令 T002 通过。**严守三态如实**（FR-012/SC-005，不把 PENDING 当成功）。
-- [ ] T004 扩展 `frontend/lib/catalog-api.ts`：新增 `updateAsset(id,patch)`(PATCH)、`reconcileAsset(id)`、`unsubscribe(subId)`、`listSubscriptions()`、`listMetric(body)`、`delistMetric(id)`；`AssetSearchParams` 增 `status?`/`qualityMin?`；核对 `searchListings` 已含 `certification?`/`page?`。镜像 contracts/。（单文件,非 [P]）
-- [ ] T005 [P] 新建通用确认 Dialog `frontend/components/workspace/views/shared/confirm-dialog.tsx`（title/description/confirmLabel/onConfirm，复用于下线/对账/下架/退订）。
+- [X] T002 [P] 写单测（先行,失败）`frontend/lib/gate-outcome.test.ts`：覆盖 `outcome=EXECUTED→done / PENDING_APPROVAL→pending / REJECTED 或 code≠0→失败取后端 message`，以及已知 `errorCode` 映射（`catalog.duplicate_asset`/`catalog.asset_invalid`/`catalog.listing_invalid`/`catalog.reuse_cycle`/`catalog.reuse_invalid`/`catalog.not_certifiable`/`catalog.forbidden_sensitivity`）。
+- [X] T003 实现 `frontend/lib/gate-outcome.ts`：纯函数 `resolveGate(res, t) → {kind, message}`，令 T002 通过。**严守三态如实**（FR-012/SC-005，不把 PENDING 当成功）。
+- [X] T004 扩展 `frontend/lib/catalog-api.ts`：新增 `updateAsset(id,patch)`(PATCH)、`reconcileAsset(id)`、`unsubscribe(subId)`、`listSubscriptions()`、`listMetric(body)`、`delistMetric(id)`；`AssetSearchParams` 增 `status?`/`qualityMin?`；核对 `searchListings` 已含 `certification?`/`page?`。镜像 contracts/。（单文件,非 [P]）
+- [X] T005 [P] 新建通用确认 Dialog `frontend/components/workspace/views/shared/confirm-dialog.tsx`（title/description/confirmLabel/onConfirm，复用于下线/对账/下架/退订）。
 
 **Checkpoint**: 客户端能力 + 三态 helper + 确认框就绪,用户故事可开工。
 
@@ -45,16 +45,16 @@
 
 ### Tests（先行,失败）
 
-- [ ] T006 [P] [US1] 单测 `frontend/lib/asset-patch.test.ts`：PATCH-diff 工具——仅含与初值不同的键；显式清空（→null/空）与未触键（不出现）区分正确。
+- [X] T006 [P] [US1] 单测 `frontend/lib/asset-patch.test.ts`：PATCH-diff 工具——仅含与初值不同的键；显式清空（→null/空）与未触键（不出现）区分正确。
 
 ### Implementation
 
-- [ ] T007 [US1] 实现 `frontend/lib/asset-patch.ts`：`diffPatch(initial, current) → Partial`，令 T006 通过（编辑只提交改动键）。
-- [ ] T008 [P] [US1] 新建 `frontend/components/workspace/views/asset/asset-form-dialog.tsx`：创建+编辑共用 Dialog；数据源 Select（`lib/datasource-api`）；字段按 data-model（qualifiedName 必填、sensitivity Select、tags、lineageTableRef 等）；编辑用 `diffPatch`；提交经 `createAsset`/`updateAsset` + `resolveGate`。
-- [ ] T009 [US1] `asset-catalog-view.tsx` 列表头加「编目资产」按钮 → 开 create 模式 dialog → 成功刷新列表/total；`catalog.duplicate_asset`/`catalog.asset_invalid` 经 resolveGate 显具体提示。
-- [ ] T010 [US1] `asset-catalog-view.tsx` 详情面板加「编辑」→ 开 edit 模式 dialog（预填 selected）。
-- [ ] T011 [US1] `asset-catalog-view.tsx` 详情面板加「下线」「对账」→ `confirm-dialog` → `retireAsset`/`reconcileAsset` + resolveGate → 成功重新 `fetchAsset` 回填新 status（对账提示判据：lineageTableRef 缺失→STALE）。
-- [ ] T012 [P] [US1] i18n：`frontend/messages/zh-CN.json` + `en-US.json` 补 `assetCatalog` 下创建/编辑/下线/对账/确认/已知错误 key（两 bundle 同集；数据术语英文）。
+- [X] T007 [US1] 实现 `frontend/lib/asset-patch.ts`：`diffPatch(initial, current) → Partial`，令 T006 通过（编辑只提交改动键）。
+- [X] T008 [P] [US1] 新建 `frontend/components/workspace/views/asset/asset-form-dialog.tsx`：创建+编辑共用 Dialog；数据源 Select（`lib/datasource-api`）；字段按 data-model（qualifiedName 必填、sensitivity Select、tags、lineageTableRef 等）；编辑用 `diffPatch`；提交经 `createAsset`/`updateAsset` + `resolveGate`。
+- [X] T009 [US1] `asset-catalog-view.tsx` 列表头加「编目资产」按钮 → 开 create 模式 dialog → 成功刷新列表/total；`catalog.duplicate_asset`/`catalog.asset_invalid` 经 resolveGate 显具体提示。
+- [X] T010 [US1] `asset-catalog-view.tsx` 详情面板加「编辑」→ 开 edit 模式 dialog（预填 selected）。
+- [X] T011 [US1] `asset-catalog-view.tsx` 详情面板加「下线」「对账」→ `confirm-dialog` → `retireAsset`/`reconcileAsset` + resolveGate → 成功重新 `fetchAsset` 回填新 status（对账提示判据：lineageTableRef 缺失→STALE）。
+- [X] T012 [P] [US1] i18n：`frontend/messages/zh-CN.json` + `en-US.json` 补 `assetCatalog` 下创建/编辑/下线/对账/确认/已知错误 key（两 bundle 同集；数据术语英文）。
 
 **Checkpoint**: US1 独立可用 = MVP。
 
