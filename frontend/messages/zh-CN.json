@@ -1056,7 +1056,19 @@
     "pendingApproval": "已提交审批",
     "actionFailed": "操作失败",
     "loadFailed": "加载失败",
-    "selectHint": "选择左侧资产查看详情"
+    "selectHint": "选择左侧资产查看详情",
+    "create": "编目资产",
+    "edit": "编辑",
+    "retire": "下线",
+    "retired": "已下线",
+    "reconcile": "对账",
+    "mySubscriptions": "我的订阅",
+    "subscriptionsHint": "管理您订阅的资产变更通知",
+    "noSubscriptions": "暂无订阅",
+    "unsubscribe": "退订",
+    "unsubscribed": "已退订",
+    "qualityFilter": "质量分数",
+    "qualityFilterHint": "质量数据来自 022 评分卡，当前环境可能为空"
   },
   "metricMarketplace": {
     "searchPlaceholder": "搜索指标编码/描述",
@@ -1077,6 +1089,11 @@
     "lineageSources": "血缘来源 {count} 个",
     "certify": "认证",
     "reuse": "复用",
-    "selectHint": "选择左侧指标查看详情"
+    "selectHint": "选择左侧指标查看详情",
+    "all": "全部",
+    "publish": "上架",
+    "unpublish": "下架",
+    "published": "已上架",
+    "unpublished": "已下架"
   }
 }

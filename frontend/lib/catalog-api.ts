@@ -191,6 +191,34 @@ export function subscribe(body: { targetType: string; targetId: number; changeFi
   return send<GateResult>("POST", `${CATALOG}/subscriptions?projectId=${projectId}`, body);
 }
 
+// ─── 029: 资产写侧补齐 ─────────────────────────────────────────
+
+export function updateAsset(id: number, body: Record<string, unknown>, projectId = 1) {
+  return send<GateResult>("PATCH", `${CATALOG}/assets/${id}?projectId=${projectId}`, body);
+}
+
+export function reconcileAsset(id: number, projectId = 1) {
+  return send<GateResult>("POST", `${CATALOG}/assets/${id}/reconcile?projectId=${projectId}`);
+}
+
+// ─── 029: 订阅生命周期 ──────────────────────────────────────────
+
+export interface SubscriptionView {
+  id: number;
+  targetType: string;
+  targetId: number;
+  targetName?: string;
+  changeFilter?: string;
+}
+
+export function listSubscriptions(projectId = 1) {
+  return get<SubscriptionView[]>(`${CATALOG}/subscriptions`, { projectId });
+}
+
+export function unsubscribe(subscriptionId: number, projectId = 1) {
+  return send<GateResult>("DELETE", `${CATALOG}/subscriptions/${subscriptionId}?projectId=${projectId}`);
+}
+
 // ─── 指标市场 ─────────────────────────────────────────────────
 
 export function searchListings(p: { keyword?: string; certification?: string; page?: number; size?: number; projectId?: number }) {
@@ -207,4 +235,14 @@ export function certifyMetric(id: number, projectId = 1) {
 
 export function reuseMetric(id: number, body: { consumerType: string; consumerRef: string }, projectId = 1) {
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/reuse?projectId=${projectId}`, body);
+}
+
+// ─── 029: 指标上架/下架 ─────────────────────────────────────────
+
+export function publishMetric(body: { metricType: string; metricId: number; ownerId?: number; description?: string }, projectId = 1) {
+  return send<GateResult>("POST", `${MARKET}/metrics?projectId=${projectId}`, body);
+}
+
+export function unpublishMetric(id: number, projectId = 1) {
+  return send<GateResult>("DELETE", `${MARKET}/metrics/${id}?projectId=${projectId}`);
 }

@@ -1056,7 +1056,19 @@
     "pendingApproval": "Submitted for approval",
     "actionFailed": "Action failed",
     "loadFailed": "Load failed",
-    "selectHint": "Select an asset to view details"
+    "selectHint": "Select an asset to view details",
+    "create": "Catalog Asset",
+    "edit": "Edit",
+    "retire": "Retire",
+    "retired": "Retired",
+    "reconcile": "Reconcile",
+    "mySubscriptions": "My Subscriptions",
+    "subscriptionsHint": "Manage your asset change subscriptions",
+    "noSubscriptions": "No subscriptions",
+    "unsubscribe": "Unsubscribe",
+    "unsubscribed": "Unsubscribed",
+    "qualityFilter": "Quality Score",
+    "qualityFilterHint": "Quality data from 022 scorecard; may be empty in current environment"
   },
   "metricMarketplace": {
     "searchPlaceholder": "Search metric code/description",
@@ -1077,6 +1089,11 @@
     "lineageSources": "{count} lineage sources",
     "certify": "Certify",
     "reuse": "Reuse",
-    "selectHint": "Select a metric to view details"
+    "selectHint": "Select a metric to view details",
+    "all": "All",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "published": "Published",
+    "unpublished": "Unpublished"
   }
 }
