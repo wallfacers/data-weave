@@ -176,6 +176,7 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 
 ### 版式（三段式固定布局）
 
+- **边框包裹（组件内建）**：根容器自带 `rounded-xl border bg-card overflow-hidden`，筛选工具栏 + 表体 + 分页三段被同一条语义色边框包裹成一个卡片；表头 `border-b` 与数据行满幅贴边框，工具栏/分页段补水平内边距（`px-3`）。**调用点不再自行套 `Card`/边框容器**（否则双层边框）——「只有一种长相」由组件一处定义、全站一致。
 - **筛选工具栏 `shrink-0`** → **表格区 `flex-1`** → **分页 `shrink-0`**，三段各自固定，绝不「整个 Tab 一起滚」。
 - **固定表头**：表头与数据行拆为两张 `<table>`，**共享同一份 `colgroup` + `table-fixed`**（列宽严格对齐）；表头表在 `DwScroll` 外固定不滚，**仅数据行区域用 `DwScroll`（`direction="vertical"`）纵向滚动**——滚动条只落在数据区，不覆盖表头、不在表头右上缺角。
 - 列宽用 `colgroup` 百分比（`ColumnDef.widthPct`），加总≈100；不用逐列 `w-*` 硬编码。

@@ -211,31 +211,33 @@ export function DataTable<T>({
   const hasToolbar = filters.length > 0 || (presets && presets.length > 0) || (selectable && !!bulkActions) || !!toolbarActions
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3", className)}>
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-xl border bg-card overflow-hidden", className)}>
       {hasToolbar && (
-        <DataTableToolbar
-          filters={filters}
-          values={values}
-          onChange={setFilter}
-          onReset={resetFilters}
-          presets={presets}
-          onApplyPreset={applyPreset}
-          rightSlot={
-            (selectable && bulkActions) || toolbarActions ? (
-              <div className="flex items-center gap-1">
-                {selectable && bulkActions && (
-                  <>
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {t("selected", { count: selectedIds.length })}
-                    </span>
-                    {bulkActions(selectedIds, reload)}
-                  </>
-                )}
-                {toolbarActions}
-              </div>
-            ) : undefined
-          }
-        />
+        <div className="px-3">
+          <DataTableToolbar
+            filters={filters}
+            values={values}
+            onChange={setFilter}
+            onReset={resetFilters}
+            presets={presets}
+            onApplyPreset={applyPreset}
+            rightSlot={
+              (selectable && bulkActions) || toolbarActions ? (
+                <div className="flex items-center gap-1">
+                  {selectable && bulkActions && (
+                    <>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {t("selected", { count: selectedIds.length })}
+                      </span>
+                      {bulkActions(selectedIds, reload)}
+                    </>
+                  )}
+                  {toolbarActions}
+                </div>
+              ) : undefined
+            }
+          />
+        </div>
       )}
 
       {loading && !result ? (
@@ -308,7 +310,7 @@ export function DataTable<T>({
           </DwScroll>
 
           {totalPages > 1 && (
-            <div className="shrink-0">
+            <div className="shrink-0 px-3">
               <Pagination
                 page={page}
                 totalPages={totalPages}
