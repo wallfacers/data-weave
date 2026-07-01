@@ -1127,6 +1127,27 @@
     "collapse": {
       "collapse": "收起导航",
       "expand": "展开导航"
+    },
+    "userMenu": {
+      "appearanceSettings": "外观设置",
+      "logout": "退出登录"
     }
+  },
+  "settingsDialog": {
+    "title": "外观设置",
+    "description": "个性化界面外观与显示偏好",
+    "close": "关闭",
+    "appearance": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "language": "语言",
+    "uiLanguage": "界面语言",
+    "langZh": "中文",
+    "langEn": "English",
+    "dateTime": "日期时间",
+    "dateTimeFormat": "显示格式",
+    "dateFormat_dash": "短横线（2026-06-25）",
+    "dateFormat_slash": "斜线（2026/06/25）"
   }
 }

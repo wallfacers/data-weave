@@ -47,6 +47,8 @@ interface TabStripProps {
   onCloseAll?: () => void
   /** 每个 tab 额外的右键项（置于关闭项之前），如固定/取消固定 */
   extraActions?: (tab: TabStripItem) => TabContextAction[]
+  /** 首部插槽（如导航收起后的重新展开按钮） */
+  leading?: ReactNode
   /** 尾部插槽（如 "+" 启动按钮） */
   trailing?: ReactNode
   size?: "md" | "sm"
@@ -82,6 +84,7 @@ export function TabStrip({
   onCloseLeft,
   onCloseAll,
   extraActions,
+  leading,
   trailing,
   size = "md",
   surface = "sidebar",
@@ -154,10 +157,14 @@ export function TabStrip({
 
   return (
     <div className={cn("flex items-end bg-foreground/[0.04]", className)}>
+      {leading && <div className="flex shrink-0 items-center self-center pt-1.5 pl-1.5">{leading}</div>}
       <div className={cn("flex min-w-0 flex-1 items-end overflow-hidden", s.pad)}>
         {tabs.map((tab, i) => {
           const active = tab.id === activeId
           const closable = tab.closable !== false
+          // 首个标签只有在真正贴左边缘（无 leading 插槽）时才拉直+去左下弧；
+          // 有 leading 插槽（如导航收起后的展开按钮）时当普通标签处理，保留连体弧。
+          const firstFlush = i === 0 && !leading
           return (
             <Fragment key={tab.id}>
               {/* 竖分隔线 */}
@@ -193,7 +200,7 @@ export function TabStrip({
                   "group/tab relative flex min-w-10 cursor-pointer select-none items-center transition-colors",
                   s.tab,
                   // 首个标签贴左边缘：左上拉直（仅右上圆角）+ 负边距抵消容器左内边距 + 去左下外凸弧。
-                  i === 0 ? cn(s.radiusFirst, s.flush, "dw-tab-flush-left") : s.radius,
+                  firstFlush ? cn(s.radiusFirst, s.flush, "dw-tab-flush-left") : s.radius,
                   active
                     ? "dw-tab-active font-medium text-foreground"
                     : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",

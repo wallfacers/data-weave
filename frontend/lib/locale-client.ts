@@ -18,3 +18,11 @@ export function getClientLocale(): Locale {
 export function acceptLanguageHeader(): string {
   return getClientLocale()
 }
+
+/**
+ * 写 cookie `NEXT_LOCALE`（`i18n/request.ts` 据此选 bundle）。
+ * 调用方需自行 `router.refresh()` 触发 server components 重渲染。
+ */
+export function setClientLocale(locale: Locale): void {
+  document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000; samesite=lax`
+}

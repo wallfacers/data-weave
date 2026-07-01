@@ -3,12 +3,13 @@
 import { useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { PlusSignIcon } from "@hugeicons/core-free-icons"
+import { PlusSignIcon, SidebarLeft01Icon } from "@hugeicons/core-free-icons"
 
 import { useWorkspaceStore, type WorkspaceTab } from "@/lib/workspace/store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META, type ViewType } from "@/lib/workspace/views"
 import { TabStrip, type TabStripItem, type TabContextAction } from "@/components/ui/tab-strip"
+import { useNavUiStore } from "@/lib/nav-ui-store"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
 function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
@@ -88,6 +89,8 @@ export function WorkspaceTabBar() {
   const closeAll = useWorkspaceStore((s) => s.closeAll)
   const pin = useWorkspaceStore((s) => s.pin)
   const unpin = useWorkspaceStore((s) => s.unpin)
+  const navCollapsed = useNavUiStore((s) => s.collapsed)
+  const setNavCollapsed = useNavUiStore((s) => s.setCollapsed)
   const t = useTranslations()
 
   // 固定/取消固定进右键菜单（底座 base tab 不可固定切换）
@@ -120,6 +123,19 @@ export function WorkspaceTabBar() {
       onCloseLeft={closeLeft}
       onCloseAll={closeAll}
       extraActions={extraActions}
+      leading={
+        navCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setNavCollapsed(false)}
+            title={t("leftNav.collapse.expand")}
+            aria-label={t("leftNav.collapse.expand")}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          >
+            <HugeiconsIcon icon={SidebarLeft01Icon} className="size-4" />
+          </button>
+        ) : undefined
+      }
       trailing={<Launcher />}
     />
   )
