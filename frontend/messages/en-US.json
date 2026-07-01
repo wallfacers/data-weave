@@ -246,6 +246,7 @@
     "colVersion": "Version",
     "colLastFireTime": "Last Run",
     "colPriority": "Priority",
+    "colScheduledFireTime": "Scheduled",
     "colTimeout": "Timeout",
     "colCreatedAt": "Created",
     "draftChange": "Draft",

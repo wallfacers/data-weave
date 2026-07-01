@@ -36,6 +36,7 @@ import {
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { humanizeCron } from "@/lib/cron-format"
 import { useProjectContext } from "@/lib/project-context"
 import { ViewRefreshControl } from "../view-refresh-control"
 
@@ -182,11 +183,14 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
 
   // ── 列定义 ──
   const columns = useMemo<ColumnDef<WorkflowInstanceRow>[]>(
-    () => [
+    () => {
+      // next-intl 的 t 是字面量 key 类型，包一层适配 humanizeCron 的 CronTranslator
+      const translate = (k: string, p?: Record<string, unknown>) => t(k as never, p as never)
+      return [
       {
         key: "workflowName",
         header: t("colWorkflowName"),
-        widthPct: 12,
+        widthPct: 10,
         cell: (row: WorkflowInstanceRow) => (
           <span className="truncate font-medium">{row.workflowName}</span>
         ),
@@ -194,7 +198,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "triggerType",
         header: t("colTriggerType"),
-        widthPct: 9,
+        widthPct: 7,
         cell: (row: WorkflowInstanceRow) => (
           <Badge variant="outline" className="text-xs">
             {t((TRIGGER_TYPE_I18N[row.triggerType] ?? row.triggerType) as never)}
@@ -204,7 +208,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "env",
         header: t("colEnv"),
-        widthPct: 5,
+        widthPct: 4,
         cell: (row: WorkflowInstanceRow) => (
           <Badge variant={row.env === "DEV" ? "secondary" : "default"} className="text-xs">
             {row.env ?? "PROD"}
@@ -214,15 +218,55 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "bizDate",
         header: t("colBizDate"),
-        widthPct: 12,
+        widthPct: 9,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{row.bizDate}</span>
         ),
       },
       {
+        key: "cronExpression",
+        header: t("colCron"),
+        widthPct: 8,
+        cell: (row: WorkflowInstanceRow) => (
+          <span className="truncate font-mono text-xs tabular-nums" title={row.cronExpression ?? ""}>
+            {humanizeCron(row.cronExpression, translate)}
+          </span>
+        ),
+      },
+      {
+        key: "scheduledFireTime",
+        header: t("colScheduledFireTime"),
+        widthPct: 9,
+        cell: (row: WorkflowInstanceRow) =>
+          row.scheduledFireTime ? (
+            <span className="font-mono text-sm tabular-nums">{formatDateTime(row.scheduledFireTime)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
+        key: "priority",
+        header: t("colPriority"),
+        widthPct: 5,
+        cell: (row: WorkflowInstanceRow) => (
+          <span className="font-mono text-sm tabular-nums">{row.priority ?? "—"}</span>
+        ),
+      },
+      {
+        key: "workflowVersionNo",
+        header: t("colVersion"),
+        widthPct: 5,
+        cell: (row: WorkflowInstanceRow) =>
+          row.workflowVersionNo != null ? (
+            <span className="font-mono text-sm tabular-nums">v{row.workflowVersionNo}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         key: "state",
         header: t("colState"),
-        widthPct: 9,
+        widthPct: 7,
         cell: (row: WorkflowInstanceRow) => {
           const v = row.state ?? ""
           return (
@@ -235,7 +279,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "totalTasks",
         header: t("colProgress"),
-        widthPct: 10,
+        widthPct: 9,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">
             {row.completedTasks}/{row.totalTasks}
@@ -248,15 +292,26 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 10,
+        widthPct: 8,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{formatDateTime(row.startedAt)}</span>
         ),
       },
       {
+        key: "finishedAt",
+        header: t("colFinishedAt"),
+        widthPct: 7,
+        cell: (row: WorkflowInstanceRow) =>
+          row.finishedAt ? (
+            <span className="font-mono text-sm tabular-nums">{formatDateTime(row.finishedAt)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         key: "durationMs",
         header: t("colDuration"),
-        widthPct: 6,
+        widthPct: 4,
         cell: (row: WorkflowInstanceRow) => {
           const ms = row.durationMs
           if (ms == null) return <span className="text-muted-foreground">—</span>
@@ -273,7 +328,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 26,
+        widthPct: 20,
         cell: (row: WorkflowInstanceRow) => (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <Button
@@ -315,7 +370,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
           </div>
         ),
       },
-    ],
+      ]
+    },
     [t, formatDateTime, submitAction, onViewDag],
   )
 

@@ -179,7 +179,7 @@ public class BackfillService {
             } else {
                 // 工作流补数：物化整张 DAG（同 bizDate 内上下游就绪由调度就绪门自然串行 → includeDownstream 语义）。
                 triggerService.trigger(wf, "BACKFILL", bizDate, null, Messages.DEFAULT_LOCALE,
-                        "FULL", null, "BACKFILL", runId, held);
+                        "FULL", null, "BACKFILL", runId, held, null);
             }
         }
 

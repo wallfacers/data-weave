@@ -536,6 +536,9 @@ export interface WorkflowInstanceRow {
   finishedAt: string | null
   durationMs: number | null
   env?: string  // PROD | DEV
+  workflowVersionNo: number | null
+  cronExpression: string | null
+  scheduledFireTime: string | null  // cron/fixed_rate 计划触发时刻；手动/补数据为 null
 }
 
 /** 任务流实例筛选条件。 */

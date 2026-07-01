@@ -112,7 +112,7 @@ public class WorkflowTriggerService {
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey) {
         return trigger(wf, triggerType, bizDate, priorityOverride, locale, scope, targetNodeKey,
-                "NORMAL", null, 0);
+                "NORMAL", null, 0, null);
     }
 
     /**
@@ -126,7 +126,8 @@ public class WorkflowTriggerService {
      */
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey,
-                        String runMode, UUID backfillRunId, int backfillHeld) {
+                        String runMode, UUID backfillRunId, int backfillHeld,
+                        LocalDateTime scheduledFireTime) {
         bizDate = defaultBizDate(bizDate);
 
         // nodeKey -> live workflow_node.id：物化 task_instance.workflow_node_id 外键用（事件流/节点变色按此 id）。
@@ -222,6 +223,7 @@ public class WorkflowTriggerService {
                 : (wf.getPriority() != null ? wf.getPriority() : 5));
         wi.setWorkflowDefName(wf.getName());                // 快照：工作流名称
         wi.setCronExpression(wf.getCron());                 // 快照：调度 cron
+        wi.setScheduledFireTime(scheduledFireTime);         // 快照：cron/fixed_rate 计划触发时刻（手动/补数据为 null）
         wi.setBizDate(bizDate);
         wi.setTotalTasks(subNodes.size());
         wi.setCompletedTasks(virtualCount);

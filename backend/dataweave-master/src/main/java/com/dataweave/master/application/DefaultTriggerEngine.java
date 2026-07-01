@@ -227,7 +227,8 @@ public class DefaultTriggerEngine implements TriggerEngine {
         // 下游触发（签名不变，FR-012）；重叠不阻塞、允许并发（FR-015）
         // triggerType 使用实际的 schedule_type，方便区分 CRON/FIXED_RATE/FIXED_DELAY 触发
         UUID wiId = triggerService.trigger(wf, wf.getScheduleType(),
-                due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE);
+                due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE,
+                "FULL", null, "NORMAL", null, 0, due);
         guard.setWorkflowInstanceId(wiId);
         guard.setFiredAt(LocalDateTime.now());
         cronFireRepository.save(guard);

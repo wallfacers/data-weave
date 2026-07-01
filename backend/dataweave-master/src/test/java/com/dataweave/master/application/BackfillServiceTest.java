@@ -127,9 +127,9 @@ class BackfillServiceTest {
         // 工作流目标（6.6）：parallelism=1 → 06-20 整张 DAG 放行（held=0）、06-21 整张 DAG 持有（held=1）。
         // held 按 bizDate 传给 trigger，同日 DAG 共享同一 held（晋升以 bizDate 为单位，不串行化同日并行节点）。
         verify(triggerService).trigger(eq(wf), eq("BACKFILL"), eq("2026-06-20"), eq(null), any(),
-                eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(0));
+                eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(0), eq(null));
         verify(triggerService).trigger(eq(wf), eq("BACKFILL"), eq("2026-06-21"), eq(null), any(),
-                eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(1));
+                eq("FULL"), eq(null), eq("BACKFILL"), eq(RUN_ID), eq(1), eq(null));
     }
 
     @Test

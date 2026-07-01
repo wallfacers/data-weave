@@ -35,6 +35,7 @@ import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { humanizeCron as renderCron } from "@/lib/cron-format"
 import { useProjectContext } from "@/lib/project-context"
 import { ViewRefreshControl } from "../view-refresh-control"
 
@@ -137,27 +138,10 @@ export function PeriodicInstancesPanel({
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
-  /** cron → 简短可读形式（仅处理标准 6 段 Quartz cron），文案走 i18n */
+  /** cron → 简短可读形式：实现委托共享 util（@/lib/cron-format），文案走 i18n */
   const humanizeCron = useMemo(
-    () =>
-      (cron: string | null | undefined): string => {
-        if (!cron) return "—"
-        const parts = cron.trim().split(/\s+/)
-        if (parts.length < 6) return cron
-        const [sec, min, hour, dom, , dow] = parts
-        const hh = hour.padStart(2, "0")
-        const mm = min.padStart(2, "0")
-        if (sec === "0" && dom === "*" && dow === "?") {
-          return t("cronDaily", { time: min === "0" ? `${hh}:00` : `${hh}:${mm}` })
-        }
-        if (sec === "0" && dom === "*" && dow === "1-5") {
-          return t("cronWeekday", { time: `${hh}:${mm}` })
-        }
-        if (sec === "0" && min === "0" && dom !== "*" && dow === "?") {
-          return t("cronMonthly", { day: dom, time: `${hh}:00` })
-        }
-        return cron
-      },
+    () => (cron: string | null | undefined): string =>
+      renderCron(cron, (k, p) => t(k as never, p as never)),
     [t],
   )
 

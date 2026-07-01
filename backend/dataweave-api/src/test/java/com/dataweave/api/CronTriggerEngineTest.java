@@ -54,6 +54,9 @@ class CronTriggerEngineTest {
     @Autowired
     private WorkflowInstanceRepository workflowInstanceRepository;
 
+    @Autowired
+    private com.dataweave.master.application.WorkflowTriggerService workflowTriggerService;
+
     private WorkflowDef wf;
     /** 本测试启动时刻，用于 awaitInstance 排除后台 scheduler 提前创建的实例 */
     private LocalDateTime testStart;
@@ -128,6 +131,30 @@ class CronTriggerEngineTest {
                 cf.getWorkflowId().equals(1L) &&
                 Math.abs(Duration.between(cf.getScheduledFireTime(), due).toMillis()) < 2000);
         assertThat(hasFire).as("cron_fire 去重记录应存在（due=%s）", due).isTrue();
+
+        // 038：cron 触发的实例应快照 scheduled_fire_time ≈ due（与 cron_expression 同源物化）
+        assertThat(wi.getScheduledFireTime())
+                .as("cron 触发实例应快照 scheduled_fire_time")
+                .isNotNull();
+        assertThat(Math.abs(Duration.between(wi.getScheduledFireTime(), due).toMillis()))
+                .as("scheduled_fire_time 应贴近 due（H2 TIMESTAMP 舍入，2s 内）")
+                .isLessThanOrEqualTo(2000);
+    }
+
+    // ================================================================
+    // 038 手动触发：scheduled_fire_time 应为 null（无 cron 计划时刻）
+    // ================================================================
+
+    @Test
+    void manualTrigger_scheduledFireTimeIsNull() {
+        // 手动触发走 5 参重载 → 透传 null scheduledFireTime
+        java.util.UUID wiId = workflowTriggerService.trigger(wf, "MANUAL", "2026-07-01",
+                wf.getPriority(), java.util.Locale.SIMPLIFIED_CHINESE);
+        WorkflowInstance wi = workflowInstanceRepository.findById(wiId).orElseThrow();
+        assertThat(wi.getTriggerType()).as("triggerType 应为 MANUAL").isEqualTo("MANUAL");
+        assertThat(wi.getScheduledFireTime())
+                .as("手动触发实例 scheduled_fire_time 应为 null（无 cron 计划时刻）")
+                .isNull();
     }
 
     // ================================================================

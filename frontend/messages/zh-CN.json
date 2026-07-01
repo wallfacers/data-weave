@@ -246,6 +246,7 @@
     "colVersion": "版本",
     "colLastFireTime": "上次运行",
     "colPriority": "优先级",
+    "colScheduledFireTime": "定时时间",
     "colTimeout": "超时",
     "colCreatedAt": "创建时间",
     "draftChange": "有草稿",

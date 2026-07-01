@@ -113,12 +113,16 @@ public final class OpsContracts {
     /**
      * 任务流实例列表行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。
      * workflowName 来自 workflow_def.name（correlated subquery）。
+     * workflowVersionNo/cronExpression/scheduledFireTime 均为物化快照（免 JOIN）；scheduledFireTime
+     * 仅 cron/fixed_rate 触发非空（手动/补数据为 null）。
      */
     public record WorkflowInstanceRow(UUID id, Long workflowId, String workflowName, String state,
                                       String bizDate, Integer priority, String triggerType,
                                       int totalTasks, int completedTasks, int failedTasks,
                                       String startedAt, String finishedAt, Long durationMs,
-                                      String env) {}
+                                      String env,
+                                      Integer workflowVersionNo, String cronExpression,
+                                      String scheduledFireTime) {}
 
     /**
      * 任务流实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。

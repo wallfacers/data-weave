@@ -670,7 +670,8 @@ public class OpsService {
                 "SELECT wi.id, wi.workflow_id, wi.trigger_type, wi.state, wi.biz_date, "
                         + "wi.total_tasks, wi.completed_tasks, wi.failed_tasks, "
                         + "wi.started_at, wi.finished_at, wi.priority, wi.env, "
-                        + "wi.workflow_def_name, wi.cron_expression "
+                        + "wi.workflow_def_name, wi.cron_expression, "
+                        + "wi.workflow_version_no, wi.scheduled_fire_time "
                         + "FROM workflow_instance wi" + where
                         + "ORDER BY CASE "
                         + "  WHEN wi.state IN ('FAILED','STOPPED','PREEMPTED') THEN 0 "
@@ -685,6 +686,8 @@ public class OpsService {
                     Integer priority = rs.getInt("priority");
                     LocalDateTime startedAt = rs.getObject("started_at", LocalDateTime.class);
                     LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
+                    Integer workflowVersionNo = (Integer) rs.getObject("workflow_version_no");
+                    LocalDateTime scheduledFireTime = rs.getObject("scheduled_fire_time", LocalDateTime.class);
                     Long durationMs = (startedAt != null && finishedAt != null)
                             ? Duration.between(startedAt, finishedAt).toMillis() : null;
                     return new OpsContracts.WorkflowInstanceRow(id, wfId,
@@ -696,7 +699,9 @@ public class OpsService {
                             failedTasks != null ? failedTasks : 0,
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
-                            durationMs, rs.getString("env"));
+                            durationMs, rs.getString("env"),
+                            workflowVersionNo, rs.getString("cron_expression"),
+                            scheduledFireTime != null ? scheduledFireTime.toString() : null);
                 },
                 pageArgs.toArray());
         return new OpsContracts.PageResult<>(items, totalCount, page, size);

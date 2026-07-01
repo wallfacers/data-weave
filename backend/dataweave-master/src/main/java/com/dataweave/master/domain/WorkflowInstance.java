@@ -19,6 +19,7 @@ public class WorkflowInstance {
     private Integer priority;
     private String workflowDefName;
     private String cronExpression;
+    private LocalDateTime scheduledFireTime;   // 快照：cron/fixed_rate 计划触发时刻（fire 入参 due；手动/补数据触发为空）
     private String bizDate;
     private Integer totalTasks;
     private Integer completedTasks;
@@ -66,6 +67,9 @@ public class WorkflowInstance {
 
     public String getCronExpression() { return cronExpression; }
     public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
+
+    public LocalDateTime getScheduledFireTime() { return scheduledFireTime; }
+    public void setScheduledFireTime(LocalDateTime scheduledFireTime) { this.scheduledFireTime = scheduledFireTime; }
 
     public String getBizDate() { return bizDate; }
     public void setBizDate(String bizDate) { this.bizDate = bizDate; }
