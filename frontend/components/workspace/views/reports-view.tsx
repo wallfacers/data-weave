@@ -1,8 +1,9 @@
 "use client"
 
-import { useTranslations } from "next-intl"
-import { useState } from "react"
-import { format, subDays } from "date-fns"
+import { useLocale, useTranslations } from "next-intl"
+import { useMemo, useState } from "react"
+import { format, subDays, type Locale } from "date-fns"
+import { zhCN, enUS } from "date-fns/locale"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -17,6 +18,8 @@ import { DwScroll } from "@/components/ui/dw-scroll"
 /** 业务报表（最小版）：当前项目的指标卡片网格（名称 / 口径版本 / 最新值或空态）。 */
 export function ReportsView({ active }: ViewProps) {
   const t = useTranslations("reports")
+  const locale = useLocale()
+  const dateLocale: Locale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const [autoEnabled, setAutoEnabled] = useState(true)
   // 036 FR-012：指标按当前项目隔离；响应式读取，切项目即重取
   const projectId = useProjectContext((s) => s.currentProjectId)
@@ -49,9 +52,8 @@ export function ReportsView({ active }: ViewProps) {
           <DatePicker
             value={bizDate}
             onChange={setBizDate}
-            className="w-[150px]"
             triggerClassName="h-8 w-[150px]"
-            showQuickActions
+            locale={dateLocale}
             quickLabels={{ today: t("today"), yesterday: t("yesterday") }}
           />
           <ViewRefreshControl

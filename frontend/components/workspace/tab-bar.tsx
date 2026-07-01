@@ -8,8 +8,10 @@ import { PlusSignIcon, SidebarLeft01Icon } from "@hugeicons/core-free-icons"
 import { useWorkspaceStore, type WorkspaceTab } from "@/lib/workspace/store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META, type ViewType } from "@/lib/workspace/views"
+import { CONTEXT_DETAIL_VIEWS } from "@/lib/workspace/nav-groups"
 import { TabStrip, type TabStripItem, type TabContextAction } from "@/components/ui/tab-strip"
 import { useNavUiStore } from "@/lib/nav-ui-store"
+import { useProjectPermissions } from "@/lib/project-permissions"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
 function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
@@ -19,13 +21,14 @@ function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
   return first != null ? `${title} · ${String(first)}` : title
 }
 
-/** "+" 启动菜单：注册表全部视图，手动打开（不经 AI 的逃生舱） */
+/** "+" 启动菜单：仅展示入口视图 + 按当前项目权限过滤（FR-041），与左侧导航一致。 */
 function Launcher() {
   const [menuOpen, setMenuOpen] = useState(false)
   const open = useWorkspaceStore((s) => s.open)
   const t = useTranslations()
   const btnRef = useRef<HTMLButtonElement>(null)
   const [anchor, setAnchor] = useState({ top: 0, right: 0 })
+  const { can } = useProjectPermissions()
 
   // 展开前在点击事件里同步抓取按钮视口坐标（不能放 useEffect：绘制后才执行，
   // 首帧菜单会闪现在视口左上角再跳回按钮下方）。下拉菜单用 fixed + 右对齐
@@ -37,6 +40,13 @@ function Launcher() {
     }
     setMenuOpen((v) => !v)
   }
+
+  // 仅展示入口视图（排除上下文详情视图），且按当前项目权限过滤（与左侧导航一致）。
+  const availableViews = (Object.keys(VIEW_META) as ViewType[]).filter((view) => {
+    if (CONTEXT_DETAIL_VIEWS.has(view)) return false
+    const req = VIEW_META[view]?.requirePermission
+    return !req || can(req)
+  })
 
   return (
     <div className="relative">
@@ -57,7 +67,7 @@ function Launcher() {
             className="fixed z-50 flex w-44 flex-col gap-0.5 rounded-lg border bg-popover p-1 shadow-md"
             style={{ top: anchor.top, right: anchor.right }}
           >
-            {(Object.keys(VIEW_META) as ViewType[]).map((view) => (
+            {availableViews.map((view) => (
               <button
                 key={view}
                 type="button"
@@ -71,6 +81,11 @@ function Launcher() {
                 {t(VIEW_META[view].title)}
               </button>
             ))}
+            {availableViews.length === 0 && (
+              <span className="px-2 py-1.5 text-xs text-muted-foreground">
+                {t("workspace.noAvailableViews")}
+              </span>
+            )}
           </div>
         </>
       )}

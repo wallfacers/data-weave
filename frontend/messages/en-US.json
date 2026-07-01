@@ -36,7 +36,8 @@
     "unpinTab": "Unpin",
     "confirmCloseTitle": "Confirm close",
     "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
-    "discardChanges": "Discard changes"
+    "discardChanges": "Discard changes",
+    "noAvailableViews": "No available views"
   },
   "ops": {
     "title": "Ops Center",

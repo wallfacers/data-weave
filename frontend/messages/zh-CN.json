@@ -36,7 +36,8 @@
     "unpinTab": "取消固定",
     "confirmCloseTitle": "确认关闭",
     "confirmCloseDesc": "「{label}」有未保存的改动，关闭后改动将丢失。",
-    "discardChanges": "丢弃改动"
+    "discardChanges": "丢弃改动",
+    "noAvailableViews": "无可用视图"
   },
   "ops": {
     "title": "运营中心",
