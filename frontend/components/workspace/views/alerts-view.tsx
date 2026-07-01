@@ -167,13 +167,18 @@ export function AlertsView({ active }: ViewProps) {
       </div>
 
       {/* Content */}
-      <div className="flex flex-col flex-1 overflow-auto px-5 pb-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto px-5 pb-5">
         {loading && bundle == null && <LoadingState active={loading} />}
 
         {/* Active Alerts & History */}
         {(tab === "active" || tab === "history") && (
-          <div className="space-y-2">
-            {events.length === 0 && !loading && <p className="text-muted-foreground text-sm">{t("noData")}</p>}
+          <div className="flex flex-1 flex-col space-y-2">
+            {events.length === 0 && !loading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={Alert02Icon} size={32} />
+                <p className="text-sm">{t("noData")}</p>
+              </div>
+            )}
             {events.map(e => (
               <div key={e.id} className="border rounded-lg p-3 flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -210,8 +215,13 @@ export function AlertsView({ active }: ViewProps) {
 
         {/* Rules */}
         {tab === "rules" && (
-          <div className="space-y-2">
-            {rules.length === 0 && !loading && <p className="text-muted-foreground text-sm">{t("noData")}</p>}
+          <div className="flex flex-1 flex-col space-y-2">
+            {rules.length === 0 && !loading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={Settings02Icon} size={32} />
+                <p className="text-sm">{t("noData")}</p>
+              </div>
+            )}
             {rules.map(r => (
               <div key={r.id} className="border rounded-lg p-3 flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -228,8 +238,13 @@ export function AlertsView({ active }: ViewProps) {
 
         {/* Channels */}
         {tab === "channels" && (
-          <div className="space-y-2">
-            {channels.length === 0 && !loading && <p className="text-muted-foreground text-sm">{t("noData")}</p>}
+          <div className="flex flex-1 flex-col space-y-2">
+            {channels.length === 0 && !loading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={Mail01Icon} size={32} />
+                <p className="text-sm">{t("noData")}</p>
+              </div>
+            )}
             {channels.map(c => (
               <div key={c.id} className="border rounded-lg p-3 flex items-center justify-between gap-4">
                 <div className="flex-1">
@@ -243,8 +258,13 @@ export function AlertsView({ active }: ViewProps) {
 
         {/* Silences */}
         {tab === "silences" && (
-          <div className="space-y-2">
-            {silences.length === 0 && !loading && <p className="text-muted-foreground text-sm">{t("noData")}</p>}
+          <div className="flex flex-1 flex-col space-y-2">
+            {silences.length === 0 && !loading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={MuteIcon} size={32} />
+                <p className="text-sm">{t("noData")}</p>
+              </div>
+            )}
             {silences.map(s => (
               <div key={s.id} className="border rounded-lg p-3">
                 <p className="text-sm">{s.reason || t("silences")}</p>
