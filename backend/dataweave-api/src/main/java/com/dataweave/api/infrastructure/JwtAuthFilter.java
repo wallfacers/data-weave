@@ -136,8 +136,13 @@ public class JwtAuthFilter implements WebFilter {
             }
         }
 
-        // 同时置入 exchange 属性：alert 等下游模块从 exchange 读身份（不经 TenantContext）
-        exchange.getAttributes().put("projectId", projectId);
+        // 同时置入 exchange 属性：alert 等下游模块从 exchange 读身份（不经 TenantContext）。
+        // exchange.getAttributes() 是 ConcurrentHashMap，put(null) 会 NPE；无项目上下文的请求
+        // （未带 X-Project-Id / ?projectId=）projectId 为 null，仅在非 null 时置入，下游
+        // ProjectScope.require(null) 自以 project.required 拦截。
+        if (projectId != null) {
+            exchange.getAttributes().put("projectId", projectId);
+        }
         TenantContext.set(tenantId, userId, username, projectId);
 
         return chain.filter(exchange)

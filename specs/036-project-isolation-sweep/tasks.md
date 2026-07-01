@@ -106,7 +106,7 @@
 - [ ] T042 [US3] Quality repo ✅（已就位）; **QualityController/Service 接线待做**（repo 方法齐，同 alert 套路）
 - [ ] T043 [P] [US3] 前端 `alerts-view.tsx` + 质量视图附 projectId — 待做
 - [ ] T044 [US3] 浏览器验证 + PG/H2 双库回归 — 待做
-- [ ] T045b [US3] alert get/update/delete-by-id 的 project 归属守卫（防跨项目按 id 改删）— 硬化待做
+- [x] T045b [US3] alert get/update/delete-by-id 的 project 归属守卫（防跨项目按 id 改删）✅ 收口方本轮：`AlertController.requireOwned` 覆盖 rules/channels/routes/events by-id 读改删，跨项目→`project.forbidden`；`AlertCrossProjectGuardTest`(6/6)
 
 **Checkpoint**: 告警/质量项目隔离可用。
 
@@ -136,9 +136,9 @@
 
 ## Phase 7: Polish & 集成兜底（收尾方）
 
-- [ ] T055 [FND] 集成合并：**C 路 schema 先合** → A/B/D → 重跑地基接缝 + 共享面测试
+- [x] T055 [FND] 集成合并：**C 路 schema 先合** → A/B/D → 重跑地基接缝 + 共享面测试 ✅ 收口方本轮：全量回归(alert+api, 71 类 0 失败)；修复 036 遗留的共享面红——`AlertRuleCrossTenantQueryTest` 内联建表补 project_id；`OpsWorkflowFilter/OpsLatestInstance/OpsDataCenter/LineageGraphEndpointTest` 补 `X-Project-Id` 头（US1/US2 加了 ProjectScope.require 却漏更新既有端点测试）
 - [ ] T056 [FND] 补漏遗漏的"含隔离列却未收口"读路径（四路回报后逐项）
-- [ ] T057 [FND] 产出并勾选 **SC-001 受隔离接口全盘清单**（已隔离/本次收口/平台级豁免，每'本次收口'项对应测试）
+- [x] T057 [FND] 产出并勾选 **SC-001 受隔离接口全盘清单**（已隔离/本次收口/平台级豁免，每'本次收口'项对应测试）✅ `specs/036-project-isolation-sweep/sc-001-isolation-inventory.md`
 - [ ] T058 [FND] 端到端验证：SC-002 跨项目 0 泄漏、SC-003 日期收敛、SC-004 角色矩阵一致、SC-005 迁移无损、SC-006 四路可独立交付
 - [ ] T059 [P] [FND] i18n 键集一致性 CI + `pnpm design:lint`（若涉视觉）
 - [ ] T060 [FND] 更新 CLAUDE.md 知识库导航（项目隔离入口）+ checklists 收口

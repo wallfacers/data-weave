@@ -64,6 +64,19 @@ public class AlertController {
         return projectScope.require(tid, uid, pid);
     }
 
+    /**
+     * 036 收口 T045b：by-id 端点的项目归属守卫。先校验当前用户在当前项目的成员归属
+     * （{@link #projectId}），再断言目标实体确属该 (tenant, project)。防止用户携带自己
+     * 有权的项目上下文，按 id 读/改/删他项目的告警资源。越权 → project.forbidden。
+     */
+    private void requireOwned(Long entTenantId, Long entProjectId, ServerWebExchange exchange) {
+        long tid = tenantId(exchange);
+        Long pid = projectId(exchange);
+        if (entTenantId == null || entTenantId != tid || !pid.equals(entProjectId)) {
+            throw new BizException("project.forbidden");
+        }
+    }
+
     // ─── Rules ─────────────────────────────────────────
 
     @GetMapping("/rules")
@@ -79,8 +92,10 @@ public class AlertController {
     }
 
     @GetMapping("/rules/{id}")
-    public Mono<Map<String, Object>> getRule(@PathVariable Long id) {
-        return Mono.just(Map.of("code", 0, "data", ruleService.get(id)));
+    public Mono<Map<String, Object>> getRule(ServerWebExchange exchange, @PathVariable Long id) {
+        AlertRule rule = ruleService.get(id);
+        requireOwned(rule.getTenantId(), rule.getProjectId(), exchange);
+        return Mono.just(Map.of("code", 0, "data", rule));
     }
 
     @PostMapping("/rules")
@@ -93,13 +108,17 @@ public class AlertController {
     }
 
     @PatchMapping("/rules/{id}")
-    public Mono<Map<String, Object>> updateRule(@PathVariable Long id, @RequestBody AlertRule patch) {
+    public Mono<Map<String, Object>> updateRule(ServerWebExchange exchange, @PathVariable Long id, @RequestBody AlertRule patch) {
+        AlertRule existing = ruleService.get(id);
+        requireOwned(existing.getTenantId(), existing.getProjectId(), exchange);
         patch.setUpdatedBy(1L);
         return Mono.just(Map.of("code", 0, "data", ruleService.update(id, patch)));
     }
 
     @DeleteMapping("/rules/{id}")
-    public Mono<Map<String, Object>> deleteRule(@PathVariable Long id) {
+    public Mono<Map<String, Object>> deleteRule(ServerWebExchange exchange, @PathVariable Long id) {
+        AlertRule existing = ruleService.get(id);
+        requireOwned(existing.getTenantId(), existing.getProjectId(), exchange);
         ruleService.delete(id);
         return Mono.just(Map.of("code", 0, "data", null));
     }
@@ -113,8 +132,9 @@ public class AlertController {
     }
 
     @GetMapping("/channels/{id}")
-    public Mono<Map<String, Object>> getChannel(@PathVariable Long id) {
+    public Mono<Map<String, Object>> getChannel(ServerWebExchange exchange, @PathVariable Long id) {
         var c = channelRepo.findById(id).orElseThrow(() -> new BizException("alert.channel_not_found", id));
+        requireOwned(c.getTenantId(), c.getProjectId(), exchange);
         return Mono.just(Map.of("code", 0, "data", c));
     }
 
@@ -127,8 +147,9 @@ public class AlertController {
     }
 
     @PatchMapping("/channels/{id}")
-    public Mono<Map<String, Object>> updateChannel(@PathVariable Long id, @RequestBody AlertChannel patch) {
+    public Mono<Map<String, Object>> updateChannel(ServerWebExchange exchange, @PathVariable Long id, @RequestBody AlertChannel patch) {
         var c = channelRepo.findById(id).orElseThrow(() -> new BizException("alert.channel_not_found", id));
+        requireOwned(c.getTenantId(), c.getProjectId(), exchange);
         if (patch.getName() != null) c.setName(patch.getName());
         if (patch.getType() != null) c.setType(patch.getType());
         if (patch.getConfigJson() != null) c.setConfigJson(patch.getConfigJson());
@@ -139,14 +160,17 @@ public class AlertController {
     }
 
     @DeleteMapping("/channels/{id}")
-    public Mono<Map<String, Object>> deleteChannel(@PathVariable Long id) {
+    public Mono<Map<String, Object>> deleteChannel(ServerWebExchange exchange, @PathVariable Long id) {
+        var c = channelRepo.findById(id).orElseThrow(() -> new BizException("alert.channel_not_found", id));
+        requireOwned(c.getTenantId(), c.getProjectId(), exchange);
         channelRepo.deleteById(id);
         return Mono.just(Map.of("code", 0, "data", null));
     }
 
     @PostMapping("/channels/{id}/test")
-    public Mono<Map<String, Object>> testChannel(@PathVariable Long id) {
+    public Mono<Map<String, Object>> testChannel(ServerWebExchange exchange, @PathVariable Long id) {
         var channel = channelRepo.findById(id).orElseThrow(() -> new BizException("alert.channel_not_found", id));
+        requireOwned(channel.getTenantId(), channel.getProjectId(), exchange);
         AlertNotification notif = dispatchService.testSend(channel);
         return Mono.just(Map.of("code", 0, "data", Map.of(
                 "outcome", "EXECUTED", "notification", notif,
@@ -170,8 +194,9 @@ public class AlertController {
     }
 
     @PatchMapping("/routes/{id}")
-    public Mono<Map<String, Object>> updateRoute(@PathVariable Long id, @RequestBody AlertRoute patch) {
+    public Mono<Map<String, Object>> updateRoute(ServerWebExchange exchange, @PathVariable Long id, @RequestBody AlertRoute patch) {
         var r = routeRepo.findById(id).orElseThrow(() -> new BizException("alert.rule_not_found", id));
+        requireOwned(r.getTenantId(), r.getProjectId(), exchange);
         if (patch.getMatchJson() != null) r.setMatchJson(patch.getMatchJson());
         if (patch.getChannelIds() != null) r.setChannelIds(patch.getChannelIds());
         if (patch.getSortOrder() != null) r.setSortOrder(patch.getSortOrder());
@@ -181,7 +206,9 @@ public class AlertController {
     }
 
     @DeleteMapping("/routes/{id}")
-    public Mono<Map<String, Object>> deleteRoute(@PathVariable Long id) {
+    public Mono<Map<String, Object>> deleteRoute(ServerWebExchange exchange, @PathVariable Long id) {
+        var r = routeRepo.findById(id).orElseThrow(() -> new BizException("alert.rule_not_found", id));
+        requireOwned(r.getTenantId(), r.getProjectId(), exchange);
         routeRepo.deleteById(id);
         return Mono.just(Map.of("code", 0, "data", null));
     }
@@ -208,14 +235,17 @@ public class AlertController {
     }
 
     @GetMapping("/events/{id}")
-    public Mono<Map<String, Object>> getEvent(@PathVariable Long id) {
+    public Mono<Map<String, Object>> getEvent(ServerWebExchange exchange, @PathVariable Long id) {
         var e = eventRepo.findById(id).orElseThrow(() -> new BizException("alert.event_not_found", id));
+        requireOwned(e.getTenantId(), e.getProjectId(), exchange);
         var notifications = notifRepo.findByEventId(e.getTenantId(), id);
         return Mono.just(Map.of("code", 0, "data", Map.of("event", e, "notifications", notifications)));
     }
 
     @PostMapping("/events/{id}/ack")
-    public Mono<Map<String, Object>> ackEvent(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public Mono<Map<String, Object>> ackEvent(ServerWebExchange exchange, @PathVariable Long id, @RequestBody Map<String, Object> body) {
+        var target = eventRepo.findById(id).orElseThrow(() -> new BizException("alert.event_not_found", id));
+        requireOwned(target.getTenantId(), target.getProjectId(), exchange);
         Long ackedBy = body.get("ackedBy") instanceof Number n ? n.longValue() : 1L;
         if (!lifecycleService.ack(id, ackedBy)) {
             throw new BizException("alert.event_not_ackable", id, "current state not FIRING");
@@ -225,8 +255,9 @@ public class AlertController {
     }
 
     @GetMapping("/events/{id}/notifications")
-    public Mono<Map<String, Object>> getEventNotifications(@PathVariable Long id) {
+    public Mono<Map<String, Object>> getEventNotifications(ServerWebExchange exchange, @PathVariable Long id) {
         var e = eventRepo.findById(id).orElseThrow(() -> new BizException("alert.event_not_found", id));
+        requireOwned(e.getTenantId(), e.getProjectId(), exchange);
         return Mono.just(Map.of("code", 0, "data", notifRepo.findByEventId(e.getTenantId(), id)));
     }
 
