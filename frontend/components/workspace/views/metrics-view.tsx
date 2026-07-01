@@ -28,8 +28,14 @@ interface MetricsSnapshot {
   // 第 1 层
   dispatchLatencyMean: number
   dispatchLatencyCount: number
+  dispatchLatencyP50: number
+  dispatchLatencyP99: number
+  dispatchLatencyP999: number
   deliveryLatencyMean: number
   deliveryLatencyCount: number
+  deliveryLatencyP50: number
+  deliveryLatencyP99: number
+  deliveryLatencyP999: number
   queueDepth: number
   oldestAgeSeconds: number
   totalClaimRounds: number
@@ -42,6 +48,8 @@ interface MetricsSnapshot {
   slotUtilization: number
   slotFragmentation: number
   taskDurationMean: number
+  taskDurationP50: number
+  taskDurationP99: number
   taskCompletedCount: number
   leaseReclaims: number
   // 第 3 层
@@ -145,14 +153,22 @@ export function MetricsView({ active }: ViewProps) {
           <MetricCard
             label={t("dispatchLatencyMean")}
             value={fmtMs(s.dispatchLatencyMean)}
-            subtitle={t("countTimes", { count: s.dispatchLatencyCount })}
+            subtitle={t("percentileSub", {
+              p50: fmtMs(s.dispatchLatencyP50),
+              p99: fmtMs(s.dispatchLatencyP99),
+              p999: fmtMs(s.dispatchLatencyP999),
+            })}
             icon={CheckmarkCircle01Icon}
             tone={s.dispatchLatencyMean > 1000 ? "warning" : "success"}
           />
           <MetricCard
             label={t("deliveryLatencyMean")}
             value={fmtMs(s.deliveryLatencyMean)}
-            subtitle={t("countTimes", { count: s.deliveryLatencyCount })}
+            subtitle={t("percentileSub", {
+              p50: fmtMs(s.deliveryLatencyP50),
+              p99: fmtMs(s.deliveryLatencyP99),
+              p999: fmtMs(s.deliveryLatencyP999),
+            })}
             icon={SignalIcon}
             tone={s.deliveryLatencyMean > 2000 ? "warning" : "success"}
           />
@@ -217,7 +233,10 @@ export function MetricsView({ active }: ViewProps) {
           <MetricCard
             label={t("taskDuration")}
             value={fmtMs(s.taskDurationMean)}
-            subtitle={t("countCompleted", { count: s.taskCompletedCount })}
+            subtitle={t("percentileSubShort", {
+              p50: fmtMs(s.taskDurationP50),
+              p99: fmtMs(s.taskDurationP99),
+            })}
             icon={TimeManagementIcon}
           />
           <MetricCard
@@ -232,7 +251,7 @@ export function MetricsView({ active }: ViewProps) {
       {/* ─── 第 3 层：管道健康 ──────────────────────────── */}
       <section className="flex flex-col gap-2.5">
         <p className="text-xs text-muted-foreground">{t("sectionPipelineHealth")}</p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <MetricCard
             label={t("logStreamBacklog")}
             value={String(s.logStreamBacklog)}
@@ -244,16 +263,6 @@ export function MetricsView({ active }: ViewProps) {
             value={String(s.sseConnections)}
             icon={SignalIcon}
           />
-          <Card>
-            <CardContent className="pt-5 flex flex-col items-center justify-center gap-1 min-h-[88px]">
-              <span className="text-xs text-muted-foreground">{t("percentileLatencyTitle")}</span>
-              <span className="text-[10px] text-muted-foreground/60 text-center">
-                {t("percentileLatencyHintLine1")}
-                <br />
-                {t("percentileLatencyHintLine2")}
-              </span>
-            </CardContent>
-          </Card>
         </div>
       </section>
     </DwScroll>

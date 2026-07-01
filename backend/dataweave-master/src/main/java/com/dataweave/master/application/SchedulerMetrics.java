@@ -349,8 +349,8 @@ public class SchedulerMetrics {
 
     /**
      * 返回四层指标当前快照，供前端看板与告警模块消费。
-     * 百分位延迟通过 actuator /actuator/metrics 端点获取（Micrometer 2.x 不提供 Timer 直读）。
-     * 此处返回计数/瞬时值/均值（基于 totalTime/count 自算）。
+     * 百分位延迟通过 Micrometer publishPercentiles 注册的百分位 Gauge 读取
+     * （命名为 {@code <metric>.percentile}，tag {@code phi=0.5/0.99/...})。
      */
     public MetricsSnapshot snapshot() {
         MetricsSnapshot s = new MetricsSnapshot();
@@ -372,6 +372,16 @@ public class SchedulerMetrics {
         s.roundDurationMean = roundDuration.count() > 0
                 ? roundDuration.totalTime(TimeUnit.MILLISECONDS) / (double) roundDuration.count() : 0;
 
+        // 百分位延迟（从 Micrometer publishPercentiles Gauge 读取，单位 ms）
+        s.dispatchLatencyP50 = timerPercentile("scheduler.dispatch.latency", 0.5);
+        s.dispatchLatencyP99 = timerPercentile("scheduler.dispatch.latency", 0.99);
+        s.dispatchLatencyP999 = timerPercentile("scheduler.dispatch.latency", 0.999);
+        s.deliveryLatencyP50 = timerPercentile("scheduler.dispatch.latency.delivery", 0.5);
+        s.deliveryLatencyP99 = timerPercentile("scheduler.dispatch.latency.delivery", 0.99);
+        s.deliveryLatencyP999 = timerPercentile("scheduler.dispatch.latency.delivery", 0.999);
+        s.taskDurationP50 = timerPercentile("scheduler.task.duration", 0.5);
+        s.taskDurationP99 = timerPercentile("scheduler.task.duration", 0.99);
+
         // 第 2 层
         s.slotUtilization = slotUtilization.doubleValue() / 1000.0;
         s.slotFragmentation = slotFragmentation.doubleValue() / 1000.0;
@@ -385,6 +395,35 @@ public class SchedulerMetrics {
         s.sseConnections = sseConnections.get();
 
         return s;
+    }
+
+    /**
+     * 从 Micrometer 读取已发布的百分位 Gauge 值（ms）。
+     * Micrometer 通过 {@code publishPercentiles} 在 registry 中注册额外 Gauge，
+     * 命名为 {@code <metricName>.percentile}，tag key 可能是 {@code phi} 或 {@code percentile}。
+     *
+     * @param metricName Timer 的基础名称（如 {@code scheduler.dispatch.latency})
+     * @param phi        百分位（如 0.5, 0.99, 0.999）
+     * @return 百分位值（ms），若无数据返回 0
+     */
+    private double timerPercentile(String metricName, double phi) {
+        String phiStr = String.valueOf(phi);
+        // Micrometer 1.x/2.x 主要使用 phi tag
+        Double val = registry.find(metricName + ".percentile")
+                .tag("phi", phiStr)
+                .gauges().stream()
+                .findFirst()
+                .map(Gauge::value)
+                .orElse(null);
+        if (val != null) return val;
+
+        // 回退：某些 registry 实现可能用 percentile tag
+        return registry.find(metricName + ".percentile")
+                .tag("percentile", phiStr)
+                .gauges().stream()
+                .findFirst()
+                .map(Gauge::value)
+                .orElse(0.0);
     }
 
     public static final class MetricsSnapshot {
@@ -401,6 +440,16 @@ public class SchedulerMetrics {
         public long wakePolls;
         public long totalDispatches;
         public double roundDurationMean;
+
+        // 百分位延迟（ms）：p50/p99/p999
+        public double dispatchLatencyP50;
+        public double dispatchLatencyP99;
+        public double dispatchLatencyP999;
+        public double deliveryLatencyP50;
+        public double deliveryLatencyP99;
+        public double deliveryLatencyP999;
+        public double taskDurationP50;
+        public double taskDurationP99;
 
         // 第 2 层：资源与执行
         public double slotUtilization;
