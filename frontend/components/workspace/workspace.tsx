@@ -9,6 +9,7 @@ import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { cn } from "@/lib/utils"
 import { WorkspaceTabBar } from "./tab-bar"
+import { WorkspaceBreadcrumb } from "./breadcrumb"
 import { WorkspaceLogPanel } from "./log-panel"
 
 /**
@@ -60,6 +61,7 @@ export function Workspace() {
         !logPanelExpanded && "mb-3",
       )}>
         <WorkspaceTabBar />
+        <WorkspaceBreadcrumb />
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {tabs
             .filter((t) => mountedRef.current.has(t.id))

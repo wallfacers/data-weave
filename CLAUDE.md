@@ -173,9 +173,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [027-event-center](specs/027-event-center/spec.md)
-Implementation plan: [plan.md](specs/027-event-center/plan.md)
-Research: [research.md](specs/027-event-center/research.md)
-Data model: [data-model.md](specs/027-event-center/data-model.md)
-API contracts: [contracts/](specs/027-event-center/contracts/)
+Current feature: [034-dashboard-layout-shell](specs/034-dashboard-layout-shell/spec.md)
+Implementation plan: [plan.md](specs/034-dashboard-layout-shell/plan.md)
+Research: [research.md](specs/034-dashboard-layout-shell/research.md)
+Data model: [data-model.md](specs/034-dashboard-layout-shell/data-model.md)
+API contracts: [contracts/](specs/034-dashboard-layout-shell/contracts/)
 <!-- SPECKIT END -->
