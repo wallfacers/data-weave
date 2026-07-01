@@ -16,6 +16,7 @@ import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
+import { useMinSpin } from "@/hooks/use-min-spin"
 
 export interface ViewRefreshControlProps {
   /** 最近一次成功刷新的时间戳（ms）；null 则显示"从未" */
@@ -56,6 +57,10 @@ export function ViewRefreshControl({
   onRefresh,
 }: ViewRefreshControlProps) {
   const t = useTranslations("viewRefresh")
+
+  // 自动刷新 / 手动点击都把 refreshing 拉 true，本地秒回接口会让它只闪一帧；
+  // useMinSpin 把旋转兜底到至少一整圈，保证肉眼可见（详见 hook 注释）。
+  const spinning = useMinSpin(refreshing)
 
   const timeLabel = lastUpdatedAt
     ? t("lastUpdated", { time: formatRelative(lastUpdatedAt) })
@@ -101,13 +106,13 @@ export function ViewRefreshControl({
       <button
         type="button"
         onClick={onRefresh}
-        disabled={refreshing}
+        disabled={spinning}
         className="inline-flex items-center justify-center size-7 rounded-md hover:bg-accent disabled:opacity-50 transition-colors"
         aria-label="Refresh"
       >
         <HugeiconsIcon
           icon={RefreshIcon}
-          className={cn("size-4", refreshing && "animate-spin")}
+          className={cn("size-4", spinning && "animate-spin")}
         />
       </button>
     </div>

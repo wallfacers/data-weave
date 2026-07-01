@@ -4,11 +4,15 @@ import { useState, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  BellIcon,
-  PlusSignIcon,
-  Tick01Icon,
-  Delete01Icon,
   Alert02Icon,
+  BellIcon,
+  Delete01Icon,
+  HistoryIcon,
+  Mail01Icon,
+  MuteIcon,
+  PlusSignIcon,
+  Settings02Icon,
+  Tick01Icon,
 } from "@hugeicons/core-free-icons"
 import { useLiveData } from "@/lib/workspace/use-api"
 import type { ViewProps } from "@/lib/workspace/registry"
@@ -100,12 +104,12 @@ export function AlertsView({ active }: ViewProps) {
     refresh()
   }
 
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "active", label: t("activeAlerts") },
-    { key: "history", label: t("history") },
-    { key: "rules", label: t("rules") },
-    { key: "channels", label: t("channels") },
-    { key: "silences", label: t("silences") },
+  const tabs: { key: TabKey; labelKey: string; icon: typeof Alert02Icon }[] = [
+    { key: "active", labelKey: "activeAlerts", icon: Alert02Icon },
+    { key: "history", labelKey: "history", icon: HistoryIcon },
+    { key: "rules", labelKey: "rules", icon: Settings02Icon },
+    { key: "channels", labelKey: "channels", icon: Mail01Icon },
+    { key: "silences", labelKey: "silences", icon: MuteIcon },
   ]
 
   const severityColor = (s: string) =>
@@ -121,22 +125,36 @@ export function AlertsView({ active }: ViewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar + refresh control */}
-      <div className="flex items-center gap-1 border-b px-4 py-2">
-        {tabs.map(tb => (
-          <button
-            key={tb.key}
-            onClick={() => setTab(tb.key)}
-            className={`px-3 py-1.5 text-sm rounded-t-md transition-colors ${
-              tab === tb.key
-                ? "bg-background text-foreground border-b-2 border-primary font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tb.label}
-          </button>
-        ))}
-        <div className="flex-1" />
+      {/* Tab bar — 与运维中心 OpsTabBar 风格一致 */}
+      <div role="tablist">
+        <div className="flex items-center gap-1 px-5 h-11">
+          {tabs.map(tb => {
+            const isActive = tab === tb.key
+            return (
+              <button
+                key={tb.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setTab(tb.key)}
+                className={
+                  "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
+                  (isActive
+                    ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                <HugeiconsIcon icon={tb.icon} className="size-4" />
+                {t(tb.labelKey as never)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mx-6 border-b" />
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-end px-5 py-2">
         <ViewRefreshControl
           lastUpdatedAt={lastUpdatedAt}
           refreshing={refreshing}
@@ -148,7 +166,7 @@ export function AlertsView({ active }: ViewProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto px-5 pb-5">
         {loading && bundle == null && <p className="text-muted-foreground text-sm">{t("loading")}</p>}
 
         {/* Active Alerts & History */}
