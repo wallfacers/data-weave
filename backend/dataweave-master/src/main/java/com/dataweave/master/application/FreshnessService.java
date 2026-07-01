@@ -32,20 +32,25 @@ public class FreshnessService {
     }
 
     /**
-     * 分页查询任务新鲜度。
+     * 分页查询任务新鲜度（按 tenant + project 作用域）。
      *
+     * <p>036 FR-016：消除全租户裸扫，{@code task_def} 维度按 {@code (tenant_id, project_id)}
+     * 收敛；任务实例继承任务归属，不再 LEFT JOIN 处另加过滤。
+     *
+     * @param tenantId 租户 id（必填）
+     * @param projectId 项目 id（必填）
      * @param taskName 任务名模糊搜索（null 不过滤）
      * @param tiers    时效分档过滤（null 或空不过滤；合法值 FRESH/AGING/STALE/NEVER）
      * @param sort     排序（worst_first 默认 / best_first）
      * @param page     页码（0-based）
      * @param size     每页大小
      */
-    public PageResult<FreshnessRow> query(String taskName, List<String> tiers, String sort,
-                                           int page, int size) {
+    public PageResult<FreshnessRow> query(Long tenantId, Long projectId, String taskName, List<String> tiers,
+                                           String sort, int page, int size) {
         int effectivePage = Math.max(0, page);
         int effectiveSize = Math.min(Math.max(1, size), 200);
 
-        // 核心聚合子查询：所有未删除任务 LEFT JOIN 最近成功时间
+        // 核心聚合子查询：当前项目未删除任务 LEFT JOIN 最近成功时间
         // 使用 EXTRACT(EPOCH FROM ...) 兼容 H2-PG 与真实 PG
         String baseSql = "SELECT td.id AS task_id, td.name AS task_name, "
                 + "MAX(CASE WHEN ti.state = 'SUCCESS' THEN ti.finished_at ELSE NULL END) AS last_success_at, "
@@ -57,12 +62,15 @@ public class FreshnessService {
                 + "END AS freshness_tier "
                 + "FROM task_def td "
                 + "LEFT JOIN task_instance ti ON ti.task_id = td.id AND ti.deleted = 0 "
-                + "WHERE td.deleted = 0 "
+                + "WHERE td.deleted = 0 AND td.tenant_id = ? AND td.project_id = ? "
                 + "GROUP BY td.id, td.name";
 
+        // 参数顺序：FRESH_HOURS/STALE_HOURS（base CASE），tenantId/projectId（WHERE）
         List<Object> params = new ArrayList<>();
         params.add(FRESH_HOURS);
         params.add(STALE_HOURS);
+        params.add(tenantId);
+        params.add(projectId);
 
         // 任务名筛选（追加到 HAVING）
         boolean hasNameFilter = taskName != null && !taskName.isBlank();

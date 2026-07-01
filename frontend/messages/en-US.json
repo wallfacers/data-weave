@@ -546,7 +546,11 @@
     "title": "Business Reports",
     "subtitle": "Core metrics dashboard, versioned and tamper-proof definitions",
     "empty": "No metrics defined yet. Define metric definitions via the Agent on the left.",
-    "noData": "No data"
+    "noData": "No data",
+    "bizDate": "Business date",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "noProject": "Please select a current project first"
   },
   "workflowCanvas": {
     "nodeTaskFallback": "Task",

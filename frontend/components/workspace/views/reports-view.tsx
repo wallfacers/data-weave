@@ -4,21 +4,41 @@ import { useTranslations } from "next-intl"
 import { useState } from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Analytics01Icon } from "@hugeicons/core-free-icons"
+import { format, subDays } from "date-fns"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import { type MetricCard } from "@/lib/types"
-import { useLiveData } from "@/lib/workspace/use-api"
+import { fetchApi, useLiveData } from "@/lib/workspace/use-api"
+import { useProjectContext } from "@/lib/project-context"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { ViewRefreshControl } from "./view-refresh-control"
 import { ViewStatus } from "./view-status"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
-/** 业务报表（最小版）：指标卡片网格（名称 / 口径版本 / 最新值或空态） */
+/** 业务报表（最小版）：当前项目的指标卡片网格（名称 / 口径版本 / 最新值或空态）。 */
 export function ReportsView({ active }: ViewProps) {
   const t = useTranslations("reports")
   const [autoEnabled, setAutoEnabled] = useState(true)
-  const { data: metrics, loading, refreshing, stale, lastUpdatedAt, refresh } = useLiveData<MetricCard[]>("/api/metrics", { active, enabled: autoEnabled })
+  // 036 FR-012：指标按当前项目隔离；响应式读取，切项目即重取
+  const projectId = useProjectContext((s) => s.currentProjectId)
+  // 业务日期观察（复用 ops 的 bizDate 模型：T-1 兜底、yyyy-MM-dd），切日期重取对应快照
+  const [bizDate, setBizDate] = useState(() => format(subDays(new Date(), 1), "yyyy-MM-dd"))
+
+  const url = projectId != null ? `/api/metrics?projectId=${projectId}&bizDate=${bizDate}` : ""
+  const { data: metrics, loading, refreshing, stale, lastUpdatedAt, refresh } = useLiveData<MetricCard[]>(
+    () => (url ? fetchApi<MetricCard[]>(url) : Promise.resolve([] as MetricCard[])),
+    { active, enabled: autoEnabled, deps: [url] },
+  )
+
+  if (projectId == null) {
+    return (
+      <DwScroll className="flex-1" innerClassName="flex flex-col items-center justify-center gap-2 p-10 text-center">
+        <p className="text-sm text-muted-foreground">{t("noProject")}</p>
+      </DwScroll>
+    )
+  }
 
   if (metrics == null) return <ViewStatus loading={loading} />
 
@@ -34,14 +54,28 @@ export function ReportsView({ active }: ViewProps) {
             {t("subtitle")}
           </p>
         </div>
-        <ViewRefreshControl
-          lastUpdatedAt={lastUpdatedAt}
-          refreshing={refreshing}
-          stale={stale}
-          autoEnabled={autoEnabled}
-          onToggleAuto={setAutoEnabled}
-          onRefresh={refresh}
-        />
+        <div className="flex items-center gap-3">
+          {/* 业务日期观察（T-1 兜底；切日期按 (projectId, bizDate) 收敛到当日快照） */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-muted-foreground">{t("bizDate")}</span>
+            <DatePicker
+              value={bizDate}
+              onChange={setBizDate}
+              className="w-[150px]"
+              triggerClassName="h-8 w-[150px]"
+              showQuickActions
+              quickLabels={{ today: t("today"), yesterday: t("yesterday") }}
+            />
+          </div>
+          <ViewRefreshControl
+            lastUpdatedAt={lastUpdatedAt}
+            refreshing={refreshing}
+            stale={stale}
+            autoEnabled={autoEnabled}
+            onToggleAuto={setAutoEnabled}
+            onRefresh={refresh}
+          />
+        </div>
       </div>
 
       {metrics.length === 0 ? (

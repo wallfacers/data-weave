@@ -281,11 +281,12 @@ public class McpToolRegistry {
                     return r;
                 });
 
-        register("query_lineage", "按指标 code 返回血缘链路（指标 → SQL → 物理表，租户隔离）",
+        register("query_lineage", "按指标 code 返回血缘链路（指标 → SQL → 物理表，租户+项目隔离）",
                 schema(req("code", "string", "指标 code，如 GMV")), ctx -> {
                     requireTenant(ctx);
                     String code = required(ctx.args(), "code");
-                    return lineageService.lineageOf(code)
+                    // 036 FR-013：tenantId/projectId 从请求上下文传入，移除 LineageService 硬编码
+                    return lineageService.lineageOf(TenantContext.tenantId(), TenantContext.projectId(), code)
                             .map(p -> (Object) Map.of(
                                     "metric", p.metric().getName(),
                                     "exprSql", p.metric().getMeasureExpr(),

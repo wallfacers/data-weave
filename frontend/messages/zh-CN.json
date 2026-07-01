@@ -546,7 +546,11 @@
     "title": "业务报表",
     "subtitle": "核心指标看板，口径版本化、不可篡改",
     "empty": "暂无指标定义，可通过左侧 Agent 定义指标口径",
-    "noData": "暂无数据"
+    "noData": "暂无数据",
+    "bizDate": "业务日期",
+    "today": "今天",
+    "yesterday": "昨天",
+    "noProject": "请先选择当前项目"
   },
   "workflowCanvas": {
     "nodeTaskFallback": "任务",

@@ -3,7 +3,12 @@
  *
  * 所有端点返回统一的 ApiResponse<T> 包络，调用方负责解包。
  * neo4j 不可达时后端返回 code="lineage.store_unavailable"，前端降级处理。
+ *
+ * 036 FR-013：所有受隔离请求统一附带当前 projectId（读 useProjectContext），后端按
+ * (tenantId, projectId) 作用域查询，杜绝血缘跨项目串号。
  */
+
+import { currentProjectId } from "@/lib/project-context";
 
 const BASE = "/api/lineage";
 
@@ -71,6 +76,11 @@ interface ApiResponse<T> {
 
 async function get<T>(path: string, params?: Record<string, string | number>): Promise<ApiResponse<T>> {
   const url = new URL(path, window.location.origin);
+  // 036 FR-013：统一附带当前 projectId（后端按项目作用域查询）
+  const pid = currentProjectId();
+  if (pid != null) {
+    url.searchParams.set("projectId", String(pid));
+  }
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") {

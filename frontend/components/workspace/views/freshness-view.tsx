@@ -10,6 +10,7 @@ import { type ColumnDef, type FilterDef, type FilterPreset, type FetchQuery, typ
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
+import { useProjectContext } from "@/lib/project-context"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { ViewRefreshControl } from "./view-refresh-control"
 
@@ -47,6 +48,8 @@ function ageDisplay(ageHours: number | null, t: (k: string, v?: Record<string, n
 export function FreshnessView({ active }: ViewProps) {
   const t = useTranslations("freshness")
   const formatDateTime = useFormatDateTime()
+  // 036 FR-016：新鲜度按当前项目隔离（响应式，切项目即刷新）
+  const projectId = useProjectContext((s) => s.currentProjectId)
 
   const [reloadSignal, setReloadSignal] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -99,6 +102,10 @@ export function FreshnessView({ active }: ViewProps) {
       if (!qs.has("sort")) {
         qs.set("sort", "worst_first")
       }
+      // 036 FR-016：附带当前项目，后端按 (tenantId, projectId) 过滤
+      if (projectId != null) {
+        qs.set("projectId", String(projectId))
+      }
       const res = await authFetch(`${API_BASE}/api/freshness?${qs.toString()}`)
       if (!res.ok) return { items: [], total: 0, page: query.page, size: query.size }
       const json = (await res.json()) as ApiResponse<unknown>
@@ -114,7 +121,7 @@ export function FreshnessView({ active }: ViewProps) {
       }
       return { items: [], total: 0, page: query.page, size: query.size }
     },
-    [filters],
+    [filters, projectId],
   )
 
   const columns = useMemo<ColumnDef<FreshnessRow>[]>(

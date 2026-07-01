@@ -258,7 +258,8 @@ export interface MetricCardView {
 }
 
 export function fetchMetricCards() {
-  return get<MetricCardView[]>("/api/metrics");
+  // 036 FR-012：附带当前项目，仅返回该项目的指标定义供上架选用
+  return get<MetricCardView[]>("/api/metrics", { projectId: currentProjectId() });
 }
 
 export function listMetric(

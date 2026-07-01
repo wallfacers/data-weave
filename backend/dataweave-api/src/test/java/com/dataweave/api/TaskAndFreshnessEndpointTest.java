@@ -126,7 +126,7 @@ class TaskAndFreshnessEndpointTest {
         insertInstance(instUuid(880102), 880102L, "SUCCESS",
                 LocalDateTime.now().minusHours(1));
 
-        client.get().uri(b -> b.path("/api/freshness")
+        client.get().uri(b -> b.path("/api/freshness").queryParam("projectId", "1")
                         .queryParam("taskName", "zzfr")
                         .queryParam("page", "0").queryParam("size", "20").build())
                 .exchange()
@@ -148,7 +148,7 @@ class TaskAndFreshnessEndpointTest {
         insertInstance(instUuid(880112), 880112L, "SUCCESS",
                 LocalDateTime.now().minusHours(1));
 
-        client.get().uri(b -> b.path("/api/freshness")
+        client.get().uri(b -> b.path("/api/freshness").queryParam("projectId", "1")
                         .queryParam("taskName", "zzfr")
                         .queryParam("tiers", "NEVER")
                         .queryParam("page", "0").queryParam("size", "20").build())
@@ -172,7 +172,7 @@ class TaskAndFreshnessEndpointTest {
         insertInstance(instUuid(880122), 880122L, "SUCCESS",
                 LocalDateTime.now().minusHours(1));
 
-        client.get().uri(b -> b.path("/api/freshness")
+        client.get().uri(b -> b.path("/api/freshness").queryParam("projectId", "1")
                         .queryParam("taskName", "zzfr")
                         .queryParam("tiers", "STALE")
                         .queryParam("page", "0").queryParam("size", "20").build())
@@ -196,7 +196,7 @@ class TaskAndFreshnessEndpointTest {
         insertInstance(instUuid(880132), 880132L, "SUCCESS",
                 LocalDateTime.now().minusHours(12));
 
-        client.get().uri(b -> b.path("/api/freshness")
+        client.get().uri(b -> b.path("/api/freshness").queryParam("projectId", "1")
                         .queryParam("taskName", "zzfr")
                         .queryParam("sort", "worst_first")
                         .queryParam("page", "0").queryParam("size", "20").build())
@@ -219,7 +219,7 @@ class TaskAndFreshnessEndpointTest {
         insertInstance(instUuid(880141), 880141L, "FAILED",
                 LocalDateTime.now().minusHours(1));
 
-        client.get().uri(b -> b.path("/api/freshness")
+        client.get().uri(b -> b.path("/api/freshness").queryParam("projectId", "1")
                         .queryParam("taskName", "zzfrfail")
                         .queryParam("page", "0").queryParam("size", "20").build())
                 .exchange()
