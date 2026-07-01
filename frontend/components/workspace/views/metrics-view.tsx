@@ -1,6 +1,7 @@
 "use client"
 
 import { useTranslations } from "next-intl"
+import { useState } from "react"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
@@ -16,7 +17,9 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useApi } from "@/lib/workspace/use-api"
+import { useLiveData } from "@/lib/workspace/use-api"
+import type { ViewProps } from "@/lib/workspace/registry"
+import { ViewRefreshControl } from "./view-refresh-control"
 import { ViewStatus } from "./view-status"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
@@ -111,19 +114,47 @@ function MetricCard({
 
 // ─── 主视图 ─────────────────────────────────────────────────
 
-export function MetricsView() {
+export function MetricsView({ active }: ViewProps) {
   const t = useTranslations("metrics")
-  const { data: s, loading } = useApi<MetricsSnapshot>("/api/ops/metrics")
+  const [autoEnabled, setAutoEnabled] = useState(true)
+  const { data: s, loading, refreshing, stale, lastUpdatedAt, refresh } = useLiveData<MetricsSnapshot>("/api/ops/metrics", { active, enabled: autoEnabled })
 
-  if (!s) return <ViewStatus loading={loading} />
+  if (s == null) return <ViewStatus loading={loading} />
 
   const wakeTotal = s.wakeEvents + s.wakePolls
   const emptyRate = s.totalClaimRounds > 0 ? s.emptyClaimRounds / s.totalClaimRounds : 0
 
   return (
     <DwScroll className="flex-1" innerClassName="flex flex-col gap-8 p-6 md:p-10">
-      {/* ─── 调度性能 ──────────────────────────── */}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <HugeiconsIcon icon={Activity02Icon} className="size-5 text-primary" />
+            <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {t("subtitle")}
+          </p>
+        </div>
+        <ViewRefreshControl
+          lastUpdatedAt={lastUpdatedAt}
+          refreshing={refreshing}
+          stale={stale}
+          autoEnabled={autoEnabled}
+          onToggleAuto={setAutoEnabled}
+          onRefresh={refresh}
+        />
+      </div>
+
+      {/* ─── 第 1 层：调度性能 ──────────────────────────── */}
       <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <HugeiconsIcon icon={TimeManagementIcon} className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
+            {t("sectionSchedulingPerformance")}
+          </h2>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label={t("dispatchLatencyMean")}
@@ -181,8 +212,14 @@ export function MetricsView() {
         </div>
       </section>
 
-      {/* ─── 资源与执行 ───────────────────────── */}
+      {/* ─── 第 2 层：资源与执行 ───────────────────────── */}
       <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <HugeiconsIcon icon={CpuIcon} className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
+            {t("sectionResourceExecution")}
+          </h2>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             label={t("slotUtilization")}
@@ -211,8 +248,14 @@ export function MetricsView() {
         </div>
       </section>
 
-      {/* ─── 管道健康 ──────────────────────────── */}
+      {/* ─── 第 3 层：管道健康 ──────────────────────────── */}
       <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <HugeiconsIcon icon={SignalIcon} className="size-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">
+            {t("sectionPipelineHealth")}
+          </h2>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             label={t("logStreamBacklog")}

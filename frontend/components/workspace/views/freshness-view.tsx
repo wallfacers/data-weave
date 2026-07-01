@@ -1,14 +1,18 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
-import { BoxIcon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { BoxIcon, RefreshIcon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { DataTable } from "@/components/ui/data-table"
 import { type ColumnDef, type FilterDef, type FilterPreset, type FetchQuery, type PageResult, toQueryParams } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { useRefreshSchedule } from "@/lib/workspace/use-api"
+import type { ViewProps } from "@/lib/workspace/registry"
+import { ViewRefreshControl } from "./view-refresh-control"
 
 interface FreshnessRow {
   taskId: number
@@ -41,9 +45,21 @@ function ageDisplay(ageHours: number | null, t: (k: string, v?: Record<string, n
   return t("daysAgo", { days: Math.floor(ageHours / 24) })
 }
 
-export function FreshnessView() {
+export function FreshnessView({ active }: ViewProps) {
   const t = useTranslations("freshness")
   const formatDateTime = useFormatDateTime()
+
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
+
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+
+  const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
+  const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -147,7 +163,24 @@ export function FreshnessView() {
   )
 
   return (
-    <div className="flex flex-1 flex-col p-6">
+    <div className="flex flex-1 flex-col gap-3 px-6">
+      <div className="shrink-0 border-b py-4 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <HugeiconsIcon icon={RefreshIcon} className="size-5 text-primary" />
+            <h1 className="text-lg font-semibold tracking-tight">{t("title")}</h1>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        <ViewRefreshControl
+          lastUpdatedAt={lastUpdatedAt}
+          refreshing={refreshing}
+          stale={false}
+          autoEnabled={autoEnabled}
+          onToggleAuto={setAutoEnabled}
+          onRefresh={tickNow}
+        />
+      </div>
       <div className="flex-1 overflow-hidden">
         <DataTable<FreshnessRow>
           columns={columns}
@@ -157,6 +190,9 @@ export function FreshnessView() {
           filters={filters}
           presets={presets}
           defaultFilters={defaultFilters}
+          reloadSignal={reloadSignal}
+          onLoadingChange={onLoadingChange}
+          onLoaded={onLoaded}
           emptyIcon={BoxIcon}
           emptyTitle={t("emptyTitle")}
           emptyHint={t("emptyHint")}

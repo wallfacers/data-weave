@@ -73,7 +73,7 @@ export function Workspace() {
                     tab.id === activeTabId ? "flex" : "hidden",
                   )}
                 >
-                  <View params={tab.params} />
+                  <View params={tab.params} active={tab.id === activeTabId} />
                 </div>
               )
             })}

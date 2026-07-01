@@ -949,6 +949,13 @@
       "delete": "删除"
     }
   },
+  "viewRefresh": {
+    "lastUpdated": "最后更新 {time}",
+    "auto": "自动刷新",
+    "paused": "已暂停",
+    "updateFailed": "更新失败",
+    "stale": "数据可能过时"
+  },
   "alerts": {
     "title": "告警中心",
     "rules": "告警规则",

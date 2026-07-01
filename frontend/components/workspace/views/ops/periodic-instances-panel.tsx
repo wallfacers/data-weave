@@ -13,7 +13,7 @@
  * 批量操作按 outcome 三态分流（EXECUTED / PENDING_APPROVAL / REJECTED），绝不因 code===0 误判。
  */
 
-import { useMemo } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { format } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -32,8 +32,10 @@ import {
   toQueryParams,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
-import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
+import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { ViewRefreshControl } from "../view-refresh-control"
 
 /** 契约① InstanceRow */
 interface InstanceRow {
@@ -115,11 +117,24 @@ const STATE_OPTIONS = [
 
 export function PeriodicInstancesPanel({
   initialFilter,
+  active,
 }: {
   initialFilter?: Record<string, string>
+  active?: boolean
 }) {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
+  const open = useWorkspaceStore((s) => s.open)
+
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+  const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
+  const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
   /** cron → 简短可读形式（仅处理标准 6 段 Quartz cron），文案走 i18n */
   const humanizeCron = useMemo(
@@ -288,20 +303,14 @@ export function PeriodicInstancesPanel({
             variant="ghost"
             size="sm"
             className="h-6 px-2 text-xs"
-            onClick={() =>
-              useLogPanelStore.getState().open(r.id, {
-                taskId: r.taskDefId,
-                startedAt: r.startedAt,
-                finishedAt: r.finishedAt,
-              })
-            }
+            onClick={() => open("workflow-instance-detail", { instanceId: r.id })}
           >
             {t("btnLog")}
           </Button>
         ),
       },
     ],
-    [t, formatDateTime, humanizeCron, taskName],
+    [t, formatDateTime, humanizeCron, taskName, open],
   )
 
   // ── server 模式取数：复用契约①，兼容 数组 / Spring Page 两种返回 ──
@@ -371,6 +380,19 @@ export function PeriodicInstancesPanel({
         presets={presets}
         defaultFilters={defaultFilters}
         selectable
+        reloadSignal={reloadSignal}
+        onLoadingChange={onLoadingChange}
+        onLoaded={onLoaded}
+        toolbarActions={
+          <ViewRefreshControl
+            lastUpdatedAt={lastUpdatedAt}
+            refreshing={refreshing}
+            stale={false}
+            autoEnabled={autoEnabled}
+            onToggleAuto={setAutoEnabled}
+            onRefresh={tickNow}
+          />
+        }
         emptyIcon={BoxIcon}
         emptyTitle={t("emptyTitle")}
         emptyHint={t("emptyHint")}
