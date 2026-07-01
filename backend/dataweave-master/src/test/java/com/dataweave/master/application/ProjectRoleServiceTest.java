@@ -41,6 +41,7 @@ class ProjectRoleServiceTest {
         Role r = new Role();
         r.setId(id);
         r.setCode(code);
+        r.setName(code); // mock 展示名 == code（见 resolveMembership_admin_snapshot 断言）
         r.setDeleted(0);
         return r;
     }
