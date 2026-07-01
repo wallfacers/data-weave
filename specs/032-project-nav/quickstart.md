@@ -93,3 +93,32 @@ cd frontend && npx vitest run lib/workspace/
 - **激活态**: 未修改 `workspace/store.ts` 的 tab 激活逻辑；只读取 `activeTabId` 用于高亮订阅
 - **030 (tab 风格统一)**: 未碰 `components/ui/tab-strip.tsx`，接缝无冲突
 - **031 (激活页刷新)**: 未碰 `store.ts` 或 `views.ts` 的刷新逻辑，只读取 `activeTabId`
+
+## 最终核验记录（Opus 兜底复核，2026-07-01）
+
+**权威结论：main（`3ea12b0`）全绿，浏览器验收 14/14 通过。**（隔离 worktree 从 main 亲跑，非信报告。）
+
+### 静态门禁
+- **typecheck: 0 错** —— 删除孤儿死代码 `subscription-dialog.tsx`（029 遗留，引用已不存在的 `SubscriptionView` + `targetName`，全仓零引用）后转全绿，见 commit `3ea12b0`。
+- **vitest: 130/130 全绿（15 files）** —— **更正上文 T025 的「store.test 1 failed」**：那是 `faac497` 旧态；merged main 经 030 的 `13e16d8` 已修 `store.test.ts`，实际全绿，无失败。
+- **design:lint 0/0**；i18n 双语 key 平价（zh 1033 = en 1033，leftNav 13）。
+
+### 浏览器验收（隔离 headless chromium｜前端 `:4200` → 后端 `:8000`｜admin/admin 注入 JWT）—— 14/14 PASS
+| 验收项 | 结果 |
+|--------|------|
+| 7 功能模块分组标题渲染 (SC-001/FR-002/005) | 7/7 |
+| 功能项名称渲染 (FR-003) | 8/8 |
+| 详情视图不作导航入口 (FR-007) | ✓ |
+| 点击 Ops Center 打开 + 高亮 (FR-004/006) | ✓ |
+| 高亮跟随功能切换 (FR-006/SC-004) | ✓ Asset Catalog |
+| 重复点击不新建标签 (FR-008/SC-006) | ✓ 9=9 |
+| 顶部展示当前项目 (FR-013) | ✓ 示例项目 |
+| 切项目更新上下文 (FR-014/019) | ✓ 1→100 |
+| 刷新后项目上下文保留 (FR-015/SC-008) | ✓ pid=100 |
+| 收起为 icon rail、文字隐藏 (FR-009) | ✓ w=64 |
+| 展开恢复 + 偏好持久化 (FR-009/SC-005) | ✓ flag 1→0 |
+
+**核验备注**：
+1. 环境 UI locale 为 **en-US**，导航文案全英文正常显示（顺带验证了英文 bundle）。
+2. **dev-only 现象**：Next 开发浮层 `NEXTJS-PORTAL`（左下角）遮挡收起态的左下切换按钮 —— 元素直触 `click` 证明 handler/持久化正常（flag 1→0），生产构建无此浮层，不受影响。
+3. **030↔032 接缝**：merge 后 `18fafe9` 恢复了 030 曾删的 `instance-log`/`workflow-instance-detail` 两个空壳详情视图以满足 032 依赖 —— 功能正常，属可回退的设计取舍，未反转（若要彻底闭环即保留 030 清理并改 032 `nav-groups` 适配，可另起小改动）。
