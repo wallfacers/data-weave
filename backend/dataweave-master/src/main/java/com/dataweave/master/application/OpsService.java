@@ -720,7 +720,7 @@ public class OpsService {
                         rs.getString("state"),
                         rs.getString("biz_date"),
                         rs.getString("env"),
-                        rs.getString("workflow_name")),
+                        rs.getString("workflow_def_name")),
                 workflowInstanceId);
         if (wiRows.isEmpty()) {
             throw new BizException("ops.instance.not_found", workflowInstanceId);
@@ -736,13 +736,15 @@ public class OpsService {
         String workflowName = (String) row.get(7);
 
         // 2. 查历史版本 DAG snapshot
-        String dagJson = jdbc.queryForObject(
+        List<String> dagRows = jdbc.query(
                 "SELECT wdv.dag_snapshot_json FROM workflow_def_version wdv "
                         + "WHERE wdv.workflow_id=? AND wdv.version_no=?",
-                String.class, workflowId, versionNo);
-        if (dagJson == null || dagJson.isBlank()) {
+                (rs, n) -> rs.getString("dag_snapshot_json"),
+                workflowId, versionNo);
+        if (dagRows.isEmpty() || dagRows.get(0) == null || dagRows.get(0).isBlank()) {
             throw new BizException("workflow.dag_snapshot_missing", workflowId, versionNo.toString());
         }
+        String dagJson = dagRows.get(0);
 
         // 3. 反序列化 DAG 拓扑
         com.dataweave.master.domain.WorkflowDagSnapshot snapshot;

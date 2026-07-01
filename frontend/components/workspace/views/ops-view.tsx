@@ -69,7 +69,7 @@ export function OpsView({ params, active }: ViewProps) {
             {activeTab === "workflowInstances" && (
               <WorkflowInstancesPanel
                 active={active}
-                onRowClick={(row) => {
+                onViewDag={(row) => {
                   setDagWfInstanceId(row.id)
                   setDagOpen(true)
                 }}

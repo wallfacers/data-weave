@@ -7,12 +7,20 @@
  *   GET /api/ops/workflow-instances?state=&triggerType=&bizDate=&page=&size=
  *
  * 与 PeriodicInstancesPanel 共享 DataTable<T> + DataTableToolbar 渲染模式。
+ *
+ * 036 功能2：每行支持操作按钮（重跑全部 / 从失败点恢复 / 停止 / 查看 DAG）。
+ * 036 功能3：行点击查看 DAG 改为行选择 + 操作列按钮。
  */
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { PlayIcon, StopIcon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
+import {
+  PlayIcon,
+  StopIcon,
+  CheckmarkCircle01Icon,
+  Share08Icon,
+} from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -79,11 +87,11 @@ const STATE_OPTIONS = [
 ] as const
 
 interface WorkflowInstancesPanelProps {
-  onRowClick?: (row: WorkflowInstanceRow) => void
+  onViewDag?: (row: WorkflowInstanceRow) => void
   active?: boolean
 }
 
-export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstancesPanelProps) {
+export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesPanelProps) {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
   const abortRef = useRef<AbortController | null>(null)
@@ -123,6 +131,24 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
     }
   }, [t])
 
+  // ── 单行操作 ──
+  const submitAction = useCallback(
+    async (id: string, action: string, label: string) => {
+      try {
+        const res = await authFetch(`${API_BASE}/api/ops/instances/${id}/${action}`, { method: "POST" })
+        const j = (await res.json()) as ApiResponse<string>
+        if (j.code === 0) {
+          toast.success(t("actionSuccess", { label }))
+        } else {
+          toast.error(t("actionFailed", { label, msg: j.message }))
+        }
+      } catch {
+        toast.error(t("actionFailed", { label, msg: "" }))
+      }
+    },
+    [t],
+  )
+
   // ── 筛选定义 ──
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -160,7 +186,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
       {
         key: "workflowName",
         header: t("colWorkflowName"),
-        widthPct: 18,
+        widthPct: 12,
         cell: (row: WorkflowInstanceRow) => (
           <span className="truncate font-medium">{row.workflowName}</span>
         ),
@@ -222,7 +248,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 13,
+        widthPct: 10,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{formatDateTime(row.startedAt)}</span>
         ),
@@ -230,7 +256,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
       {
         key: "durationMs",
         header: t("colDuration"),
-        widthPct: 8,
+        widthPct: 6,
         cell: (row: WorkflowInstanceRow) => {
           const ms = row.durationMs
           if (ms == null) return <span className="text-muted-foreground">—</span>
@@ -244,8 +270,53 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
           )
         },
       },
+      {
+        key: "actions",
+        header: t("colActions"),
+        widthPct: 26,
+        cell: (row: WorkflowInstanceRow) => (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => submitAction(row.id, "rerun", t("rerunAll"))}
+            >
+              <HugeiconsIcon icon={PlayIcon} className="size-3" />
+              {t("rerunAll")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => submitAction(row.id, "recover", t("recover"))}
+            >
+              <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3" />
+              {t("recover")}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => submitAction(row.id, "kill", t("killTask"))}
+            >
+              <HugeiconsIcon icon={StopIcon} className="size-3" />
+              {t("killTask")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => onViewDag?.(row)}
+            >
+              <HugeiconsIcon icon={Share08Icon} className="size-3" />
+              {t("viewDag")}
+            </Button>
+          </div>
+        ),
+      },
     ],
-    [t, formatDateTime],
+    [t, formatDateTime, submitAction, onViewDag],
   )
 
   // ── 数据获取 ──
@@ -282,7 +353,6 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
         fetcher={fetcher}
         filters={filters}
         presets={presets}
-        onRowClick={onRowClick}
         selectable
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
