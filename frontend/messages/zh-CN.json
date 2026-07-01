@@ -300,7 +300,9 @@
     "datasources": "数据源管理",
     "alerts": "告警中心",
     "marketplace": "指标市场",
-    "eventCenter": "事件中心"
+    "eventCenter": "事件中心",
+    "instanceLog": "实例日志",
+    "workflowInstanceDetail": "工作流实例"
   },
   "catalog": {
     "title": "类目",

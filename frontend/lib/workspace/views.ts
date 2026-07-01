@@ -23,6 +23,8 @@ export type ViewType =
   | "alerts"
   | "event-center"
   | "settings"
+  | "instance-log"
+  | "workflow-instance-detail"
 
 export interface ViewMeta {
   /** i18n key（命名空间 `views.*`）；渲染侧经 `useTranslations("views")` 解析为本地化字符串 */
@@ -48,6 +50,8 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   "event-center": { title: "views.eventCenter" },
   service: { title: "views.service" },
   settings: { title: "views.settings" },
+  "instance-log": { title: "views.instanceLog" },
+  "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
 }
 
 export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(

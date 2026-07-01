@@ -18,6 +18,8 @@ import {
   DashboardSquare01Icon,
   Database01Icon,
   DatabaseSyncIcon,
+  DocumentCodeIcon,
+  Flowchart01Icon,
   GitBranchIcon,
   RefreshIcon,
   ServerStackIcon,
@@ -43,6 +45,8 @@ import { EventCenterView } from "@/components/workspace/views/event-center-view"
 import { QualityView } from "@/components/workspace/views/quality-view"
 import { AssetCatalogView } from "@/components/workspace/views/asset-catalog-view"
 import { MetricMarketplaceView } from "@/components/workspace/views/metric-marketplace-view"
+import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
+import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -113,5 +117,13 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   settings: {
     icon: Settings02Icon,
     component: SettingsView,
+  },
+  "instance-log": {
+    icon: DocumentCodeIcon,
+    component: InstanceLogView,
+  },
+  "workflow-instance-detail": {
+    icon: Flowchart01Icon,
+    component: WorkflowInstanceDetail,
   },
 }

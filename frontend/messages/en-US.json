@@ -300,7 +300,9 @@
     "datasources": "Datasources",
     "alerts": "Alert Center",
     "marketplace": "Metric Marketplace",
-    "eventCenter": "Event Center"
+    "eventCenter": "Event Center",
+    "instanceLog": "Instance Log",
+    "workflowInstanceDetail": "Workflow Instance"
   },
   "catalog": {
     "title": "Catalog",
