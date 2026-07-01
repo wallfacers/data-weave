@@ -214,7 +214,14 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
         </div>
       </DwScroll>
       {/* 新增（自依赖） */}
-      <DropdownSelect value={nodeKey} onChange={setNodeKey} options={nodeOptions} />
+      {nodes.length === 0 ? (
+        <span className="text-xs text-muted-foreground">{t("workflowConfig.noNodesForDep")}</span>
+      ) : (
+        <>
+          <label className="text-xs font-medium text-muted-foreground">{t("workflowConfig.selectNodeForDep")}</label>
+          <DropdownSelect value={nodeKey} onChange={setNodeKey} options={nodeOptions} />
+        </>
+      )}
       <div className="flex gap-1">
         <div className="min-w-28">
           <DropdownSelect value={dateOffset} onChange={setDateOffset} options={DATE_OFFSET_OPTIONS} />

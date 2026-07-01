@@ -206,20 +206,50 @@ export function DropdownSelect({
         aria-expanded={open}
       >
         <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="size-3.5 shrink-0 text-muted-foreground"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        {value ? (
+          <span
+            role="button"
+            aria-label="Clear selection"
+            className="shrink-0 rounded p-px text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onChange("")
+              setOpen(false)
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-3.5"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </span>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-3.5 shrink-0 text-muted-foreground"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        )}
       </button>
       {dropdown}
     </div>

@@ -51,7 +51,7 @@ export function ReportsView({ active }: ViewProps) {
           {/* 业务日期观察（T-1 兜底；切日期按 (projectId, bizDate) 收敛到当日快照） */}
           <DatePicker
             value={bizDate}
-            onChange={setBizDate}
+            onChange={(d) => setBizDate(d || format(subDays(new Date(), 1), "yyyy-MM-dd"))}
             triggerClassName="h-8 w-[150px]"
             locale={dateLocale}
             quickLabels={{ today: t("today"), yesterday: t("yesterday") }}

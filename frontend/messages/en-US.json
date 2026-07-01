@@ -461,7 +461,9 @@
     "priority": "Priority",
     "crossCycleDeps": "Cross-cycle dependencies",
     "noCrossCycleDeps": "No cross-cycle dependencies",
-    "earliestBizDate": "First-cycle exempt before"
+    "earliestBizDate": "First-cycle exempt before",
+    "selectNodeForDep": "Select node (self-dependency)",
+    "noNodesForDep": "Add workflow nodes on the canvas first"
   },
   "lineageCockpit": {
     "title": "Situational Cockpit",

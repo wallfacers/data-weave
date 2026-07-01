@@ -461,7 +461,9 @@
     "priority": "优先级",
     "crossCycleDeps": "跨周期依赖",
     "noCrossCycleDeps": "暂无跨周期依赖",
-    "earliestBizDate": "首周期豁免截止日"
+    "earliestBizDate": "首周期豁免截止日",
+    "selectNodeForDep": "选择节点（自依赖）",
+    "noNodesForDep": "请先在画布上添加工作流节点"
   },
   "lineageCockpit": {
     "title": "态势驾驶舱",
