@@ -25,6 +25,7 @@ import {
 } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+import { currentProjectId } from "@/lib/project-context"
 import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
 
 /** 后端 WorkflowListRow 投影（GET /api/ops/periodic-workflows） */
@@ -52,6 +53,7 @@ export async function fetchWorkflowPage(
   filters: FilterDef[],
 ): Promise<PageResult<WorkflowRow>> {
   const qs = toQueryParams(query, filters)
+  qs.set("projectId", String(currentProjectId()))
   const res = await authFetch(`${API_BASE}/api/ops/${path}?${qs.toString()}`)
   const empty = { items: [], total: 0, page: query.page, size: query.size }
   if (!res.ok) return empty

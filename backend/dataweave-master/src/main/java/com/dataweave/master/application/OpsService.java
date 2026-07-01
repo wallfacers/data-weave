@@ -93,18 +93,34 @@ public class OpsService {
 
 
     /** 周期任务流列表（运维主体）：仅 status=ONLINE 且 schedule_type=CRON 的已发布工作流，按 id 升序。 */
-    public List<com.dataweave.master.domain.WorkflowDef> periodicWorkflows() {
-        return onlineWorkflowsByScheduleType("CRON");
+    public List<com.dataweave.master.domain.WorkflowDef> periodicWorkflows(Long projectId) {
+        return onlineWorkflowsByScheduleType("CRON", projectId);
     }
 
     /** 手动任务流列表（运维主体）：仅 status=ONLINE 且 schedule_type=MANUAL 的已发布工作流，按 id 升序。 */
-    public List<com.dataweave.master.domain.WorkflowDef> manualWorkflows() {
-        return onlineWorkflowsByScheduleType("MANUAL");
+    public List<com.dataweave.master.domain.WorkflowDef> manualWorkflows(Long projectId) {
+        return onlineWorkflowsByScheduleType("MANUAL", projectId);
     }
 
-    private List<com.dataweave.master.domain.WorkflowDef> onlineWorkflowsByScheduleType(String scheduleType) {
-        List<com.dataweave.master.domain.WorkflowDef> list =
-                workflowDefRepository.findByScheduleTypeAndStatusAndDeleted(scheduleType, "ONLINE", 0);
+    /** 036 向后兼容：无参版本保留供调度内核使用（不接项目上下文）。 */
+    public List<com.dataweave.master.domain.WorkflowDef> periodicWorkflows() {
+        return onlineWorkflowsByScheduleType("CRON", null);
+    }
+
+    /** 036 向后兼容：无参版本保留供调度内核使用。 */
+    public List<com.dataweave.master.domain.WorkflowDef> manualWorkflows() {
+        return onlineWorkflowsByScheduleType("MANUAL", null);
+    }
+
+    private List<com.dataweave.master.domain.WorkflowDef> onlineWorkflowsByScheduleType(String scheduleType, Long projectId) {
+        List<com.dataweave.master.domain.WorkflowDef> list;
+        if (projectId != null) {
+            list = workflowDefRepository.findByScheduleTypeAndStatusAndDeleted(scheduleType, "ONLINE", 0).stream()
+                    .filter(wf -> projectId.equals(wf.getProjectId()))
+                    .collect(Collectors.toList());
+        } else {
+            list = workflowDefRepository.findByScheduleTypeAndStatusAndDeleted(scheduleType, "ONLINE", 0);
+        }
         list.sort(Comparator.comparing(com.dataweave.master.domain.WorkflowDef::getId,
                 Comparator.nullsLast(Comparator.naturalOrder())));
         return list;
@@ -125,6 +141,10 @@ public class OpsService {
                 " WHERE wd.deleted=0 AND wd.status='ONLINE' AND wd.schedule_type=? ");
         List<Object> args = new ArrayList<>();
         args.add(q.scheduleType());
+        if (q.projectId() != null) {
+            where.append("AND wd.project_id=? ");
+            args.add(q.projectId());
+        }
         if (q.keyword() != null && !q.keyword().isBlank()) {
             where.append("AND wd.name LIKE CONCAT('%', ?, '%') ");
             args.add(q.keyword().trim());
@@ -189,37 +209,69 @@ public class OpsService {
 
     /**
      * 正式运行实例（runMode=="NORMAL"，排除 TEST 试跑），按 id 降序。
+     * 036 项目隔离：按 projectId 过滤，消除全表裸查。
      */
-    public List<TaskInstance> instances() {
-        return StreamSupport.stream(instanceRepository.findAll().spliterator(), false)
-                .filter(i -> "NORMAL".equals(i.getRunMode()))
+    public List<TaskInstance> instances(Long projectId) {
+        if (projectId == null) {
+            return StreamSupport.stream(instanceRepository.findAll().spliterator(), false)
+                    .filter(i -> "NORMAL".equals(i.getRunMode()))
+                    .sorted(Comparator.comparing(TaskInstance::getId, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .collect(Collectors.toList());
+        }
+        return instanceRepository.findByProjectIdAndRunMode(projectId, "NORMAL").stream()
                 .sorted(Comparator.comparing(TaskInstance::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
+    }
+
+    /** 036 向后兼容：无参版本保留供内部调用，走全表（调度内核不接项目上下文）。 */
+    public List<TaskInstance> instances() {
+        return instances(null);
     }
 
     /**
      * 某任务定义按 run_mode 过滤后的最近一个实例（供前端重开/刷新续接运行态）。
      * runMode 省略/空白默认 NORMAL；无实例返回 null。
+     * 036 项目隔离：按 projectId 收敛结果。
      */
-    public LatestInstanceView latestTaskInstance(Long taskDefId, String runMode) {
+    public LatestInstanceView latestTaskInstance(Long taskDefId, String runMode, Long projectId) {
         String mode = (runMode == null || runMode.isBlank()) ? "NORMAL" : runMode;
+        if (projectId != null) {
+            return instanceRepository.findFirstByTaskIdAndRunModeAndProjectIdOrderByIdDesc(taskDefId, mode, projectId)
+                    .map(ti -> new LatestInstanceView(ti.getId(), ti.getState(), ti.getRunMode()))
+                    .orElse(null);
+        }
         return instanceRepository.findFirstByTaskIdAndRunModeOrderByIdDesc(taskDefId, mode)
                 .map(ti -> new LatestInstanceView(ti.getId(), ti.getState(), ti.getRunMode()))
                 .orElse(null);
     }
 
     /** 某工作流定义的最近一个实例（供前端续接）；工作流实例恒 NORMAL；无实例返回 null。 */
-    public LatestInstanceView latestWorkflowInstance(Long workflowId) {
+    public LatestInstanceView latestWorkflowInstance(Long workflowId, Long projectId) {
+        if (projectId != null) {
+            return workflowInstanceRepository.findFirstByWorkflowIdAndProjectIdOrderByIdDesc(workflowId, projectId)
+                    .map(wi -> new LatestInstanceView(wi.getId(), wi.getState(), "NORMAL"))
+                    .orElse(null);
+        }
         return workflowInstanceRepository.findFirstByWorkflowIdOrderByIdDesc(workflowId)
                 .map(wi -> new LatestInstanceView(wi.getId(), wi.getState(), "NORMAL"))
                 .orElse(null);
     }
 
-    /** 失败的正式运行实例（state==FAILED && runMode==NORMAL）。 */
-    public List<TaskInstance> failedInstances() {
-        return instanceRepository.findByState("FAILED").stream()
+    /** 失败的正式运行实例（state==FAILED && runMode==NORMAL）。036 项目隔离：按 projectId 过滤。 */
+    public List<TaskInstance> failedInstances(Long projectId) {
+        if (projectId == null) {
+            return instanceRepository.findByState("FAILED").stream()
+                    .filter(i -> "NORMAL".equals(i.getRunMode()))
+                    .collect(Collectors.toList());
+        }
+        return instanceRepository.findByProjectIdAndState(projectId, "FAILED").stream()
                 .filter(i -> "NORMAL".equals(i.getRunMode()))
                 .collect(Collectors.toList());
+    }
+
+    /** 036 向后兼容：无参版本保留供内部调用。 */
+    public List<TaskInstance> failedInstances() {
+        return failedInstances(null);
     }
 
     /**
@@ -249,9 +301,9 @@ public class OpsService {
         }).orElse(null);
     }
 
-    /** 驾驶舱全局态势。 */
-    public DashboardSummary summary() {
-        List<TaskInstance> all = instances();
+    /** 驾驶舱全局态势。036 项目隔离：按 projectId 收敛。 */
+    public DashboardSummary summary(Long projectId) {
+        List<TaskInstance> all = instances(projectId);
         int success = 0;
         int failed = 0;
         int running = 0;
@@ -266,7 +318,7 @@ public class OpsService {
             }
         }
         return new DashboardSummary(all.size(), success, failed, running,
-                failedInstances());
+                failedInstances(projectId));
     }
 
     // ─── 实例生命周期管理 ─────────────────────────────────
@@ -447,12 +499,16 @@ public class OpsService {
     }
 
 
-    /** 周期实例多维筛选 + 分页（runMode/state/taskId/bizDate 任一为空即不约束；按 id 降序）。 */
+    /** 周期实例多维筛选 + 分页（runMode/state/taskId/bizDate 任一为空即不约束；按 id 降序）。036 项目隔离：按 projectId 过滤。 */
     public PageResult<InstanceRow> queryInstances(InstanceQuery q) {
         int page = Math.max(0, q.page());
         int size = Math.min(Math.max(1, q.size()), 200);
         StringBuilder where = new StringBuilder(" WHERE ti.deleted=0 ");
         List<Object> args = new ArrayList<>();
+        if (q.projectId() != null) {
+            where.append("AND ti.project_id=? ");
+            args.add(q.projectId());
+        }
         if (q.runMode() != null && !q.runMode().isBlank()) {
             where.append("AND ti.run_mode=? ");
             args.add(q.runMode());
@@ -552,6 +608,7 @@ public class OpsService {
     /**
      * 多维筛选 + 分页查询任务流实例列表。
      * JDBC 动态 SQL 模式，与 {@link #queryInstances} 一致，H2 + PostgreSQL 双兼容。
+     * 036 项目隔离：按 projectId 过滤。
      */
     public OpsContracts.PageResult<OpsContracts.WorkflowInstanceRow> queryWorkflowInstances(
             OpsContracts.WorkflowInstanceQuery q) {
@@ -559,6 +616,10 @@ public class OpsService {
         int size = Math.min(Math.max(1, q.size()), 200);
         StringBuilder where = new StringBuilder(" WHERE wi.deleted=0 ");
         List<Object> args = new ArrayList<>();
+        if (q.projectId() != null) {
+            where.append("AND wi.project_id=? ");
+            args.add(q.projectId());
+        }
         if (q.state() != null && !q.state().isBlank()) {
             where.append("AND wi.state=? ");
             args.add(q.state());

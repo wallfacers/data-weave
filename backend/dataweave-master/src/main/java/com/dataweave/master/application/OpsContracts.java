@@ -32,10 +32,19 @@ public final class OpsContracts {
                                 String stateIn, String bizDateFrom, String bizDateTo,
                                 String startedAtFrom, String startedAtTo,
                                 String workerNodeCode, String failureReason,
-                                int page, int size) {
+                                Long projectId, int page, int size) {
         /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
-            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, page, size);
+            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, page, size);
+        }
+        /** 036 项目隔离：不含 projectId 的构造（向后兼容），projectId 置 null。 */
+        public InstanceQuery(String runMode, String state, Long taskId, String bizDate,
+                            String stateIn, String bizDateFrom, String bizDateTo,
+                            String startedAtFrom, String startedAtTo,
+                            String workerNodeCode, String failureReason,
+                            int page, int size) {
+            this(runMode, state, taskId, bizDate, stateIn, bizDateFrom, bizDateTo,
+                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, page, size);
         }
     }
 
@@ -99,7 +108,7 @@ public final class OpsContracts {
      */
     public record WorkflowQuery(String scheduleType, String keyword, Integer hasDraftChange,
                                 String recentResult, Long catalogNodeId, Long createdBy,
-                                int page, int size) {}
+                                Long projectId, int page, int size) {}
 
     /**
      * 任务流实例列表行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。
@@ -119,7 +128,7 @@ public final class OpsContracts {
                                          Long workflowId, String bizDate,
                                          String bizDateFrom, String bizDateTo,
                                          String startedAtFrom, String startedAtTo,
-                                         int page, int size) {}
+                                         Long projectId, int page, int size) {}
 
     /** 实例 DAG 节点：DAG 拓扑位置 + 运行时状态叠加。 */
     public record InstanceDagNode(String nodeKey, String taskName, Long taskId, UUID taskInstanceId,

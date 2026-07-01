@@ -100,7 +100,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         OpsContracts.PageResult<OpsContracts.InstanceRow> pr = opsService.queryInstances(
                 new OpsContracts.InstanceQuery(q.runMode(), q.state(), q.taskId(), q.bizDate(),
                         q.stateIn(), q.bizDateFrom(), q.bizDateTo(), q.startedAtFrom(), q.startedAtTo(),
-                        q.workerNodeCode(), q.failureReason(),
+                        q.workerNodeCode(), q.failureReason(), q.projectId(),
                         Math.max(0, q.page() - 1), q.size()));
         List<InstanceRow> rows = pr.items().stream().map(DataOpsBridgeRealImpl::toDtoRow).toList();
         return new Page<>(rows, pr.total(), q.page(), q.size());
@@ -117,17 +117,17 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     }
 
     @Override
-    public List<BackfillRun> backfillRuns(int page, int size) {
-        return backfillService.backfillRuns(Math.max(0, page - 1), size).stream()
+    public List<BackfillRun> backfillRuns(int page, int size, Long projectId) {
+        return backfillService.backfillRuns(Math.max(0, page - 1), size, projectId).stream()
                 .map(DataOpsBridgeRealImpl::toDtoRun).toList();
     }
 
     @Override
     public Page<BackfillRun> queryBackfillRuns(String state, String targetName, String targetType,
                                                String bizDateFrom, String bizDateTo, Long createdBy,
-                                               int page, int size) {
+                                               Long projectId, int page, int size) {
         OpsContracts.PageResult<OpsContracts.BackfillRunView> pr = backfillService.queryBackfillRuns(
-                state, targetName, targetType, bizDateFrom, bizDateTo, createdBy,
+                state, targetName, targetType, bizDateFrom, bizDateTo, createdBy, projectId,
                 Math.max(0, page - 1), size);
         List<BackfillRun> rows = pr.items().stream().map(DataOpsBridgeRealImpl::toDtoRun).toList();
         return new Page<>(rows, pr.total(), page, size);
@@ -151,7 +151,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         OpsContracts.PageResult<OpsContracts.WorkflowInstanceRow> pr = opsService.queryWorkflowInstances(
                 new OpsContracts.WorkflowInstanceQuery(q.state(), q.stateIn(), q.triggerType(),
                         q.workflowId(), q.bizDate(), q.bizDateFrom(), q.bizDateTo(),
-                        q.startedAtFrom(), q.startedAtTo(),
+                        q.startedAtFrom(), q.startedAtTo(), q.projectId(),
                         Math.max(0, q.page() - 1), q.size()));
         return new Page<>(pr.items(), pr.total(), q.page(), q.size());
     }

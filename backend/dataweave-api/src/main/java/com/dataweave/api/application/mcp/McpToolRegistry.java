@@ -647,7 +647,7 @@ public class McpToolRegistry {
                     int p = page != null ? page.intValue() : 1;
                     int s = size != null ? size.intValue() : 20;
                     try {
-                        List<BackfillRun> runs = dataOpsBridge.backfillRuns(p, s);
+                        List<BackfillRun> runs = dataOpsBridge.backfillRuns(p, s, TenantContext.projectId());
                         return Map.of("items", runs, "total", runs.size());
                     } catch (UnsupportedOperationException e) {
                         return Map.of("items", List.of(), "total", 0, "note", "待 Stream A 实现");

@@ -9,6 +9,7 @@ public final class TenantContext {
     private static final ThreadLocal<Long> TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<Long> USER_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> USERNAME = new ThreadLocal<>();
+    private static final ThreadLocal<Long> PROJECT_ID = new ThreadLocal<>();
 
     private TenantContext() {}
 
@@ -16,6 +17,13 @@ public final class TenantContext {
         TENANT_ID.set(tenantId);
         USER_ID.set(userId);
         USERNAME.set(username);
+    }
+
+    public static void set(Long tenantId, Long userId, String username, Long projectId) {
+        TENANT_ID.set(tenantId);
+        USER_ID.set(userId);
+        USERNAME.set(username);
+        PROJECT_ID.set(projectId);
     }
 
     public static Long tenantId() {
@@ -30,9 +38,14 @@ public final class TenantContext {
         return USERNAME.get();
     }
 
+    public static Long projectId() {
+        return PROJECT_ID.get();
+    }
+
     public static void clear() {
         TENANT_ID.remove();
         USER_ID.remove();
         USERNAME.remove();
+        PROJECT_ID.remove();
     }
 }

@@ -20,6 +20,7 @@ public class AlertEventJdbcRepository implements AlertEventRepository {
         AlertEvent e = new AlertEvent();
         e.setId(rs.getLong("id"));
         e.setTenantId(rs.getLong("tenant_id"));
+        e.setProjectId(rs.getObject("project_id", Long.class));
         e.setRuleId(rs.getLong("rule_id"));
         e.setState(rs.getString("state"));
         e.setSeverity(rs.getString("severity"));
@@ -88,6 +89,36 @@ public class AlertEventJdbcRepository implements AlertEventRepository {
     }
 
     @Override
+    public List<AlertEvent> findByTenantIdAndProjectId(Long tenantId, Long projectId, int offset, int limit) {
+        return jdbc.query(
+                "SELECT * FROM alert_event WHERE tenant_id=? AND project_id=? AND deleted=0 ORDER BY last_fired_at DESC LIMIT ? OFFSET ?",
+                ROW_MAPPER, tenantId, projectId, limit, offset);
+    }
+
+    @Override
+    public int countByTenantIdAndProjectId(Long tenantId, Long projectId) {
+        var r = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM alert_event WHERE tenant_id=? AND project_id=? AND deleted=0",
+                Integer.class, tenantId, projectId);
+        return r != null ? r : 0;
+    }
+
+    @Override
+    public List<AlertEvent> findByTenantIdAndProjectIdAndState(Long tenantId, Long projectId, String state, int offset, int limit) {
+        return jdbc.query(
+                "SELECT * FROM alert_event WHERE tenant_id=? AND project_id=? AND state=? AND deleted=0 ORDER BY last_fired_at DESC LIMIT ? OFFSET ?",
+                ROW_MAPPER, tenantId, projectId, state, limit, offset);
+    }
+
+    @Override
+    public int countByTenantIdAndProjectIdAndState(Long tenantId, Long projectId, String state) {
+        var r = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM alert_event WHERE tenant_id=? AND project_id=? AND state=? AND deleted=0",
+                Integer.class, tenantId, projectId, state);
+        return r != null ? r : 0;
+    }
+
+    @Override
     public AlertEvent save(AlertEvent e) {
         if (e.getId() == null) {
             return insert(e);
@@ -97,11 +128,11 @@ public class AlertEventJdbcRepository implements AlertEventRepository {
 
     private AlertEvent insert(AlertEvent e) {
         long id = JdbcInsertSupport.insertReturningId(jdbc,
-                "INSERT INTO alert_event (tenant_id, rule_id, state, severity, fingerprint, \"value\", " +
+                "INSERT INTO alert_event (tenant_id, project_id, rule_id, state, severity, fingerprint, \"value\", " +
                 "context_json, count, first_fired_at, last_fired_at, resolved_at, acked_by, acked_at, " +
                 "created_by, created_at, deleted, version) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                e.getTenantId(), e.getRuleId(), e.getState(), e.getSeverity(), e.getFingerprint(),
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                e.getTenantId(), e.getProjectId(), e.getRuleId(), e.getState(), e.getSeverity(), e.getFingerprint(),
                 e.getValue(), e.getContextJson(), e.getCount(), e.getFirstFiredAt(), e.getLastFiredAt(),
                 e.getResolvedAt(), e.getAckedBy(), e.getAckedAt(), e.getCreatedBy(), LocalDateTime.now(), 0, 0);
         e.setId(id);

@@ -24,6 +24,7 @@ import {
 } from "@/lib/data-table"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { currentProjectId } from "@/lib/project-context"
 import { BackfillDialog } from "./backfill-dialog"
 
 interface BackfillRun {
@@ -94,6 +95,7 @@ export function BackfillPanel() {
 
   const fetcher = async (query: FetchQuery): Promise<PageResult<BackfillRun>> => {
     const qs = toQueryParams(query, filters)
+    qs.set("projectId", String(currentProjectId()))
     const res = await authFetch(`${API_BASE}/api/ops/backfill?${qs.toString()}`)
     const empty = { items: [], total: 0, page: query.page, size: query.size }
     if (!res.ok) return empty

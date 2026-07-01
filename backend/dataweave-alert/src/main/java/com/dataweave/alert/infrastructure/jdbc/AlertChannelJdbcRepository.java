@@ -24,6 +24,7 @@ public class AlertChannelJdbcRepository implements AlertChannelRepository {
         AlertChannel c = new AlertChannel();
         c.setId(rs.getLong("id"));
         c.setTenantId(rs.getLong("tenant_id"));
+        c.setProjectId(rs.getObject("project_id", Long.class));
         c.setName(rs.getString("name"));
         c.setType(rs.getString("type"));
         c.setConfigJson(rs.getString("config_json"));
@@ -52,6 +53,11 @@ public class AlertChannelJdbcRepository implements AlertChannelRepository {
     }
 
     @Override
+    public List<AlertChannel> findByTenantIdAndProjectId(Long tenantId, Long projectId) {
+        return jdbc.query("SELECT * FROM alert_channel WHERE tenant_id=? AND project_id=? AND deleted=0 ORDER BY id", ROW_MAPPER, tenantId, projectId);
+    }
+
+    @Override
     public List<AlertChannel> findByIds(Long tenantId, List<Long> ids) {
         if (ids == null || ids.isEmpty()) return Collections.emptyList();
         String placeholders = ids.stream().map(id -> "?").collect(Collectors.joining(","));
@@ -70,9 +76,9 @@ public class AlertChannelJdbcRepository implements AlertChannelRepository {
 
     private AlertChannel insert(AlertChannel c) {
         long id = JdbcInsertSupport.insertReturningId(jdbc,
-                "INSERT INTO alert_channel (tenant_id, name, type, config_json, rate_limit_per_min, enabled, " +
-                "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                c.getTenantId(), c.getName(), c.getType(), c.getConfigJson(), c.getRateLimitPerMin(),
+                "INSERT INTO alert_channel (tenant_id, project_id, name, type, config_json, rate_limit_per_min, enabled, " +
+                "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                c.getTenantId(), c.getProjectId(), c.getName(), c.getType(), c.getConfigJson(), c.getRateLimitPerMin(),
                 c.getEnabled(), c.getCreatedBy(), LocalDateTime.now(), 0, 0);
         c.setId(id);
         return c;

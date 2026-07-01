@@ -4,6 +4,7 @@ import com.dataweave.api.application.DataOpsBridge;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.api.infrastructure.OpsMessages;
+import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.api.interfaces.dto.*;
 // 显式单类型导入消歧：dto.BackfillRun 与 master.domain.BackfillRun 同名，控制器用的是 dto（data-ops-center 集成）。
 import com.dataweave.api.interfaces.dto.BackfillRun;
@@ -12,6 +13,7 @@ import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
 import com.dataweave.master.application.OpsContracts;
 import com.dataweave.master.application.OpsService;
+import com.dataweave.master.application.ProjectScope;
 import com.dataweave.master.application.RecoveryService;
 import com.dataweave.master.application.SchedulerMetrics;
 import com.dataweave.master.application.SchedulerMetrics.MetricsSnapshot;
@@ -62,6 +64,7 @@ public class OpsController {
     private final DataOpsBridge dataOpsBridge;
     private final GatedActionService gatedActionService;
     private final WorkflowService workflowService;
+    private final ProjectScope projectScope;
 
     /** 当前活跃 SSE 长连接计数（logStream live 路径 + workflowEventsStream），供 scheduler.sse.connections Gauge。 */
     private final AtomicLong sseConnCount = new AtomicLong(0);
@@ -72,7 +75,8 @@ public class OpsController {
                          Messages messages, OpsMessages opsMessages,
                          DataOpsBridge dataOpsBridge,
                          GatedActionService gatedActionService,
-                         WorkflowService workflowService) {
+                         WorkflowService workflowService,
+                         ProjectScope projectScope) {
         this.opsService = opsService;
         this.recoveryService = recoveryService;
         this.metrics = metrics;
@@ -85,12 +89,24 @@ public class OpsController {
         this.dataOpsBridge = dataOpsBridge;
         this.gatedActionService = gatedActionService;
         this.workflowService = workflowService;
+        this.projectScope = projectScope;
     }
 
-    /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。 */
+    /**
+     * 036 项目隔离：解析有效 projectId。
+     * 优先使用请求显式参数，回退到 TenantContext.projectId()（由 JwtAuthFilter 从 X-Project-Id 头/查询参数注入），
+     * 最后经 ProjectScope.require 校验成员归属。
+     */
+    private Long resolveProjectId(Long requestProjectId) {
+        Long pid = requestProjectId != null ? requestProjectId : TenantContext.projectId();
+        return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
+    }
+
+    /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。036 项目隔离：按当前项目收敛。 */
     @GetMapping("/summary")
-    public ApiResponse<OpsService.DashboardSummary> summary() {
-        return ApiResponse.ok(opsService.summary());
+    public ApiResponse<OpsService.DashboardSummary> summary(
+            @RequestParam(required = false) Long projectId) {
+        return ApiResponse.ok(opsService.summary(resolveProjectId(projectId)));
     }
 
 
@@ -106,10 +122,11 @@ public class OpsController {
             @RequestParam(required = false) String recentResult,
             @RequestParam(required = false) Long catalogNodeId,
             @RequestParam(required = false) Long createdBy,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return workflowPage("CRON", keyword, hasDraftChange, recentResult, catalogNodeId, createdBy, page, size,
-                opsService::periodicWorkflows);
+        return workflowPage("CRON", keyword, hasDraftChange, recentResult, catalogNodeId, createdBy, projectId, page, size,
+                () -> opsService.periodicWorkflows(resolveProjectId(projectId)));
     }
 
     /**
@@ -122,10 +139,11 @@ public class OpsController {
             @RequestParam(required = false) String recentResult,
             @RequestParam(required = false) Long createdBy,
             @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return workflowPage("MANUAL", keyword, null, recentResult, catalogNodeId, createdBy, page, size,
-                opsService::manualWorkflows);
+        return workflowPage("MANUAL", keyword, null, recentResult, catalogNodeId, createdBy, projectId, page, size,
+                () -> opsService.manualWorkflows(resolveProjectId(projectId)));
     }
 
     /**
@@ -135,21 +153,25 @@ public class OpsController {
      */
     private ApiResponse<?> workflowPage(String scheduleType, String keyword, Integer hasDraftChange,
                                         String recentResult, Long catalogNodeId, Long createdBy,
-                                        int page, int size,
+                                        Long projectId, int page, int size,
                                         java.util.function.Supplier<List<WorkflowDef>> legacy) {
+        Long pid = resolveProjectId(projectId);
         OpsContracts.PageResult<OpsContracts.WorkflowListRow> pr = opsService.queryWorkflows(
                 new OpsContracts.WorkflowQuery(scheduleType, keyword, hasDraftChange, recentResult,
-                        catalogNodeId, createdBy, Math.max(0, page - 1), size));
+                        catalogNodeId, createdBy, pid, Math.max(0, page - 1), size));
         return ApiResponse.ok(new Page<>(pr.items(), pr.total(), page, size));
     }
 
     /**
      * 顶条「最迟看板 ETA」：当前运行中实例里最迟的预计完成时刻（基于历史时长中位数）。
-     * 无运行中实例或冷启动无样本 → data=null，前端显示「估算中」。tenant/project 固定 1/1。
+     * 无运行中实例或冷启动无样本 → data=null，前端显示「估算中」。
+     * 036 项目隔离：按当前项目收敛，不再硬编码 1/1。
      */
     @GetMapping("/eta-summary")
-    public ApiResponse<SlaService.EtaResult> etaSummary() {
-        return ApiResponse.ok(slaService.predictLatestEta(1L, 1L));
+    public ApiResponse<SlaService.EtaResult> etaSummary(
+            @RequestParam(required = false) Long projectId) {
+        Long pid = resolveProjectId(projectId);
+        return ApiResponse.ok(slaService.predictLatestEta(TenantContext.tenantId(), pid));
     }
 
     /**
@@ -173,15 +195,17 @@ public class OpsController {
             @RequestParam(required = false) String startedAtTo,
             @RequestParam(required = false) String workerNodeCode,
             @RequestParam(required = false) String failureReason,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         // 统一走 dataOpsBridge，返回 Page<InstanceRow> 格式保证前端解析一致
         // 前端 1-indexed，后端 0-indexed，做转换；响应用原始 page 保持一致性
         int page0 = Math.max(0, page - 1);
+        Long pid = resolveProjectId(projectId);
         InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
                 stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                workerNodeCode, failureReason, page0, size);
+                workerNodeCode, failureReason, pid, page0, size);
         Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }
@@ -201,15 +225,17 @@ public class OpsController {
             @RequestParam(required = false) String bizDateTo,
             @RequestParam(required = false) String startedAtFrom,
             @RequestParam(required = false) String startedAtTo,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         // 前端 1-indexed → 后端 0-indexed；响应用原始 page
         int page0 = Math.max(0, page - 1);
+        Long pid = resolveProjectId(projectId);
         com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q =
                 new com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery(
                         state, stateIn, triggerType, workflowId, bizDate,
                         bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                        page0, size);
+                        pid, page0, size);
         var result = dataOpsBridge.queryWorkflowInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }
@@ -250,10 +276,11 @@ public class OpsController {
         return ApiResponse.ok(config);
     }
 
-    /** 失败的正式运行实例。 */
+    /** 失败的正式运行实例。036 项目隔离：按当前项目过滤。 */
     @GetMapping("/failed")
-    public ApiResponse<List<TaskInstance>> failed() {
-        return ApiResponse.ok(opsService.failedInstances());
+    public ApiResponse<List<TaskInstance>> failed(
+            @RequestParam(required = false) Long projectId) {
+        return ApiResponse.ok(opsService.failedInstances(resolveProjectId(projectId)));
     }
 
     /**
@@ -264,13 +291,13 @@ public class OpsController {
     public ApiResponse<OpsService.LatestInstanceView> latestTaskInstance(
             @PathVariable Long taskDefId,
             @RequestParam(required = false) String runMode) {
-        return ApiResponse.ok(opsService.latestTaskInstance(taskDefId, runMode));
+        return ApiResponse.ok(opsService.latestTaskInstance(taskDefId, runMode, resolveProjectId(null)));
     }
 
     /** 某工作流定义的最近一个实例，供前端续接；无实例返回 data=null。仅查询。 */
     @GetMapping("/workflows/{workflowId}/latest-instance")
     public ApiResponse<OpsService.LatestInstanceView> latestWorkflowInstance(@PathVariable Long workflowId) {
-        return ApiResponse.ok(opsService.latestWorkflowInstance(workflowId));
+        return ApiResponse.ok(opsService.latestWorkflowInstance(workflowId, resolveProjectId(null)));
     }
 
     // ─── 实例生命周期操作 ─────────────────────────────────
@@ -458,11 +485,14 @@ public class OpsController {
             @RequestParam(required = false) String bizDateFrom,
             @RequestParam(required = false) String bizDateTo,
             @RequestParam(required = false) Long createdBy,
+            @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         try {
+            Long pid = resolveProjectId(projectId);
             Page<BackfillRun> result = dataOpsBridge.queryBackfillRuns(
-                    state, targetName, targetType, bizDateFrom, bizDateTo, createdBy, page, size);
+                    state, targetName, targetType, bizDateFrom, bizDateTo, createdBy,
+                    pid, page, size);
             return ApiResponse.ok(result);
         } catch (UnsupportedOperationException e) {
             return ApiResponse.ok(new Page<>(List.of(), 0, page, size));

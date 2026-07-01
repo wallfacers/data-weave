@@ -138,14 +138,14 @@ public class DataOpsBridgeStub implements DataOpsBridge {
     }
 
     @Override
-    public List<BackfillRun> backfillRuns(int page, int size) {
+    public List<BackfillRun> backfillRuns(int page, int size, Long projectId) {
         throw new UnsupportedOperationException("backfillRuns — 待 Stream A 实现");
     }
 
     @Override
     public Page<BackfillRun> queryBackfillRuns(String state, String targetName, String targetType,
                                                String bizDateFrom, String bizDateTo, Long createdBy,
-                                               int page, int size) {
+                                               Long projectId, int page, int size) {
         return new Page<>(List.of(), 0, page, size);
     }
 

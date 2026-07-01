@@ -20,6 +20,7 @@ public class AlertRouteJdbcRepository implements AlertRouteRepository {
         AlertRoute r = new AlertRoute();
         r.setId(rs.getLong("id"));
         r.setTenantId(rs.getLong("tenant_id"));
+        r.setProjectId(rs.getObject("project_id", Long.class));
         r.setMatchJson(rs.getString("match_json"));
         r.setChannelIds(rs.getString("channel_ids"));
         r.setSortOrder(rs.getInt("sort_order"));
@@ -47,6 +48,11 @@ public class AlertRouteJdbcRepository implements AlertRouteRepository {
     }
 
     @Override
+    public List<AlertRoute> findByTenantIdAndProjectId(Long tenantId, Long projectId) {
+        return jdbc.query("SELECT * FROM alert_route WHERE tenant_id=? AND project_id=? AND deleted=0 ORDER BY sort_order, id", ROW_MAPPER, tenantId, projectId);
+    }
+
+    @Override
     public AlertRoute save(AlertRoute r) {
         if (r.getId() == null) {
             return insert(r);
@@ -56,9 +62,9 @@ public class AlertRouteJdbcRepository implements AlertRouteRepository {
 
     private AlertRoute insert(AlertRoute r) {
         long id = JdbcInsertSupport.insertReturningId(jdbc,
-                "INSERT INTO alert_route (tenant_id, match_json, channel_ids, sort_order, enabled, " +
-                "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?)",
-                r.getTenantId(), r.getMatchJson(), r.getChannelIds(), r.getSortOrder(), r.getEnabled(),
+                "INSERT INTO alert_route (tenant_id, project_id, match_json, channel_ids, sort_order, enabled, " +
+                "created_by, created_at, deleted, version) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                r.getTenantId(), r.getProjectId(), r.getMatchJson(), r.getChannelIds(), r.getSortOrder(), r.getEnabled(),
                 r.getCreatedBy(), LocalDateTime.now(), 0, 0);
         r.setId(id);
         return r;

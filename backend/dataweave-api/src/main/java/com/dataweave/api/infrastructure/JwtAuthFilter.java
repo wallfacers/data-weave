@@ -115,7 +115,30 @@ public class JwtAuthFilter implements WebFilter {
         List<String> roles = jwtUtil.roles(claims);
         exchange.getAttributes().put("roles", roles);
 
-        TenantContext.set(tenantId, userId, username);
+        // 036: 从请求头解析当前项目（X-Project-Id），置入 TenantContext
+        Long projectId = null;
+        String projectIdHeader = exchange.getRequest().getHeaders().getFirst("X-Project-Id");
+        if (projectIdHeader != null && !projectIdHeader.isBlank()) {
+            try {
+                projectId = Long.parseLong(projectIdHeader.trim());
+            } catch (NumberFormatException ignored) {
+                // 非法 projectId 忽略，由下游 ProjectScope.require 校验拦截
+            }
+        }
+        // 也支持 query param（前端 GET 请求更便利）
+        if (projectId == null) {
+            String queryProjectId = exchange.getRequest().getQueryParams().getFirst("projectId");
+            if (queryProjectId != null && !queryProjectId.isBlank()) {
+                try {
+                    projectId = Long.parseLong(queryProjectId.trim());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+
+        // 同时置入 exchange 属性：alert 等下游模块从 exchange 读身份（不经 TenantContext）
+        exchange.getAttributes().put("projectId", projectId);
+        TenantContext.set(tenantId, userId, username, projectId);
 
         return chain.filter(exchange)
                 .doFinally(signal -> TenantContext.clear());

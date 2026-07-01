@@ -9,6 +9,7 @@ public class AlertRoute {
 
     private Long id;
     private Long tenantId;
+    private Long projectId;
     private String matchJson;
     private String channelIds;
     private Integer sortOrder;
@@ -24,6 +25,8 @@ public class AlertRoute {
     public void setId(Long id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
     public String getMatchJson() { return matchJson; }
     public void setMatchJson(String matchJson) { this.matchJson = matchJson; }
     public String getChannelIds() { return channelIds; }

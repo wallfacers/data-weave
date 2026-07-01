@@ -20,6 +20,7 @@ import {
 
 import { useLiveData } from "@/lib/workspace/use-api"
 import { ViewRefreshControl } from "../view-refresh-control"
+import { useProjectContext } from "@/lib/project-context"
 import type { DashboardSummary } from "@/lib/types"
 
 interface EtaSummary {
@@ -67,8 +68,9 @@ function TopStat({
 export function OpsTopStrip({ active }: { active?: boolean }) {
   const t = useTranslations("ops")
   const [autoEnabled, setAutoEnabled] = useState(true)
-  const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>("/api/ops/summary", { active, enabled: autoEnabled })
-  const { data: eta, refreshing: r2, stale: s2, lastUpdatedAt: lu2, refresh: ref2 } = useLiveData<EtaSummary>("/api/ops/eta-summary", { active, enabled: autoEnabled })
+  const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
+  const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>(`/api/ops/summary?projectId=${projectId}`, { active, enabled: autoEnabled })
+  const { data: eta, refreshing: r2, stale: s2, lastUpdatedAt: lu2, refresh: ref2 } = useLiveData<EtaSummary>(`/api/ops/eta-summary?projectId=${projectId}`, { active, enabled: autoEnabled })
 
   const total = summary?.total ?? 0
   const running = summary?.running ?? 0

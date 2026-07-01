@@ -28,6 +28,7 @@ import {
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { useProjectContext } from "@/lib/project-context"
 import { ViewRefreshControl } from "../view-refresh-control"
 
 const STATE_BADGE_VARIANT: Record<string, "success" | "info" | "warning" | "destructive" | "outline"> = {
@@ -86,6 +87,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
   const abortRef = useRef<AbortController | null>(null)
+  const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
 
   const [reloadSignal, setReloadSignal] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
@@ -256,6 +258,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
         const params = new URLSearchParams()
         params.set("page", String(query.page))
         params.set("size", String(query.size))
+        params.set("projectId", String(projectId))
         for (const [k, v] of Object.entries(query.filters ?? {})) {
           if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) continue
           params.set(k, Array.isArray(v) ? v.join(",") : String(v))
@@ -269,7 +272,7 @@ export function WorkflowInstancesPanel({ onRowClick, active }: WorkflowInstances
         }
         return { items: json.data.items, total: json.data.total, page: query.page, size: query.size }
       },
-    [],
+    [projectId],
   )
 
   return (

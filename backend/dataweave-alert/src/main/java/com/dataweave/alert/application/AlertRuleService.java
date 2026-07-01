@@ -14,11 +14,13 @@ public class AlertRuleService {
 
     public AlertRuleService(AlertRuleRepository repo) { this.repo = repo; }
 
-    public List<AlertRule> list(Long tenantId, String signalSource, Boolean enabled, int offset, int limit) {
+    public List<AlertRule> list(Long tenantId, Long projectId, String signalSource, Boolean enabled, int offset, int limit) {
         if (signalSource != null && enabled != null) {
-            return repo.findByTenantIdAndSignalSourceAndEnabled(tenantId, signalSource, enabled ? 1 : 0);
+            // signalSource+enabled 无项目级 repo 变体，取租户级结果后按 projectId 内存过滤（结果集小）
+            return repo.findByTenantIdAndSignalSourceAndEnabled(tenantId, signalSource, enabled ? 1 : 0)
+                    .stream().filter(r -> projectId.equals(r.getProjectId())).toList();
         }
-        return repo.findByTenantId(tenantId, offset, limit);
+        return repo.findByTenantIdAndProjectId(tenantId, projectId, offset, limit);
     }
 
     public AlertRule get(Long id) {

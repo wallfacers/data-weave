@@ -3,6 +3,7 @@ package com.dataweave.alert.interfaces;
 import com.dataweave.alert.application.*;
 import com.dataweave.alert.domain.*;
 import com.dataweave.alert.domain.repository.*;
+import com.dataweave.master.application.ProjectScope;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
@@ -27,12 +28,13 @@ public class AlertController {
     private final AlertRuleService ruleService;
     private final AlertLifecycleService lifecycleService;
     private final AlertDispatchService dispatchService;
+    private final ProjectScope projectScope;
 
     public AlertController(AlertRuleRepository ruleRepo, AlertChannelRepository channelRepo,
                            AlertRouteRepository routeRepo, AlertEventRepository eventRepo,
                            AlertNotificationRepository notifRepo, AlertSilenceRepository silenceRepo,
                            AlertRuleService ruleService, AlertLifecycleService lifecycleService,
-                           AlertDispatchService dispatchService) {
+                           AlertDispatchService dispatchService, ProjectScope projectScope) {
         this.ruleRepo = ruleRepo;
         this.channelRepo = channelRepo;
         this.routeRepo = routeRepo;
@@ -42,12 +44,24 @@ public class AlertController {
         this.ruleService = ruleService;
         this.lifecycleService = lifecycleService;
         this.dispatchService = dispatchService;
+        this.projectScope = projectScope;
     }
 
     private long tenantId(ServerWebExchange exchange) {
         Long tid = exchange.getAttribute("tenantId");
         if (tid == null) throw new BizException("alert.tenant_required");
         return tid;
+    }
+
+    /**
+     * 036 项目隔离：从 exchange 取当前项目并经 {@link ProjectScope} 校验成员归属。
+     * 缺项目 → project.required；非成员 → project.forbidden。返回校验通过的 projectId。
+     */
+    private Long projectId(ServerWebExchange exchange) {
+        Long tid = exchange.getAttribute("tenantId");
+        Long uid = exchange.getAttribute("userId");
+        Long pid = exchange.getAttribute("projectId");
+        return projectScope.require(tid, uid, pid);
     }
 
     // ─── Rules ─────────────────────────────────────────
@@ -59,8 +73,9 @@ public class AlertController {
                                                 @RequestParam(required = false) String signalSource,
                                                 @RequestParam(required = false) Boolean enabled) {
         long tid = tenantId(exchange);
-        var list = ruleService.list(tid, signalSource, enabled, offset, limit);
-        return Mono.just(Map.of("code", 0, "data", Map.of("items", list, "total", ruleRepo.countByTenantId(tid))));
+        Long pid = projectId(exchange);
+        var list = ruleService.list(tid, pid, signalSource, enabled, offset, limit);
+        return Mono.just(Map.of("code", 0, "data", Map.of("items", list, "total", ruleRepo.countByTenantIdAndProjectId(tid, pid))));
     }
 
     @GetMapping("/rules/{id}")
@@ -71,6 +86,7 @@ public class AlertController {
     @PostMapping("/rules")
     public Mono<Map<String, Object>> createRule(ServerWebExchange exchange, @RequestBody AlertRule rule) {
         rule.setTenantId(tenantId(exchange));
+        rule.setProjectId(projectId(exchange));
         rule.setCreatedBy(1L);
         rule.setCreatedAt(LocalDateTime.now());
         return Mono.just(Map.of("code", 0, "data", ruleService.create(rule)));
@@ -92,7 +108,8 @@ public class AlertController {
 
     @GetMapping("/channels")
     public Mono<Map<String, Object>> listChannels(ServerWebExchange exchange) {
-        return Mono.just(Map.of("code", 0, "data", channelRepo.findByTenantId(tenantId(exchange))));
+        return Mono.just(Map.of("code", 0, "data",
+                channelRepo.findByTenantIdAndProjectId(tenantId(exchange), projectId(exchange))));
     }
 
     @GetMapping("/channels/{id}")
@@ -104,6 +121,7 @@ public class AlertController {
     @PostMapping("/channels")
     public Mono<Map<String, Object>> createChannel(ServerWebExchange exchange, @RequestBody AlertChannel channel) {
         channel.setTenantId(tenantId(exchange));
+        channel.setProjectId(projectId(exchange));
         channel.setCreatedBy(1L);
         return Mono.just(Map.of("code", 0, "data", channelRepo.save(channel)));
     }
@@ -139,12 +157,14 @@ public class AlertController {
 
     @GetMapping("/routes")
     public Mono<Map<String, Object>> listRoutes(ServerWebExchange exchange) {
-        return Mono.just(Map.of("code", 0, "data", routeRepo.findByTenantId(tenantId(exchange))));
+        return Mono.just(Map.of("code", 0, "data",
+                routeRepo.findByTenantIdAndProjectId(tenantId(exchange), projectId(exchange))));
     }
 
     @PostMapping("/routes")
     public Mono<Map<String, Object>> createRoute(ServerWebExchange exchange, @RequestBody AlertRoute route) {
         route.setTenantId(tenantId(exchange));
+        route.setProjectId(projectId(exchange));
         route.setCreatedBy(1L);
         return Mono.just(Map.of("code", 0, "data", routeRepo.save(route)));
     }
@@ -174,14 +194,15 @@ public class AlertController {
                                                  @RequestParam(defaultValue = "0") int offset,
                                                  @RequestParam(defaultValue = "20") int limit) {
         long tid = tenantId(exchange);
+        Long pid = projectId(exchange);
         List<AlertEvent> events;
         int total;
         if (state != null && !state.isBlank()) {
-            events = eventRepo.findByTenantIdAndState(tid, state, offset, limit);
-            total = eventRepo.countByTenantIdAndState(tid, state);
+            events = eventRepo.findByTenantIdAndProjectIdAndState(tid, pid, state, offset, limit);
+            total = eventRepo.countByTenantIdAndProjectIdAndState(tid, pid, state);
         } else {
-            events = eventRepo.findByTenantId(tid, offset, limit);
-            total = eventRepo.countByTenantId(tid);
+            events = eventRepo.findByTenantIdAndProjectId(tid, pid, offset, limit);
+            total = eventRepo.countByTenantIdAndProjectId(tid, pid);
         }
         return Mono.just(Map.of("code", 0, "data", Map.of("items", events, "total", total)));
     }

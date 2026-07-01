@@ -11,6 +11,11 @@ public interface AlertEventRepository {
     int countByTenantIdAndState(Long tenantId, String state);
     List<AlertEvent> findByTenantId(Long tenantId, int offset, int limit);
     int countByTenantId(Long tenantId);
+    /** 036: 按项目隔离的查询方法。 */
+    List<AlertEvent> findByTenantIdAndProjectId(Long tenantId, Long projectId, int offset, int limit);
+    int countByTenantIdAndProjectId(Long tenantId, Long projectId);
+    List<AlertEvent> findByTenantIdAndProjectIdAndState(Long tenantId, Long projectId, String state, int offset, int limit);
+    int countByTenantIdAndProjectIdAndState(Long tenantId, Long projectId, String state);
     AlertEvent save(AlertEvent event);
     /** CAS update state only if current state matches expected */
     boolean casState(Long id, String expectedState, String newState);

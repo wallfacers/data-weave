@@ -20,6 +20,7 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
         AlertRule r = new AlertRule();
         r.setId(rs.getLong("id"));
         r.setTenantId(rs.getLong("tenant_id"));
+        r.setProjectId(rs.getObject("project_id", Long.class));
         r.setName(rs.getString("name"));
         r.setDescription(rs.getString("description"));
         r.setEnabled(rs.getInt("enabled"));
@@ -89,6 +90,21 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
     }
 
     @Override
+    public List<AlertRule> findByTenantIdAndProjectId(Long tenantId, Long projectId, int offset, int limit) {
+        return jdbc.query(
+                "SELECT * FROM alert_rule WHERE tenant_id = ? AND project_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ? OFFSET ?",
+                ROW_MAPPER, tenantId, projectId, limit, offset);
+    }
+
+    @Override
+    public int countByTenantIdAndProjectId(Long tenantId, Long projectId) {
+        var r = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM alert_rule WHERE tenant_id = ? AND project_id = ? AND deleted = 0",
+                Integer.class, tenantId, projectId);
+        return r != null ? r : 0;
+    }
+
+    @Override
     public AlertRule save(AlertRule rule) {
         if (rule.getId() == null) {
             return insert(rule);
@@ -98,11 +114,11 @@ public class AlertRuleJdbcRepository implements AlertRuleRepository {
 
     private AlertRule insert(AlertRule r) {
         long generated = JdbcInsertSupport.insertReturningId(jdbc,
-                "INSERT INTO alert_rule (tenant_id, name, description, enabled, signal_source, eval_mode, " +
+                "INSERT INTO alert_rule (tenant_id, project_id, name, description, enabled, signal_source, eval_mode, " +
                 "eval_interval_sec, condition_json, severity, for_duration, dedup_key_template, " +
                 "suppress_window_sec, auto_resolve, labels_json, created_by, created_at, deleted, version) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                r.getTenantId(), r.getName(), r.getDescription(), r.getEnabled(), r.getSignalSource(),
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                r.getTenantId(), r.getProjectId(), r.getName(), r.getDescription(), r.getEnabled(), r.getSignalSource(),
                 r.getEvalMode(), r.getEvalIntervalSec(), r.getConditionJson(), r.getSeverity(),
                 r.getForDuration(), r.getDedupKeyTemplate(), r.getSuppressWindowSec(), r.getAutoResolve(),
                 r.getLabelsJson(), r.getCreatedBy(), LocalDateTime.now(), 0, 0);

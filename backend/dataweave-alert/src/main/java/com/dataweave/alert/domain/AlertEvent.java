@@ -9,6 +9,7 @@ public class AlertEvent {
 
     private Long id;
     private Long tenantId;
+    private Long projectId;
     private Long ruleId;
     private String state;
     private String severity;
@@ -32,6 +33,8 @@ public class AlertEvent {
     public void setId(Long id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
     public Long getRuleId() { return ruleId; }
     public void setRuleId(Long ruleId) { this.ruleId = ruleId; }
     public String getState() { return state; }

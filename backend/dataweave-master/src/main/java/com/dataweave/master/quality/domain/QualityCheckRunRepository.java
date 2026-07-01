@@ -13,10 +13,17 @@ public interface QualityCheckRunRepository extends CrudRepository<QualityCheckRu
 
     List<QualityCheckRun> findByTenantIdAndDeleted(Long tenantId, Integer deleted);
 
+    /** 036: 按项目隔离的查询方法。 */
+    List<QualityCheckRun> findByTenantIdAndProjectIdAndDeleted(Long tenantId, Long projectId, Integer deleted);
+
     Optional<QualityCheckRun> findByIdAndTenantIdAndDeleted(Long id, Long tenantId, Integer deleted);
+
+    Optional<QualityCheckRun> findByIdAndTenantIdAndProjectIdAndDeleted(Long id, Long tenantId, Long projectId, Integer deleted);
 
     List<QualityCheckRun> findByTenantIdAndTaskInstanceIdAndDeleted(
             Long tenantId, UUID taskInstanceId, Integer deleted);
 
     List<QualityCheckRun> findByTenantIdAndDatasetRefAndDeleted(Long tenantId, String datasetRef, Integer deleted);
+
+    List<QualityCheckRun> findByTenantIdAndProjectIdAndDatasetRefAndDeleted(Long tenantId, Long projectId, String datasetRef, Integer deleted);
 }

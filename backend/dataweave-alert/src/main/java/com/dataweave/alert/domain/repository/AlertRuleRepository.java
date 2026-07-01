@@ -12,6 +12,9 @@ public interface AlertRuleRepository {
     List<AlertRule> findByEvalModeAndEnabled(String evalMode, Integer enabled);
     List<AlertRule> findByTenantId(Long tenantId, int offset, int limit);
     int countByTenantId(Long tenantId);
+    /** 036: 按项目隔离的查询方法。 */
+    List<AlertRule> findByTenantIdAndProjectId(Long tenantId, Long projectId, int offset, int limit);
+    int countByTenantIdAndProjectId(Long tenantId, Long projectId);
     AlertRule save(AlertRule rule);
     int deleteById(Long id);
 }

@@ -80,7 +80,7 @@ class OpsLatestInstanceTest {
         insertTaskInstance(uuidv7(1001), TASK_ID, "NORMAL", "SUCCESS");
         insertTaskInstance(uuidv7(1002), TASK_ID, "NORMAL", "RUNNING"); // 更晚 → 应取这条
 
-        OpsService.LatestInstanceView v = opsService.latestTaskInstance(TASK_ID, null); // 默认 NORMAL
+        OpsService.LatestInstanceView v = opsService.latestTaskInstance(TASK_ID, null, null); // 默认 NORMAL, 不过滤项目
         assertThat(v).isNotNull();
         assertThat(v.id()).isEqualTo(uuidv7(1002));
         assertThat(v.state()).isEqualTo("RUNNING");
@@ -93,18 +93,18 @@ class OpsLatestInstanceTest {
         insertTaskInstance(uuidv7(2001), tid, "NORMAL", "FAILED");
         insertTaskInstance(uuidv7(2002), tid, "TEST", "RUNNING");
 
-        OpsService.LatestInstanceView normal = opsService.latestTaskInstance(tid, "NORMAL");
+        OpsService.LatestInstanceView normal = opsService.latestTaskInstance(tid, "NORMAL", null);
         assertThat(normal.id()).isEqualTo(uuidv7(2001));
         assertThat(normal.runMode()).isEqualTo("NORMAL");
 
-        OpsService.LatestInstanceView test = opsService.latestTaskInstance(tid, "TEST");
+        OpsService.LatestInstanceView test = opsService.latestTaskInstance(tid, "TEST", null);
         assertThat(test.id()).isEqualTo(uuidv7(2002));
         assertThat(test.runMode()).isEqualTo("TEST");
     }
 
     @Test
     void latestTaskInstance_无实例返回null() {
-        assertThat(opsService.latestTaskInstance(TASK_ID_EMPTY, "NORMAL")).isNull();
+        assertThat(opsService.latestTaskInstance(TASK_ID_EMPTY, "NORMAL", null)).isNull();
     }
 
     @Test
@@ -112,7 +112,7 @@ class OpsLatestInstanceTest {
         insertWorkflowInstance(uuidv7(3001), WF_ID, "SUCCESS");
         insertWorkflowInstance(uuidv7(3002), WF_ID, "RUNNING");
 
-        OpsService.LatestInstanceView v = opsService.latestWorkflowInstance(WF_ID);
+        OpsService.LatestInstanceView v = opsService.latestWorkflowInstance(WF_ID, null);
         assertThat(v).isNotNull();
         assertThat(v.id()).isEqualTo(uuidv7(3002));
         assertThat(v.state()).isEqualTo("RUNNING");
@@ -121,7 +121,7 @@ class OpsLatestInstanceTest {
 
     @Test
     void latestWorkflowInstance_无实例返回null() {
-        assertThat(opsService.latestWorkflowInstance(WF_ID_EMPTY)).isNull();
+        assertThat(opsService.latestWorkflowInstance(WF_ID_EMPTY, null)).isNull();
     }
 
     @Test

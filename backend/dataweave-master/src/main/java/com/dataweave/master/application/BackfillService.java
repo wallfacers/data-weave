@@ -193,13 +193,20 @@ public class BackfillService {
         return toView(saved);
     }
 
-    /** 补数据批次列表（按创建时间倒序分页）+ 各自聚合进度。 */
-    public List<BackfillRunView> backfillRuns(int page, int size) {
+    /** 补数据批次列表（按创建时间倒序分页）+ 各自聚合进度。036 项目隔离：按 projectId 过滤。 */
+    public List<BackfillRunView> backfillRuns(int page, int size, Long projectId) {
         int p = Math.max(0, page);
         int s = Math.min(Math.max(1, size), 200);
-        List<BackfillRun> runs = jdbc.query(
-                "SELECT * FROM backfill_run WHERE deleted=0 ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
-                (rs, n) -> mapRun(rs), s, (long) p * s);
+        List<BackfillRun> runs;
+        if (projectId != null) {
+            runs = jdbc.query(
+                    "SELECT * FROM backfill_run WHERE deleted=0 AND project_id=? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                    (rs, n) -> mapRun(rs), projectId, s, (long) p * s);
+        } else {
+            runs = jdbc.query(
+                    "SELECT * FROM backfill_run WHERE deleted=0 ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                    (rs, n) -> mapRun(rs), s, (long) p * s);
+        }
         List<BackfillRunView> views = new ArrayList<>(runs.size());
         for (BackfillRun r : runs) {
             views.add(toView(r));
@@ -214,11 +221,15 @@ public class BackfillService {
      */
     public OpsContracts.PageResult<BackfillRunView> queryBackfillRuns(
             String stateCsv, String targetName, String targetType,
-            String bizDateFrom, String bizDateTo, Long createdBy, int page, int size) {
+            String bizDateFrom, String bizDateTo, Long createdBy, Long projectId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(Math.max(1, size), 200);
         StringBuilder where = new StringBuilder(" WHERE deleted=0 ");
         List<Object> args = new ArrayList<>();
+        if (projectId != null) {
+            where.append("AND project_id=? ");
+            args.add(projectId);
+        }
         if (stateCsv != null && !stateCsv.isBlank()) {
             String[] states = stateCsv.split(",");
             String ph = String.join(",", java.util.Collections.nCopies(states.length, "?"));

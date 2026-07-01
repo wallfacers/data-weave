@@ -35,6 +35,7 @@ import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { useProjectContext } from "@/lib/project-context"
 import { ViewRefreshControl } from "../view-refresh-control"
 
 /** 契约① InstanceRow */
@@ -314,8 +315,11 @@ export function PeriodicInstancesPanel({
   )
 
   // ── server 模式取数：复用契约①，兼容 数组 / Spring Page 两种返回 ──
+  // 036 项目隔离：projectId 由 useProjectContext 提供，追加到查询参数
+  const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
   const fetcher = async (query: FetchQuery): Promise<PageResult<InstanceRow>> => {
     const qs = toQueryParams(query, filters)
+    qs.set("projectId", String(projectId))
     const res = await authFetch(`${API_BASE}/api/ops/instances?${qs.toString()}`)
     if (!res.ok) return { items: [], total: 0, page: query.page, size: query.size }
     const json = (await res.json()) as ApiResponse<unknown>

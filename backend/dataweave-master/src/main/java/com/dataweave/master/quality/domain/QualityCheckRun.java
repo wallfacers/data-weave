@@ -19,6 +19,7 @@ public class QualityCheckRun {
     @Id
     private Long id;
     private Long tenantId;
+    private Long projectId;
     private String datasetRef;
     private String trigger;
     private UUID taskInstanceId;
@@ -45,6 +46,8 @@ public class QualityCheckRun {
     public void setId(Long id) { this.id = id; }
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
     public String getDatasetRef() { return datasetRef; }
     public void setDatasetRef(String datasetRef) { this.datasetRef = datasetRef; }
     public String getTrigger() { return trigger; }
