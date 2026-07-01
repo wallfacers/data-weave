@@ -24,8 +24,9 @@ import { cn } from "@/lib/utils"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META, type ViewType } from "@/lib/workspace/views"
-import { NAV_GROUPS, resolveActiveHighlight } from "@/lib/workspace/nav-groups"
+import { NAV_GROUPS, resolveActiveHighlight, viewRequiredPermission } from "@/lib/workspace/nav-groups"
 import { useProjectContext } from "@/lib/project-context"
+import { syncProjectPermissions, useProjectPermissions } from "@/lib/project-permissions"
 import { useNavUiStore } from "@/lib/nav-ui-store"
 import { useAuth } from "@/lib/auth"
 import { SettingsDialog } from "@/components/settings-dialog"
@@ -194,6 +195,14 @@ export function LeftNav() {
   const collapsed = useNavUiStore((s) => s.collapsed)
   const toggleCollapsed = useNavUiStore((s) => s.toggleCollapsed)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const { can } = useProjectPermissions()
+
+  // 036-D：挂载时订阅切项目重算权限（FR-043）；canView 驱动菜单按当前项目角色过滤（FR-041）。
+  useEffect(() => syncProjectPermissions(), [])
+  const canView = (view: ViewType) => {
+    const req = viewRequiredPermission(view)
+    return !req || can(req)
+  }
 
   // 当前激活功能 → 高亮归属
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
@@ -225,18 +234,23 @@ export function LeftNav() {
 
         {/* 中部：分组目录（可纵向滚动） */}
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.id} className="mb-2 last:mb-0">
-              <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {t(group.titleKey)}
+          {NAV_GROUPS.map((group) => {
+            // 036-D：按当前项目权限过滤菜单项；整组无可见项则隐藏分组（FR-041）。
+            const items = group.items.filter(canView)
+            if (items.length === 0) return null
+            return (
+              <div key={group.id} className="mb-2 last:mb-0">
+                <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t(group.titleKey)}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {items.map((view) => (
+                    <NavItem key={view} view={view} active={highlight.view === view} />
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                {group.items.map((view) => (
-                  <NavItem key={view} view={view} active={highlight.view === view} />
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
         {/* 底部：用户菜单 */}

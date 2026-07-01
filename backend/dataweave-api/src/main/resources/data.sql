@@ -11,7 +11,9 @@ INSERT INTO permissions (id, code, name, resource, action, description, created_
 (1, 'task:manage', '任务管理', 'task', 'manage', '任务定义的增删改查与上下线', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (2, 'workflow:manage', '任务流管理', 'workflow', 'manage', '任务流(DAG)的编排与调度', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (3, 'metric:manage', '指标管理', 'metric', 'manage', '原子/派生指标的定义与口径', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(4, 'datasource:manage', '数据源管理', 'datasource', 'manage', '数据源的接入与测试', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+(4, 'datasource:manage', '数据源管理', 'datasource', 'manage', '数据源的接入与测试', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 036-D：项目管理权限（成员管理/项目设置），仅 ADMIN 持有；驱动 settings 视图与成员管理端点授权。
+(5, 'project:manage', '项目管理', 'project', 'manage', '项目设置与成员管理（含角色分配）', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO projects (id, tenant_id, code, name, owner_id, status, created_by, updated_by, created_at, updated_at, deleted, version)
 VALUES (1, 1, 'demo', '示例项目', 1, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
@@ -30,11 +32,19 @@ INSERT INTO user_role (id, tenant_id, user_id, role_id, created_by, updated_by, 
 (1, 1, 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (2, 1, 2, 2, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
+-- 036-D 角色×权限矩阵：ADMIN 全权（含 project:manage）；DEVELOPER 开发四权（无 project:manage）；VIEWER 无（只读，靠"无权限"自然受限）。
 INSERT INTO role_permission (id, tenant_id, role_id, permission_id, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+-- ADMIN(role 1) → task / workflow / metric / datasource / project:manage
 (1, 1, 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (2, 1, 1, 2, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (3, 1, 1, 3, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(4, 1, 1, 4, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+(4, 1, 1, 4, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(5, 1, 1, 5, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- DEVELOPER(role 2) → task / workflow / metric / datasource:manage
+(6, 1, 2, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(7, 1, 2, 2, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(8, 1, 2, 3, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(9, 1, 2, 4, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO project_member (id, tenant_id, project_id, user_id, role_id, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
 (1, 1, 1, 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),

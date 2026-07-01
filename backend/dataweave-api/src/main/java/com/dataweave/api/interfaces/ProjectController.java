@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
+import com.dataweave.master.application.ProjectRoleService;
 import com.dataweave.master.domain.*;
 import com.dataweave.master.filecontract.naming.EntityNaming;
 import com.dataweave.master.i18n.BizException;
@@ -13,6 +14,10 @@ import java.util.*;
 
 /**
  * 项目管理 CRUD + 成员管理。
+ *
+ * <p>036-D：成员管理（add/removeMember）与项目设置（update/delete）按当前用户在该项目的
+ * 角色授权——仅持 {@code project:manage} 权限（ADMIN）可执行；越权抛结构化
+ * {@code project.role.forbidden}（{@link ProjectRoleService#requirePermission}），零 bypass。
  */
 @RestController
 @RequestMapping("/api/projects")
@@ -20,13 +25,16 @@ public class ProjectController {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectRoleService projectRoleService;
     private final JdbcTemplate jdbcTemplate;
 
     public ProjectController(ProjectRepository projectRepository,
                              ProjectMemberRepository projectMemberRepository,
+                             ProjectRoleService projectRoleService,
                              JdbcTemplate jdbcTemplate) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.projectRoleService = projectRoleService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -113,6 +121,16 @@ public class ProjectController {
                 .orElseThrow(() -> new BizException("project.not_found", id).withHttpStatus(404));
     }
 
+    /**
+     * 036-D：当前用户在 projectId 的角色 + 权限集（供前端菜单/视图权限过滤，FR-041/043）。
+     * 非成员返回 member=false / role=null / permissions=空。
+     */
+    @GetMapping("/{id}/me")
+    public ApiResponse<ProjectRoleService.ProjectMembership> me(@PathVariable Long id) {
+        return ApiResponse.ok(projectRoleService.resolveMembership(
+                TenantContext.tenantId(), TenantContext.userId(), id));
+    }
+
     @PostMapping
     public ApiResponse<Project> create(@RequestBody Map<String, String> body) {
         Long tenantId = TenantContext.tenantId();
@@ -140,6 +158,7 @@ public class ProjectController {
 
     @PutMapping("/{id}")
     public ApiResponse<Project> update(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        requireProjectManage(id); // 036-D：项目设置仅 ADMIN
         return projectRepository.findById(id)
                 .map(existing -> {
                     if (body.containsKey("name")) existing.setName(body.get("name"));
@@ -153,6 +172,7 @@ public class ProjectController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        requireProjectManage(id); // 036-D：项目删除仅 ADMIN
         return projectRepository.findById(id)
                 .map(existing -> {
                     existing.setDeleted(1);
@@ -173,6 +193,7 @@ public class ProjectController {
 
     @PostMapping("/{id}/members")
     public ApiResponse<Void> addMember(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        requireProjectManage(id); // 036-D：成员管理仅 ADMIN
         Long tenantId = TenantContext.tenantId();
         if (tenantId == null) tenantId = 1L;
 
@@ -197,6 +218,7 @@ public class ProjectController {
 
     @DeleteMapping("/{id}/members/{memberId}")
     public ApiResponse<Void> removeMember(@PathVariable Long id, @PathVariable Long memberId) {
+        requireProjectManage(id); // 036-D：成员管理仅 ADMIN
         return projectMemberRepository.findById(memberId)
                 .map(pm -> {
                     pm.setDeleted(1);
@@ -205,5 +227,14 @@ public class ProjectController {
                     return ApiResponse.<Void>ok();
                 })
                 .orElseThrow(() -> new BizException("project.member.not_found", memberId).withHttpStatus(404));
+    }
+
+    /**
+     * 036-D：要求当前用户在项目 id 持有 {@code project:manage} 权限（ADMIN），
+     * 否则抛结构化 {@code project.role.forbidden} / {@code project.forbidden} / {@code project.required}。
+     */
+    private void requireProjectManage(Long projectId) {
+        projectRoleService.requirePermission(
+                TenantContext.tenantId(), TenantContext.userId(), projectId, "project:manage");
     }
 }

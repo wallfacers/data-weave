@@ -79,5 +79,28 @@ export function classifiedViews(): Set<ViewType> {
   return s
 }
 
+/**
+ * 036-D：打开该视图所需的项目权限 code（undefined = 无门槛，所有角色可见的只读视图）。
+ * 权限码与 seed permissions 对齐：task/workflow/metric/datasource/project:manage。
+ */
+export function viewRequiredPermission(view: ViewType): string | undefined {
+  return VIEW_META[view]?.requirePermission
+}
+
+/**
+ * 036-D：给定当前项目权限集，过滤出可见的入口视图。
+ * 无 {@link viewRequiredPermission}（只读视图）恒可见；有则需权限集命中。
+ * 供左侧导航按当前项目角色过滤菜单（FR-041），纯函数易测（不依赖 React）。
+ */
+export function filterVisibleItems(
+  items: readonly ViewType[],
+  permissions: ReadonlySet<string>,
+): ViewType[] {
+  return items.filter((v) => {
+    const req = viewRequiredPermission(v)
+    return !req || permissions.has(req)
+  })
+}
+
 /** VIEW_META 全集（测试用）。 */
 export const ALL_VIEWS = Object.keys(VIEW_META) as ViewType[]

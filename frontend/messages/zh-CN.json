@@ -1134,6 +1134,15 @@
       "logout": "退出登录"
     }
   },
+  "permission": {
+    "deniedTitle": "权限不足",
+    "deniedDesc": "当前项目角色无法访问此功能。请联系项目管理员调整角色，或切换到你有相应权限的项目。",
+    "roleAdmin": "管理员",
+    "roleDeveloper": "开发",
+    "roleViewer": "只读",
+    "roleLabel": "当前项目角色：{role}",
+    "noRole": "非项目成员"
+  },
   "settingsDialog": {
     "title": "外观设置",
     "description": "个性化界面外观与显示偏好",

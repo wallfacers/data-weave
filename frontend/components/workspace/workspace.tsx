@@ -2,14 +2,18 @@
 
 import { useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { useWorkspacePersistence } from "@/lib/workspace/persistence"
 import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
+import { VIEW_META } from "@/lib/workspace/views"
+import { useProjectPermissions } from "@/lib/project-permissions"
 import { cn } from "@/lib/utils"
 import { WorkspaceTabBar } from "./tab-bar"
 import { WorkspaceLogPanel } from "./log-panel"
+import { PlaceholderView } from "./views/placeholder-view"
 
 /**
  * Workspace 主区：tab 条 + 视图渲染区。
@@ -17,6 +21,8 @@ import { WorkspaceLogPanel } from "./log-panel"
  * （如 SQL 编辑器内容）；关闭 tab 即卸载。
  */
 export function Workspace() {
+  const t = useTranslations("permission")
+  const { can } = useProjectPermissions()
   const tabs = useWorkspaceStore((s) => s.tabs)
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
   const searchParams = useSearchParams()
@@ -65,6 +71,9 @@ export function Workspace() {
             .filter((t) => mountedRef.current.has(t.id))
             .map((tab) => {
               const View = VIEW_RENDER[tab.view].component
+              // 036-D：视图级权限拦截——无权限的视图（深链直达）渲染占位，不暴露真实功能（FR-041）。
+              const req = VIEW_META[tab.view]?.requirePermission
+              const denied = !!req && !can(req)
               return (
                 <div
                   key={tab.id}
@@ -73,7 +82,11 @@ export function Workspace() {
                     tab.id === activeTabId ? "flex" : "hidden",
                   )}
                 >
-                  <View params={tab.params} active={tab.id === activeTabId} />
+                  {denied ? (
+                    <PlaceholderView title={t("deniedTitle")} description={t("deniedDesc")} />
+                  ) : (
+                    <View params={tab.params} active={tab.id === activeTabId} />
+                  )}
                 </div>
               )
             })}

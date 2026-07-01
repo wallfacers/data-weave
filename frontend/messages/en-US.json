@@ -1134,6 +1134,15 @@
       "logout": "Log out"
     }
   },
+  "permission": {
+    "deniedTitle": "Access Denied",
+    "deniedDesc": "Your role in this project cannot access this feature. Ask the project admin to change your role, or switch to a project where you have permission.",
+    "roleAdmin": "Admin",
+    "roleDeveloper": "Developer",
+    "roleViewer": "Viewer",
+    "roleLabel": "Project role: {role}",
+    "noRole": "Not a member"
+  },
   "settingsDialog": {
     "title": "Appearance settings",
     "description": "Personalize interface appearance and display preferences",
