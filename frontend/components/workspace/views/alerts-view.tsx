@@ -167,7 +167,7 @@ export function AlertsView({ active }: ViewProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-5 pb-5">
+      <div className="flex flex-col flex-1 overflow-auto px-5 pb-5">
         {loading && bundle == null && <LoadingState active={loading} />}
 
         {/* Active Alerts & History */}
