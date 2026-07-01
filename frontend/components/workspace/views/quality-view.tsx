@@ -124,9 +124,9 @@ export function QualityView({ active }: ViewProps) {
     { active, enabled: autoEnabled, deps: [tab] },
   )
 
-  const rules = (tab === "rules" ? tabData as QualityRule[] : []) as QualityRule[]
-  const runs = (tab === "runs" ? tabData as QualityCheckRun[] : []) as QualityCheckRun[]
-  const scorecards = (tab === "scorecards" ? tabData as QualityScorecard[] : []) as QualityScorecard[]
+  const rules = (tab === "rules" ? tabData ?? [] : []) as QualityRule[]
+  const runs = (tab === "runs" ? tabData ?? [] : []) as QualityCheckRun[]
+  const scorecards = (tab === "scorecards" ? tabData ?? [] : []) as QualityScorecard[]
 
   const loadResults = useCallback(async (runId: number) => {
     setError(null);
@@ -158,33 +158,44 @@ export function QualityView({ active }: ViewProps) {
     loadResults(run.id);
   };
 
-  const TAB_ITEMS: { key: TabKey; icon: IconSvgElement; label: string }[] = [
-    { key: "rules", icon: Shield01Icon, label: t("tabRules") },
-    { key: "runs", icon: Alert02Icon, label: t("tabRuns") },
-    { key: "scorecards", icon: ChartEvaluationIcon, label: t("tabScorecards") },
+  const TAB_ITEMS: { key: TabKey; labelKey: string; icon: IconSvgElement }[] = [
+    { key: "rules", labelKey: "tabRules", icon: Shield01Icon },
+    { key: "runs", labelKey: "tabRuns", icon: Alert02Icon },
+    { key: "scorecards", labelKey: "tabScorecards", icon: ChartEvaluationIcon },
   ];
 
   return (
     <div className="flex flex-col h-full">
-      {/* tab bar + refresh control */}
-      <div className="flex items-center justify-between gap-1 px-4 pt-3 pb-2 border-b">
-        <div className="flex gap-1">
-          {TAB_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => { setTab(item.key); setSelectedRun(null); setResults([]); }}
-              className={
-                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors "
-                + (tab === item.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted")
-              }
-            >
-              <HugeiconsIcon icon={item.icon} className="size-4" />
-              {item.label}
-            </button>
-          ))}
+      {/* Tab bar — 与运维中心 OpsTabBar 风格一致 */}
+      <div role="tablist">
+        <div className="flex items-center gap-1 px-5 h-11">
+          {TAB_ITEMS.map((item) => {
+            const isActive = tab === item.key
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => { setTab(item.key); setSelectedRun(null); setResults([]); }}
+                className={
+                  "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors "
+                  + (isActive
+                    ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                <HugeiconsIcon icon={item.icon} className="size-4" />
+                {t(item.labelKey as never)}
+              </button>
+            )
+          })}
         </div>
+        <div className="mx-6 border-b" />
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-end px-5 py-2">
         <ViewRefreshControl
           lastUpdatedAt={lastUpdatedAt}
           refreshing={refreshing}
@@ -196,20 +207,26 @@ export function QualityView({ active }: ViewProps) {
       </div>
 
       {/* content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-5">
         {error && (
-          <div className="text-sm text-destructive mb-3 p-3 bg-destructive/10 rounded">
+          <div className="text-sm text-destructive mb-3 p-3 bg-destructive/10 rounded shrink-0">
             {error}
           </div>
         )}
         {loading && tabData == null && (
-          <div className="text-sm text-muted-foreground">{t("loading")}</div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+            <HugeiconsIcon icon={Shield01Icon} size={32} />
+            <p className="text-sm">{t("loading")}</p>
+          </div>
         )}
 
         {!loading && tab === "rules" && (
-          <div className="space-y-1">
+          <div className="flex flex-1 flex-col space-y-1">
             {rules.length === 0 && (
-              <p className="text-sm text-muted-foreground">{t("emptyRules")}</p>
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={Shield01Icon} size={32} />
+                <p className="text-sm">{t("emptyRules")}</p>
+              </div>
             )}
             {rules.map((r) => (
               <div
@@ -241,10 +258,13 @@ export function QualityView({ active }: ViewProps) {
         )}
 
         {!loading && tab === "runs" && (
-          <div className="flex gap-4">
-            <div className="flex-1 space-y-1">
+          <div className="flex flex-1 gap-4">
+            <div className="flex flex-1 flex-col space-y-1">
               {runs.length === 0 && (
-                <p className="text-sm text-muted-foreground">{t("emptyRuns")}</p>
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <HugeiconsIcon icon={Alert02Icon} size={32} />
+                  <p className="text-sm">{t("emptyRuns")}</p>
+                </div>
               )}
               {runs.map((r) => (
                 <div
@@ -328,9 +348,12 @@ export function QualityView({ active }: ViewProps) {
         )}
 
         {!loading && tab === "scorecards" && (
-          <div className="space-y-3">
+          <div className="flex flex-1 flex-col space-y-3">
             {scorecards.length === 0 && (
-              <p className="text-sm text-muted-foreground">{t("emptyScorecards")}</p>
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+                <HugeiconsIcon icon={ChartEvaluationIcon} size={32} />
+                <p className="text-sm">{t("emptyScorecards")}</p>
+              </div>
             )}
             {scorecards.map((s) => (
               <div
