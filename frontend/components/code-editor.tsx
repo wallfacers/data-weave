@@ -15,6 +15,7 @@ import {
   Eraser01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 
 import { getCodeHighlighter } from "@/lib/code-highlighter"
 import { SYNTAX_LANGS, SYNTAX_THEME_NAMES } from "@/lib/syntax-palette"
@@ -135,11 +136,7 @@ export function CodeEditor({
     [highlighter],
   )
 
-  const loading = (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      {t("loading")}
-    </div>
-  )
+  const loading = <LoadingState />
 
   return (
     <>

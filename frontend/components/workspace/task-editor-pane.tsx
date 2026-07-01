@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { FloppyDiskIcon, PlayIcon, StopIcon } from "@hugeicons/core-free-icons"
 
 import { API_BASE, authFetch, type ApiResponse, type LatestInstanceView, type TaskDef, type TaskDefVersion, type TaskDetail } from "@/lib/types"
@@ -508,11 +509,7 @@ export function TaskEditorPane({ taskId, onNameChange }: TaskEditorPaneProps) {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    )
+    return <LoadingState active={loading} />
   }
 
   // 可发布：草稿态随时可发布；已发布态需有未发布改动（hasDraft）才可「再发布」。均要求已保存（非脏）。

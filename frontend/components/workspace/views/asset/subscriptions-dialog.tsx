@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Delete02Icon } from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
   Dialog,
   DialogContent,
@@ -66,7 +67,7 @@ export function SubscriptionsDialog({ open, onOpenChange, onUnsubscribe }: Subsc
         </DialogHeader>
 
         <div className="flex max-h-96 flex-col gap-1 overflow-auto">
-          {loading && <div className="p-4 text-center text-sm text-muted-foreground">{t("loading")}</div>}
+          {loading && <LoadingState active={loading} />}
           {!loading && list.length === 0 && (
             <div className="p-6 text-center text-sm text-muted-foreground">{t("noSubscriptions")}</div>
           )}

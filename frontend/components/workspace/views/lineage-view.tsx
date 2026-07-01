@@ -13,6 +13,7 @@
 import { useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import type { GraphNodeView, FlowEdgeView, Granularity, ImpactResult } from "@/lib/lineage-api"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
   fetchDownstream,
   fetchColumnDownstream,
@@ -129,9 +130,7 @@ export function LineageView() {
         {/* 画布区 */}
         <div className="flex-1 min-h-0">
           {loading ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-              {t("loading")}
-            </div>
+            <LoadingState active={loading} />
           ) : showImpact && impact ? (
             <ImpactPanel
               impact={impact}

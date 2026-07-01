@@ -16,6 +16,7 @@ import {
   ArrowReloadHorizontalIcon,
   Add01Icon,
   Delete02Icon,
+  RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import {
   searchListings,
@@ -151,7 +152,7 @@ export function MetricMarketplaceView() {
             className="h-8 w-full bg-transparent text-sm outline-none"
           />
           <span className="shrink-0 text-xs text-muted-foreground">
-            {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
+            {loading ? <span className="inline-flex items-center gap-1"><HugeiconsIcon icon={RefreshIcon} className="size-3.5 motion-safe:animate-spin" />{t("loading")}</span> : t("totalCount", { count: result?.total ?? 0 })}
           </span>
           <Button size="sm" onClick={() => setListOpen(true)}>
             <HugeiconsIcon icon={Add01Icon} className="size-4" />

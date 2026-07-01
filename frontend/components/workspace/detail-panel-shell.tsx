@@ -9,10 +9,11 @@
 import type { ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Cancel01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
+import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { ErrorState } from "@/components/workspace/shared/error-state"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 
 export interface DetailPanelShellProps {
   title: ReactNode
@@ -48,22 +49,10 @@ export function DetailPanelShell({
 
       {/* Body */}
       <DwScroll direction="vertical" className="flex-1 min-h-0 relative" innerClassName="flex flex-col gap-4 p-4">
-        {/* 加载中：有旧数据时覆盖半透明遮罩；无旧数据时不渲染（避免宽度闪烁） */}
-        {loading && hasData && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/60">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <HugeiconsIcon icon={RefreshIcon} className="size-5 animate-spin" />
-              <span className="text-xs">Loading…</span>
-            </div>
-          </div>
-        )}
+        {/* 加载中：有旧数据时覆盖半透明遮罩；无旧数据时居中 spinner */}
+        {loading && hasData && <LoadingState variant="overlay" active={loading} />}
 
-        {loading && !hasData && (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-            <HugeiconsIcon icon={RefreshIcon} className="size-5 animate-spin" />
-            <span className="text-xs">Loading…</span>
-          </div>
-        )}
+        {loading && !hasData && <LoadingState active={loading} />}
 
         {error && <ErrorState message={error} onRetry={onRetry} />}
 

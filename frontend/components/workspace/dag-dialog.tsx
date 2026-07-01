@@ -21,8 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { RefreshIcon } from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { DagRenderer } from "@/components/workspace/dag-renderer"
 import { TaskNode } from "@/components/workspace/nodes/task-node"
 import { VirtualNode } from "@/components/workspace/nodes/virtual-node"
@@ -204,12 +203,7 @@ function DagDialogInner({
         <div className="flex-1 min-h-0 flex flex-row relative" ref={dialogRef}>
           {/* 左侧 DAG 区域 */}
           <div className="flex-1 min-w-0 relative">
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center gap-2 text-muted-foreground">
-                <HugeiconsIcon icon={RefreshIcon} className="size-5 animate-spin" />
-                <span className="text-sm">{tc("loading")}</span>
-              </div>
-            )}
+            {loading && <LoadingState variant="overlay" active={loading} text={tc("loading")} />}
 
             {error && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">

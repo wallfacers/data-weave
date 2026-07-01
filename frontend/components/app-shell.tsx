@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { LeftNav } from "@/components/workspace/left-nav"
 import { SidePanel } from "@/components/side-panel/side-panel"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { useAuth } from "@/lib/auth"
 
 /**
@@ -35,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (loading || !user) {
     return (
       <div className="flex h-svh items-center justify-center bg-background">
-        <span className="font-serif text-muted-foreground">{t("loading")}</span>
+        <LoadingState />
       </div>
     )
   }

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { InboxIcon } from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -241,9 +242,7 @@ export function DataTable<T>({
       )}
 
       {loading && !result ? (
-        <div className="flex flex-1 items-center justify-center py-20">
-          <p className="text-sm text-muted-foreground">{t("loading")}</p>
-        </div>
+        <LoadingState active={loading} />
       ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center">
           <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">

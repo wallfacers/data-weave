@@ -292,7 +292,7 @@ export function AssetCatalogView() {
           <span className="font-medium">{t("title")}</span>
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">
-              {loading ? t("loading") : t("totalCount", { count: result?.total ?? 0 })}
+              {loading ? <span className="inline-flex items-center gap-1"><HugeiconsIcon icon={RefreshIcon} className="size-3.5 motion-safe:animate-spin" />{t("loading")}</span> : t("totalCount", { count: result?.total ?? 0 })}
               {result?.truncated ? ` · ${t("truncated")}` : ""}
             </span>
             <Button size="sm" variant="outline" onClick={() => setSubsOpen(true)}>

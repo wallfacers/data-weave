@@ -12,6 +12,7 @@
 import { useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
   Database01Icon,
   ArrowDown01Icon,
@@ -129,7 +130,7 @@ export function LineageTree({
     loadRoots()
   }
 
-  if (loading) return <div className="text-sm text-muted-foreground px-4 py-2">{t("loading")}</div>
+  if (loading) return <LoadingState active={loading} />
   if (error) return <div className="text-sm text-muted-foreground px-4 py-2">{error}</div>
 
   const renderNode = (node: TreeNode, depth: number, path: number[]) => {

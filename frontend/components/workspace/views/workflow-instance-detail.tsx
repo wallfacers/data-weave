@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Flowchart01Icon } from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -160,11 +161,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        {t("loading")}
-      </div>
-    )
+    return <LoadingState active={loading} />
   }
 
   if (!instance) {

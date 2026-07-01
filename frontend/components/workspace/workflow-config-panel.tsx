@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
   API_BASE,
   authFetch,
@@ -188,7 +189,7 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
       <DwScroll className="max-h-40">
         <div className="flex flex-col gap-1">
           {loading ? (
-            <span className="text-xs text-muted-foreground">{t("common.loading")}</span>
+            <LoadingState active={loading} iconSize="size-3.5" textSize="text-xs" />
           ) : deps.length === 0 ? (
             <span className="text-xs text-muted-foreground">{t("workflowConfig.noCrossCycleDeps")}</span>
           ) : (
