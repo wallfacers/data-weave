@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useTranslations } from "next-intl"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -680,13 +679,9 @@ export function SettingsView() {
       </div>
 
       {/* 内容 */}
-      <Card>
-        <CardContent className="p-4">
-          {tab === "users" && <UsersTab />}
-          {tab === "roles" && <RolesTab />}
-          {tab === "projects" && <ProjectsTab />}
-        </CardContent>
-      </Card>
+      {tab === "users" && <UsersTab />}
+      {tab === "roles" && <RolesTab />}
+      {tab === "projects" && <ProjectsTab />}
     </div>
   )
 }
