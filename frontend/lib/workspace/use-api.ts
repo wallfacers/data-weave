@@ -198,6 +198,10 @@ export function useLiveData<T>(
   tickNowRef.current = tickNow
 
   useEffect(() => {
+    // setup 必须重置为 true：StrictMode/重新挂载会「cleanup→setup」，
+    // 若只在 cleanup 置 false 而不在 setup 复位，remount 后 mountedRef 永为 false，
+    // tick 的 `!mountedRef.current` 分支永不 dispatch → data 永为 null、loading 卡在 true。
+    mountedRef.current = true
     return () => {
       mountedRef.current = false
     }
