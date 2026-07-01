@@ -9,7 +9,8 @@ import {
   Alert02Icon,
   ChartEvaluationIcon,
   RefreshIcon,
-} from "@hugeicons/core-free-icons";
+} from "@hugeicons/core-free-icons"
+import { LoadingState } from "@/components/workspace/shared/loading-state";
 import { authFetch, API_BASE } from "@/lib/types";
 import { useLiveData } from "@/lib/workspace/use-api";
 import type { ViewProps } from "@/lib/workspace/registry";
@@ -214,10 +215,7 @@ export function QualityView({ active }: ViewProps) {
           </div>
         )}
         {loading && tabData == null && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
-            <HugeiconsIcon icon={Shield01Icon} size={32} />
-            <p className="text-sm">{t("loading")}</p>
-          </div>
+          <LoadingState active={loading} />
         )}
 
         {!loading && tab === "rules" && (

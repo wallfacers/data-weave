@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
   Alert02Icon,
   BellIcon,
@@ -167,7 +168,7 @@ export function AlertsView({ active }: ViewProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-5 pb-5">
-        {loading && bundle == null && <p className="text-muted-foreground text-sm">{t("loading")}</p>}
+        {loading && bundle == null && <LoadingState active={loading} />}
 
         {/* Active Alerts & History */}
         {(tab === "active" || tab === "history") && (
