@@ -213,7 +213,7 @@ export function DataTable<T>({
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-xl border bg-card overflow-hidden", className)}>
       {hasToolbar && (
-        <div className="px-3">
+        <div className="px-3 pt-3">
           <DataTableToolbar
             filters={filters}
             values={values}
@@ -310,7 +310,7 @@ export function DataTable<T>({
           </DwScroll>
 
           {totalPages > 1 && (
-            <div className="shrink-0 px-3">
+            <div className="shrink-0 px-3 pb-3">
               <Pagination
                 page={page}
                 totalPages={totalPages}
