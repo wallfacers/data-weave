@@ -550,16 +550,7 @@ INSERT INTO metric_dimension (id, tenant_id, project_id, metric_type, metric_id,
 VALUES (1, 1, 1, 'ATOMIC', 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 -- ===== 域 E · 资源与诊断 =====
--- node-3 内存吃紧(95%)且并发2，是失败根因现场；node-4 心跳超时离线
-INSERT INTO worker_nodes (id, node_code, host, ip, capacity, cpu, mem, disk, load_avg, running_tasks, status, last_heartbeat, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 'node-1', 'worker-1', '10.0.0.11', '8C/16G', 35.0, 48.0, 52.0, 2.10, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0),
-(2, 'node-2', 'worker-2', '10.0.0.12', '8C/16G', 41.0, 55.0, 60.0, 2.80, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0),
-(3, 'node-3', 'worker-3', '10.0.0.13', '8C/8G',  72.0, 95.0, 78.0, 9.40, 2, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0),
-(4, 'node-4', 'worker-4', '10.0.0.14', '8C/16G', 0.0,  0.0,  33.0, 0.00, 0, 'OFFLINE', TIMESTAMP '2026-06-10 06:12:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 06:12:00', 0, 0),
-(5, 'node-5', 'worker-5', '10.0.0.15', '8C/16G', 12.0, 30.0, 40.0, 0.90, 1, 'ONLINE',  TIMESTAMP '2026-06-10 10:00:00', 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-10 10:00:00', 0, 0);
-
--- 注：旧 AI 驾驶舱的预填诊断结论（task_diagnosis / finding 表）已随 AI 拆除移除；
--- data.sql 仅保留失败实例素材与节点注册。
+-- worker_nodes 无 seed 数据：节点由 Worker 进程通过 POST /api/fleet/heartbeat 动态注册
 
 -- ===== 域 G · 审计与 mock 业务 =====
 INSERT INTO audit_log (id, tenant_id, project_id, user_id, action, target_type, target_id, detail_json, created_at) VALUES

@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ServerStackIcon } from "@hugeicons/core-free-icons"
 
 import { FleetCard } from "@/components/cockpit/fleet-card"
 import { type WorkerNode } from "@/lib/types"
@@ -46,8 +48,9 @@ export function FleetView({ active }: ViewProps) {
             <p className="text-muted-foreground">{tc("loading")}</p>
           </div>
         ) : nodes.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center p-10 text-center">
-            <p className="text-muted-foreground">{t("empty")}</p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
+            <HugeiconsIcon icon={ServerStackIcon} size={32} />
+            <p className="text-sm">{t("empty")}</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
