@@ -2,12 +2,9 @@
 
 import { useTranslations } from "next-intl"
 import { useState } from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { Analytics01Icon } from "@hugeicons/core-free-icons"
 import { format, subDays } from "date-fns"
 
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
 import { type MetricCard } from "@/lib/types"
 import { fetchApi, useLiveData } from "@/lib/workspace/use-api"
@@ -43,30 +40,20 @@ export function ReportsView({ active }: ViewProps) {
   if (metrics == null) return <ViewStatus loading={loading} />
 
   return (
-    <DwScroll className="flex-1" innerClassName="flex flex-col gap-6 p-6 md:p-10">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <HugeiconsIcon icon={Analytics01Icon} className="size-5 text-primary" />
-            <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {t("subtitle")}
-          </p>
-        </div>
+    <DwScroll className="flex-1" innerClassName="flex flex-col gap-5 p-5">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
         <div className="flex items-center gap-3">
           {/* 业务日期观察（T-1 兜底；切日期按 (projectId, bizDate) 收敛到当日快照） */}
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-muted-foreground">{t("bizDate")}</span>
-            <DatePicker
-              value={bizDate}
-              onChange={setBizDate}
-              className="w-[150px]"
-              triggerClassName="h-8 w-[150px]"
-              showQuickActions
-              quickLabels={{ today: t("today"), yesterday: t("yesterday") }}
-            />
-          </div>
+          <DatePicker
+            value={bizDate}
+            onChange={setBizDate}
+            className="w-[150px]"
+            triggerClassName="h-8 w-[150px]"
+            showQuickActions
+            quickLabels={{ today: t("today"), yesterday: t("yesterday") }}
+          />
           <ViewRefreshControl
             lastUpdatedAt={lastUpdatedAt}
             refreshing={refreshing}
@@ -85,23 +72,19 @@ export function ReportsView({ active }: ViewProps) {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {metrics.map((m) => (
             <Card key={m.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
-                  <span className="truncate">{m.name}</span>
-                  <Badge variant="secondary" className="font-mono">
-                    v{m.versionNo}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-1">
+              <CardContent className="flex flex-col gap-1 pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{m.name}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">v{m.versionNo}</span>
+                </div>
                 {m.value != null ? (
-                  <span className="text-3xl font-semibold tracking-tight font-sans tabular-nums">
+                  <span className="text-2xl font-semibold tracking-tight font-sans tabular-nums">
                     {String(m.value)}
                     {m.unit && (
-                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">
                         {m.unit}
                       </span>
                     )}
