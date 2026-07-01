@@ -195,12 +195,6 @@ function UsersTab() {
         { value: "DISABLED", label: t("statusDisabled") },
       ],
     },
-    {
-      key: "roleId",
-      label: t("filterRole"),
-      kind: "select",
-      options: [], // 后端 roles 接口返回全量后再填充；此处留空占位
-    },
   ], [t])
 
   const fetcher = useCallback(
