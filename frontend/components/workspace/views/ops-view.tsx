@@ -58,14 +58,6 @@ export function OpsView({ params, active }: ViewProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-        </div>
-      </div>
-
       <OpsTopStrip active={active} />
 
       {/* 主舞台 */}
@@ -141,7 +133,8 @@ function OpsTabBar({
 }) {
   const t = useTranslations("ops")
   return (
-    <div className="flex items-center gap-1 border-b px-5 h-11" role="tablist">
+    <div role="tablist">
+      <div className="flex items-center gap-1 px-5 h-11">
       {TAB_ORDER.map((tb) => {
         const isActive = tb.id === active
         return (
@@ -163,6 +156,8 @@ function OpsTabBar({
           </button>
         )
       })}
+      </div>
+      <div className="mx-6 border-b" />
     </div>
   )
 }

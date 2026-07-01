@@ -81,7 +81,7 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
   const handleRefresh = () => { ref1(); ref2() }
 
   return (
-    <div className="border-b px-6 py-4">
+    <div className="px-6 py-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-muted-foreground">{t("subtitle")}</span>
         <ViewRefreshControl

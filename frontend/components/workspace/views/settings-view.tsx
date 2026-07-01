@@ -247,8 +247,6 @@ function UsersTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-serif text-lg font-semibold">{t("usersTitle")}</h2>
-
       <DataTable<User>
         columns={columns}
         getRowId={(r) => String(r.id)}
@@ -412,8 +410,6 @@ function RolesTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-serif text-lg font-semibold">{t("rolesTitle")}</h2>
-
       <DataTable<Role>
         columns={columns}
         getRowId={(r) => String(r.id)}
@@ -581,8 +577,6 @@ function ProjectsTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="font-serif text-lg font-semibold">{t("projectsTitle")}</h2>
-
       <DataTable<Project>
         columns={columns}
         getRowId={(r) => String(r.id)}

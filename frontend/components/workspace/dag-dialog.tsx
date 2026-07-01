@@ -190,7 +190,6 @@ function DagDialogInner({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-w-[90vw] max-h-[90vh] w-[90vw] h-[90vh] flex flex-col p-0"
-        showCloseButton={false}
         onKeyDown={hasActivePanel ? handleKeyDown : undefined}
       >
         {/* Header */}
