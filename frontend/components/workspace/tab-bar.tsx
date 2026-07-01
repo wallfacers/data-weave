@@ -11,7 +11,7 @@ import { VIEW_META, type ViewType } from "@/lib/workspace/views"
 import { TabStrip, type TabStripItem, type TabContextAction } from "@/components/ui/tab-strip"
 
 /** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
-export function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
+function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
   const title = t(VIEW_META[tab.view].title)
   if (!tab.params) return title
   const first = Object.values(tab.params)[0]

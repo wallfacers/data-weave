@@ -36,10 +36,7 @@
     "unpinTab": "Unpin",
     "confirmCloseTitle": "Confirm close",
     "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
-    "discardChanges": "Discard changes",
-    "breadcrumb": {
-      "ariaLabel": "Breadcrumb navigation"
-    }
+    "discardChanges": "Discard changes"
   },
   "ops": {
     "title": "Ops Center",
