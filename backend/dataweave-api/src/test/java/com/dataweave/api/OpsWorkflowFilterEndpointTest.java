@@ -77,6 +77,7 @@ class OpsWorkflowFilterEndpointTest {
     void setUp() {
         client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
                 .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .defaultHeader("X-Project-Id", "1")
                 .build();
     }
 

@@ -111,6 +111,7 @@ This file is the map; details live elsewhere:
 | CLI 同步 + 本地 runtime（D）| `cli/`(`pull/push/diff/run` + `client`/`sync`/`run` 包) + `dataweave-worker/.../localrun/LocalRunMain.java` + `PythonTaskExecutor.java`（CLI 与服务器共享执行器，代码级语义一致）；spec `specs/009-weft-cli-runtime/` |
 | MCP 工具重塑（E）| `specs/010-weft-mcp-tools/` spec/plan/tasks；`McpToolRegistry.java`(工具注册) + `McpAuthFilter.java`(身份绑定 E1) + `McpController.java`(TenantContext 注入) + `DefaultPlatformActionExecutor.java`(PROJECT_PUSH case E4) + `data.sql`(policy_rules seed E3) |
 | MCP 身份 + 租户隔离 | `TenantContext.java`(ThreadLocal) → `McpAuthFilter` 置 exchange 属性 → `McpController` set/finally clear；`requireTenant()` 校验；repo 增量方法 `findByTenantId*`
+| 项目级数据隔离（036）| `TenantContext.projectId`(4 参 set) + `JwtAuthFilter`(解析 `X-Project-Id`/`?projectId=`，null 不 put 防 NPE) + `ProjectScope.require`(master @Service，`project_member` 真成员校验 → `project.required`/`project.forbidden`)；`AlertController.requireOwned`(by-id 归属守卫 T045b) + `ProjectRoleService`(角色/菜单授权)；受隔离接口全盘清单见 `specs/036-project-isolation-sweep/sc-001-isolation-inventory.md` |
 | How to run             | [README.md](README.md)                                      |
 | **权威 Schema 真相源** | `backend/dataweave-api/src/main/resources/schema.sql`（单一权威 DDL；`db/migration/` 已删除，不再用增量脚本） |
 | **Schema 版本** | `schema_version` 单行表（在 schema.sql 内；version = 项目发布版本，严格 SemVer `MAJOR.MINOR.PATCH`，基线 `0.0.1`）；改表必升版本；库内/文件头/项目版本三处恒等 |
