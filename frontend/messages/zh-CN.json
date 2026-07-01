@@ -233,6 +233,7 @@
     "tabPeriodicWorkflows": "周期任务流列表",
     "tabManualWorkflows": "手动任务流列表",
     "tabWorkflowInstances": "任务流实例",
+    "tabTaskInstances": "任务实例",
     "periodicWfTitle": "周期任务流",
     "periodicWfEmpty": "暂无周期任务流",
     "periodicWfEmptyHint": "数据开发把工作流设为 CRON 调度并发布上线后，将在此出现",

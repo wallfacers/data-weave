@@ -233,6 +233,7 @@
     "tabPeriodicWorkflows": "Periodic Workflows",
     "tabManualWorkflows": "Manual Workflows",
     "tabWorkflowInstances": "Workflow Instances",
+    "tabTaskInstances": "Task Instances",
     "periodicWfTitle": "Periodic Workflows",
     "periodicWfEmpty": "No periodic workflows",
     "periodicWfEmptyHint": "Workflows scheduled with CRON and published online will appear here",

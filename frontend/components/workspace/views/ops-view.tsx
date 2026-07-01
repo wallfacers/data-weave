@@ -16,6 +16,7 @@ import {
   BoxIcon,
   RefreshIcon,
   CursorMagicSelection02Icon,
+  Task01Icon,
 } from "@hugeicons/core-free-icons"
 
 import type { ViewProps } from "@/lib/workspace/registry"
@@ -27,15 +28,14 @@ import { BackfillPanel } from "./ops/backfill-panel"
 import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
 import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
 
-// 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 补数据实例。
-// 「手动·测试」Tab 已移除：测试实例归开发态，手动触发是实例视图里的动作。
-type TabId = "periodicWf" | "manualWf" | "instances" | "backfill"
-type InstanceViewType = "task" | "workflow"
+// 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 任务实例 / 补数据实例。
+type TabId = "periodicWf" | "manualWf" | "workflowInstances" | "taskInstances" | "backfill"
 
 const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "periodicWf", labelKey: "tabPeriodicWorkflows", icon: Calendar03Icon },
   { id: "manualWf", labelKey: "tabManualWorkflows", icon: CursorMagicSelection02Icon },
-  { id: "instances", labelKey: "tabWorkflowInstances", icon: RefreshIcon },
+  { id: "workflowInstances", labelKey: "tabWorkflowInstances", icon: RefreshIcon },
+  { id: "taskInstances", labelKey: "tabTaskInstances", icon: Task01Icon },
   { id: "backfill", labelKey: "tabBackfillInstances", icon: Loading03Icon },
 ]
 
@@ -49,7 +49,6 @@ export function OpsView({ params, active }: ViewProps) {
   }, [params?.tab])
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
-  const [instanceView, setInstanceView] = useState<InstanceViewType>("workflow")
   const [dagWfInstanceId, setDagWfInstanceId] = useState<string | null>(null)
   const [dagOpen, setDagOpen] = useState(false)
 
@@ -67,47 +66,17 @@ export function OpsView({ params, active }: ViewProps) {
           <div className="flex min-h-0 flex-1">
             {activeTab === "periodicWf" && <PeriodicWorkflowsPanel />}
             {activeTab === "manualWf" && <ManualWorkflowsPanel />}
-            {activeTab === "instances" && (
-              <div className="flex min-h-0 flex-1 flex-col">
-                {/* 子切换：任务流实例 / 任务实例 */}
-                <div className="flex items-center gap-1 border-b px-5 h-9">
-                  <button
-                    type="button"
-                    onClick={() => setInstanceView("workflow")}
-                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                      instanceView === "workflow"
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t("instanceViewWorkflow")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInstanceView("task")}
-                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                      instanceView === "task"
-                        ? "bg-accent text-accent-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {t("instanceViewTask")}
-                  </button>
-                </div>
-                <div className="flex min-h-0 flex-1">
-                  {instanceView === "workflow" ? (
-                    <WorkflowInstancesPanel
-                      active={active}
-                      onRowClick={(row) => {
-                        setDagWfInstanceId(row.id)
-                        setDagOpen(true)
-                      }}
-                    />
-                  ) : (
-                    <PeriodicInstancesPanel initialFilter={initialFilter} active={active} />
-                  )}
-                </div>
-              </div>
+            {activeTab === "workflowInstances" && (
+              <WorkflowInstancesPanel
+                active={active}
+                onRowClick={(row) => {
+                  setDagWfInstanceId(row.id)
+                  setDagOpen(true)
+                }}
+              />
+            )}
+            {activeTab === "taskInstances" && (
+              <PeriodicInstancesPanel initialFilter={initialFilter} active={active} />
             )}
             {activeTab === "backfill" && <BackfillPanel />}
           </div>
