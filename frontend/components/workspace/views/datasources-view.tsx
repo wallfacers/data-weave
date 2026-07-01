@@ -47,10 +47,13 @@ import type {
 } from "@/lib/types"
 import { DATASOURCE_TYPE_CONFIG, CATEGORY_ORDER, buildJdbcUrl } from "@/lib/datasource-type-config"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
+import { useProjectContext, currentProjectId } from "@/lib/project-context"
 
 export function DatasourcesView() {
   const t = useTranslations("datasources")
   const formatDateTime = useFormatDateTime()
+  // 当前项目：切换后 fetcher 标识变化触发 DataTable 重取（FR-014/SC-007）
+  const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
   const [types, setTypes] = useState<DatasourceType[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingDs, setEditingDs] = useState<DatasourceVO | null>(null)
@@ -238,8 +241,8 @@ export function DatasourcesView() {
   ], [t])
 
   const fetcher = useCallback(
-    (q: FetchQuery) => fetchDatasources(q, filters, 1, toQueryParams),
-    [filters],
+    (q: FetchQuery) => fetchDatasources(q, filters, projectId, toQueryParams),
+    [filters, projectId],
   )
 
   // Types by category for dialog
@@ -416,7 +419,7 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
       const req: DatasourceCreateRequest = {
         name,
         typeCode: selectedType,
-        projectId: 1,
+        projectId: currentProjectId(),
         host: fields.host || null,
         port: fields.port ? Number(fields.port) : null,
         databaseName: fields.databaseName || null,

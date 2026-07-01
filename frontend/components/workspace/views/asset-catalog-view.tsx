@@ -39,6 +39,7 @@ import {
   type SearchResult,
 } from "@/lib/catalog-api"
 import { listDatasources } from "@/lib/datasource-api"
+import { useProjectContext } from "@/lib/project-context"
 import { resolveGate, gateToast } from "@/lib/gate-outcome"
 import { findAssetSubscription } from "@/lib/subscriptions"
 import {
@@ -74,6 +75,8 @@ const ASSET_ERR_KEYS: Record<string, string> = {
 
 export function AssetCatalogView() {
   const t = useTranslations("assetCatalog")
+  // 当前项目：切换后触发重新检索（FR-014/SC-007）
+  const projectId = useProjectContext((s) => s.currentProjectId)
 
   const [query, setQuery] = useState<AssetQueryState>(INITIAL_QUERY)
   const [result, setResult] = useState<SearchResult | null>(null)
@@ -100,7 +103,7 @@ export function AssetCatalogView() {
     } finally {
       setLoading(false)
     }
-  }, [query])
+  }, [query, projectId])
 
   useEffect(() => {
     void runSearch()

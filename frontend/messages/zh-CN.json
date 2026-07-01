@@ -1133,5 +1133,26 @@
     "errReuseInvalid": "复用方标识无效",
     "errListingInvalid": "上架信息无效（缺指标定义）",
     "errNotCertifiable": "已下架的指标不可认证"
+  },
+  "leftNav": {
+    "groups": {
+      "dev": "数据开发",
+      "ops": "运维监控",
+      "alerting": "告警事件",
+      "governance": "数据治理",
+      "assets": "数据资产",
+      "analytics": "数据分析",
+      "admin": "系统管理"
+    },
+    "switcher": {
+      "label": "当前项目",
+      "empty": "暂无可访问的项目",
+      "error": "项目加载失败",
+      "loading": "加载中"
+    },
+    "collapse": {
+      "collapse": "收起导航",
+      "expand": "展开导航"
+    }
   }
 }

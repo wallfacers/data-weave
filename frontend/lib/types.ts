@@ -56,6 +56,16 @@ export interface ApiResponse<T = unknown> {
   message: string;
 }
 
+// ─── Project（企业项目，左侧导航项目切换器消费）─────────────
+
+/** 项目视图对象（GET /api/projects 返回的子集，前端只读消费）。 */
+export interface ProjectVO {
+  id: number;
+  name: string;
+  code: string;
+  status: string;
+}
+
 // ─── WorkerNode ──────────────────────────────────────────
 
 export interface WorkerNode {
