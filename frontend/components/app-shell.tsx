@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { usePathname, useRouter } from "next/navigation"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { LeftNav } from "@/components/workspace/left-nav"
 import { SidePanel } from "@/components/side-panel/side-panel"
 import { useAuth } from "@/lib/auth"
 
@@ -42,6 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
       <div className="flex h-svh min-w-0">
+        <LeftNav />
         <main className="flex h-svh min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>

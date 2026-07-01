@@ -28,6 +28,7 @@ import {
   type MarketplaceDetail,
   type ListingSearchResult,
 } from "@/lib/catalog-api"
+import { useProjectContext } from "@/lib/project-context"
 import { resolveGate, gateToast } from "@/lib/gate-outcome"
 import { Button } from "@/components/ui/button"
 import { Pagination } from "@/components/ui/pagination"
@@ -47,6 +48,8 @@ const METRIC_ERR_KEYS: Record<string, string> = {
 
 export function MetricMarketplaceView() {
   const t = useTranslations("metricMarketplace")
+  // 当前项目：切换后触发重新检索（FR-014/SC-007）
+  const projectId = useProjectContext((s) => s.currentProjectId)
 
   const [keyword, setKeyword] = useState("")
   const [certification, setCertification] = useState("")
@@ -70,7 +73,7 @@ export function MetricMarketplaceView() {
     } finally {
       setLoading(false)
     }
-  }, [keyword, certification, page])
+  }, [keyword, certification, page, projectId])
 
   useEffect(() => {
     void runSearch()

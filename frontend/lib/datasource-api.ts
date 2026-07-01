@@ -11,6 +11,7 @@ import type {
   DatasourceUpdateRequest,
 } from "@/lib/types"
 import type { PageResult, FetchQuery, FilterDef, toQueryParams } from "@/lib/data-table"
+import { currentProjectId } from "@/lib/project-context"
 
 const API = "" // same-origin
 
@@ -26,7 +27,7 @@ export async function listDatasourceTypes(category?: string): Promise<Datasource
   return unwrap<DatasourceType[]>(res)
 }
 
-export async function listDatasources(projectId = 1): Promise<DatasourceVO[]> {
+export async function listDatasources(projectId = currentProjectId()): Promise<DatasourceVO[]> {
   const res = await authFetch(`${API}/api/datasources?projectId=${projectId}`)
   return unwrap<DatasourceVO[]>(res)
 }

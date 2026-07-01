@@ -5,6 +5,8 @@
  * 写经闸门：返回 GateResult（outcome=EXECUTED/PENDING_APPROVAL/REJECTED），调用方按 outcome 分流。
  */
 
+import { currentProjectId } from "@/lib/project-context";
+
 const CATALOG = "/api/catalog";
 const MARKET = "/api/marketplace";
 
@@ -183,34 +185,34 @@ export interface AssetSearchParams {
 }
 
 export function searchAssets(p: AssetSearchParams) {
-  return get<SearchResult>(`${CATALOG}/assets`, { ...p, projectId: p.projectId ?? 1 });
+  return get<SearchResult>(`${CATALOG}/assets`, { ...p, projectId: p.projectId ?? currentProjectId() });
 }
 
 export function fetchAsset(id: number) {
   return get<AssetDetail>(`${CATALOG}/assets/${id}`);
 }
 
-export function fetchAssetLineage(id: number, projectId = 1) {
+export function fetchAssetLineage(id: number, projectId = currentProjectId()) {
   return get<LineageEntryView>(`${CATALOG}/assets/${id}/lineage`, { projectId });
 }
 
-export function fetchAssetQuality(id: number, projectId = 1) {
+export function fetchAssetQuality(id: number, projectId = currentProjectId()) {
   return get<QualityBadgeView>(`${CATALOG}/assets/${id}/quality`, { projectId });
 }
 
-export function createAsset(body: Record<string, unknown>, projectId = 1) {
+export function createAsset(body: Record<string, unknown>, projectId = currentProjectId()) {
   return send<GateResult>("POST", `${CATALOG}/assets?projectId=${projectId}`, body);
 }
 
-export function updateAsset(id: number, patch: Record<string, unknown>, projectId = 1) {
+export function updateAsset(id: number, patch: Record<string, unknown>, projectId = currentProjectId()) {
   return send<GateResult>("PATCH", `${CATALOG}/assets/${id}?projectId=${projectId}`, patch);
 }
 
-export function retireAsset(id: number, projectId = 1) {
+export function retireAsset(id: number, projectId = currentProjectId()) {
   return send<GateResult>("DELETE", `${CATALOG}/assets/${id}?projectId=${projectId}`);
 }
 
-export function reconcileAsset(id: number, projectId = 1) {
+export function reconcileAsset(id: number, projectId = currentProjectId()) {
   return send<GateResult>("POST", `${CATALOG}/assets/${id}/reconcile?projectId=${projectId}`);
 }
 
@@ -218,29 +220,29 @@ export function listSubscriptions() {
   return get<AssetSubscription[]>(`${CATALOG}/subscriptions`);
 }
 
-export function subscribe(body: { targetType: string; targetId: number; changeFilter?: string }, projectId = 1) {
+export function subscribe(body: { targetType: string; targetId: number; changeFilter?: string }, projectId = currentProjectId()) {
   return send<GateResult>("POST", `${CATALOG}/subscriptions?projectId=${projectId}`, body);
 }
 
-export function unsubscribe(subId: number, projectId = 1) {
+export function unsubscribe(subId: number, projectId = currentProjectId()) {
   return send<GateResult>("DELETE", `${CATALOG}/subscriptions/${subId}?projectId=${projectId}`);
 }
 
 // ─── 指标市场 ─────────────────────────────────────────────────
 
 export function searchListings(p: { keyword?: string; certification?: string; page?: number; size?: number; projectId?: number }) {
-  return get<ListingSearchResult>(`${MARKET}/metrics`, { ...p, projectId: p.projectId ?? 1 });
+  return get<ListingSearchResult>(`${MARKET}/metrics`, { ...p, projectId: p.projectId ?? currentProjectId() });
 }
 
-export function fetchListing(id: number, projectId = 1) {
+export function fetchListing(id: number, projectId = currentProjectId()) {
   return get<MarketplaceDetail>(`${MARKET}/metrics/${id}`, { projectId });
 }
 
-export function certifyMetric(id: number, projectId = 1) {
+export function certifyMetric(id: number, projectId = currentProjectId()) {
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/certify?projectId=${projectId}`);
 }
 
-export function reuseMetric(id: number, body: { consumerType: string; consumerRef: string }, projectId = 1) {
+export function reuseMetric(id: number, body: { consumerType: string; consumerRef: string }, projectId = currentProjectId()) {
   return send<GateResult>("POST", `${MARKET}/metrics/${id}/reuse?projectId=${projectId}`, body);
 }
 
@@ -261,11 +263,11 @@ export function fetchMetricCards() {
 
 export function listMetric(
   body: { metricId: number; metricType?: string; metricCode?: string; description?: string; freshnessInfo?: string },
-  projectId = 1,
+  projectId = currentProjectId(),
 ) {
   return send<GateResult>("POST", `${MARKET}/metrics?projectId=${projectId}`, body);
 }
 
-export function delistMetric(id: number, projectId = 1) {
+export function delistMetric(id: number, projectId = currentProjectId()) {
   return send<GateResult>("DELETE", `${MARKET}/metrics/${id}?projectId=${projectId}`);
 }

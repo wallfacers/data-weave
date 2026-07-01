@@ -1108,5 +1108,26 @@
     "errReuseInvalid": "Invalid consumer ref",
     "errListingInvalid": "Invalid listing (missing metric definition)",
     "errNotCertifiable": "A delisted metric cannot be certified"
+  },
+  "leftNav": {
+    "groups": {
+      "dev": "Data Development",
+      "ops": "Operations",
+      "alerting": "Alerts & Events",
+      "governance": "Data Governance",
+      "assets": "Data Assets",
+      "analytics": "Analytics",
+      "admin": "Administration"
+    },
+    "switcher": {
+      "label": "Current project",
+      "empty": "No accessible projects",
+      "error": "Failed to load projects",
+      "loading": "Loading"
+    },
+    "collapse": {
+      "collapse": "Collapse navigation",
+      "expand": "Expand navigation"
+    }
   }
 }
