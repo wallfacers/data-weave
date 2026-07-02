@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.CatalogException;
@@ -33,17 +34,23 @@ public class WorkflowController {
     private final WorkflowService workflowService;
     private final CatalogAssignService catalogAssignService;
     private final GatedActionService gatedActionService;
+    private final ProjectAuthz projectAuthz;
 
     public WorkflowController(WorkflowService workflowService, CatalogAssignService catalogAssignService,
-                              GatedActionService gatedActionService) {
+                              GatedActionService gatedActionService,
+                              ProjectAuthz projectAuthz) {
         this.workflowService = workflowService;
         this.catalogAssignService = catalogAssignService;
         this.gatedActionService = gatedActionService;
+        this.projectAuthz = projectAuthz;
     }
 
-    /** 创建工作流草稿。 */
+    /** 创建工作流草稿。036-D：EDITOR+（workflow:manage），并按当前项目打戳（FR-042）。 */
     @PostMapping
     public ApiResponse<WorkflowDef> create(@RequestBody WorkflowDef body) {
+        projectAuthz.requireCurrent("workflow:manage");
+        body.setTenantId(com.dataweave.api.infrastructure.TenantContext.tenantId());
+        body.setProjectId(com.dataweave.api.infrastructure.TenantContext.projectId());
         return ApiResponse.ok(workflowService.create(body));
     }
 
@@ -66,6 +73,7 @@ public class WorkflowController {
      */
     @PatchMapping("/{id}/catalog")
     public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        requireWorkflowManage(id);
         if (body.containsKey("path")) {
             throw new CatalogException("catalog.path.derived");
         }
@@ -96,30 +104,35 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.computeDrift(id));
     }
 
-    /** 编辑工作流（调度配置等）。 */
+    /** 编辑工作流（调度配置等）。036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @PutMapping("/{id}")
     public ApiResponse<WorkflowDef> update(@PathVariable Long id, @RequestBody WorkflowDef body) {
+        requireWorkflowManage(id);
         return ApiResponse.ok(workflowService.update(id, body));
     }
 
-    /** 软删除工作流。 */
+    /** 软删除工作流。036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> softDelete(@PathVariable Long id) {
+        requireWorkflowManage(id);
         workflowService.softDelete(id);
         return ApiResponse.ok();
     }
 
-    /** 下线：ONLINE → DRAFT。 */
+    /** 下线：ONLINE → DRAFT。036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @PostMapping("/{id}/offline")
     public ApiResponse<WorkflowDef> offline(@PathVariable Long id) {
+        requireWorkflowManage(id);
         return ApiResponse.ok(workflowService.offline(id));
     }
 
-    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。 */
+    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。
+     * 036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权（闸门前置门）。 */
     @PostMapping("/{id}/rollback")
     public ApiResponse<GateResult> rollback(@PathVariable Long id,
                                             @RequestBody Map<String, Object> body,
                                             ServerWebExchange exchange) {
+        requireWorkflowManage(id);
         WorkflowService.WorkflowDetail detail = workflowService.getById(id).orElse(null);
         if (detail == null) {
             throw new BizException("workflow.not_found", id).withHttpStatus(404);
@@ -151,9 +164,11 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.readPublishedDag(id));
     }
 
-    /** 整图保存 DAG（对账 upsert + 软删差集；version 冲突返回 409）。 */
+    /** 整图保存 DAG（对账 upsert + 软删差集；version 冲突返回 409）。
+     * 036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @PutMapping("/{id}/dag")
     public ApiResponse<DagView> saveDag(@PathVariable Long id, @RequestBody DagPayload body) {
+        requireWorkflowManage(id);
         return ApiResponse.ok(workflowService.saveDag(id, body));
     }
 
@@ -161,9 +176,11 @@ public class WorkflowController {
      * 草稿整体保存（save-draft-atomic）：配置 + DAG 在一次请求、同一事务内落库，
      * 替代前端两次独立 PUT（{@code /dag} + {@code /{id}}）造成的非原子保存。
      * DAG version 冲突仍返回 409，且回滚配置改动。{@code config} 可空（仅存图）。
+     * 036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。
      */
     @PutMapping("/{id}/draft")
     public ApiResponse<DagView> saveDraft(@PathVariable Long id, @RequestBody SaveDraftRequest body) {
+        requireWorkflowManage(id);
         return ApiResponse.ok(workflowService.saveDraft(id, body.config(), body.dag()));
     }
 
@@ -171,10 +188,12 @@ public class WorkflowController {
     public record SaveDraftRequest(WorkflowDef config, DagPayload dag) {
     }
 
-    /** 发布：无环校验 + 冻结快照 + 版本自增。环路返回错误。 */
+    /** 发布：无环校验 + 冻结快照 + 版本自增。环路返回错误。
+     * 036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @PostMapping("/{id}/publish")
     public ApiResponse<WorkflowDef> publish(@PathVariable Long id,
                                             @RequestBody(required = false) Map<String, String> body) {
+        requireWorkflowManage(id);
         String remark = body != null ? body.get("remark") : null;
         return ApiResponse.ok(workflowService.publish(id, remark));
     }
@@ -223,17 +242,31 @@ public class WorkflowController {
         return ApiResponse.ok(workflowService.listDependencies(id));
     }
 
-    /** 新建跨周期依赖（自依赖合法；非自指做跨流环检测）。 */
+    /** 新建跨周期依赖（自依赖合法；非自指做跨流环检测）。
+     * 036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @PostMapping("/{id}/dependencies")
     public ApiResponse<WorkflowService.DependencyDto> createDependency(@PathVariable Long id,
             @RequestBody WorkflowService.DependencyDto body) {
+        requireWorkflowManage(id);
         return ApiResponse.ok(workflowService.createDependency(id, body));
     }
 
-    /** 删除跨周期依赖（软删）。 */
+    /** 删除跨周期依赖（软删）。036-D：EDITOR+（workflow:manage），按实体归属 projectId 授权。 */
     @DeleteMapping("/{id}/dependencies/{depId}")
     public ApiResponse<Void> deleteDependency(@PathVariable Long id, @PathVariable Long depId) {
+        requireWorkflowManage(id);
         workflowService.deleteDependency(id, depId);
         return ApiResponse.ok();
+    }
+
+    /**
+     * 036-D：工作流定义写操作授权（FR-042 EDITOR+），按实体归属 projectId。
+     * 防跨项目按 id 改删；工作流不存在时保持既有 404 语义。
+     */
+    private void requireWorkflowManage(Long workflowId) {
+        Long pid = workflowService.getById(workflowId)
+                .map(d -> d.workflow().getProjectId())
+                .orElseThrow(() -> new BizException("workflow.not_found", workflowId).withHttpStatus(404));
+        projectAuthz.require("workflow:manage", pid);
     }
 }

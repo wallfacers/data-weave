@@ -148,8 +148,8 @@ public class WorkflowService {
     /** 创建工作流定义（status=DRAFT）。 */
     public WorkflowDef create(WorkflowDef wf) {
         LocalDateTime now = LocalDateTime.now();
-        wf.setTenantId(1L);
-        wf.setProjectId(1L);
+        if (wf.getTenantId() == null) wf.setTenantId(1L);
+        if (wf.getProjectId() == null) wf.setProjectId(1L);
         wf.setStatus("DRAFT");
         wf.setCurrentVersionNo(0);
         wf.setHasDraftChange(1);
