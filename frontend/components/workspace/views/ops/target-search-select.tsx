@@ -110,7 +110,7 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
         <span className="min-w-0 flex-1 truncate text-left">
           {value ? (
             <span className="flex items-center gap-1.5">
-              <span className="shrink-0 rounded bg-muted px-1 font-mono text-[10px]">
+              <span className="inline-flex shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px] leading-none">
                 {value.type === "task" ? t("backfillTargetTypeTask") : t("backfillTargetTypeWorkflow")}
               </span>
               {value.name}
@@ -172,12 +172,12 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
                 >
                   <span className="truncate text-sm font-medium text-foreground">{opt.name}</span>
                   <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                    <span className="shrink-0 rounded bg-muted px-1 font-mono text-[10px]">
+                    <span className="inline-flex shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px]">
                       {opt.type === "task" ? t("backfillTargetTypeTask") : t("backfillTargetTypeWorkflow")}
                     </span>
                     {opt.path && <span className="truncate">{opt.path}</span>}
                     {opt.status && (
-                      <span className="shrink-0 rounded bg-muted px-1 font-mono text-[10px] uppercase">
+                      <span className="inline-flex shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px] uppercase">
                         {opt.status}
                       </span>
                     )}
