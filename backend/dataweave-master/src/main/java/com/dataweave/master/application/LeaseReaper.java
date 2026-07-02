@@ -210,15 +210,18 @@ public class LeaseReaper {
     private void publishNodeOffline(ExpiredInstance inst) {
         try {
             var row = jdbc.queryForMap(
-                    "SELECT tenant_id, task_id FROM task_instance WHERE id = ?", inst.id);
+                    "SELECT ti.tenant_id, ti.task_id, td.name AS task_name " +
+                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id = ?", inst.id);
             if (row.isEmpty()) return;
             long tenantId = ((Number) row.get("TENANT_ID")).longValue();
             Map<String, Object> ctx = new LinkedHashMap<>();
             ctx.put("taskInstanceId", inst.id.toString());
+            ctx.put("taskId", row.get("TASK_ID"));
+            ctx.put("taskName", row.get("TASK_NAME"));
             ctx.put("workerNodeCode", inst.workerNodeCode);
             ctx.put("failureReason", "WORKER_LOST");
             eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.NODE_OFFLINE, tenantId,
-                    inst.workerNodeCode, null, ctx));
+                    inst.workerNodeCode, "CRITICAL", ctx));
         } catch (Exception e) {
             // 告警信号仅作辅助，发布失败不影响回收。
         }

@@ -26,6 +26,7 @@ public class HealthEventJdbcRepository implements HealthEventRepository {
         e.setFingerprint(rs.getString("fingerprint"));
         e.setRefKind(rs.getString("ref_kind"));
         e.setRefId(rs.getString("ref_id"));
+        e.setRefName(rs.getString("ref_name"));
         e.setSummary(rs.getString("summary"));
         e.setContextJson(rs.getString("context_json"));
         e.setCount(rs.getInt("count"));
@@ -54,19 +55,19 @@ public class HealthEventJdbcRepository implements HealthEventRepository {
     private int updateExisting(HealthEvent e, LocalDateTime now) {
         return jdbc.update(
                 "UPDATE health_event SET count = count + 1, last_occurred_at = ?, severity = ?, " +
-                "summary = ?, context_json = ?, ref_kind = ?, ref_id = ? " +
+                "summary = ?, context_json = ?, ref_kind = ?, ref_id = ?, ref_name = ? " +
                 "WHERE tenant_id = ? AND type = ? AND fingerprint = ? AND deleted = 0",
-                now, e.getSeverity(), e.getSummary(), e.getContextJson(), e.getRefKind(), e.getRefId(),
+                now, e.getSeverity(), e.getSummary(), e.getContextJson(), e.getRefKind(), e.getRefId(), e.getRefName(),
                 e.getTenantId(), e.getType(), e.getFingerprint());
     }
 
     private void insertNew(HealthEvent e, LocalDateTime now) {
         jdbc.update(
-                "INSERT INTO health_event (tenant_id, type, severity, fingerprint, ref_kind, ref_id, " +
+                "INSERT INTO health_event (tenant_id, type, severity, fingerprint, ref_kind, ref_id, ref_name, " +
                 "summary, context_json, count, first_occurred_at, last_occurred_at, created_at, deleted) " +
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 e.getTenantId(), e.getType(), e.getSeverity(), e.getFingerprint(), e.getRefKind(), e.getRefId(),
-                e.getSummary(), e.getContextJson(), 1, now, now, now, 0);
+                e.getRefName(), e.getSummary(), e.getContextJson(), 1, now, now, now, 0);
     }
 
     @Override

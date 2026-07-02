@@ -15,6 +15,7 @@ public class HealthEvent {
     private String fingerprint;
     private String refKind;
     private String refId;
+    private String refName;
     private String summary;
     private String contextJson;
     private Integer count;
@@ -37,6 +38,8 @@ public class HealthEvent {
     public void setRefKind(String refKind) { this.refKind = refKind; }
     public String getRefId() { return refId; }
     public void setRefId(String refId) { this.refId = refId; }
+    public String getRefName() { return refName; }
+    public void setRefName(String refName) { this.refName = refName; }
     public String getSummary() { return summary; }
     public void setSummary(String summary) { this.summary = summary; }
     public String getContextJson() { return contextJson; }

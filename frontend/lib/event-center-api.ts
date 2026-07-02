@@ -25,6 +25,7 @@ export interface HealthEvent {
   fingerprint: string
   refKind?: RefKind
   refId?: string
+  refName?: string
   summary?: string
   contextJson?: string
   count: number

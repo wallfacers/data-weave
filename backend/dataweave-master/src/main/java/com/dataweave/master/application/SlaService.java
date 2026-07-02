@@ -222,11 +222,15 @@ public class SlaService {
     private void publishSlaBreach(Long workflowId, UUID workflowInstanceId, String bizDate, int breachMinutes) {
         try {
             var row = jdbc.queryForMap(
-                    "SELECT tenant_id FROM workflow_instance WHERE id = ?", workflowInstanceId);
+                    "SELECT wi.tenant_id, wd.name AS workflow_name " +
+                    "FROM workflow_instance wi LEFT JOIN workflow_def wd ON wd.id = wi.workflow_id WHERE wi.id = ?",
+                    workflowInstanceId);
             if (row.isEmpty()) return;
             long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            String workflowName = (String) row.get("WORKFLOW_NAME");
             java.util.Map<String, Object> ctx = new java.util.LinkedHashMap<>();
             ctx.put("workflowId", workflowId);
+            ctx.put("workflowName", workflowName);
             ctx.put("workflowInstanceId", workflowInstanceId.toString());
             ctx.put("bizDate", bizDate);
             ctx.put("breachMinutes", breachMinutes);

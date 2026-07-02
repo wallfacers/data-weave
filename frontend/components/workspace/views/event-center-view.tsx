@@ -40,6 +40,7 @@ const EVENT_TYPES = [
 const SEVERITIES = ["INFO", "LOW", "MEDIUM", "WARNING", "HIGH", "CRITICAL"]
 
 type TabKey = "events" | "subscriptions"
+type EventCtx = Record<string, unknown>
 
 function severityClass(sev?: string): string {
   switch ((sev || "").toUpperCase()) {
@@ -51,6 +52,63 @@ function severityClass(sev?: string): string {
       return "text-amber-500"
     default:
       return "text-muted-foreground"
+  }
+}
+
+function parseCtx(json?: string): EventCtx {
+  if (!json) return {}
+  try {
+    const v: unknown = JSON.parse(json)
+    return v && typeof v === "object" ? (v as EventCtx) : {}
+  } catch {
+    return {}
+  }
+}
+
+function ctxStr(ctx: EventCtx, key: string): string | undefined {
+  const v = ctx[key]
+  return v === null || v === undefined ? undefined : String(v)
+}
+
+/** 按事件类型 + contextJson 拼装本地化的可读描述；未知类型/解析失败兜底为后端 summary。 */
+function buildEventSummary(e: HealthEvent, t: ReturnType<typeof useTranslations>): string {
+  const ctx = parseCtx(e.contextJson)
+  const name = e.refName || ctxStr(ctx, "taskName") || ctxStr(ctx, "workflowName") || e.refId
+  const fallbackName = name || `#${e.refId || e.fingerprint}`
+  switch (e.type) {
+    case "TASK_FAILED": {
+      const base = t("summary.TASK_FAILED", { name: fallbackName })
+      const reason = ctxStr(ctx, "failureReason")
+      return reason ? `${base}（${reason}）` : base
+    }
+    case "TASK_TIMEOUT":
+      return t("summary.TASK_TIMEOUT", { name: fallbackName })
+    case "WORKFLOW_STATE":
+      return ctxStr(ctx, "state") === "STOPPED"
+        ? t("summary.WORKFLOW_STATE_STOPPED", { name: fallbackName })
+        : t("summary.WORKFLOW_STATE_FAILED", { name: fallbackName })
+    case "SLA_BREACH":
+      return t("summary.SLA_BREACH", {
+        name: fallbackName,
+        minutes: ctxStr(ctx, "breachMinutes") || "0",
+        bizDate: ctxStr(ctx, "bizDate") || "",
+      })
+    case "NODE_OFFLINE":
+      return t("summary.NODE_OFFLINE", { node: ctxStr(ctx, "workerNodeCode") || e.refId || "" })
+    case "QUALITY_FAILED":
+      return t("summary.QUALITY_FAILED", {
+        dataset: ctxStr(ctx, "datasetRef") || fallbackName,
+        message: ctxStr(ctx, "message") || "",
+      })
+    case "ASSET_CHANGED":
+      return t("summary.ASSET_CHANGED", {
+        name: fallbackName,
+        changeType: ctxStr(ctx, "changeType") || "",
+      })
+    case "METRIC_BREACH":
+      return t("summary.METRIC_BREACH", { name: fallbackName })
+    default:
+      return e.summary || e.fingerprint
   }
 }
 
@@ -113,7 +171,7 @@ export function EventCenterView() {
   const eventTypeOptions = useMemo<DropdownOption[]>(
     () => [
       { value: "", label: t("filter.allTypes") },
-      ...EVENT_TYPES.map((ty) => ({ value: ty, label: ty })),
+      ...EVENT_TYPES.map((ty) => ({ value: ty, label: t(`type.${ty}` as never) })),
     ],
     [t],
   )
@@ -225,22 +283,22 @@ export function EventCenterView() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {e.type}
+                          {t(`type.${e.type}` as never)}
                         </span>
                         {e.count > 1 && (
                           <span className="text-xs text-muted-foreground">×{e.count}</span>
                         )}
                       </div>
-                      <p className="mt-1 truncate text-sm text-foreground">{e.summary || e.fingerprint}</p>
+                      <p className="mt-1 truncate text-sm text-foreground">{buildEventSummary(e, t)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{e.lastOccurredAt}</p>
                     </div>
                     {refKindToView(e.refKind) && (
                       <button
                         onClick={() => onDeepLink(e)}
-                        title={t("openRef", { kind: e.refKind || "" })}
+                        title={t("openRef", { kind: t(`refKind.${e.refKind}` as never) })}
                         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:underline"
                       >
-                        {e.refKind}
+                        {t(`refKind.${e.refKind}` as never)}
                         <HugeiconsIcon icon={ArrowRight01Icon} size={12} />
                       </button>
                     )}
@@ -296,7 +354,7 @@ export function EventCenterView() {
                   className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm"
                 >
                   <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                    {s.typeFilter || t("filter.allTypes")}
+                    {s.typeFilter ? t(`type.${s.typeFilter}` as never) : t("filter.allTypes")}
                   </span>
                   {s.minSeverity && <span className="text-xs text-muted-foreground">≥ {s.minSeverity}</span>}
                   <span className="text-muted-foreground">

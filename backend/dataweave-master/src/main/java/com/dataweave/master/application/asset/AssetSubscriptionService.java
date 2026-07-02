@@ -112,7 +112,7 @@ public class AssetSubscriptionService {
         ctx.put("changeType", changeType);
         ctx.put("subscriberUserIds", List.copyOf(matched));
         AlertSignal signal = new AlertSignal(AlertSignal.Type.ASSET_CHANGED, tenantId,
-                tt + ":" + targetId, "info", ctx);
+                tt + ":" + targetId, "INFO", ctx);
         eventPublisher.publishEvent(signal);
         metrics.recordAssetChanged();
         log.debug("ASSET_CHANGED published: tenant={}, {}:{}, changeType={}, subscribers={}",

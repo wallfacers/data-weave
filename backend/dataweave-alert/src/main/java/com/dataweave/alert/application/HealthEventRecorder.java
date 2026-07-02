@@ -60,22 +60,33 @@ public class HealthEventRecorder {
         return e;
     }
 
-    /** 从 context 推导关联对象（深链用），按优先级取第一个命中。 */
+    /** 从 context 推导关联对象（深链用+可读名称），按优先级取第一个命中。 */
     private void deriveRef(HealthEvent e, Map<String, Object> ctx) {
         if (ctx == null) return;
-        if (ctx.get("taskId") != null) { e.setRefKind("TASK"); e.setRefId(str(ctx.get("taskId"))); }
-        else if (ctx.get("metricKey") != null) { e.setRefKind("METRIC"); e.setRefId(str(ctx.get("metricKey"))); }
-        else if (ctx.get("metric_key") != null) { e.setRefKind("METRIC"); e.setRefId(str(ctx.get("metric_key"))); }
-        else if (ctx.get("datasetRef") != null) { e.setRefKind("TABLE"); e.setRefId(str(ctx.get("datasetRef"))); }
-        else if (ctx.get("workflowId") != null) { e.setRefKind("WORKFLOW"); e.setRefId(str(ctx.get("workflowId"))); }
+        if (ctx.get("taskId") != null) {
+            e.setRefKind("TASK"); e.setRefId(str(ctx.get("taskId"))); e.setRefName(str(ctx.get("taskName")));
+        } else if (ctx.get("metricKey") != null) {
+            e.setRefKind("METRIC"); e.setRefId(str(ctx.get("metricKey"))); e.setRefName(str(ctx.get("metricKey")));
+        } else if (ctx.get("metric_key") != null) {
+            e.setRefKind("METRIC"); e.setRefId(str(ctx.get("metric_key"))); e.setRefName(str(ctx.get("metric_key")));
+        } else if (ctx.get("datasetRef") != null) {
+            e.setRefKind("TABLE"); e.setRefId(str(ctx.get("datasetRef"))); e.setRefName(str(ctx.get("datasetRef")));
+        } else if (ctx.get("workflowId") != null) {
+            e.setRefKind("WORKFLOW"); e.setRefId(str(ctx.get("workflowId"))); e.setRefName(str(ctx.get("workflowName")));
+        }
     }
 
     private String buildSummary(AlertSignal signal, Map<String, Object> ctx) {
         if (ctx != null && ctx.get("message") != null) {
             return signal.getType().name() + ": " + str(ctx.get("message"));
         }
-        return signal.getType().name() + " @ " + signal.getFingerprintHint();
+        // 无 message 的类型交给前端按 type+contextJson 拼装本地化文案；这里仅兜底（邮件通道等非 UI 消费者用）。
+        String name = ctx != null ? firstNonNull(str(ctx.get("taskName")), str(ctx.get("workflowName"))) : null;
+        String hint = name != null ? name : signal.getFingerprintHint();
+        return signal.getType().name() + " @ " + hint;
     }
+
+    private static String firstNonNull(String a, String b) { return a != null ? a : b; }
 
     private String serialize(Map<String, Object> ctx) {
         if (ctx == null || ctx.isEmpty()) return null;

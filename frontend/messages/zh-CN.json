@@ -996,6 +996,33 @@
     "empty": "暂无事件",
     "total": "共 {count} 条",
     "openRef": "跳转到 {kind}",
+    "type": {
+      "TASK_FAILED": "任务失败",
+      "TASK_TIMEOUT": "任务超时",
+      "SLA_BREACH": "SLA 超期",
+      "WORKFLOW_STATE": "工作流终态",
+      "NODE_OFFLINE": "节点离线",
+      "METRIC_BREACH": "指标越限",
+      "QUALITY_FAILED": "质量校验失败",
+      "ASSET_CHANGED": "资产变更"
+    },
+    "refKind": {
+      "TASK": "任务",
+      "METRIC": "指标",
+      "TABLE": "表",
+      "WORKFLOW": "工作流"
+    },
+    "summary": {
+      "TASK_FAILED": "任务 {name} 执行失败",
+      "TASK_TIMEOUT": "任务 {name} 执行超时",
+      "WORKFLOW_STATE_FAILED": "工作流 {name} 运行失败",
+      "WORKFLOW_STATE_STOPPED": "工作流 {name} 被终止",
+      "SLA_BREACH": "工作流 {name} 超出 SLA {minutes} 分钟未完成（业务日期 {bizDate}）",
+      "NODE_OFFLINE": "节点 {node} 已离线",
+      "QUALITY_FAILED": "数据集 {dataset} 质量校验失败：{message}",
+      "ASSET_CHANGED": "资产 {name} 发生变更（{changeType}）",
+      "METRIC_BREACH": "指标 {name} 越限"
+    },
     "sub": {
       "anySeverity": "不限级别",
       "selectChannel": "选择通道",

@@ -996,6 +996,33 @@
     "empty": "No events yet",
     "total": "{count} total",
     "openRef": "Open {kind}",
+    "type": {
+      "TASK_FAILED": "Task failed",
+      "TASK_TIMEOUT": "Task timed out",
+      "SLA_BREACH": "SLA breach",
+      "WORKFLOW_STATE": "Workflow terminal state",
+      "NODE_OFFLINE": "Node offline",
+      "METRIC_BREACH": "Metric breach",
+      "QUALITY_FAILED": "Quality check failed",
+      "ASSET_CHANGED": "Asset changed"
+    },
+    "refKind": {
+      "TASK": "Task",
+      "METRIC": "Metric",
+      "TABLE": "Table",
+      "WORKFLOW": "Workflow"
+    },
+    "summary": {
+      "TASK_FAILED": "Task {name} failed",
+      "TASK_TIMEOUT": "Task {name} timed out",
+      "WORKFLOW_STATE_FAILED": "Workflow {name} failed",
+      "WORKFLOW_STATE_STOPPED": "Workflow {name} was stopped",
+      "SLA_BREACH": "Workflow {name} missed its SLA by {minutes} min (biz date {bizDate})",
+      "NODE_OFFLINE": "Node {node} went offline",
+      "QUALITY_FAILED": "Dataset {dataset} failed quality check: {message}",
+      "ASSET_CHANGED": "Asset {name} changed ({changeType})",
+      "METRIC_BREACH": "Metric {name} breached threshold"
+    },
     "sub": {
       "anySeverity": "Any severity",
       "selectChannel": "Select channel",

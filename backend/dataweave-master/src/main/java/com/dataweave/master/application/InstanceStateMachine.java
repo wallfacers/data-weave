@@ -180,11 +180,13 @@ public class InstanceStateMachine {
     private void publishAlertSignalForTask(UUID taskInstanceId, String failureReason) {
         try {
             var row = jdbc.queryForMap(
-                    "SELECT tenant_id, task_id, workflow_instance_id FROM task_instance WHERE id=?",
+                    "SELECT ti.tenant_id, ti.task_id, ti.workflow_instance_id, td.name AS task_name " +
+                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id=?",
                     taskInstanceId);
             if (row.isEmpty()) return;
             long tenantId = ((Number) row.get("TENANT_ID")).longValue();
             Long taskId = (Long) row.get("TASK_ID");
+            String taskName = (String) row.get("TASK_NAME");
             Object wiIdRaw = row.get("WORKFLOW_INSTANCE_ID");
             String wiId = wiIdRaw != null ? wiIdRaw.toString() : null;
 
@@ -193,12 +195,13 @@ public class InstanceStateMachine {
             Map<String, Object> ctx = new LinkedHashMap<>();
             ctx.put("taskInstanceId", taskInstanceId.toString());
             ctx.put("taskId", taskId);
+            ctx.put("taskName", taskName);
             ctx.put("workflowInstanceId", wiId);
             ctx.put("failureReason", failureReason);
 
             eventPublisher.publishEvent(new AlertSignal(type, tenantId,
                     taskId != null ? taskId.toString() : taskInstanceId.toString(),
-                    null, ctx));
+                    "HIGH", ctx));
         } catch (Exception e) {
             // 告警信号仅作辅助，发布失败不影响状态推进。
         }
@@ -208,20 +211,24 @@ public class InstanceStateMachine {
     private void publishAlertSignalForWorkflow(UUID workflowInstanceId, String state) {
         try {
             var row = jdbc.queryForMap(
-                    "SELECT tenant_id, workflow_id FROM workflow_instance WHERE id=?",
+                    "SELECT wi.tenant_id, wi.workflow_id, wd.name AS workflow_name " +
+                    "FROM workflow_instance wi LEFT JOIN workflow_def wd ON wd.id = wi.workflow_id WHERE wi.id=?",
                     workflowInstanceId);
             if (row.isEmpty()) return;
             long tenantId = ((Number) row.get("TENANT_ID")).longValue();
             Long workflowId = (Long) row.get("WORKFLOW_ID");
+            String workflowName = (String) row.get("WORKFLOW_NAME");
 
             Map<String, Object> ctx = new LinkedHashMap<>();
             ctx.put("workflowInstanceId", workflowInstanceId.toString());
             ctx.put("workflowId", workflowId);
+            ctx.put("workflowName", workflowName);
             ctx.put("state", state);
 
+            String severity = "STOPPED".equals(state) ? "MEDIUM" : "HIGH";
             eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.WORKFLOW_STATE, tenantId,
                     workflowId != null ? workflowId.toString() : workflowInstanceId.toString(),
-                    null, ctx));
+                    severity, ctx));
         } catch (Exception e) {
             // 告警信号仅作辅助，发布失败不影响状态推进。
         }

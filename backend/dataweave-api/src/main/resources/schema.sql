@@ -1,10 +1,11 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.6.1（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.6.2（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
 --     → 038 实例定时时间快照=0.6.0（workflow_instance +scheduled_fire_time；cron/fixed_rate 触发时刻落库，与 cron_expression 同源快照）。
 --     → 036 补充=0.6.1（cron_fire/sla_baseline 补 tenant_id + project_id + 索引；豁免反转→统一补列）。
+--     → 事件中心可读化=0.6.2（health_event +ref_name：任务/工作流等关联对象的可读名称，供 UI 拼装人性化标题）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -88,6 +89,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.6.0', CURRENT_TIMESTAMP, '038 workflow_instance +scheduled_fire_time snapshot (cron/fixed_rate planned fire time, same source as cron_expression)');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.6.1', CURRENT_TIMESTAMP, '036 补充 cron_fire/sla_baseline +tenant_id +project_id +index（豁免反转）');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.6.2', CURRENT_TIMESTAMP, '事件中心可读化：health_event +ref_name（关联对象可读名称）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -1234,6 +1237,7 @@ CREATE TABLE health_event (
     fingerprint       VARCHAR(128) NOT NULL,         -- 去重指纹（来自 fingerprintHint）
     ref_kind          VARCHAR(16),                   -- TASK/METRIC/TABLE/WORKFLOW
     ref_id            VARCHAR(128),                  -- 关联对象标识（深链）
+    ref_name          VARCHAR(256),                  -- 关联对象可读名称（任务名/工作流名/数据集/指标 key；无则为空，前端兜底用 ref_id）
     summary           VARCHAR(512),
     context_json      VARCHAR(2000),
     count             INTEGER DEFAULT 1,
