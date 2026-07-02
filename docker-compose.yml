@@ -116,6 +116,9 @@ services:
       LOGBUS_TYPE: redis
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       DATAWEAVE_FLEET_SIMULATE: "false"           # 关掉假节点心跳模拟，只认真实注册的 worker
+      NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: dataweave
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
@@ -144,6 +147,9 @@ services:
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       DATAWEAVE_FLEET_SIMULATE: "false"
       SPRING_SQL_INIT_MODE: never                 # 不重建库，避免与 master-1 互相 DROP
+      NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: dataweave
     restart: unless-stopped
 
   # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
