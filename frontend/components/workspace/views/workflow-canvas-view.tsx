@@ -206,6 +206,51 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
   } = useRunLogTabs(CANVAS_LOG_HEIGHT_KEY)
   // 自动顶日志去重：已自动开过的实例不再抢焦（用户切看其它节点不被打断）
   const autoOpenedRef = useRef<Set<string>>(new Set())
+  // 用户已关闭的节点（按 taskDefId）：新一轮运行时 auto-open/attachRunningInstance 跳过它们，
+  // 避免「关闭全部→重新运行」把用户关掉的日志 tab 又按同节点顶回来；手动再打开即从集合移除。
+  const closedTaskDefsRef = useRef<Set<number>>(new Set())
+  // 切换工作流：重置已关节点集合（不同工作流节点 taskDefId 不互通）
+  useEffect(() => {
+    closedTaskDefsRef.current = new Set()
+  }, [workflowId])
+  // 关闭族包裹：记录被关节点的 taskDefId（按节点而非实例去重）→ 新一轮运行不再自动顶回这些节点
+  const recordClosedTaskDefs = useCallback(
+    (instanceIds: string[]) => {
+      for (const id of instanceIds) {
+        const td = instanceToTaskDef.get(id)
+        if (td != null) closedTaskDefsRef.current.add(td)
+      }
+    },
+    [instanceToTaskDef],
+  )
+  const handleCloseRunTab = useCallback((id: string) => { recordClosedTaskDefs([id]); closeRunTab(id) }, [recordClosedTaskDefs, closeRunTab])
+  const handleCloseOtherRunTabs = useCallback(
+    (id: string) => {
+      recordClosedTaskDefs(runTabs.filter((tb) => tb.instanceId !== id).map((tb) => tb.instanceId))
+      closeOtherRunTabs(id)
+    },
+    [recordClosedTaskDefs, runTabs, closeOtherRunTabs],
+  )
+  const handleCloseRunTabsRight = useCallback(
+    (id: string) => {
+      const i = runTabs.findIndex((tb) => tb.instanceId === id)
+      recordClosedTaskDefs(i >= 0 ? runTabs.slice(i + 1).map((tb) => tb.instanceId) : [])
+      closeRunTabsRight(id)
+    },
+    [recordClosedTaskDefs, runTabs, closeRunTabsRight],
+  )
+  const handleCloseRunTabsLeft = useCallback(
+    (id: string) => {
+      const i = runTabs.findIndex((tb) => tb.instanceId === id)
+      recordClosedTaskDefs(i >= 0 ? runTabs.slice(0, i).map((tb) => tb.instanceId) : [])
+      closeRunTabsLeft(id)
+    },
+    [recordClosedTaskDefs, runTabs, closeRunTabsLeft],
+  )
+  const handleCloseAllRunTabs = useCallback(() => {
+    recordClosedTaskDefs(runTabs.map((tb) => tb.instanceId))
+    closeAllRunTabs()
+  }, [recordClosedTaskDefs, runTabs, closeAllRunTabs])
   // 边右键菜单（边是 SVG path，不便套 ContextMenu 包裹，用轻量浮层）
   const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   // 运行范围 Dialog（工具栏「运行」入口）：scope + 目标节点
@@ -468,8 +513,9 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       idMap.set(it.id, it.taskDefId)
       defMap.set(it.taskDefId, it.id)
       stateMap.set(it.taskDefId, it.state)
-      // 已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态 / 续接时已在跑）
-      if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id)) {
+      // 已在运行的节点：直接顶日志（覆盖"SSE 连上前就进 RUNNING"的竞态 / 续接时已在跑）。
+      // 跳过用户已手动关闭的节点（closedTaskDefsRef，按 taskDefId），避免新一轮运行顶回已关 tab。
+      if ((it.state === "RUNNING" || it.state === "DISPATCHED") && !autoOpenedRef.current.has(it.id) && !closedTaskDefsRef.current.has(it.taskDefId)) {
         autoOpenedRef.current.add(it.id)
         const nm = dagNodesRef.current.find((n) => n.data.taskId === it.taskDefId)?.data.label || name
         openRunTab({ instanceId: it.id, taskName: nm, startedAt: new Date().toISOString(), kind: "log" })
@@ -540,6 +586,8 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
       }
       const r = j.data
       if (r.outcome === "EXECUTED" && r.resultInstanceId) {
+        // 用户主动单跑该节点 → 从已关集合移除（单跑是显式「我要看它」）
+        closedTaskDefsRef.current.delete(taskId)
         openRunTab({ instanceId: r.resultInstanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
         toast.success(t("toastNodeRunTriggered"))
       } else if (r.outcome === "PENDING_APPROVAL") {
@@ -658,8 +706,14 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         if (!u.taskId || !u.taskState) continue
         if (u.taskState !== "RUNNING" && u.taskState !== "DISPATCHED") continue
         if (autoOpenedRef.current.has(u.taskId)) continue
-        autoOpenedRef.current.add(u.taskId)
         const td = instanceToTaskDef.get(u.taskId)
+        // 跳过用户已手动关闭的节点（按 taskDefId），避免新一轮运行顶回已关 tab；
+        // 仍记入 autoOpenedRef 以免后续事件反复判定。
+        if (td != null && closedTaskDefsRef.current.has(td)) {
+          autoOpenedRef.current.add(u.taskId)
+          continue
+        }
+        autoOpenedRef.current.add(u.taskId)
         openRunTab({
           instanceId: u.taskId,
           taskName: td != null ? labelByTaskDef(td) : name,
@@ -682,6 +736,8 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
           toast.info(t("toastNodeNoRun"))
           return
         }
+        // 用户手动重新打开该节点 → 从已关集合移除，恢复后续运行 auto-open
+        closedTaskDefsRef.current.delete(taskDefId)
         openRunTab({ instanceId, taskName: label, startedAt: new Date().toISOString(), kind: "log" })
       },
       onRunNode: (taskId, label) => runSingleTaskNode(taskId, label),
@@ -944,11 +1000,11 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
               tabs={runTabs}
               activeId={activeRunTab}
               onActivate={setActiveRunTab}
-              onClose={closeRunTab}
-              onCloseOthers={closeOtherRunTabs}
-              onCloseRight={closeRunTabsRight}
-              onCloseLeft={closeRunTabsLeft}
-              onCloseAll={closeAllRunTabs}
+              onClose={handleCloseRunTab}
+              onCloseOthers={handleCloseOtherRunTabs}
+              onCloseRight={handleCloseRunTabsRight}
+              onCloseLeft={handleCloseRunTabsLeft}
+              onCloseAll={handleCloseAllRunTabs}
             />
           </div>
         </>
