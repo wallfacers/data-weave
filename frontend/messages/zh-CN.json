@@ -726,7 +726,9 @@
     "filterSearchProject": "搜索项目",
     "filterStatus": "状态",
     "filterStatusProject": "状态",
-    "statusProjectArchived": "已归档"
+    "statusProjectArchived": "已归档",
+    "colCreatedAt": "创建时间",
+    "colUpdatedAt": "修改时间"
   },
   "logPanel": {
     "taskFallback": "任务 #{id}",

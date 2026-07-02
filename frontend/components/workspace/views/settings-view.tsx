@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +36,8 @@ interface User {
   displayName: string
   email: string
   status: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 interface Role {
@@ -43,6 +46,8 @@ interface Role {
   code: string
   name: string
   description: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 interface Project {
@@ -52,6 +57,8 @@ interface Project {
   name: string
   status: string
   ownerId: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 type Tab = "users" | "roles" | "projects"
@@ -128,6 +135,7 @@ function FormField({
 function UsersTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
+  const formatDateTime = useFormatDateTime()
   const [dialog, setDialog] = useState<UserDialogState>({ mode: "closed" })
   const [reloadSignal, setReloadSignal] = useState(0)
   const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
@@ -215,23 +223,25 @@ function UsersTab() {
   )
 
   const columns = useMemo<ColumnDef<User>[]>(() => [
-    { key: "username", header: t("colUsername"), widthPct: 18, cellClassName: "font-mono text-xs" },
-    { key: "displayName", header: t("colDisplayName"), widthPct: 18 },
-    { key: "email", header: t("colEmail"), widthPct: 28, cell: (row) => <span className="text-muted-foreground">{row.email || "—"}</span> },
+    { key: "username", header: t("colUsername"), widthPct: 15, cellClassName: "font-mono text-xs" },
+    { key: "displayName", header: t("colDisplayName"), widthPct: 13 },
+    { key: "email", header: t("colEmail"), widthPct: 22, cell: (row) => <span className="text-muted-foreground">{row.email || "—"}</span> },
     {
       key: "status",
       header: t("colStatus"),
-      widthPct: 12,
+      widthPct: 10,
       cell: (row) => (
         <Badge variant={row.status === "ACTIVE" ? "success" : "destructive"}>
           {row.status === "ACTIVE" ? t("statusActive") : t("statusDisabled")}
         </Badge>
       ),
     },
+    { key: "createdAt", header: t("colCreatedAt"), widthPct: 14, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.createdAt)}</span> },
+    { key: "updatedAt", header: t("colUpdatedAt"), widthPct: 14, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.updatedAt)}</span> },
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 14,
+      widthPct: 12,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end items-center gap-0.5">
@@ -267,7 +277,7 @@ function UsersTab() {
         </div>
       ),
     },
-  ], [t])
+  ], [t, formatDateTime])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -284,7 +294,7 @@ function UsersTab() {
           <Button size="sm" onClick={openCreate}>{t("addUser")}</Button>
         }
         emptyTitle={t("emptyTitleUsers")}
-        pageSize={15}
+        pageSize={10}
       />
 
       {/* ---- Dialog ---- */}
@@ -355,6 +365,7 @@ function UsersTab() {
 function RolesTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
+  const formatDateTime = useFormatDateTime()
   const [dialog, setDialog] = useState<RoleDialogState>({ mode: "closed" })
   const [reloadSignal, setReloadSignal] = useState(0)
   const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
@@ -419,13 +430,15 @@ function RolesTab() {
   )
 
   const columns = useMemo<ColumnDef<Role>[]>(() => [
-    { key: "code", header: t("colCode"), widthPct: 22, cellClassName: "font-mono text-xs" },
-    { key: "name", header: t("colName"), widthPct: 22 },
-    { key: "description", header: t("colDescription"), widthPct: 44, cell: (row) => <span className="text-muted-foreground">{row.description || "—"}</span> },
+    { key: "code", header: t("colCode"), widthPct: 14, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 16 },
+    { key: "description", header: t("colDescription"), widthPct: 22, cell: (row) => <span className="text-muted-foreground">{row.description || "—"}</span> },
+    { key: "createdAt", header: t("colCreatedAt"), widthPct: 16, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.createdAt)}</span> },
+    { key: "updatedAt", header: t("colUpdatedAt"), widthPct: 16, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.updatedAt)}</span> },
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 12,
+      widthPct: 16,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end items-center gap-0.5">
@@ -452,7 +465,7 @@ function RolesTab() {
         </div>
       ),
     },
-  ], [t])
+  ], [t, formatDateTime])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -469,7 +482,7 @@ function RolesTab() {
           <Button size="sm" onClick={openCreate}>{t("addRole")}</Button>
         }
         emptyTitle={t("emptyTitleRoles")}
-        pageSize={15}
+        pageSize={10}
       />
 
       {/* ---- Dialog ---- */}
@@ -528,6 +541,7 @@ function RolesTab() {
 function ProjectsTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
+  const formatDateTime = useFormatDateTime()
   const [dialog, setDialog] = useState<ProjectDialogState>({ mode: "closed" })
   const [reloadSignal, setReloadSignal] = useState(0)
   const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
@@ -599,22 +613,24 @@ function ProjectsTab() {
   )
 
   const columns = useMemo<ColumnDef<Project>[]>(() => [
-    { key: "code", header: t("colCode"), widthPct: 24, cellClassName: "font-mono text-xs" },
-    { key: "name", header: t("colName"), widthPct: 28 },
+    { key: "code", header: t("colCode"), widthPct: 16, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 20 },
     {
       key: "status",
       header: t("colStatus"),
-      widthPct: 16,
+      widthPct: 14,
       cell: (row) => (
         <Badge variant={row.status === "ACTIVE" ? "success" : "secondary"}>
           {row.status === "ACTIVE" ? t("statusProjectActive") : (row.status === "ARCHIVED" ? t("statusProjectArchived") : row.status)}
         </Badge>
       ),
     },
+    { key: "createdAt", header: t("colCreatedAt"), widthPct: 16, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.createdAt)}</span> },
+    { key: "updatedAt", header: t("colUpdatedAt"), widthPct: 16, cell: (row) => <span className="text-muted-foreground text-xs tabular-nums">{formatDateTime(row.updatedAt)}</span> },
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 12,
+      widthPct: 18,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end items-center gap-0.5">
@@ -641,7 +657,7 @@ function ProjectsTab() {
         </div>
       ),
     },
-  ], [t])
+  ], [t, formatDateTime])
 
   const isOpen = dialog.mode !== "closed"
 
@@ -658,7 +674,7 @@ function ProjectsTab() {
           <Button size="sm" onClick={openCreate}>{t("addProject")}</Button>
         }
         emptyTitle={t("emptyTitleProjects")}
-        pageSize={15}
+        pageSize={10}
       />
 
       {/* ---- Dialog ---- */}

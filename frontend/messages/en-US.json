@@ -726,7 +726,9 @@
     "filterSearchProject": "Search project",
     "filterStatus": "Status",
     "filterStatusProject": "Status",
-    "statusProjectArchived": "Archived"
+    "statusProjectArchived": "Archived",
+    "colCreatedAt": "Created",
+    "colUpdatedAt": "Updated"
   },
   "logPanel": {
     "taskFallback": "Task #{id}",

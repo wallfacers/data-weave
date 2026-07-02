@@ -18,7 +18,6 @@ import {
 import { useLiveData } from "@/lib/workspace/use-api"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { ViewRefreshControl } from "./view-refresh-control"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -127,16 +126,30 @@ export function AlertsView({ active }: ViewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar — 复用共享下划线 Tabs 组件 */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList size="md">
-          {tabs.map(tb => (
-            <TabsTrigger key={tb.key} value={tb.key} icon={tb.icon}>
+      {/* Tab bar — 下划线式，与 settings-view / event-center-view 同款 */}
+      <div className="flex items-center gap-1 border-b h-11 px-5" role="tablist">
+        {tabs.map(tb => {
+          const isActive = tab === tb.key
+          return (
+            <button
+              key={tb.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setTab(tb.key)}
+              className={
+                "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
+                (isActive
+                  ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              <HugeiconsIcon icon={tb.icon} className="size-4" />
               {t(tb.labelKey as never)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+            </button>
+          )
+        })}
+      </div>
 
       {/* Toolbar */}
       <div className="flex items-center justify-end px-5 py-2">
