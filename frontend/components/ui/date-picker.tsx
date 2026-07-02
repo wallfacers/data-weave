@@ -76,7 +76,7 @@ function DatePicker({
   React.useEffect(() => {
     if (open && showTime) {
       const d = selected ?? new Date()
-      setPendingDate(selected)
+      setPendingDate(selected ?? new Date())
       setTimeDraft({
         h: String(d.getHours()).padStart(2, "0"),
         m: String(d.getMinutes()).padStart(2, "0"),
