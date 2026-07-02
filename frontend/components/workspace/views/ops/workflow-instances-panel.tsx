@@ -153,6 +153,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         const j = (await res.json()) as ApiResponse<string>
         if (j.code === 0) {
           toast.success(t("actionSuccess", { label }))
+          setReloadSignal((n) => n + 1)
         } else {
           toast.error(t("actionFailed", { label, msg: j.message }))
         }
