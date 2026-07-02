@@ -151,7 +151,9 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         OpsContracts.PageResult<OpsContracts.WorkflowInstanceRow> pr = opsService.queryWorkflowInstances(
                 new OpsContracts.WorkflowInstanceQuery(q.state(), q.stateIn(), q.triggerType(),
                         q.workflowId(), q.bizDate(), q.bizDateFrom(), q.bizDateTo(),
-                        q.startedAtFrom(), q.startedAtTo(), q.projectId(),
+                        q.startedAtFrom(), q.startedAtTo(),
+                        q.scheduledFireTimeFrom(), q.scheduledFireTimeTo(),
+                        q.projectId(),
                         Math.max(0, q.page() - 1), q.size()));
         return new Page<>(pr.items(), pr.total(), q.page(), q.size());
     }

@@ -687,6 +687,14 @@ public class OpsService {
             where.append("AND wi.started_at <= ? ");
             args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.startedAtTo().trim())));
         }
+        if (q.scheduledFireTimeFrom() != null && !q.scheduledFireTimeFrom().isBlank()) {
+            where.append("AND wi.scheduled_fire_time >= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.scheduledFireTimeFrom().trim())));
+        }
+        if (q.scheduledFireTimeTo() != null && !q.scheduledFireTimeTo().isBlank()) {
+            where.append("AND wi.scheduled_fire_time <= ? ");
+            args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.scheduledFireTimeTo().trim())));
+        }
 
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM workflow_instance wi" + where, Long.class, args.toArray());

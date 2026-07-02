@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format, parse, subDays, type Locale } from "date-fns"
+import { format, parse, subDays, setHours, setMinutes, setSeconds, type Locale } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Calendar01Icon } from "@hugeicons/core-free-icons"
 
@@ -23,9 +23,31 @@ interface DatePickerProps {
   quickLabels?: { today?: string; yesterday?: string }
   /** When true, always show ▼ even when a date is selected (required fields). Default false. */
   disableClear?: boolean
+  /** When true, show time (HH:mm:ss) inputs below the calendar. Format becomes yyyy-MM-dd'T'HH:mm:ss. */
+  showTime?: boolean
+  /** Label for the confirm button when showTime is true. Default "确认". */
+  confirmLabel?: string
 }
 
 const DATE_FMT = "yyyy-MM-dd"
+const DATETIME_FMT = "yyyy-MM-dd'T'HH:mm:ss"
+const DISPLAY_DATETIME_FMT = "yyyy-MM-dd HH:mm:ss"
+
+/** Parse a date string (date-only or datetime) into a Date, or return undefined. */
+function parseDatetime(value: string | undefined): Date | undefined {
+  if (!value) return undefined
+  try {
+    // Try datetime format first
+    return parse(value, DATETIME_FMT, new Date())
+  } catch {
+    try {
+      // Fall back to date-only format
+      return parse(value, DATE_FMT, new Date())
+    } catch {
+      return undefined
+    }
+  }
+}
 
 function DatePicker({
   value,
@@ -37,37 +59,90 @@ function DatePicker({
   showQuickActions = true,
   quickLabels,
   disableClear = false,
+  showTime = false,
+  confirmLabel = "确认",
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const fmt = showTime ? DATETIME_FMT : DATE_FMT
+  const displayFmt = showTime ? DISPLAY_DATETIME_FMT : DATE_FMT
 
-  const selected = React.useMemo(() => {
-    if (!value) return undefined
-    try {
-      return parse(value, DATE_FMT, new Date())
-    } catch {
-      return undefined
+  const selected = React.useMemo(() => parseDatetime(value), [value])
+
+  // Time state (only used when showTime)
+  const [timeDraft, setTimeDraft] = React.useState({ h: "00", m: "00", s: "00" })
+  const [pendingDate, setPendingDate] = React.useState<Date | undefined>(undefined)
+
+  // Sync time draft from selected value when opened
+  React.useEffect(() => {
+    if (open && showTime) {
+      const d = selected ?? new Date()
+      setPendingDate(selected)
+      setTimeDraft({
+        h: String(d.getHours()).padStart(2, "0"),
+        m: String(d.getMinutes()).padStart(2, "0"),
+        s: String(d.getSeconds()).padStart(2, "0"),
+      })
     }
-  }, [value])
+  }, [open, showTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSelect(date: Date | undefined) {
-    if (date) {
-      onChange(format(date, DATE_FMT))
-    } else {
-      // 日历中点击已选日期 → 取消选择
-      onChange("")
+    if (!showTime) {
+      if (date) {
+        onChange(format(date, DATE_FMT))
+      } else {
+        onChange("")
+      }
+      setOpen(false)
+      return
     }
+    // With time: set pending date but don't close yet
+    if (date) {
+      setPendingDate(date)
+    }
+  }
+
+  function handleConfirm() {
+    if (!pendingDate) return
+    const h = parseInt(timeDraft.h, 10) || 0
+    const m = parseInt(timeDraft.m, 10) || 0
+    const s = parseInt(timeDraft.s, 10) || 0
+    const dt = setSeconds(setMinutes(setHours(pendingDate, h), m), s)
+    onChange(format(dt, DATETIME_FMT))
     setOpen(false)
   }
 
   function handleQuick(date: Date) {
-    onChange(format(date, DATE_FMT))
-    setOpen(false)
+    if (!showTime) {
+      onChange(format(date, DATE_FMT))
+      setOpen(false)
+      return
+    }
+    // With time: set date as pending, keep current time draft
+    setPendingDate(date)
+  }
+
+  function handleTimeChange(field: "h" | "m" | "s", raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 2)
+    const num = parseInt(digits, 10)
+    let clamped: string
+    if (field === "h") {
+      clamped = isNaN(num) ? "00" : String(Math.min(num, 23)).padStart(2, "0")
+    } else {
+      clamped = isNaN(num) ? "00" : String(Math.min(num, 59)).padStart(2, "0")
+    }
+    setTimeDraft((prev) => ({ ...prev, [field]: clamped }))
   }
 
   const today = new Date()
   const yesterday = subDays(today, 1)
   const todayLabel = quickLabels?.today ?? "Today"
   const yesterdayLabel = quickLabels?.yesterday ?? "Yesterday"
+
+  const displayValue = React.useMemo(() => {
+    if (!value) return null
+    const d = parseDatetime(value)
+    return d ? format(d, displayFmt) : value
+  }, [value, displayFmt])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -83,7 +158,7 @@ function DatePicker({
           >
             <HugeiconsIcon icon={Calendar01Icon} className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1 truncate text-left">
-              {value ?? placeholder}
+              {displayValue ?? placeholder}
             </span>
             {value && !disableClear ? (
               <span
@@ -95,6 +170,7 @@ function DatePicker({
                   e.stopPropagation()
                   onChange("")
                   setOpen(false)
+                  setPendingDate(undefined)
                 }}
               >
                 <svg
@@ -135,7 +211,7 @@ function DatePicker({
       <PopoverContent className={cn("w-auto p-0", className)} align="start">
         <Calendar
           mode="single"
-          selected={selected}
+          selected={showTime ? pendingDate : selected}
           onSelect={handleSelect}
           initialFocus
           locale={locale}
@@ -155,6 +231,46 @@ function DatePicker({
               className="flex-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               {yesterdayLabel}
+            </button>
+          </div>
+        )}
+        {showTime && (
+          <div className="flex items-center gap-1 border-t px-3 py-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={timeDraft.h}
+              onChange={(e) => handleTimeChange("h", e.target.value)}
+              className="h-8 w-10 rounded border border-input bg-background text-center text-sm tabular-nums"
+              placeholder="HH"
+              maxLength={2}
+            />
+            <span className="text-muted-foreground">:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={timeDraft.m}
+              onChange={(e) => handleTimeChange("m", e.target.value)}
+              className="h-8 w-10 rounded border border-input bg-background text-center text-sm tabular-nums"
+              placeholder="MM"
+              maxLength={2}
+            />
+            <span className="text-muted-foreground">:</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={timeDraft.s}
+              onChange={(e) => handleTimeChange("s", e.target.value)}
+              className="h-8 w-10 rounded border border-input bg-background text-center text-sm tabular-nums"
+              placeholder="SS"
+              maxLength={2}
+            />
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="ml-2 h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {confirmLabel}
             </button>
           </div>
         )}

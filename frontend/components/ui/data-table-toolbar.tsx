@@ -61,6 +61,8 @@ export function DataTableToolbar({
   const advanced = filters.filter((f) => f.tier === "advanced")
   const activeCount = countActiveFilters(filters, values)
 
+  const confirmLabel = t("confirm")
+
   const renderFilter = (def: FilterDef) => (
     <FilterControl
       key={def.key}
@@ -71,6 +73,7 @@ export function DataTableToolbar({
       quickLabels={quickLabels}
       searchPlaceholder={t("searchPlaceholder")}
       allLabel={t("allLabel")}
+      confirmLabel={confirmLabel}
     />
   )
 
@@ -121,6 +124,7 @@ function FilterControl({
   quickLabels,
   searchPlaceholder,
   allLabel,
+  confirmLabel,
 }: {
   def: FilterDef
   value: FilterValue | undefined
@@ -129,6 +133,7 @@ function FilterControl({
   quickLabels: { today: string; yesterday: string }
   searchPlaceholder: string
   allLabel: string
+  confirmLabel: string
 }) {
   switch (def.kind) {
     case "search":
@@ -156,6 +161,8 @@ function FilterControl({
           triggerClassName={cn("h-8", def.width ?? "w-40")}
           locale={dateLocale}
           quickLabels={quickLabels}
+          showTime={def.showTime}
+          confirmLabel={confirmLabel}
         />
       )
     case "dateRange":

@@ -35,6 +35,7 @@ import {
   type FilterPreset,
   type FetchQuery,
   type PageResult,
+  toQueryParams,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
@@ -181,6 +182,20 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       },
       { key: "bizDateFrom", label: t("filterBizDateFrom"), kind: "date", width: "w-40" },
       { key: "bizDateTo", label: t("filterBizDateTo"), kind: "date", width: "w-40" },
+      {
+        key: "scheduledFireTimeFrom",
+        label: t("filterScheduledFireTimeFrom"),
+        kind: "date",
+        width: "w-52",
+        showTime: true,
+      },
+      {
+        key: "scheduledFireTimeTo",
+        label: t("filterScheduledFireTimeTo"),
+        kind: "date",
+        width: "w-52",
+        showTime: true,
+      },
     ],
     [t],
   )
@@ -467,15 +482,9 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         // 取消前一次未完成的请求，防止快速切换时数据错乱
         abortRef.current?.abort()
         abortRef.current = new AbortController()
-        const params = new URLSearchParams()
-        params.set("page", String(query.page))
-        params.set("size", String(query.size))
-        params.set("projectId", String(projectId))
-        for (const [k, v] of Object.entries(query.filters ?? {})) {
-          if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) continue
-          params.set(k, Array.isArray(v) ? v.join(",") : String(v))
-        }
-        const res = await authFetch(`${API_BASE}/api/ops/workflow-instances?${params.toString()}`, {
+        const qs = toQueryParams(query, filters)
+        qs.set("projectId", String(projectId))
+        const res = await authFetch(`${API_BASE}/api/ops/workflow-instances?${qs.toString()}`, {
           signal: abortRef.current.signal,
         })
         const json: ApiResponse<{ items: WorkflowInstanceRow[]; total: number }> = await res.json()
@@ -484,7 +493,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         }
         return { items: json.data.items, total: json.data.total, page: query.page, size: query.size }
       },
-    [projectId],
+    [projectId, filters],
   )
 
   return (

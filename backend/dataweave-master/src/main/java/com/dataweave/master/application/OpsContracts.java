@@ -134,6 +134,7 @@ public final class OpsContracts {
                                          Long workflowId, String bizDate,
                                          String bizDateFrom, String bizDateTo,
                                          String startedAtFrom, String startedAtTo,
+                                         String scheduledFireTimeFrom, String scheduledFireTimeTo,
                                          Long projectId, int page, int size) {}
 
     /** 实例 DAG 节点：DAG 拓扑位置 + 运行时状态叠加。 */

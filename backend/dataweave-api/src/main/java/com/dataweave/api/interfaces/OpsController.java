@@ -229,6 +229,8 @@ public class OpsController {
             @RequestParam(required = false) String bizDateTo,
             @RequestParam(required = false) String startedAtFrom,
             @RequestParam(required = false) String startedAtTo,
+            @RequestParam(required = false) String scheduledFireTimeFrom,
+            @RequestParam(required = false) String scheduledFireTimeTo,
             @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -239,6 +241,7 @@ public class OpsController {
                 new com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery(
                         state, stateIn, triggerType, workflowId, bizDate,
                         bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
+                        scheduledFireTimeFrom, scheduledFireTimeTo,
                         pid, page0, size);
         var result = dataOpsBridge.queryWorkflowInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));

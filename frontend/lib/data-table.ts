@@ -58,6 +58,8 @@ export interface FilterDef {
   width?: string
   /** client 模式 search：参与匹配的行字段；dateRange：取值字段（缺省 key） */
   matchKeys?: string[]
+  /** date/dateRange 类型：是否显示时分秒选择。默认 false */
+  showTime?: boolean
 }
 
 /** 单个筛选值：随 kind 不同 */

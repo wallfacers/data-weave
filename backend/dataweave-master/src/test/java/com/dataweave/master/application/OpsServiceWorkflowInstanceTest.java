@@ -33,12 +33,13 @@ class OpsServiceWorkflowInstanceTest {
         WorkflowInstanceRepository workflowInstanceRepository = mock(WorkflowInstanceRepository.class);
         WorkflowDefRepository workflowDefRepository = mock(WorkflowDefRepository.class);
         InstanceStateMachine stateMachine = mock(InstanceStateMachine.class);
+        WorkflowStateService workflowStateService = mock(WorkflowStateService.class);
         LogBus logBus = mock(LogBus.class);
         EventBus eventBus = mock(EventBus.class);
         jdbc = mock(JdbcTemplate.class);
         // Weft A 已拆除服务端 AI（DiagnosisService 移除）；OpsService 末位参为 origin 的 AgentActionRepository
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
-                workflowDefRepository, stateMachine, logBus, eventBus, jdbc,
+                workflowDefRepository, stateMachine, workflowStateService, logBus, eventBus, jdbc,
                 mock(AgentActionRepository.class));
     }
 
@@ -47,7 +48,7 @@ class OpsServiceWorkflowInstanceTest {
     @Test
     void queryWorkflowInstancesReturnsPageResult() {
         OpsContracts.WorkflowInstanceQuery q = new OpsContracts.WorkflowInstanceQuery(
-                "RUNNING", null, "CRON", null, null, null, null, null, null, null, 0, 20);
+                "RUNNING", null, "CRON", null, null, null, null, null, null, null, null, null, 0, 20);
 
         when(jdbc.queryForObject(startsWith("SELECT COUNT(*)"), eq(Long.class), any(Object[].class)))
                 .thenReturn(5L);
@@ -65,7 +66,7 @@ class OpsServiceWorkflowInstanceTest {
     @Test
     void queryWorkflowInstancesClampsPageSize() {
         OpsContracts.WorkflowInstanceQuery q = new OpsContracts.WorkflowInstanceQuery(
-                null, null, null, null, null, null, null, null, null, null, -1, 500);
+                null, null, null, null, null, null, null, null, null, null, null, null, -1, 500);
 
         when(jdbc.queryForObject(startsWith("SELECT COUNT(*)"), eq(Long.class), any(Object[].class)))
                 .thenReturn(0L);
@@ -95,7 +96,7 @@ class OpsServiceWorkflowInstanceTest {
     void workflowInstanceQueryFiltersAreNullable() {
         // 全部筛选为空时应可正常构造
         var q = new OpsContracts.WorkflowInstanceQuery(
-                null, null, null, null, null, null, null, null, null, null, 0, 10);
+                null, null, null, null, null, null, null, null, null, null, null, null, 0, 10);
         assertThat(q.page()).isEqualTo(0);
         assertThat(q.size()).isEqualTo(10);
         assertThat(q.state()).isNull();
