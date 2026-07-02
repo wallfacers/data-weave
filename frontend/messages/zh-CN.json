@@ -481,6 +481,25 @@
     "selectNodeForDep": "选择节点（自依赖）",
     "noNodesForDep": "请先在画布上添加工作流节点"
   },
+  "workflowInstanceDetail": {
+    "title": "工作流实例详情",
+    "noInstanceId": "未提供实例 ID",
+    "notFound": "未找到工作流实例",
+    "pause": "暂停",
+    "resume": "恢复",
+    "kill": "终止",
+    "rerunAll": "全部重跑",
+    "recover": "恢复",
+    "live": "实时",
+    "offline": "离线",
+    "workflowNo": "工作流编号",
+    "bizDate": "业务日期",
+    "priority": "优先级",
+    "runMode": "运行模式",
+    "dagNodes": "DAG 节点",
+    "taskMeta": "任务: {taskDefId} (第 {attempt} 次)",
+    "nodeMeta": "节点: {node}"
+  },
   "lineageCockpit": {
     "title": "态势驾驶舱",
     "subtitle": "打开即见：数据流到哪、同步多少、还要多久",

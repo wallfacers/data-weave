@@ -64,6 +64,25 @@ function stateColor(state: string): string {
   }
 }
 
+function stateVariant(state: string): "success" | "destructive" | "warning" | "info" | "outline" {
+  switch (state) {
+    case "SUCCESS":
+      return "success"
+    case "RUNNING":
+    case "WAIT_RETRY":
+    case "DISPATCHED":
+      return "info"
+    case "FAILED":
+    case "KILLED":
+    case "STOPPED":
+      return "destructive"
+    case "WAITING":
+      return "warning"
+    default:
+      return "outline"
+  }
+}
+
 export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) {
   const t = useTranslations("workflowInstanceDetail")
   const instanceId = params?.instanceId as string | undefined
@@ -221,15 +240,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
               {t("rerunAll")}
             </Button>
           )}
-          <Badge
-            variant={
-              instance.state === "SUCCESS"
-                ? "success"
-                : instance.state === "FAILED"
-                  ? "destructive"
-                  : "info"
-            }
-          >
+          <Badge variant={stateVariant(instance.state)}>
             {instance.state}
           </Badge>
           <Badge variant={connected ? "success" : "outline"}>
@@ -274,19 +285,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
                   {task.workerNodeCode && t("nodeMeta", { node: task.workerNodeCode })}
                 </div>
               </div>
-              <Badge
-                variant={
-                  task.state === "SUCCESS"
-                    ? "success"
-                    : task.state === "FAILED"
-                      ? "destructive"
-                      : task.state === "RUNNING" || task.state === "DISPATCHED"
-                        ? "info"
-                        : task.state === "WAITING"
-                          ? "warning"
-                          : "outline"
-                }
-              >
+              <Badge variant={stateVariant(task.state)}>
                 {task.state}
               </Badge>
             </div>

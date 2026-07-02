@@ -481,6 +481,25 @@
     "selectNodeForDep": "Select node (self-dependency)",
     "noNodesForDep": "Add workflow nodes on the canvas first"
   },
+  "workflowInstanceDetail": {
+    "title": "Workflow Instance Detail",
+    "noInstanceId": "No instance ID provided",
+    "notFound": "Workflow instance not found",
+    "pause": "Pause",
+    "resume": "Resume",
+    "kill": "Kill",
+    "rerunAll": "Rerun All",
+    "recover": "Recover",
+    "live": "Live",
+    "offline": "Offline",
+    "workflowNo": "Workflow No.",
+    "bizDate": "Biz Date",
+    "priority": "Priority",
+    "runMode": "Run Mode",
+    "dagNodes": "DAG Nodes",
+    "taskMeta": "Task: {taskDefId} (attempt {attempt})",
+    "nodeMeta": "Node: {node}"
+  },
   "lineageCockpit": {
     "title": "Situational Cockpit",
     "subtitle": "At a glance: where data flows, how much synced, how long left",

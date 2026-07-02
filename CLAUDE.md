@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [036-project-isolation-sweep](specs/036-project-isolation-sweep/spec.md)
-Implementation plan: [plan.md](specs/036-project-isolation-sweep/plan.md)
-Research: [research.md](specs/036-project-isolation-sweep/research.md)
-Data model: [data-model.md](specs/036-project-isolation-sweep/data-model.md)
-API contracts: [contracts/](specs/036-project-isolation-sweep/contracts/)
+Current feature: [039-workflow-list-fields](specs/039-workflow-list-fields/spec.md)
+Implementation plan: [plan.md](specs/039-workflow-list-fields/plan.md)
+Research: [research.md](specs/039-workflow-list-fields/research.md)
+Data model: [data-model.md](specs/039-workflow-list-fields/data-model.md)
+API contracts: [contracts/](specs/039-workflow-list-fields/contracts/)
 <!-- SPECKIT END -->
