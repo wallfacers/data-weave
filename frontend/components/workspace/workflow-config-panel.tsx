@@ -8,11 +8,14 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { HelpCircleIcon } from "@hugeicons/core-free-icons"
 import { zhCN, enUS } from "date-fns/locale"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
 import { DatePicker } from "@/components/ui/date-picker"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
@@ -195,7 +198,19 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{t("workflowConfig.crossCycleDeps")}</label>
+      <div className="flex items-center gap-1">
+        <span className="text-xs font-medium text-muted-foreground">{t("workflowConfig.crossCycleDeps")}</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="inline-flex cursor-help text-muted-foreground/50 hover:text-muted-foreground">
+                <HugeiconsIcon icon={HelpCircleIcon} className="size-3" />
+              </span>
+            }
+          />
+          <TooltipContent>{t("workflowConfig.crossCycleDepsDesc")}</TooltipContent>
+        </Tooltip>
+      </div>
       {/* 列表 */}
       <DwScroll className="max-h-40">
         <div className="flex flex-col gap-1">
@@ -229,20 +244,58 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
         <span className="text-xs text-muted-foreground">{t("workflowConfig.noNodesForDep")}</span>
       ) : (
         <>
-          <label className="text-xs font-medium text-muted-foreground">{t("workflowConfig.selectNodeForDep")}</label>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-muted-foreground">{t("workflowConfig.selectNodeForDep")}</span>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="inline-flex cursor-help text-muted-foreground/50 hover:text-muted-foreground">
+                    <HugeiconsIcon icon={HelpCircleIcon} className="size-3" />
+                  </span>
+                }
+              />
+              <TooltipContent>{t("workflowConfig.selectNodeForDepHint")}</TooltipContent>
+            </Tooltip>
+          </div>
           <DropdownSelect value={nodeKey} onChange={setNodeKey} options={nodeOptions} />
         </>
       )}
       <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{t("workflowConfig.dateOffset")}</span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex cursor-help text-muted-foreground/50 hover:text-muted-foreground">
+                  <HugeiconsIcon icon={HelpCircleIcon} className="size-3" />
+                </span>
+              }
+            />
+            <TooltipContent>{t("workflowConfig.dateOffsetHint")}</TooltipContent>
+          </Tooltip>
+        </div>
         <DropdownSelect value={dateOffset} onChange={setDateOffset} options={[
           { value: "LAST_DAY", label: dateOffsetLabel("LAST_DAY", t) },
           { value: "CURRENT_DAY", label: dateOffsetLabel("CURRENT_DAY", t) },
         ]} disableClear />
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground">{t("workflowConfig.earliestBizDate")}</span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex cursor-help text-muted-foreground/50 hover:text-muted-foreground">
+                  <HugeiconsIcon icon={HelpCircleIcon} className="size-3" />
+                </span>
+              }
+            />
+            <TooltipContent>{t("workflowConfig.earliestBizDateHint")}</TooltipContent>
+          </Tooltip>
+        </div>
         <div className="flex gap-1">
           <DatePicker
             value={earliest}
             onChange={setEarliest}
-            placeholder={t("workflowConfig.bizDateFormat")}
+            placeholder="yyyy-MM-dd"
             className="flex-1"
             locale={dateLocale}
           />
