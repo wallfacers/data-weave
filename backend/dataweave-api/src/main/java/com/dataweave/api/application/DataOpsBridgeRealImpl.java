@@ -101,7 +101,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 new OpsContracts.InstanceQuery(q.runMode(), q.state(), q.taskId(), q.bizDate(),
                         q.stateIn(), q.bizDateFrom(), q.bizDateTo(), q.startedAtFrom(), q.startedAtTo(),
                         q.workerNodeCode(), q.failureReason(), q.projectId(), q.workflowInstanceId(),
-                        Math.max(0, q.page() - 1), q.size()));
+                        q.keyword(), Math.max(0, q.page() - 1), q.size()));
         List<InstanceRow> rows = pr.items().stream().map(DataOpsBridgeRealImpl::toDtoRow).toList();
         return new Page<>(rows, pr.total(), q.page(), q.size());
     }
@@ -176,9 +176,11 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     private static InstanceRow toDtoRow(OpsContracts.InstanceRow r) {
         return new InstanceRow(r.id(), r.taskDefId(), r.taskDefName(),
                 null, // workflowId（workflow_def Long）：master 行携带的是实例 UUID，M1 暂不映射
+                r.workflowInstanceId(),
                 r.runMode(), r.state(), r.bizDate(),
                 parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
-                r.cronExpression(), r.env(), r.workflowName());
+                r.cronExpression(), r.env(), r.workflowName(),
+                parseDt(r.scheduledFireTime()));
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {

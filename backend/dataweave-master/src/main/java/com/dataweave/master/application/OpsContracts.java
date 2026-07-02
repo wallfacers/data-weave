@@ -21,7 +21,8 @@ public final class OpsContracts {
     public record InstanceRow(UUID id, Long taskDefId, String taskDefName, UUID workflowInstanceId,
                               String runMode, String state, String bizDate,
                               String startedAt, String finishedAt, Long durationMs,
-                              String cronExpression, String env, String workflowName) {}
+                              String cronExpression, String env, String workflowName,
+                              String scheduledFireTime) {}
 
     /**
      * 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。
@@ -32,10 +33,11 @@ public final class OpsContracts {
                                 String stateIn, String bizDateFrom, String bizDateTo,
                                 String startedAtFrom, String startedAtTo,
                                 String workerNodeCode, String failureReason,
-                                Long projectId, UUID workflowInstanceId, int page, int size) {
+                                Long projectId, UUID workflowInstanceId, String keyword,
+                                int page, int size) {
         /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
-            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, page, size);
+            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, null, page, size);
         }
         /** 036 项目隔离：不含 projectId 的构造（向后兼容），projectId 置 null。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate,
@@ -44,7 +46,7 @@ public final class OpsContracts {
                             String workerNodeCode, String failureReason,
                             int page, int size) {
             this(runMode, state, taskId, bizDate, stateIn, bizDateFrom, bizDateTo,
-                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, null, page, size);
+                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, null, null, page, size);
         }
     }
 

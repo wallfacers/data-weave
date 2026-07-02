@@ -575,6 +575,12 @@ public class OpsService {
             where.append("AND ti.workflow_instance_id=? ");
             args.add(q.workflowInstanceId());
         }
+        if (q.keyword() != null && !q.keyword().isBlank()) {
+            where.append("AND (ti.task_def_name LIKE CONCAT('%', ?, '%') OR ti.workflow_def_name LIKE CONCAT('%', ?, '%')) ");
+            String kw = q.keyword().trim();
+            args.add(kw);
+            args.add(kw);
+        }
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());
         long totalCount = total == null ? 0L : total;
@@ -584,8 +590,10 @@ public class OpsService {
         List<InstanceRow> items = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name "
-                        + "FROM task_instance ti" + where
+                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name, "
+                        + "wi.scheduled_fire_time "
+                        + "FROM task_instance ti "
+                        + "LEFT JOIN workflow_instance wi ON ti.workflow_instance_id = wi.id" + where
                         // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
                         + "ORDER BY CASE "
                         + "  WHEN ti.state IN ('FAILED','KILLED','STOPPED','PREEMPTED') THEN 0 "
@@ -599,12 +607,14 @@ public class OpsService {
                     LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
                     Long durationMs = (startedAt != null && finishedAt != null)
                             ? Duration.between(startedAt, finishedAt).toMillis() : null;
+                    LocalDateTime sft = rs.getObject("scheduled_fire_time", LocalDateTime.class);
                     return new InstanceRow(id, taskId, rs.getString("task_def_name"), wiId,
                             rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
                             startedAt != null ? startedAt.toString() : null,
                             finishedAt != null ? finishedAt.toString() : null,
                             durationMs, rs.getString("cron_expression"),
-                            rs.getString("env"), rs.getString("workflow_def_name"));
+                            rs.getString("env"), rs.getString("workflow_def_name"),
+                            sft != null ? sft.toString() : null);
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);

@@ -380,6 +380,6 @@ public class BackfillService {
                 startedAt != null ? startedAt.toString() : null,
                 finishedAt != null ? finishedAt.toString() : null, durationMs,
                 rs.getString("cron_expression"), rs.getString("env"),
-                rs.getString("workflow_def_name"));
+                rs.getString("workflow_def_name"), null);
     }
 }

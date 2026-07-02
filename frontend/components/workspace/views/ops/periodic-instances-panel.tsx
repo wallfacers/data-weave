@@ -17,7 +17,7 @@ import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { format } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { BoxIcon, PlayIcon, StopIcon, CheckmarkCircle01Icon } from "@hugeicons/core-free-icons"
+import { BoxIcon, PlayIcon, StopIcon, CheckmarkCircle01Icon, Copy01Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -53,6 +53,7 @@ interface InstanceRow {
   finishedAt?: string | null
   durationMs?: number | null
   cronExpression?: string | null
+  scheduledFireTime?: string | null
   env?: string  // PROD | DEV
   workflowName?: string | null
 }
@@ -171,7 +172,7 @@ export function PeriodicInstancesPanel({
         width: "w-32",
         options: STATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
       },
-      { key: "taskId", label: t("filterTaskId"), kind: "search", width: "w-32", placeholder: t("filterTaskId") },
+      { key: "keyword", label: t("filterKeyword"), kind: "search", width: "w-48", placeholder: t("filterKeyword") },
       { key: "bizDate", label: t("filterBizDate"), kind: "date", width: "w-40" },
       { key: "workflowInstanceId", label: t("filterWorkflowInstanceId"), kind: "search", width: "w-48", placeholder: t("filterWorkflowInstanceId") },
       // 高级：排障定位维度，收进「更多筛选」
@@ -183,7 +184,7 @@ export function PeriodicInstancesPanel({
 
   const presets = useMemo<FilterPreset[]>(() => {
     const today = format(new Date(), "yyyy-MM-dd")
-    const empty = { runMode: "", taskId: "", bizDate: "", workerNodeCode: "", failureReason: "" }
+    const empty = { runMode: "", keyword: "", bizDate: "", workerNodeCode: "", failureReason: "" }
     return [
       { key: "todayFailed", label: t("presetTodayFailed"), set: { ...empty, bizDate: today, stateIn: ["FAILED"] } },
       { key: "running", label: t("presetRunning"), set: { ...empty, stateIn: ["RUNNING"] } },
@@ -198,10 +199,27 @@ export function PeriodicInstancesPanel({
       {
         key: "id",
         header: t("colInstance"),
-        widthPct: 9,
-        headClassName: "font-mono",
-        cellClassName: "font-mono tabular-nums text-xs",
-        cell: (r) => r.id.slice(0, 8),
+        widthPct: 8,
+        cell: (r) => (
+          <button
+            className="group inline-flex items-center gap-1 font-mono text-xs tabular-nums cursor-pointer hover:text-primary transition-colors"
+            title={`${r.id} — ${t("clickToCopy")}`}
+            onClick={async (e) => {
+              e.stopPropagation()
+              try {
+                await navigator.clipboard.writeText(r.id)
+                toast.success(t("copySuccessId", { value: "…" + r.id.slice(-8) }))
+              } catch {
+                toast.error(t("copyFailedId"))
+              }
+            }}
+          >
+            <span>…{r.id.slice(-8)}</span>
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
+              <HugeiconsIcon icon={Copy01Icon} className="size-3" />
+            </span>
+          </button>
+        ),
       },
       {
         key: "taskDefName",
@@ -210,11 +228,6 @@ export function PeriodicInstancesPanel({
         cell: (r) => (
           <div className="align-top" title={taskName(r)}>
             <div className="truncate font-medium">{taskName(r)}</div>
-            {r.runMode === "PERIODIC" && r.cronExpression && (
-              <div className="truncate text-xs text-muted-foreground">
-                {humanizeCron(r.cronExpression)}
-              </div>
-            )}
           </div>
         ),
       },
@@ -230,14 +243,30 @@ export function PeriodicInstancesPanel({
         key: "workflowInstanceId",
         header: t("colWorkflowInstanceId"),
         widthPct: 7,
-        cell: (r) =>
-          r.workflowInstanceId ? (
-            <span className="font-mono text-xs tabular-nums" title={r.workflowInstanceId}>
-              {r.workflowInstanceId.slice(0, 8)}…
-            </span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
+        cell: (r) => {
+          const wiId = r.workflowInstanceId
+          if (!wiId) return <span className="text-muted-foreground">—</span>
+          return (
+            <button
+              className="group inline-flex items-center gap-1 font-mono text-xs tabular-nums cursor-pointer hover:text-primary transition-colors"
+              title={`${wiId} — ${t("clickToCopy")}`}
+              onClick={async (e) => {
+                e.stopPropagation()
+                try {
+                  await navigator.clipboard.writeText(wiId)
+                  toast.success(t("copySuccessId", { value: "…" + wiId.slice(-8) }))
+                } catch {
+                  toast.error(t("copyFailedId"))
+                }
+              }}
+            >
+              <span>…{wiId.slice(-8)}</span>
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
+                <HugeiconsIcon icon={Copy01Icon} className="size-3" />
+              </span>
+            </button>
+          )
+        },
       },
       {
         key: "state",
@@ -264,11 +293,15 @@ export function PeriodicInstancesPanel({
         ),
       },
       {
-        key: "schedule",
-        header: t("colSchedule"),
-        widthPct: 10,
-        cellClassName: "tabular-nums text-xs",
-        cell: (r) => humanizeCron(r.cronExpression),
+        key: "scheduledFireTime",
+        header: t("colScheduledFireTime"),
+        widthPct: 11,
+        cell: (r) =>
+          r.scheduledFireTime ? (
+            <span className="font-mono text-sm tabular-nums">{formatDateTime(r.scheduledFireTime)}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       { key: "bizDate", header: t("colBizDate"), widthPct: 10, cellClassName: "tabular-nums text-xs" },
       {

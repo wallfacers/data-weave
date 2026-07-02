@@ -11,6 +11,7 @@ public record InstanceRow(
         Long taskDefId,
         String taskDefName,
         Long workflowId,
+        UUID workflowInstanceId,
         String runMode,
         String state,
         String bizDate,
@@ -19,5 +20,6 @@ public record InstanceRow(
         Long durationMs,
         String cronExpression,
         String env,
-        String workflowName
+        String workflowName,
+        LocalDateTime scheduledFireTime
 ) {}

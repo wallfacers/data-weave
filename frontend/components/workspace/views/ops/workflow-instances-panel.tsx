@@ -20,6 +20,7 @@ import {
   StopIcon,
   CheckmarkCircle01Icon,
   Share08Icon,
+  Copy01Icon,
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
@@ -203,9 +204,24 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         header: t("colInstanceId"),
         widthPct: 8,
         cell: (row: WorkflowInstanceRow) => (
-          <span className="font-mono text-xs tabular-nums" title={row.id}>
-            {row.id.slice(0, 8)}…
-          </span>
+          <button
+            className="group inline-flex items-center gap-1 font-mono text-xs tabular-nums cursor-pointer hover:text-primary transition-colors"
+            title={`${row.id} — ${t("clickToCopy")}`}
+            onClick={async (e) => {
+              e.stopPropagation()
+              try {
+                await navigator.clipboard.writeText(row.id)
+                toast.success(t("copySuccessId", { value: "…" + row.id.slice(-8) }))
+              } catch {
+                toast.error(t("copyFailedId"))
+              }
+            }}
+          >
+            <span>…{row.id.slice(-8)}</span>
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
+              <HugeiconsIcon icon={Copy01Icon} className="size-3" />
+            </span>
+          </button>
         ),
       },
       {

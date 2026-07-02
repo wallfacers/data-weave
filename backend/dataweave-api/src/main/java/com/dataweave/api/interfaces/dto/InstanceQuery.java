@@ -19,6 +19,7 @@ public record InstanceQuery(
         String failureReason,
         Long projectId,
         UUID workflowInstanceId,
+        String keyword,
         int page,
         int size
 ) {
@@ -29,6 +30,6 @@ public record InstanceQuery(
 
     /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
     public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
-        this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, page, size);
+        this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, null, page, size);
     }
 }

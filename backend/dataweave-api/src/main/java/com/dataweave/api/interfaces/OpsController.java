@@ -196,6 +196,7 @@ public class OpsController {
             @RequestParam(required = false) String workerNodeCode,
             @RequestParam(required = false) String failureReason,
             @RequestParam(required = false) String workflowInstanceId,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -208,7 +209,7 @@ public class OpsController {
                 ? UUID.fromString(workflowInstanceId) : null;
         InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
                 stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                workerNodeCode, failureReason, pid, wiId, page0, size);
+                workerNodeCode, failureReason, pid, wiId, keyword, page0, size);
         Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }

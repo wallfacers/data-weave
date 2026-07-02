@@ -189,6 +189,7 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getTaskId(),
                 name,
                 null, // workflowId: TaskInstance 无此直接字段，待 Stream A 真实现
+                ti.getWorkflowInstanceId(),
                 ti.getRunMode(),
                 ti.getState(),
                 ti.getBizDate(),
@@ -197,7 +198,8 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 durationMs,
                 ti.getCronExpression(),      // 快照列
                 ti.getEnv(),                 // 直接列（之前写死 null）
-                ti.getWorkflowDefName()      // 快照列
+                ti.getWorkflowDefName(),     // 快照列
+                null                         // scheduledFireTime: stub 无此数据
         );
     }
 }
