@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [039-workflow-list-fields](specs/039-workflow-list-fields/spec.md)
-Implementation plan: [plan.md](specs/039-workflow-list-fields/plan.md)
-Research: [research.md](specs/039-workflow-list-fields/research.md)
-Data model: [data-model.md](specs/039-workflow-list-fields/data-model.md)
-API contracts: [contracts/](specs/039-workflow-list-fields/contracts/)
+Current feature: [040-ops-summary-date-filter](specs/040-ops-summary-date-filter/spec.md)
+Implementation plan: [plan.md](specs/040-ops-summary-date-filter/plan.md)
+Research: [research.md](specs/040-ops-summary-date-filter/research.md)
+Data model: [data-model.md](specs/040-ops-summary-date-filter/data-model.md)
+API contracts: [contracts/](specs/040-ops-summary-date-filter/contracts/)
 <!-- SPECKIT END -->
