@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
@@ -28,14 +29,17 @@ public class MetricMarketplaceController {
     private final MetricListingService listingService;
     private final AssetLineageAssembler lineageAssembler;
     private final GatedActionService gatedActionService;
+    private final ProjectAuthz projectAuthz;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public MetricMarketplaceController(MetricListingService listingService,
                                        AssetLineageAssembler lineageAssembler,
-                                       GatedActionService gatedActionService) {
+                                       GatedActionService gatedActionService,
+                                       ProjectAuthz projectAuthz) {
         this.listingService = listingService;
         this.lineageAssembler = lineageAssembler;
         this.gatedActionService = gatedActionService;
+        this.projectAuthz = projectAuthz;
     }
 
     /** 详情 + 血缘（degraded 安全）的组合响应。 */
@@ -68,10 +72,12 @@ public class MetricMarketplaceController {
 
     @PostMapping("/metrics")
     public ApiResponse<GateResult> list(@RequestBody Map<String, Object> body,
-                                        @RequestParam(defaultValue = "1") Long projectId,
+                                        @RequestParam(required = false) Long projectId,
                                         ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("metric.list", tenantId, projectId, requireUser());
+        Long pid = resolveProjectId(projectId);
+        projectAuthz.require("metric:manage", pid); // 036-D2：指标市场写 = EDITOR+（FR-042），闸门前置门
+        Map<String, Object> cmd = gateBase("metric.list", tenantId, pid, requireUser());
         cmd.put("metric", body);
         return submit("ASSET_WRITE", "METRIC_LISTING", null, cmd,
                 "上架指标 " + body.getOrDefault("metricCode", body.getOrDefault("metricId", "")), exchange);
@@ -79,30 +85,36 @@ public class MetricMarketplaceController {
 
     @PostMapping("/metrics/{id}/certify")
     public ApiResponse<GateResult> certify(@PathVariable Long id,
-                                           @RequestParam(defaultValue = "1") Long projectId,
+                                           @RequestParam(required = false) Long projectId,
                                            ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("metric.certify", tenantId, projectId, requireUser());
+        Long pid = resolveProjectId(projectId);
+        projectAuthz.require("metric:manage", pid);
+        Map<String, Object> cmd = gateBase("metric.certify", tenantId, pid, requireUser());
         cmd.put("id", id);
         return submit("METRIC_CERTIFY", "METRIC_LISTING", String.valueOf(id), cmd, "认证指标 #" + id, exchange);
     }
 
     @DeleteMapping("/metrics/{id}")
     public ApiResponse<GateResult> delist(@PathVariable Long id,
-                                          @RequestParam(defaultValue = "1") Long projectId,
+                                          @RequestParam(required = false) Long projectId,
                                           ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("metric.delist", tenantId, projectId, requireUser());
+        Long pid = resolveProjectId(projectId);
+        projectAuthz.require("metric:manage", pid);
+        Map<String, Object> cmd = gateBase("metric.delist", tenantId, pid, requireUser());
         cmd.put("id", id);
         return submit("ASSET_WRITE", "METRIC_LISTING", String.valueOf(id), cmd, "下架指标 #" + id, exchange);
     }
 
     @PostMapping("/metrics/{id}/reuse")
     public ApiResponse<GateResult> reuse(@PathVariable Long id, @RequestBody Map<String, Object> body,
-                                         @RequestParam(defaultValue = "1") Long projectId,
+                                         @RequestParam(required = false) Long projectId,
                                          ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("metric.reuse", tenantId, projectId, requireUser());
+        Long pid = resolveProjectId(projectId);
+        projectAuthz.require("metric:manage", pid);
+        Map<String, Object> cmd = gateBase("metric.reuse", tenantId, pid, requireUser());
         cmd.put("id", id);
         cmd.put("consumerType", body.getOrDefault("consumerType", "METRIC"));
         cmd.put("consumerRef", body.get("consumerRef"));
@@ -142,5 +154,14 @@ public class MetricMarketplaceController {
     private long requireUser() {
         Long u = TenantContext.userId();
         return u == null ? 0L : u;
+    }
+
+    /**
+     * 036-D2：解析写端点目标项目——显式 ?projectId= 优先，缺省回落当前请求项目
+     * （TenantContext.projectId()，来自 X-Project-Id）。去硬编码默认 1，对齐 T056 resolveProjectId 模式。
+     * 返回值交由 {@link ProjectAuthz#require} 校验（null → project.required）。
+     */
+    private Long resolveProjectId(Long projectId) {
+        return projectId != null ? projectId : TenantContext.projectId();
     }
 }
