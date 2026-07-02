@@ -6,11 +6,13 @@
  * 跨周期依赖（6.5）：自依赖为主（nodeKey == dependNodeKey、dependWorkflowId 同本流）——节点依赖自己上一周期 SUCCESS。
  * 新增表单选本工作流节点 + dateOffset（LAST_DAY=上一周期 / CURRENT_DAY=当天）+ earliest（首周期豁免截止日，可空=不启用）。
  */
-import { useCallback, useEffect, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
+import { zhCN, enUS } from "date-fns/locale"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DropdownSelect } from "@/components/ui/select"
+import { DatePicker } from "@/components/ui/date-picker"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
@@ -142,6 +144,8 @@ export function WorkflowConfigPanel({
 /** 跨周期依赖编辑器：列表 + 新增（自依赖）+ 删除，调 /api/workflows/{id}/dependencies。 */
 function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes: DagNode[] }) {
   const t = useTranslations()
+  const locale = useLocale()
+  const dateLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const [deps, setDeps] = useState<WorkflowDependency[]>([])
   const [loading, setLoading] = useState(true)
   const [nodeKey, setNodeKey] = useState("")
@@ -229,21 +233,21 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
           <DropdownSelect value={nodeKey} onChange={setNodeKey} options={nodeOptions} />
         </>
       )}
-      <div className="flex gap-1">
-        <div className="min-w-28">
-          <DropdownSelect value={dateOffset} onChange={setDateOffset} options={[
-            { value: "LAST_DAY", label: dateOffsetLabel("LAST_DAY", t) },
-            { value: "CURRENT_DAY", label: dateOffsetLabel("CURRENT_DAY", t) },
-          ]} disableClear />
+      <div className="flex flex-col gap-1.5">
+        <DropdownSelect value={dateOffset} onChange={setDateOffset} options={[
+          { value: "LAST_DAY", label: dateOffsetLabel("LAST_DAY", t) },
+          { value: "CURRENT_DAY", label: dateOffsetLabel("CURRENT_DAY", t) },
+        ]} disableClear />
+        <div className="flex gap-1">
+          <DatePicker
+            value={earliest}
+            onChange={setEarliest}
+            placeholder={t("workflowConfig.bizDateFormat")}
+            className="flex-1"
+            locale={dateLocale}
+          />
+          <Button size="sm" onClick={add} disabled={!nodeKey}>{t("workflowConfig.addDep")}</Button>
         </div>
-        <Input
-          className="h-8 flex-1 text-xs"
-          value={earliest}
-          onChange={(e) => setEarliest(e.target.value)}
-          placeholder={t("workflowConfig.bizDateFormat")}
-          aria-label={t("workflowConfig.earliestBizDate")}
-        />
-        <Button size="sm" onClick={add} disabled={!nodeKey}>{t("workflowConfig.addDep")}</Button>
       </div>
     </div>
   )

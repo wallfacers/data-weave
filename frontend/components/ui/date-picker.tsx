@@ -196,8 +196,9 @@ function DatePicker({
 
   const today = new Date()
   const yesterday = subDays(today, 1)
-  const todayLabel = quickLabels?.today ?? "Today"
-  const yesterdayLabel = quickLabels?.yesterday ?? "Yesterday"
+  const isZh = locale?.code === "zh-CN"
+  const todayLabel = quickLabels?.today ?? (isZh ? "今天" : "Today")
+  const yesterdayLabel = quickLabels?.yesterday ?? (isZh ? "昨天" : "Yesterday")
 
   const displayValue = React.useMemo(() => {
     if (!value) return null
