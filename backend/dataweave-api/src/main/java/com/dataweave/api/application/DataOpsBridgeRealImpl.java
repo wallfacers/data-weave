@@ -15,7 +15,9 @@ import com.dataweave.master.domain.TaskInstance;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -193,6 +195,11 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
     }
 
     private static LocalDateTime parseDt(String iso) {
-        return (iso == null || iso.isBlank()) ? null : LocalDateTime.parse(iso);
+        if (iso == null || iso.isBlank()) return null;
+        try {
+            return Instant.parse(iso).atZone(ZoneId.systemDefault()).toLocalDateTime();
+        } catch (java.time.format.DateTimeParseException e) {
+            return LocalDateTime.parse(iso);
+        }
     }
 }

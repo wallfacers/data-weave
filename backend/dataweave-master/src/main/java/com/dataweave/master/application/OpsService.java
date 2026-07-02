@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -202,12 +203,12 @@ public class OpsService {
                             rs.getString("cron"), rs.getString("status"),
                             (Integer) rs.getObject("current_version_no"),
                             (Integer) rs.getObject("has_draft_change"),
-                            lastFire != null ? lastFire.toString() : null,
+                            lastFire != null ? lastFire.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             (Integer) rs.getObject("priority"), (Integer) rs.getObject("timeout_sec"),
-                            updatedAt != null ? updatedAt.toString() : null,
+                            updatedAt != null ? updatedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             (Long) rs.getObject("updated_by"), (Long) rs.getObject("catalog_node_id"),
                             rs.getString("recent_result"),
-                            nextTrigger != null ? nextTrigger.toString() : null);
+                            nextTrigger != null ? nextTrigger.atZone(ZoneId.systemDefault()).toInstant().toString() : null);
                 },
                 pageArgs.toArray());
         return new OpsContracts.PageResult<>(items, totalCount, page, size);
@@ -351,8 +352,8 @@ public class OpsService {
             return new WorkflowInstanceDetail(
                     wi.getId(), wi.getWorkflowId(), wi.getBizDate(), wi.getState(),
                     wi.getPriority(), "NORMAL",
-                    wi.getStartedAt() != null ? wi.getStartedAt().toString() : null,
-                    wi.getFinishedAt() != null ? wi.getFinishedAt().toString() : null,
+                    wi.getStartedAt() != null ? wi.getStartedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                    wi.getFinishedAt() != null ? wi.getFinishedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                     tasks, wi.getEnv());
         }).orElse(null);
     }
@@ -663,11 +664,11 @@ public class OpsService {
                     LocalDateTime sft = rs.getObject("scheduled_fire_time", LocalDateTime.class);
                     return new InstanceRow(id, taskId, rs.getString("task_def_name"), wiId,
                             rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
-                            startedAt != null ? startedAt.toString() : null,
-                            finishedAt != null ? finishedAt.toString() : null,
+                            startedAt != null ? startedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                            finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             durationMs, rs.getString("cron_expression"),
                             rs.getString("env"), rs.getString("workflow_def_name"),
-                            sft != null ? sft.toString() : null);
+                            sft != null ? sft.atZone(ZoneId.systemDefault()).toInstant().toString() : null);
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);
@@ -787,11 +788,11 @@ public class OpsService {
                             totalTasks != null ? totalTasks : 0,
                             completedTasks != null ? completedTasks : 0,
                             failedTasks != null ? failedTasks : 0,
-                            startedAt != null ? startedAt.toString() : null,
-                            finishedAt != null ? finishedAt.toString() : null,
+                            startedAt != null ? startedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                            finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             durationMs, rs.getString("env"),
                             workflowVersionNo, rs.getString("cron_expression"),
-                            scheduledFireTime != null ? scheduledFireTime.toString() : null);
+                            scheduledFireTime != null ? scheduledFireTime.atZone(ZoneId.systemDefault()).toInstant().toString() : null);
                 },
                 pageArgs.toArray());
         return new OpsContracts.PageResult<>(items, totalCount, page, size);
@@ -957,8 +958,8 @@ public class OpsService {
             String nodeState = ts != null ? ts.state() : "NOT_RUN";
             UUID tiId = ts != null ? ts.id() : null;
             int attempt = ts != null ? ts.attempt() : 0;
-            String startedAt = ts != null && ts.startedAt() != null ? ts.startedAt().toString() : null;
-            String finishedAt = ts != null && ts.finishedAt() != null ? ts.finishedAt().toString() : null;
+            String startedAt = ts != null && ts.startedAt() != null ? ts.startedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null;
+            String finishedAt = ts != null && ts.finishedAt() != null ? ts.finishedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null;
             Long durationMs = (ts != null && ts.startedAt() != null && ts.finishedAt() != null)
                     ? Duration.between(ts.startedAt(), ts.finishedAt()).toMillis() : null;
             double posX = sn.posX() != null ? sn.posX().doubleValue() : 0.0;

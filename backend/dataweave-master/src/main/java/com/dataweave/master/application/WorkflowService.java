@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -523,7 +524,7 @@ public class WorkflowService {
             targetDatasourceId = taskVer.getTargetDatasourceId();
             timeoutSec = taskVer.getTimeoutSec();
             retryMax = taskVer.getRetryMax();
-            publishedAt = taskVer.getPublishedAt() != null ? taskVer.getPublishedAt().toString() : null;
+            publishedAt = taskVer.getPublishedAt() != null ? taskVer.getPublishedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null;
         }
 
         boolean hasCode = taskType != null && !"DATA_SYNC".equalsIgnoreCase(taskType);

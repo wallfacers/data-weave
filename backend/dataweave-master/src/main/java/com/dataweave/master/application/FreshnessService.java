@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -152,7 +153,7 @@ public class FreshnessService {
                         ageHours = Duration.between(lastSuccess, LocalDateTime.now()).toHours();
                     }
                     return new FreshnessRow(taskId, name, tier,
-                            lastSuccess != null ? lastSuccess.toString() : null,
+                            lastSuccess != null ? lastSuccess.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             ageHours);
                 },
                 pageParams.toArray());

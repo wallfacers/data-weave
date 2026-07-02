@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -314,7 +315,7 @@ public class BackfillService {
                 r.getParallelism() == null ? 1 : r.getParallelism(),
                 r.getIncludeDownstream() != null && r.getIncludeDownstream() == 1,
                 derived, total, success, failed, running,
-                r.getCreatedAt() != null ? r.getCreatedAt().toString() : null,
+                r.getCreatedAt() != null ? r.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                 activeDates == null ? 0 : activeDates, heldDates == null ? 0 : heldDates);
     }
 
@@ -380,8 +381,8 @@ public class BackfillService {
                 ? Duration.between(startedAt, finishedAt).toMillis() : null;
         return new InstanceRow(id, taskId, rs.getString("task_def_name"), wiId,
                 rs.getString("run_mode"), rs.getString("state"), rs.getString("biz_date"),
-                startedAt != null ? startedAt.toString() : null,
-                finishedAt != null ? finishedAt.toString() : null, durationMs,
+                startedAt != null ? startedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null, durationMs,
                 rs.getString("cron_expression"), rs.getString("env"),
                 rs.getString("workflow_def_name"), null);
     }
