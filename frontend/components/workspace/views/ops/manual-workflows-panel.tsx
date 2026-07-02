@@ -23,7 +23,7 @@ import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { ViewRefreshControl } from "../view-refresh-control"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { authFetch, API_BASE } from "@/lib/types"
-import { type WorkflowRow, fetchWorkflowPage, recentResultBadge } from "./periodic-workflows-panel"
+import { type WorkflowRow, fetchWorkflowPage, recentResultBadge, PriorityCell } from "./periodic-workflows-panel"
 
 interface RunResponse {
   code: number
@@ -60,6 +60,15 @@ export function ManualWorkflowsPanel() {
           { value: "SUCCESS", label: t("stateSuccess") },
           { value: "FAILED", label: t("stateFailed") },
           { value: "NEVER", label: t("recentNever") },
+        ],
+      },
+      {
+        key: "priorityTier",
+        label: t("filterPriority"),
+        kind: "segmented",
+        options: [
+          { value: "high", label: t("priorityTierHigh") },
+          { value: "normal", label: t("priorityTierNormal") },
         ],
       },
     ],
@@ -99,27 +108,45 @@ export function ManualWorkflowsPanel() {
       {
         key: "name",
         header: t("colWorkflowName"),
-        widthPct: 28,
-        cell: (w) => <div className="truncate font-medium" title={w.name}>{w.name}</div>,
+        widthPct: 22,
+        cell: (w) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium" title={w.name}>{w.name}</div>
+            {w.description && (
+              <div className="truncate text-xs text-muted-foreground" title={w.description}>
+                {w.description}
+              </div>
+            )}
+          </div>
+        ),
       },
       {
         key: "recentTriggerResult",
         header: t("colRecentResult"),
-        widthPct: 12,
+        widthPct: 11,
         cell: (w) => recentResultBadge(w.recentTriggerResult, t),
       },
       {
         key: "status",
         header: t("colStatus"),
-        widthPct: 10,
+        widthPct: 8,
         cell: () => <Badge variant="success">{t("statusOnline")}</Badge>,
       },
       {
         key: "lastFireTime",
         header: t("colLastFireTime"),
-        widthPct: 18,
+        widthPct: 17,
         cellClassName: "font-mono text-xs tabular-nums text-muted-foreground",
         cell: (w) => formatDateTime(w.lastFireTime),
+      },
+      {
+        key: "priority",
+        header: t("colPriority"),
+        widthPct: 10,
+        align: "right",
+        sortable: true,
+        cellClassName: "font-mono text-xs tabular-nums",
+        cell: (w) => <PriorityCell priority={w.priority} t={t} />,
       },
       {
         key: "currentVersionNo",
@@ -141,7 +168,7 @@ export function ManualWorkflowsPanel() {
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 8,
+        widthPct: 24,
         cell: (w) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             {w.status === "ONLINE" && (

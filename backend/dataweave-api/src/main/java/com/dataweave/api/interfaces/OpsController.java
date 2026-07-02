@@ -122,10 +122,13 @@ public class OpsController {
             @RequestParam(required = false) String recentResult,
             @RequestParam(required = false) Long catalogNodeId,
             @RequestParam(required = false) Long createdBy,
+            @RequestParam(required = false) String priorityTier,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return workflowPage("CRON", keyword, hasDraftChange, recentResult, catalogNodeId, createdBy, projectId, page, size,
+        return workflowPage("CRON", keyword, hasDraftChange, recentResult, catalogNodeId, createdBy,
+                priorityTier, sort, projectId, page, size,
                 () -> opsService.periodicWorkflows(resolveProjectId(projectId)));
     }
 
@@ -139,10 +142,13 @@ public class OpsController {
             @RequestParam(required = false) String recentResult,
             @RequestParam(required = false) Long createdBy,
             @RequestParam(required = false) Long catalogNodeId,
+            @RequestParam(required = false) String priorityTier,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) Long projectId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return workflowPage("MANUAL", keyword, null, recentResult, catalogNodeId, createdBy, projectId, page, size,
+        return workflowPage("MANUAL", keyword, null, recentResult, catalogNodeId, createdBy,
+                priorityTier, sort, projectId, page, size,
                 () -> opsService.manualWorkflows(resolveProjectId(projectId)));
     }
 
@@ -153,12 +159,21 @@ public class OpsController {
      */
     private ApiResponse<?> workflowPage(String scheduleType, String keyword, Integer hasDraftChange,
                                         String recentResult, Long catalogNodeId, Long createdBy,
+                                        String priorityTier, String sort,
                                         Long projectId, int page, int size,
                                         java.util.function.Supplier<List<WorkflowDef>> legacy) {
         Long pid = resolveProjectId(projectId);
+        String sortField = null;
+        String sortDir = null;
+        if (sort != null && !sort.isBlank()) {
+            String[] parts = sort.split(":", 2);
+            sortField = parts[0].trim();
+            if (parts.length > 1) sortDir = parts[1].trim();
+        }
         OpsContracts.PageResult<OpsContracts.WorkflowListRow> pr = opsService.queryWorkflows(
                 new OpsContracts.WorkflowQuery(scheduleType, keyword, hasDraftChange, recentResult,
-                        catalogNodeId, createdBy, pid, Math.max(0, page - 1), size));
+                        catalogNodeId, createdBy, pid, Math.max(0, page - 1), size,
+                        priorityTier, sortField, sortDir));
         return ApiResponse.ok(new Page<>(pr.items(), pr.total(), page, size));
     }
 

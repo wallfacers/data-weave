@@ -172,6 +172,13 @@ public class OpsService {
                 args.add(q.recentResult());
             }
         }
+        if (q.priorityTier() != null && !q.priorityTier().isBlank()) {
+            if ("high".equalsIgnoreCase(q.priorityTier())) {
+                where.append("AND wd.priority BETWEEN 0 AND 2 ");
+            } else if ("normal".equalsIgnoreCase(q.priorityTier())) {
+                where.append("AND wd.priority BETWEEN 3 AND 9 ");
+            }
+        }
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM workflow_def wd" + where, Long.class, args.toArray());
         long totalCount = total == null ? 0L : total;
@@ -181,13 +188,15 @@ public class OpsService {
         List<OpsContracts.WorkflowListRow> items = jdbc.query(
                 "SELECT wd.id, wd.name, wd.description, wd.cron, wd.status, wd.current_version_no, "
                         + "wd.has_draft_change, wd.last_fire_time, wd.priority, wd.timeout_sec, "
-                        + "wd.updated_at, wd.updated_by, wd.catalog_node_id, "
+                        + "wd.updated_at, wd.updated_by, wd.catalog_node_id, wd.next_trigger_time, "
                         + recentSub + " AS recent_result "
                         + "FROM workflow_def wd" + where
-                        + "ORDER BY wd.id LIMIT ? OFFSET ?",
+                        + orderByClause(q)
+                        + " LIMIT ? OFFSET ?",
                 (rs, n) -> {
                     LocalDateTime lastFire = rs.getObject("last_fire_time", LocalDateTime.class);
                     LocalDateTime updatedAt = rs.getObject("updated_at", LocalDateTime.class);
+                    LocalDateTime nextTrigger = rs.getObject("next_trigger_time", LocalDateTime.class);
                     return new OpsContracts.WorkflowListRow(
                             (Long) rs.getObject("id"), rs.getString("name"), rs.getString("description"),
                             rs.getString("cron"), rs.getString("status"),
@@ -197,10 +206,20 @@ public class OpsService {
                             (Integer) rs.getObject("priority"), (Integer) rs.getObject("timeout_sec"),
                             updatedAt != null ? updatedAt.toString() : null,
                             (Long) rs.getObject("updated_by"), (Long) rs.getObject("catalog_node_id"),
-                            rs.getString("recent_result"));
+                            rs.getString("recent_result"),
+                            nextTrigger != null ? nextTrigger.toString() : null);
                 },
                 pageArgs.toArray());
         return new OpsContracts.PageResult<>(items, totalCount, page, size);
+    }
+
+    /** 优先级排序子句（白名单防注入）：sortField=priority 时按 priority 排序 NULLS LAST，否则默认按 id。 */
+    private String orderByClause(OpsContracts.WorkflowQuery q) {
+        if (q.sortField() != null && "priority".equalsIgnoreCase(q.sortField())) {
+            String dir = "desc".equalsIgnoreCase(q.sortDir()) ? "DESC" : "ASC";
+            return " ORDER BY wd.priority " + dir + " NULLS LAST, wd.id";
+        }
+        return " ORDER BY wd.id";
     }
 
     /**

@@ -29,6 +29,7 @@ import {
   type FilterPreset,
   type PageResult,
   type FetchQuery,
+  type SortState,
   initialFilterValues,
   applyClientFilters,
   paginate,
@@ -106,6 +107,7 @@ export function DataTable<T>({
   const [values, setValues] = useState<FilterValues>(() => initialFilterValues(filters, defaultFilters))
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(pageSize)
+  const [sort, setSort] = useState<SortState | undefined>(undefined)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // server 模式状态
@@ -129,7 +131,7 @@ export function DataTable<T>({
     setLoading(true)
     onLoadingChangeRef.current?.(true)
     fetcherRef
-      .current({ filters: values, page, size })
+      .current({ filters: values, page, size, sort })
       .then((res) => {
         if (!cancelled) {
           setServerData(res)
@@ -151,7 +153,7 @@ export function DataTable<T>({
     return () => {
       cancelled = true
     }
-  }, [mode, values, page, size, reloadNonce, reloadSignal])
+  }, [mode, values, page, size, sort, reloadNonce, reloadSignal])
 
   // client 模式：纯函数派生
   const clientResult = useMemo<PageResult<T> | null>(() => {
@@ -266,11 +268,39 @@ export function DataTable<T>({
                         <Checkbox checked={allSelected} onChange={toggleAll} aria-label="select all" />
                       </TableHead>
                     )}
-                    {columns.map((c) => (
-                      <TableHead key={c.key} className={cn(alignClass(c.align), c.headClassName)}>
-                        {c.header}
-                      </TableHead>
-                    ))}
+                    {columns.map((c) => {
+                      if (c.sortable !== true) {
+                        return (
+                          <TableHead key={c.key} className={cn(alignClass(c.align), c.headClassName)}>
+                            {c.header}
+                          </TableHead>
+                        )
+                      }
+                      const sortKey = c.sortKey ?? c.key
+                      const activeDir = sort?.field === sortKey ? sort.dir : undefined
+                      const toggleSort = () => {
+                        setPage(1)
+                        setSort((prev) => {
+                          const prevDir = prev?.field === sortKey ? prev.dir : undefined
+                          const next = prevDir === "asc" ? "desc" : prevDir === "desc" ? undefined : "asc"
+                          return next ? { field: sortKey, dir: next } : undefined
+                        })
+                      }
+                      return (
+                        <TableHead key={c.key} className={cn(alignClass(c.align), c.headClassName)}>
+                          <button
+                            type="button"
+                            onClick={toggleSort}
+                            className="inline-flex items-center gap-1 hover:text-foreground"
+                          >
+                            {c.header}
+                            <span className="text-[10px] text-muted-foreground">
+                              {activeDir === "asc" ? "▲" : activeDir === "desc" ? "▼" : "⇅"}
+                            </span>
+                          </button>
+                        </TableHead>
+                      )
+                    })}
                   </TableRow>
                 </TableHeader>
               </table>

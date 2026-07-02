@@ -32,6 +32,7 @@ import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { ViewRefreshControl } from "../view-refresh-control"
 import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
 import { BackfillDialog } from "@/components/workspace/views/ops/backfill-dialog"
+import { relativeNextTrigger } from "@/lib/relative-time"
 
 /** 后端 WorkflowListRow 投影（GET /api/ops/periodic-workflows） */
 export interface WorkflowRow {
@@ -49,6 +50,7 @@ export interface WorkflowRow {
   updatedBy: number | null
   catalogNodeId: number | null
   recentTriggerResult: string | null
+  nextTriggerTime: string | null
 }
 
 /** server 取数：拼 query 打 /api/ops/{path}，归一 Page 信封 */
@@ -105,6 +107,35 @@ export function recentResultBadge(
   return <Badge variant="outline" className="text-muted-foreground">{result}</Badge>
 }
 
+/** 「下次触发时间」列：相对时间（spec FR-008），null/未回填 → — */
+function NextTriggerCell({ iso, t }: { iso: string | null; t: ReturnType<typeof useTranslations> }) {
+  const r = relativeNextTrigger(iso, new Date())
+  if (!r) return <span className="text-muted-foreground">—</span>
+  switch (r.key) {
+    case "relSoon": return <span>{t("relSoon")}</span>
+    case "relInMinutes": return <span>{t("relInMinutes", { n: r.values.n })}</span>
+    case "relInHours": return <span>{t("relInHours", { n: r.values.n })}</span>
+    case "relInDays": return <span>{t("relInDays", { n: r.values.n })}</span>
+    case "relExpiredMinutes": return <span className="text-amber-600">{t("relExpiredMinutes", { n: r.values.n })}</span>
+    case "relExpiredHours": return <span className="text-amber-600">{t("relExpiredHours", { n: r.values.n })}</span>
+  }
+}
+
+/** 「优先级」列：纯数字，priority ≤ 2 高优徽标（spec FR-009），null → — */
+export function PriorityCell({ priority, t }: { priority: number | null; t: ReturnType<typeof useTranslations> }) {
+  if (priority == null) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className="inline-flex items-center gap-1">
+      {priority}
+      {priority <= 2 && (
+        <Badge variant="outline" className="h-4 border-amber-500/50 px-1 text-[10px] leading-none text-amber-600">
+          {t("priorityHigh")}
+        </Badge>
+      )}
+    </span>
+  )
+}
+
 export function PeriodicWorkflowsPanel() {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
@@ -145,6 +176,15 @@ export function PeriodicWorkflowsPanel() {
           { value: "NEVER", label: t("recentNever") },
         ],
       },
+      {
+        key: "priorityTier",
+        label: t("filterPriority"),
+        kind: "segmented",
+        options: [
+          { value: "high", label: t("priorityTierHigh") },
+          { value: "normal", label: t("priorityTierNormal") },
+        ],
+      },
     ],
     [t],
   )
@@ -162,39 +202,64 @@ export function PeriodicWorkflowsPanel() {
       {
         key: "name",
         header: t("colWorkflowName"),
-        widthPct: 26,
-        cell: (w) => <div className="truncate font-medium" title={w.name}>{w.name}</div>,
+        widthPct: 20,
+        cell: (w) => (
+          <div className="min-w-0">
+            <div className="truncate font-medium" title={w.name}>{w.name}</div>
+            {w.description && (
+              <div className="truncate text-xs text-muted-foreground" title={w.description}>
+                {w.description}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "nextTriggerTime",
+        header: t("colNextTriggerTime"),
+        widthPct: 12,
+        cellClassName: "text-xs text-muted-foreground",
+        cell: (w) => <NextTriggerCell iso={w.nextTriggerTime} t={t} />,
       },
       {
         key: "cron",
         header: t("colCron"),
-        widthPct: 16,
+        widthPct: 10,
         cellClassName: "font-mono text-xs text-muted-foreground",
         cell: (w) => w.cron ?? "—",
       },
       {
         key: "recentTriggerResult",
         header: t("colRecentResult"),
-        widthPct: 12,
+        widthPct: 10,
         cell: (w) => recentResultBadge(w.recentTriggerResult, t),
       },
       {
         key: "status",
         header: t("colStatus"),
-        widthPct: 10,
+        widthPct: 7,
         cell: () => <Badge variant="success">{t("statusOnline")}</Badge>,
       },
       {
         key: "lastFireTime",
         header: t("colLastFireTime"),
-        widthPct: 16,
+        widthPct: 13,
         cellClassName: "font-mono text-xs tabular-nums text-muted-foreground",
         cell: (w) => formatDateTime(w.lastFireTime),
       },
       {
+        key: "priority",
+        header: t("colPriority"),
+        widthPct: 8,
+        align: "right",
+        sortable: true,
+        cellClassName: "font-mono text-xs tabular-nums",
+        cell: (w) => <PriorityCell priority={w.priority} t={t} />,
+      },
+      {
         key: "currentVersionNo",
         header: t("colVersion"),
-        widthPct: 8,
+        widthPct: 7,
         align: "right",
         cellClassName: "font-mono text-xs tabular-nums",
         cell: (w) => (
@@ -211,7 +276,7 @@ export function PeriodicWorkflowsPanel() {
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 12,
+        widthPct: 13,
         cell: (w) => {
           if (w.status !== "ONLINE") return null
           return (
