@@ -76,8 +76,8 @@ public class TaskService {
     /** 创建任务定义（status=DRAFT）。 */
     public TaskDef create(TaskDef task) {
         LocalDateTime now = LocalDateTime.now();
-        task.setTenantId(1L);
-        task.setProjectId(1L);
+        if (task.getTenantId() == null) task.setTenantId(1L);
+        if (task.getProjectId() == null) task.setProjectId(1L);
         task.setStatus("DRAFT");
         task.setCurrentVersionNo(0);
         task.setHasDraftChange(1);

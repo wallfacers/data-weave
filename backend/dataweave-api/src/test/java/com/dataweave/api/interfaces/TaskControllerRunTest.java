@@ -1,5 +1,6 @@
 package com.dataweave.api.interfaces;
 
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
 import com.dataweave.master.application.GateResult;
@@ -42,12 +43,13 @@ class TaskControllerRunTest {
     @Mock private ScheduleParamResolver paramResolver;
     @Mock private CatalogAssignService catalogAssignService;
     @Mock private GatedActionService gatedActionService;
+    @Mock private ProjectAuthz projectAuthz;
 
     private TaskController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new TaskController(taskService, paramResolver, catalogAssignService, gatedActionService);
+        controller = new TaskController(taskService, paramResolver, catalogAssignService, gatedActionService, projectAuthz);
         when(gatedActionService.submit(any(ActionRequest.class), any()))
                 .thenReturn(new GateResult(GateResult.Outcome.EXECUTED, 1L, "L1", "ok", "s", false, null));
     }

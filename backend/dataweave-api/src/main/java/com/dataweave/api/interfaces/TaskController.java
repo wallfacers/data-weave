@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.CatalogAssignService;
@@ -39,19 +40,25 @@ public class TaskController {
     private final ScheduleParamResolver paramResolver;
     private final CatalogAssignService catalogAssignService;
     private final GatedActionService gatedActionService;
+    private final ProjectAuthz projectAuthz;
 
     public TaskController(TaskService taskService, ScheduleParamResolver paramResolver,
                           CatalogAssignService catalogAssignService,
-                          GatedActionService gatedActionService) {
+                          GatedActionService gatedActionService,
+                          ProjectAuthz projectAuthz) {
         this.taskService = taskService;
         this.paramResolver = paramResolver;
         this.catalogAssignService = catalogAssignService;
         this.gatedActionService = gatedActionService;
+        this.projectAuthz = projectAuthz;
     }
 
-    /** 创建任务草稿。 */
+    /** 创建任务草稿。036-D：EDITOR+（task:manage），并按当前项目打戳（FR-042）。 */
     @PostMapping
     public ApiResponse<TaskDef> create(@RequestBody TaskDef body) {
+        projectAuthz.requireCurrent("task:manage");
+        body.setTenantId(TenantContext.tenantId());
+        body.setProjectId(TenantContext.projectId());
         return ApiResponse.ok(taskService.create(body));
     }
 
@@ -96,6 +103,7 @@ public class TaskController {
      */
     @PatchMapping("/{id}/catalog")
     public ApiResponse<Void> assignCatalog(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        requireTaskManage(id);
         if (body.containsKey("path")) {
             throw new CatalogException("catalog.path.derived");
         }
@@ -117,38 +125,44 @@ public class TaskController {
         return ApiResponse.ok(detail);
     }
 
-    /** 更新任务（仅 DRAFT 可改）。 */
+    /** 更新任务（仅 DRAFT 可改）。036-D：EDITOR+（task:manage），按实体归属 projectId 授权。 */
     @PutMapping("/{id}")
     public ApiResponse<TaskDef> update(@PathVariable Long id, @RequestBody TaskDef body) {
+        requireTaskManage(id);
         return ApiResponse.ok(taskService.update(id, body));
     }
 
-    /** 软删除任务（仅 DRAFT 可删）。 */
+    /** 软删除任务（仅 DRAFT 可删）。036-D：EDITOR+（task:manage），按实体归属 projectId 授权。 */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> softDelete(@PathVariable Long id) {
+        requireTaskManage(id);
         taskService.softDelete(id);
         return ApiResponse.ok();
     }
 
-    /** 发布上线。 */
+    /** 发布上线。036-D：EDITOR+（task:manage），按实体归属 projectId 授权。 */
     @PostMapping("/{id}/publish")
     public ApiResponse<TaskDef> publish(@PathVariable Long id,
                                      @RequestBody(required = false) Map<String, String> body) {
+        requireTaskManage(id);
         String remark = body != null ? body.get("remark") : null;
         return ApiResponse.ok(taskService.publish(id, remark));
     }
 
-    /** 下线。 */
+    /** 下线。036-D：EDITOR+（task:manage），按实体归属 projectId 授权。 */
     @PostMapping("/{id}/offline")
     public ApiResponse<TaskDef> offline(@PathVariable Long id) {
+        requireTaskManage(id);
         return ApiResponse.ok(taskService.offline(id));
     }
 
-    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。 */
+    /** 回滚到历史版本（恢复为草稿，需手动再发布）。经闸门 L1 直执行 + agent_action 留痕。
+     * 036-D：EDITOR+（task:manage），按实体归属 projectId 授权（闸门前置门）。 */
     @PostMapping("/{id}/rollback")
     public ApiResponse<GateResult> rollback(@PathVariable Long id,
                                             @RequestBody Map<String, Object> body,
                                             ServerWebExchange exchange) {
+        requireTaskManage(id);
         TaskDetail detail = taskService.getById(id).orElse(null);
         if (detail == null) {
             throw new BizException("task.not_found", id).withHttpStatus(404);
@@ -241,6 +255,17 @@ public class TaskController {
      * 编辑器当前内容（含未保存改动），仅未发布任务的 TEST 路径消费；已发布任务忽略，跑发布版本快照。
      */
     public record RunRequest(String bizDate, String content, String type, String paramsJson) {
+    }
+
+    /**
+     * 036-D：任务定义写操作授权（FR-042 EDITOR+）。按实体归属 projectId 授权，
+     * 防跨项目按 id 改删；任务不存在时保持既有 404 语义。
+     */
+    private void requireTaskManage(Long taskId) {
+        Long pid = taskService.getById(taskId)
+                .map(d -> d.task().getProjectId())
+                .orElseThrow(() -> new BizException("task.not_found", taskId).withHttpStatus(404));
+        projectAuthz.require("task:manage", pid);
     }
 
     private LocalDateTime parseDateTime(String s) {
