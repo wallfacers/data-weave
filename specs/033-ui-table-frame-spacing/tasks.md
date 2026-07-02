@@ -24,7 +24,7 @@ description: "Task list for 033-ui-table-frame-spacing"
 
 **Purpose**: 守 Design Contract Gate + 确认基线绿
 
-- [ ] T001 读 `frontend/DESIGN.md`（尤其「布局：无分割线」「用法约束」「数据表格 — DataTable」三段）并声明采纳约束：只用语义 token（`border`/`bg-card`/`rounded-xl`）、间距走 `gap-*`/`p-*` 刻度、禁手写 `dark:` 覆盖、图标走 hugeicons；随后 `cd frontend && pnpm typecheck` 确认改动前基线零错误
+- [x] T001 读 `frontend/DESIGN.md`（尤其「布局：无分割线」「用法约束」「数据表格 — DataTable」三段）并声明采纳约束：只用语义 token（`border`/`bg-card`/`rounded-xl`）、间距走 `gap-*`/`p-*` 刻度、禁手写 `dark:` 覆盖、图标走 hugeicons；随后 `cd frontend && pnpm typecheck` 确认改动前基线零错误
 
 ---
 
@@ -34,9 +34,9 @@ description: "Task list for 033-ui-table-frame-spacing"
 
 **⚠️ CRITICAL**: 本阶段完成前，US1 / US2 均不可开工（US1 删 Card 依赖此改动保留边框；US2 的全站统一即此改动的传播）
 
-- [ ] T002 在 `frontend/components/ui/data-table.tsx` 根 `<div>`（现 `flex min-h-0 min-w-0 flex-1 flex-col gap-3`，约 L214）追加边框 frame class：`rounded-xl border bg-card overflow-hidden`，使 toolbar+表体+分页三段被同一条语义色边框包裹、四角与横向滚动区被圆角裁剪（契约 A1/A3/A5，FR-006/007/010）
-- [ ] T003 同文件 `frontend/components/ui/data-table.tsx`：给 `DataTableToolbar` 段与 `Pagination` 段补水平内边距（量级对齐参照 `p-4` 家族，如 `px-3`；表头 `border-b` 与数据行**保持满幅贴边框**，勿给根统一 padding），避免控件贴边；像素值以浏览器门定档（契约 A2，FR-008；依赖 T002，同文件顺序改）
-- [ ] T004 [P] 增补 `frontend/DESIGN.md`「数据表格 — DataTable」段：记录"表格外观统一由组件内建 `rounded-xl border` 边框容器包裹（toolbar+表+分页三段同框），调用点不再自行套边框卡片"为规范；**不改** YAML tokens、不改 `globals.css`（Design Contract Gate 要求设计系统变更先落真相源）
+- [x] T002 在 `frontend/components/ui/data-table.tsx` 根 `<div>`（现 `flex min-h-0 min-w-0 flex-1 flex-col gap-3`，约 L214）追加边框 frame class：`rounded-xl border bg-card overflow-hidden`，使 toolbar+表体+分页三段被同一条语义色边框包裹、四角与横向滚动区被圆角裁剪（契约 A1/A3/A5，FR-006/007/010）
+- [x] T003 同文件 `frontend/components/ui/data-table.tsx`：给 `DataTableToolbar` 段与 `Pagination` 段补水平内边距（量级对齐参照 `p-4` 家族，如 `px-3`；表头 `border-b` 与数据行**保持满幅贴边框**，勿给根统一 padding），避免控件贴边；像素值以浏览器门定档（契约 A2，FR-008；依赖 T002，同文件顺序改）
+- [x] T004 [P] 增补 `frontend/DESIGN.md`「数据表格 — DataTable」段：记录"表格外观统一由组件内建 `rounded-xl border` 边框容器包裹（toolbar+表+分页三段同框），调用点不再自行套边框卡片"为规范；**不改** YAML tokens、不改 `globals.css`（Design Contract Gate 要求设计系统变更先落真相源）
 
 **Checkpoint**: `DataTable` 现自带边框——打开任一含表格视图，表格已被单框包裹；可分头进入 US1 / US2
 
@@ -50,10 +50,10 @@ description: "Task list for 033-ui-table-frame-spacing"
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] 在 `frontend/components/workspace/views/settings-view.tsx` 的 `SettingsView`（约 L652-690）移除 `Card` / `CardContent p-4` 包裹层（连带清理 `Card`/`CardContent` 的 import，若他处无用），让三 Tab 组件直接渲染在内容区（frame 已由 DataTable 内建，无需外层卡片供边框；契约 B1/A6，FR-002/011，SC-003/006）
-- [ ] T006 [US1] 同文件：`SettingsView` 外层容器保留**单一** `p-4`（现 `flex flex-1 flex-col gap-4 p-4`，L657），确保 Tab 条、各 Tab `<h2>`、`DataTable` 三者左边缘对齐；核对纵向 `gap` 取统一刻度（外层 `gap-4` 与各 Tab 内 `gap-3` 的关系收敛为一致语义，勿留随意值；契约 B2/B5，FR-001/003/005，SC-001）
-- [ ] T007 [US1] 同文件：核对 `UsersTab`/`RolesTab`/`ProjectsTab` 三者容器结构完全同构（均 `flex flex-col gap-*` + `<h2>` + `DataTable`，L250/415/584），消除任一 Tab 独有的额外边距，保证切换零跳动（契约 B3/B4，FR-004，SC-002）
-- [ ] T008 [US1] 浏览器门验证 US1：登录→系统设置→三 Tab 切换，逐条对 [contracts/ui-visual-contract.md](contracts/ui-visual-contract.md) 契约 B（B1 单层留白 / B2 左边缘对齐 / B3 同构 / B4 零跳动 / B5 统一 gap）；参照 [quickstart.md](quickstart.md) §3.1
+- [x] T005 [US1] 在 `frontend/components/workspace/views/settings-view.tsx` 的 `SettingsView`（约 L652-690）移除 `Card` / `CardContent p-4` 包裹层（连带清理 `Card`/`CardContent` 的 import，若他处无用），让三 Tab 组件直接渲染在内容区（frame 已由 DataTable 内建，无需外层卡片供边框；契约 B1/A6，FR-002/011，SC-003/006）
+- [x] T006 [US1] 同文件：`SettingsView` 外层容器保留**单一** `p-4`（现 `flex flex-1 flex-col gap-4 p-4`，L657），确保 Tab 条、各 Tab `<h2>`、`DataTable` 三者左边缘对齐；核对纵向 `gap` 取统一刻度（外层 `gap-4` 与各 Tab 内 `gap-3` 的关系收敛为一致语义，勿留随意值；契约 B2/B5，FR-001/003/005，SC-001）
+- [x] T007 [US1] 同文件：核对 `UsersTab`/`RolesTab`/`ProjectsTab` 三者容器结构完全同构（均 `flex flex-col gap-*` + `<h2>` + `DataTable`，L250/415/584），消除任一 Tab 独有的额外边距，保证切换零跳动（契约 B3/B4，FR-004，SC-002）
+- [x] T008 [US1] 浏览器门验证 US1：登录→系统设置→三 Tab 切换，逐条对 [contracts/ui-visual-contract.md](contracts/ui-visual-contract.md) 契约 B（B1 单层留白 / B2 左边缘对齐 / B3 同构 / B4 零跳动 / B5 统一 gap）；参照 [quickstart.md](quickstart.md) §3.1
 
 **Checkpoint**: US1 独立可验——设置三 Tab 间距一致、切换零跳动、单层边框
 
@@ -69,14 +69,14 @@ description: "Task list for 033-ui-table-frame-spacing"
 
 ### Implementation for User Story 2
 
-- [ ] T009 [P] [US2] 审计 `frontend/components/workspace/views/freshness-view.tsx`（DataTable 外为 `flex-1 overflow-hidden` 容器 L184）：确认 `rounded-xl` 边框在该父容器内正确裁剪、无双框、`border-b` 头部与表格 frame 不冲突（契约 A4/A5/C1）
-- [ ] T010 [P] [US2] 审计 `frontend/components/workspace/views/datasources-view.tsx`（`p-4` 容器 L258）：确认无双框、frame 观感符合参照（契约 A6/C1）
-- [ ] T011 [P] [US2] 审计 `frontend/components/workspace/views/ops/periodic-instances-panel.tsx`（`p-5` 容器 L373，标杆表）：确认 frame 观感即参照基准（契约 A/C1）
-- [ ] T012 [P] [US2] 审计 `frontend/components/workspace/views/ops/periodic-workflows-panel.tsx`（`p-5` L204）：确认无双框、frame 正常（契约 A6/C1）
-- [ ] T013 [P] [US2] 审计 `frontend/components/workspace/views/ops/manual-workflows-panel.tsx`（`p-5` L159）：确认无双框、frame 正常（契约 A6/C1）
-- [ ] T014 [P] [US2] 审计 `frontend/components/workspace/views/ops/workflow-instances-panel.tsx`（`p-5` L276）：确认无双框、frame 正常（契约 A6/C1）
-- [ ] T015 [P] [US2] 审计 `frontend/components/workspace/views/ops/backfill-panel.tsx`（`p-5` L206）：**区分**其内另有的 `rounded-lg border bg-muted/30` 提示块（L226，非 DataTable）勿误动；确认表格 frame 与提示块并存不混淆（契约 A6/C1/C2）
-- [ ] T016 [US2] 跨页 + 亮/暗双主题浏览器门：对 8 个含表格视图逐条核 [contracts/ui-visual-contract.md](contracts/ui-visual-contract.md) 契约 A2/A4/A5/A6 + C1，抽 3 页目测与参照一致（SC-005）、切换主题验边框可辨（SC-007）、全站无双框（SC-006）；参照 [quickstart.md](quickstart.md) §3.2/§3.3
+- [x] T009 [P] [US2] 审计 `frontend/components/workspace/views/freshness-view.tsx`（DataTable 外为 `flex-1 overflow-hidden` 容器 L184）：确认 `rounded-xl` 边框在该父容器内正确裁剪、无双框、`border-b` 头部与表格 frame 不冲突（契约 A4/A5/C1）
+- [x] T010 [P] [US2] 审计 `frontend/components/workspace/views/datasources-view.tsx`（`p-4` 容器 L258）：确认无双框、frame 观感符合参照（契约 A6/C1）
+- [x] T011 [P] [US2] 审计 `frontend/components/workspace/views/ops/periodic-instances-panel.tsx`（`p-5` 容器 L373，标杆表）：确认 frame 观感即参照基准（契约 A/C1）
+- [x] T012 [P] [US2] 审计 `frontend/components/workspace/views/ops/periodic-workflows-panel.tsx`（`p-5` L204）：确认无双框、frame 正常（契约 A6/C1）
+- [x] T013 [P] [US2] 审计 `frontend/components/workspace/views/ops/manual-workflows-panel.tsx`（`p-5` L159）：确认无双框、frame 正常（契约 A6/C1）
+- [x] T014 [P] [US2] 审计 `frontend/components/workspace/views/ops/workflow-instances-panel.tsx`（`p-5` L276）：确认无双框、frame 正常（契约 A6/C1）
+- [x] T015 [P] [US2] 审计 `frontend/components/workspace/views/ops/backfill-panel.tsx`（`p-5` L206）：**区分**其内另有的 `rounded-lg border bg-muted/30` 提示块（L226，非 DataTable）勿误动；确认表格 frame 与提示块并存不混淆（契约 A6/C1/C2）
+- [x] T016 [US2] 跨页 + 亮/暗双主题浏览器门：对 8 个含表格视图逐条核 [contracts/ui-visual-contract.md](contracts/ui-visual-contract.md) 契约 A2/A4/A5/A6 + C1，抽 3 页目测与参照一致（SC-005）、切换主题验边框可辨（SC-007）、全站无双框（SC-006）；参照 [quickstart.md](quickstart.md) §3.2/§3.3
 
 **Checkpoint**: US2 独立可验——全站表格统一边框、无双框、双主题可辨
 
@@ -86,9 +86,9 @@ description: "Task list for 033-ui-table-frame-spacing"
 
 **Purpose**: 收口静态门与全量验证
 
-- [ ] T017 [P] `cd frontend && pnpm typecheck` 零错误 + `pnpm design:lint` 通过（DESIGN.md 增补段不破结构）
-- [ ] T018 跑 [quickstart.md](quickstart.md) 全量验证清单（§1-§4）；若边框/间距不显先 `rm -rf frontend/.next` 重启 `pnpm dev` 再验（Turbopack 陈旧 CSS 缓存坑），确认 8 表全覆盖（SC-004）
-- [ ] T019 [P] 复核 `view-refresh-control.tsx` 等无 `<DataTable>` 调用点确未被误纳入（契约 C2 范围边界）；确认无遗留冗余 import / 无 `dark:` 手写覆盖
+- [x] T017 [P] `cd frontend && pnpm typecheck` 零错误 + `pnpm design:lint` 通过（DESIGN.md 增补段不破结构）
+- [x] T018 跑 [quickstart.md](quickstart.md) 全量验证清单（§1-§4）；若边框/间距不显先 `rm -rf frontend/.next` 重启 `pnpm dev` 再验（Turbopack 陈旧 CSS 缓存坑），确认 8 表全覆盖（SC-004）
+- [x] T019 [P] 复核 `view-refresh-control.tsx` 等无 `<DataTable>` 调用点确未被误纳入（契约 C2 范围边界）；确认无遗留冗余 import / 无 `dark:` 手写覆盖
 
 ---
 

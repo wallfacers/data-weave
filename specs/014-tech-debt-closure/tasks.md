@@ -35,11 +35,11 @@
 
 **Independent Test**：浏览器开 ops 视图右栏无举手台、布局完整无空洞；`pnpm typecheck` 零错；全仓对已删举手台符号零引用。
 
-- [ ] T003 [P] [US1] 删除举手台告警卡片组件 `frontend/components/workspace/views/ops/ops-alert-card.tsx`（整文件）。
-- [ ] T004 [P] [US1] 删除举手台告警状态 store `frontend/lib/workspace/ops-alerts-store.ts`（整文件，含 `OpsAlert` 类型导出）。
-- [ ] T005 [US1] 改 `frontend/components/workspace/views/ops-view.tsx`：移除右栏举手台 rail 渲染块（含对 `ops-alert-card`/`useOpsAlertsStore` 的 import 与 `alerts` 订阅）、移除 `useMockAlertInjector` 及 `window.__MOCK_OPS_ALERT__` mock 注入逻辑（`useOpsAlertsStore.getState().push(...)`）；移除右栏后调整布局容器使主舞台自然回填（保 INV-1：不伤顶条今日大盘/主舞台 Tab，保 FR-004 布局完整）。
-- [ ] T006 [US1] 按 T002 台账逐一核查并清理其余文件的举手台悬空引用——候选 `frontend/components/workspace/views/ops/backfill-dialog.tsx`、`frontend/components/side-panel/side-panel.tsx`、`frontend/components/workspace/views/workflow-canvas-view.tsx`、`frontend/app/layout.tsx`：真引用举手台 store/类型/mock 的→删除该引用及其死代码；grep 偶然同词（如无关的 "alert" 文案）→不动。判据：清理后无悬空 import/类型/调用。
-- [ ] T007 [US1] 验证 US1 闭合：`cd frontend && pnpm typecheck`（期望 0 error）；再跑 `grep -rn "useOpsAlertsStore\|ops-alerts-store\|ops-alert-card\|__MOCK_OPS_ALERT__\|useMockAlertInjector" frontend/ | grep -v "/specs/"`（期望无输出）。任一不达标→回到 T005/T006 修，禁跳过。
+- [x] T003 [P] [US1] 删除举手台告警卡片组件 `frontend/components/workspace/views/ops/ops-alert-card.tsx`（整文件）。
+- [x] T004 [P] [US1] 删除举手台告警状态 store `frontend/lib/workspace/ops-alerts-store.ts`（整文件，含 `OpsAlert` 类型导出）。
+- [x] T005 [US1] 改 `frontend/components/workspace/views/ops-view.tsx`：移除右栏举手台 rail 渲染块（含对 `ops-alert-card`/`useOpsAlertsStore` 的 import 与 `alerts` 订阅）、移除 `useMockAlertInjector` 及 `window.__MOCK_OPS_ALERT__` mock 注入逻辑（`useOpsAlertsStore.getState().push(...)`）；移除右栏后调整布局容器使主舞台自然回填（保 INV-1：不伤顶条今日大盘/主舞台 Tab，保 FR-004 布局完整）。
+- [x] T006 [US1] 按 T002 台账逐一核查并清理其余文件的举手台悬空引用——候选 `frontend/components/workspace/views/ops/backfill-dialog.tsx`、`frontend/components/side-panel/side-panel.tsx`、`frontend/components/workspace/views/workflow-canvas-view.tsx`、`frontend/app/layout.tsx`：真引用举手台 store/类型/mock 的→删除该引用及其死代码；grep 偶然同词（如无关的 "alert" 文案）→不动。判据：清理后无悬空 import/类型/调用。
+- [x] T007 [US1] 验证 US1 闭合：`cd frontend && pnpm typecheck`（期望 0 error）；再跑 `grep -rn "useOpsAlertsStore\|ops-alerts-store\|ops-alert-card\|__MOCK_OPS_ALERT__\|useMockAlertInjector" frontend/ | grep -v "/specs/"`（期望无输出）。任一不达标→回到 T005/T006 修，禁跳过。
 
 **Checkpoint**：US1 独立可交付——举手台代码清零、typecheck 绿、零悬空引用。
 
@@ -54,8 +54,8 @@
 > 与 US1 无文件冲突（US2 改实例面板 + messages bundle，US1 改 ops-view/删举手台），可与 US1 并行。
 
 - [ ] T008 [US2] 对 ops 区做硬编码中文 UI 文案**全量 sweep**，产出待迁清单：扫描 `frontend/components/workspace/views/ops/` 全部文件 + `frontend/components/workspace/views/ops-view.tsx`，识别所有未走 `t()` 的静态 UI 文案——含 JSX 文本、按钮文案，以及 `title`/`aria-label`/`placeholder` 等非正文文本属性；排除注释行与数据术语（cron/DAG/SLA/lineage/OOM 保持英文）。已知基线 5 处：`workflow-instances-panel.tsx` 的「最多选中 100 个实例」「批量重跑」「批量置成功」「批量停止」、`periodic-instances-panel.tsx` 的「最多选中 100 个实例（当前 {ids.length} 个）」。清单须覆盖但不限于这 5 处。
-- [ ] T009 [US2] 在 `frontend/messages/zh-CN.json` 与 `frontend/messages/en-US.json` 的 ops 命名空间下，为 T008 清单每条文案新增键（**两 bundle 同键集**）：中文用原文案，英文用对应翻译；含动态数量的（选择上限"当前 N 个"）用 ICU `{count}` 占位，英文语序自然（如 `Selected {count} of max 100`）。数据术语保持英文不译。
-- [ ] T010 [US2] 改 `frontend/components/workspace/views/ops/workflow-instances-panel.tsx`：将 4 处硬编码中文（含 T008 在本文件 sweep 出的任何额外项）替换为 `t("...")` 引用，键对应 T009 新增项。
+- [x] T009 [US2] 在 `frontend/messages/zh-CN.json` 与 `frontend/messages/en-US.json` 的 ops 命名空间下，为 T008 清单每条文案新增键（**两 bundle 同键集**）：中文用原文案，英文用对应翻译；含动态数量的（选择上限"当前 N 个"）用 ICU `{count}` 占位，英文语序自然（如 `Selected {count} of max 100`）。数据术语保持英文不译。
+- [x] T010 [US2] 改 `frontend/components/workspace/views/ops/workflow-instances-panel.tsx`：将 4 处硬编码中文（含 T008 在本文件 sweep 出的任何额外项）替换为 `t("...")` 引用，键对应 T009 新增项。
 - [ ] T011 [US2] 改 `frontend/components/workspace/views/ops/periodic-instances-panel.tsx`：将「最多选中 100 个实例（当前 {ids.length} 个）」（含 T008 在本文件 sweep 出的任何额外项）替换为 `t("...", { count: ids.length })` ICU 引用，键对应 T009 新增项。
 - [ ] T012 [US2] 若 T008 在 ops 区其它文件（如 `ops-view.tsx`/`backfill-dialog.tsx` 等留存文件）扫出额外硬编码中文，一并替换为 `t()` 引用并补 T009 键。（US1 待删的举手台文件不在此列——随删消失。）
 - [ ] T013 [US2] 验证 US2 闭合：`cd frontend && pnpm typecheck`（0 error，确认每处 `t("key")` 可静态解析）；`pnpm lint`（含 i18n 键平价 CI，期望两 bundle 同键集通过）；人工 re-sweep ops 区确认无残留硬编码中文 UI 串。任一不达标→修，禁弱化校验。
@@ -87,7 +87,7 @@
 
 > 与 US1/US2/US3 无交集，可全程并行。
 
-- [ ] T016 [P] [US4] 在 `docs/architecture.md` 血缘小节增补一段：明确"`push` 路径当前**不建**表级血缘（现 JDBC 二部图血缘仅设计时 `createAndOnline`/`recordDesignTimeIo` 建立）；这是**有意延迟**，理由是血缘体系将于发布期改用图数据库 neo4j 重做，届时连同 push 路径血缘一并实现，现补 JDBC 过渡实现会被推倒重写；归宿=发布期 neo4j"。
+- [x] T016 [P] [US4] 在 `docs/architecture.md` 血缘小节增补一段：明确"`push` 路径当前**不建**表级血缘（现 JDBC 二部图血缘仅设计时 `createAndOnline`/`recordDesignTimeIo` 建立）；这是**有意延迟**，理由是血缘体系将于发布期改用图数据库 neo4j 重做，届时连同 push 路径血缘一并实现，现补 JDBC 过渡实现会被推倒重写；归宿=发布期 neo4j"。
 - [ ] T017 [P] [US4] 在 `CLAUDE.md` 的血缘导航行（"Table lineage (build-as-you-create)" 那行）加一句注记：标明"push 路径不落血缘（有意延迟，发布期 neo4j 重做）——详见 docs/architecture.md 血缘小节 + specs/014"。
 - [ ] T018 [US4] 验证 US4 闭合：`git diff --stat` 确认本 US 仅触 `docs/architecture.md` 与 `CLAUDE.md`、无任何 `.java`/`.ts`/`.go` 运行期代码改动（FR-014）。
 

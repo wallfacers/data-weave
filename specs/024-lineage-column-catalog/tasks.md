@@ -28,8 +28,8 @@
 
 **Purpose**: 跨 story 的共享改动，MUST 先于任何 US 完成
 
-- [ ] T002 [P] `ColumnLineageCatalog.lookupTable` 签名加 `(long tenantId, long projectId)`（research R3）—— 改接口 `application/lineage/ColumnLineageCatalog.java` + `EmptyColumnLineageCatalog.java`（签名同步、恒 empty）+ `CalciteColumnLineage.analyze` 透传 + 两个 extract 调用点 `TaskService.java:485` / `ProjectSyncService.java:858` 传 tenant/project（手里已有这俩值）
-- [ ] T003 [P] Confidence 枚举新增 `DECLARED`（沿用 019 `{CONFIRMED,UNVERIFIED,CONFLICT}`，不重定义）—— `application/lineage/`（随 ColumnEdge 的 confidence 枚举）；检查所有 switch/exhaustive 用法
+- [x] T002 [P] `ColumnLineageCatalog.lookupTable` 签名加 `(long tenantId, long projectId)`（research R3）—— 改接口 `application/lineage/ColumnLineageCatalog.java` + `EmptyColumnLineageCatalog.java`（签名同步、恒 empty）+ `CalciteColumnLineage.analyze` 透传 + 两个 extract 调用点 `TaskService.java:485` / `ProjectSyncService.java:858` 传 tenant/project（手里已有这俩值）
+- [x] T003 [P] Confidence 枚举新增 `DECLARED`（沿用 019 `{CONFIRMED,UNVERIFIED,CONFLICT}`，不重定义）—— `application/lineage/`（随 ColumnEdge 的 confidence 枚举）；检查所有 switch/exhaustive 用法
 
 **Checkpoint**: catalog 签名 + confidence 枚举就绪，US 实现可开始
 
@@ -43,19 +43,19 @@
 
 ### Implementation
 
-- [ ] T004 [P] [US1] `TaskMapper.fromYaml` 解析 `schema` 块（表名→有序 `{name,type}`）→ `TaskDoc` 加 `declaredSchema` 字段 —— `filecontract/mapping/TaskMapper.java` + `filecontract/dto/TaskDoc.java`
-- [ ] T005 [US1] `TaskMapper.toYaml` 序列化回写 `declaredSchema`（round-trip integrity，Constitution II / SC-005）—— `filecontract/mapping/TaskMapper.java`（依赖 T004）
-- [ ] T006 [P] [US1] `ProjectMapper.deserialize` 挂 `taskDeclaredSchema` 透传 map（taskId→声明）；`ProjectImport.Builder` 加 map —— `filecontract/mapping/ProjectMapper.java` + `filecontract/ProjectImport.java`
-- [ ] T007 [US1] `ProjectSyncService.push` 取 `taskDeclaredSchema` 喂 `recordTaskIo` —— `application/ProjectSyncService.java`（依赖 T006）
-- [ ] T008 [P] [US1] 新增 `Neo4jColumnLineageCatalog implements ColumnLineageCatalog`：`lookupTable(tenantId,projectId,name)` Cypher `(:Table)-[:HAS_COLUMN]->(:Column)` 有序回组 `TableSchema`；`@ConditionalOnProperty(name="lineage.column-catalog.type", havingValue="neo4j")`；内部 try-catch → `Optional.empty()` —— `application/lineage/Neo4jColumnLineageCatalog.java`（新文件）
-- [ ] T009 [US1] `EmptyColumnLineageCatalog` 加 `@ConditionalOnProperty(name="lineage.column-catalog.type", havingValue="empty", matchIfMissing=true)` —— `application/lineage/EmptyColumnLineageCatalog.java`
-- [ ] T010 [US1] `recordTaskIo` 加 `declaredSchemas` 入参；事务内**先** `ensureColumn(tx, tableKey, colName, dataType, ordinal, ...)`（参数已就绪、当前 `Neo4jLineageStore.java:110-111` 传 null 待改）独立 seed `:Column` —— `domain/lineage/LineageStore.java`（接口）+ `infrastructure/lineage/Neo4jLineageStore.java`（实现）
-- [ ] T011 [US1] 调用序修正（FR-009）：`TaskService.recordLineage` / `ProjectSyncService.push` 把声明 schema 的 seed **提至 extract 之前**（现状 extract:485→recordTaskIo:494 逆序）—— `application/TaskService.java` + `application/ProjectSyncService.java`（依赖 T007、T010）
-- [ ] T012 [US1] 配置：`application.yml` 加 `lineage.column-catalog.type`（neo4j env 显式 `neo4j`）；`application-h2.yml` 默认走 empty —— `dataweave-api/src/main/resources/application.yml` + `application-h2.yml`
+- [x] T004 [P] [US1] `TaskMapper.fromYaml` 解析 `schema` 块（表名→有序 `{name,type}`）→ `TaskDoc` 加 `declaredSchema` 字段 —— `filecontract/mapping/TaskMapper.java` + `filecontract/dto/TaskDoc.java`
+- [x] T005 [US1] `TaskMapper.toYaml` 序列化回写 `declaredSchema`（round-trip integrity，Constitution II / SC-005）—— `filecontract/mapping/TaskMapper.java`（依赖 T004）
+- [x] T006 [P] [US1] `ProjectMapper.deserialize` 挂 `taskDeclaredSchema` 透传 map（taskId→声明）；`ProjectImport.Builder` 加 map —— `filecontract/mapping/ProjectMapper.java` + `filecontract/ProjectImport.java`
+- [x] T007 [US1] `ProjectSyncService.push` 取 `taskDeclaredSchema` 喂 `recordTaskIo` —— `application/ProjectSyncService.java`（依赖 T006）
+- [x] T008 [P] [US1] 新增 `Neo4jColumnLineageCatalog implements ColumnLineageCatalog`：`lookupTable(tenantId,projectId,name)` Cypher `(:Table)-[:HAS_COLUMN]->(:Column)` 有序回组 `TableSchema`；`@ConditionalOnProperty(name="lineage.column-catalog.type", havingValue="neo4j")`；内部 try-catch → `Optional.empty()` —— `application/lineage/Neo4jColumnLineageCatalog.java`（新文件）
+- [x] T009 [US1] `EmptyColumnLineageCatalog` 加 `@ConditionalOnProperty(name="lineage.column-catalog.type", havingValue="empty", matchIfMissing=true)` —— `application/lineage/EmptyColumnLineageCatalog.java`
+- [x] T010 [US1] `recordTaskIo` 加 `declaredSchemas` 入参；事务内**先** `ensureColumn(tx, tableKey, colName, dataType, ordinal, ...)`（参数已就绪、当前 `Neo4jLineageStore.java:110-111` 传 null 待改）独立 seed `:Column` —— `domain/lineage/LineageStore.java`（接口）+ `infrastructure/lineage/Neo4jLineageStore.java`（实现）
+- [x] T011 [US1] 调用序修正（FR-009）：`TaskService.recordLineage` / `ProjectSyncService.push` 把声明 schema 的 seed **提至 extract 之前**（现状 extract:485→recordTaskIo:494 逆序）—— `application/TaskService.java` + `application/ProjectSyncService.java`（依赖 T007、T010）
+- [x] T012 [US1] 配置：`application.yml` 加 `lineage.column-catalog.type`（neo4j env 显式 `neo4j`）；`application-h2.yml` 默认走 empty —— `dataweave-api/src/main/resources/application.yml` + `application-h2.yml`
 
 ### Tests
 
-- [ ] T013 [P] [US1] 单测：`TaskMapper.fromYaml` 解析 schema 块（合法/非法/缺失）+ `toYaml` round-trip 不丢字段 —— `filecontract/mapping/TaskMapperTest.java`（或既有测试类）
+- [x] T013 [P] [US1] 单测：`TaskMapper.fromYaml` 解析 schema 块（合法/非法/缺失）+ `toYaml` round-trip 不丢字段 —— `filecontract/mapping/TaskMapperTest.java`（或既有测试类）
 - [ ] T014 [US1] 集成测（testcontainers-neo4j）：seed `:Column` → `Neo4jColumnLineageCatalog.lookupTable` round-trip；端到端声明 schema → push → 断言 `:Column`(type/ordinal) + CONFIRMED 列边 —— `infrastructure/lineage/Neo4jColumnLineageCatalogIT.java`（或既有 lineage IT）
 
 **Checkpoint**: 鸡生蛋闭环打通，US1 独立可验（MVP 达成）
@@ -70,15 +70,15 @@
 
 ### Implementation
 
-- [ ] T015 [P] [US2] `TaskMapper.fromYaml` 解析 `columnLineage` 块（`{from:表.列, to:表.列}` 列表）→ `TaskDoc.declaredColumnLineage`；`toYaml` round-trip —— `filecontract/mapping/TaskMapper.java` + `filecontract/dto/TaskDoc.java`
-- [ ] T016 [P] [US2] `ProjectMapper` 挂 `taskDeclaredColumnEdges` 透传 map；`ProjectImport.Builder` —— `filecontract/mapping/ProjectMapper.java` + `filecontract/ProjectImport.java`
-- [ ] T017 [US2] 激活 cross-check：`TaskService:485` / `ProjectSyncService:858` 由 `extract(...)` 改 `extractAndCrossCheck(sql, catalog, declaredEdges)`；`ColumnLineageCrossCheck.crossValidate` union(D,R) 打 confidence —— `application/TaskService.java` + `application/ProjectSyncService.java`（+ 确认 `SqlColumnLineageExtractor.extractAndCrossCheck` 可用）
-- [ ] T018 [US2] `recordTaskIo` 落对账边集：declared edges 组装 `ColumnEdge(confidence=DECLARED)` 并入 `columnEdges`；`MERGE :DERIVES_FROM{confidence}`（含 CONFIRMED/DECLARED/CONFLICT）—— `infrastructure/lineage/Neo4jLineageStore.java`（依赖 T010）
-- [ ] T019 [US2] CONFLICT 不阻断验证（FR-008）：确认 CONFLICT 边写入 + push 不拦（由对账逻辑 + T021 测试保证，无额外生产代码 unless 发现拦截点）
+- [x] T015 [P] [US2] `TaskMapper.fromYaml` 解析 `columnLineage` 块（`{from:表.列, to:表.列}` 列表）→ `TaskDoc.declaredColumnLineage`；`toYaml` round-trip —— `filecontract/mapping/TaskMapper.java` + `filecontract/dto/TaskDoc.java`
+- [x] T016 [P] [US2] `ProjectMapper` 挂 `taskDeclaredColumnEdges` 透传 map；`ProjectImport.Builder` —— `filecontract/mapping/ProjectMapper.java` + `filecontract/ProjectImport.java`
+- [x] T017 [US2] 激活 cross-check：`TaskService:485` / `ProjectSyncService:858` 由 `extract(...)` 改 `extractAndCrossCheck(sql, catalog, declaredEdges)`；`ColumnLineageCrossCheck.crossValidate` union(D,R) 打 confidence —— `application/TaskService.java` + `application/ProjectSyncService.java`（+ 确认 `SqlColumnLineageExtractor.extractAndCrossCheck` 可用）
+- [x] T018 [US2] `recordTaskIo` 落对账边集：declared edges 组装 `ColumnEdge(confidence=DECLARED)` 并入 `columnEdges`；`MERGE :DERIVES_FROM{confidence}`（含 CONFIRMED/DECLARED/CONFLICT）—— `infrastructure/lineage/Neo4jLineageStore.java`（依赖 T010）
+- [x] T019 [US2] CONFLICT 不阻断验证（FR-008）：确认 CONFLICT 边写入 + push 不拦（由对账逻辑 + T021 测试保证，无额外生产代码 unless 发现拦截点）
 
 ### Tests
 
-- [ ] T020 [P] [US2] 单测：`ColumnLineageCrossCheck.crossValidate` 四情形（D∩R=CONFIRMED / D\R=DECLARED / R\D=沿用 019 / 映射矛盾=CONFLICT）—— `application/lineage/ColumnLineageCrossCheckTest.java`
+- [x] T020 [P] [US2] 单测：`ColumnLineageCrossCheck.crossValidate` 四情形（D∩R=CONFIRMED / D\R=DECLARED / R\D=沿用 019 / 映射矛盾=CONFLICT）—— `application/lineage/ColumnLineageCrossCheckTest.java`
 - [ ] T021 [US2] 集成测：CONFLICT 场景（声明 A→B / SQL 推导 A→C）→ 边标 CONFLICT、push 成功；D∩R → CONFIRMED —— 既有 lineage IT
 
 **Checkpoint**: US1+US2 均独立可验；cross-check 真实生效
@@ -93,7 +93,7 @@
 
 ### Implementation
 
-- [ ] T022 [US3] 兜底接线：确保 extract 返回空（SQL 解析失败）时 declared edges 仍流到 `recordTaskIo` 落 DECLARED 边（对账 `union(D,R)` 当 R=空仍含 D）—— `application/TaskService.java` / `application/ProjectSyncService.java`（extract→recordTaskIo 路径；依赖 T017/T018）
+- [x] T022 [US3] 兜底接线：确保 extract 返回空（SQL 解析失败）时 declared edges 仍流到 `recordTaskIo` 落 DECLARED 边（对账 `union(D,R)` 当 R=空仍含 D）—— `application/TaskService.java` / `application/ProjectSyncService.java`（extract→recordTaskIo 路径；依赖 T017/T018）
 
 ### Tests
 
@@ -105,7 +105,7 @@
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T024 [P] 零回归测：无声明任务维持表级 + UNVERIFIED 启发式（与 T001 baseline 对比）—— 既有测试
+- [x] T024 [P] 零回归测：无声明任务维持表级 + UNVERIFIED 启发式（与 T001 baseline 对比）—— 既有测试
 - [ ] T025 [P] 文档：更新 `CLAUDE.md`「Table lineage」导航条目 + `docs/architecture.md`（声明驱动列血缘 + catalog 配置项）—— `CLAUDE.md` + `docs/architecture.md`
 - [ ] T026 跑 `quickstart.md` 端到端验证（破循环 / cross-check 四情形 / 兜底 / H2 降级 / 首次 push 排序）
 - [ ] T027 cross-feature 检查：与 018/019/020 边界（不改 019 解析器/020 读侧契约）、H2 profile 启动不崩、合并序 021→022→023→**024**

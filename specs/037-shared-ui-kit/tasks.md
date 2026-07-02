@@ -21,7 +21,7 @@
 
 **Purpose**: 锚定基线与真相源位置，确保编辑前门禁常绿
 
-- [ ] T001 [P] 核对 037 基线：`git log --oneline main | grep -Ei '033|表格边框|035|loading|加载'` 确认 033（DataTable 边框包裹）与 035（LoadingState 居中转圈）已落 main；把结论回填 `specs/037-shared-ui-kit/adoption-inventory.md` 的就绪度表
+- [x] T001 [P] 核对 037 基线：`git log --oneline main | grep -Ei '033|表格边框|035|loading|加载'` 确认 033（DataTable 边框包裹）与 035（LoadingState 居中转圈）已落 main；把结论回填 `specs/037-shared-ui-kit/adoption-inventory.md` 的就绪度表
 - [ ] T002 前置门禁基线：`cd frontend && pnpm typecheck && pnpm design:lint` 均绿；打开 `frontend/DESIGN.md` 确认新章节插入点 = `## 用法约束`（现 L103–108）之后、`## 统一标签条 —— TabStrip` 之前（遵守 Design Contract Gate：先读 DESIGN.md 约束）
 
 **Checkpoint**: 基线确认，真相源落点锁定
@@ -34,7 +34,7 @@
 
 **⚠️ CRITICAL**: T003 阻塞 US2 中所有下划线 Tabs 相关任务（T012/T013/T014）
 
-- [ ] T003 取用 030 下划线 Tabs 组件（处置已定死，见 research R3）：执行 `git checkout 030-unify-tab-styles -- frontend/components/ui/tabs.tsx` **仅文件级**取入组件（**不**整提交 cherry-pick `d094f67`——其 5 视图迁移对当前 main 已陈旧、会冲突）；`cd frontend && pnpm typecheck` 验证组件与当前 main 兼容。**Fallback**：若不兼容，按 `frontend-tab-style-rule`（closable 驱动双风格）在 037 内新建等价下划线组件。无论哪条，FR-006 全程 in-scope，产出必是"037 基线存在可复用下划线 `Tabs` 组件"，决策记入 `adoption-inventory.md`
+- [x] T003 取用 030 下划线 Tabs 组件（处置已定死，见 research R3）：执行 `git checkout 030-unify-tab-styles -- frontend/components/ui/tabs.tsx` **仅文件级**取入组件（**不**整提交 cherry-pick `d094f67`——其 5 视图迁移对当前 main 已陈旧、会冲突）；`cd frontend && pnpm typecheck` 验证组件与当前 main 兼容。**Fallback**：若不兼容，按 `frontend-tab-style-rule`（closable 驱动双风格）在 037 内新建等价下划线组件。无论哪条，FR-006 全程 in-scope，产出必是"037 基线存在可复用下划线 `Tabs` 组件"，决策记入 `adoption-inventory.md`
 
 **Checkpoint**: 037 基线存在可复用的下划线 `Tabs` 组件（取自 030 或新建），T012–T014 可执行
 
@@ -46,9 +46,9 @@
 
 **Independent Test**: 打开 DESIGN.md 目录章节，确认①复用优先约定（先查→命中复用→未命中新建回填→改组件即更新目录）成文；②`--card-spacing` 被声明为卡片内容内边距唯一 token（24/16，禁页面魔法值）；③`pnpm design:lint` 绿
 
-- [ ] T004 [US1] 在 `frontend/DESIGN.md` 于 T002 锁定的插入点新增 `## 公共组件目录（先查此处 · reuse-first）` 章节骨架，写入**复用优先约定序言**（实现任何原语前先查目录；命中必复用、禁止手写同类；未命中方可新建并**回填目录**；改公共组件即更新对应条目防漂移）——落实 FR-001/FR-002
-- [ ] T005 [US1] 在该章节增加**间距/token 小节**：声明卡片内容内边距 = `--card-spacing`（默认 `--spacing(6)`=24px、`data-[size=sm]`=`--spacing(4)`=16px，源 `frontend/components/ui/card.tsx`），引用 `app/globals.css`/Tailwind `--spacing()`，明确"页面禁止手填内边距魔法值（含 20px/p-5）"——落实 FR-010（决策见 research R2）
-- [ ] T006 [US1] 在任务创作知识层补"复用优先"指引可发现性：于 `.claude/skills/weft-task-authoring/SKILL.md`（或其引用的前端创作说明）加一句"改前端 UI 前先读 `frontend/DESIGN.md` 的公共组件目录"，指向 `specs/037-shared-ui-kit/contracts/reuse-first-checklist.md`——落实 FR-002 可发现性
+- [x] T004 [US1] 在 `frontend/DESIGN.md` 于 T002 锁定的插入点新增 `## 公共组件目录（先查此处 · reuse-first）` 章节骨架，写入**复用优先约定序言**（实现任何原语前先查目录；命中必复用、禁止手写同类；未命中方可新建并**回填目录**；改公共组件即更新对应条目防漂移）——落实 FR-001/FR-002
+- [x] T005 [US1] 在该章节增加**间距/token 小节**：声明卡片内容内边距 = `--card-spacing`（默认 `--spacing(6)`=24px、`data-[size=sm]`=`--spacing(4)`=16px，源 `frontend/components/ui/card.tsx`），引用 `app/globals.css`/Tailwind `--spacing()`，明确"页面禁止手填内边距魔法值（含 20px/p-5）"——落实 FR-010（决策见 research R2）
+- [x] T006 [US1] 在任务创作知识层补"复用优先"指引可发现性：于 `.claude/skills/weft-task-authoring/SKILL.md`（或其引用的前端创作说明）加一句"改前端 UI 前先读 `frontend/DESIGN.md` 的公共组件目录"，指向 `specs/037-shared-ui-kit/contracts/reuse-first-checklist.md`——落实 FR-002 可发现性
 - [ ] T007 [US1] 门禁：`cd frontend && pnpm design:lint && pnpm typecheck` 均绿
 
 **Checkpoint**: MVP 达成——目录与复用优先约定存在且可发现（SC-001 的前提就绪）
@@ -63,15 +63,15 @@
 
 > ⚠️ T004 完成后进入；DESIGN.md 编辑任务（T008–T012）**同文件、按序**执行
 
-- [ ] T008 [US2] 在目录表登记条目：滚动条→`DwScroll`（`components/ui/dw-scroll.tsx`）、卡片容器→`Card`（`--card-spacing`）——每条按 `contracts/catalog-entry.schema.md` 填齐（用途/何时不用禁写/关键props变体/路径/深章节链接）；滚动条链接既有 `## 滚动条` 深章节；卡片容器条目**并入 034 已落地的卡片栅格约定**（`gap-2.5`，面包屑已撤回不恢复），使 034 保留部分收口于此条目。FR-004/005/009（F5）
-- [ ] T009 [US2] 在目录表登记条目：表格→`DataTable`+`DataTableToolbar`（`components/ui/data-table.tsx`，链接 `## 数据表格` 深章节，注明 033 边框包裹为规范）。FR-004/005/007
-- [ ] T010 [US2] 在目录表登记条目：下拉→`DropdownSelect`（`components/ui/select.tsx`）、弹框→`Dialog`（`components/ui/dialog.tsx`），声明二者共用浮层规范（触发器/圆角/内边距/滚动条一致）。FR-004/005/008
-- [ ] T011 [US2] 在目录表登记 **Tabs 双条目**：closable 主 tab→`TabStrip`（卡片式，链接 `## 统一标签条` 深章节）；非 closable 页内子 tab→下划线 `Tabs`（`components/ui/tabs.tsx`），写明 closable 驱动变体规则。FR-006（依赖 T003）
-- [ ] T012 [P] [US2] 迁移 `frontend/components/workspace/views/ops-view.tsx` 页内手写下划线 Tab（约 L96–132）→ 复用共享下划线 `Tabs`，保持切换行为与 aria 语义。FR-005 示范迁移（依赖 T003）
-- [ ] T013 [P] [US2] 迁移 `frontend/components/workspace/views/alerts-view.tsx` 页内手写下划线 Tab → 复用共享下划线 `Tabs`，保持行为。FR-005 示范迁移（依赖 T003）
-- [ ] T014 [US2] 为迁移后的下划线 `Tabs` 补 vitest（变体渲染、激活态、非closable 无关闭按钮）于 `frontend/components/ui/__tests__/tabs.test.tsx`；`pnpm typecheck` 绿；浏览器抽查 ops/alerts 两页 Tab 明暗主题一致。FR-013 + 测试门（依赖 T012/T013）
-- [ ] T015 [US2] 收敛魔法间距：审视 `frontend/components/ui/data-table-toolbar.tsx`（L78–103 硬编码 `px-*/py-*/gap-*`），凡属"卡片内容内边距"语义者改引 `--card-spacing`/token；纯工具条内部间距若为有意设计则在目录条目注明豁免。FR-010
-- [ ] T016 [US2] 补录 `specs/037-shared-ui-kit/adoption-inventory.md`：盘点剩余 ~11 个 view 的原语采用状态（表格/下拉/弹框/加载/刷新/Tabs），逐行标 `保持`/`待迁移`。FR-015/SC-007
+- [x] T008 [US2] 在目录表登记条目：滚动条→`DwScroll`（`components/ui/dw-scroll.tsx`）、卡片容器→`Card`（`--card-spacing`）——每条按 `contracts/catalog-entry.schema.md` 填齐（用途/何时不用禁写/关键props变体/路径/深章节链接）；滚动条链接既有 `## 滚动条` 深章节；卡片容器条目**并入 034 已落地的卡片栅格约定**（`gap-2.5`，面包屑已撤回不恢复），使 034 保留部分收口于此条目。FR-004/005/009（F5）
+- [x] T009 [US2] 在目录表登记条目：表格→`DataTable`+`DataTableToolbar`（`components/ui/data-table.tsx`，链接 `## 数据表格` 深章节，注明 033 边框包裹为规范）。FR-004/005/007
+- [x] T010 [US2] 在目录表登记条目：下拉→`DropdownSelect`（`components/ui/select.tsx`）、弹框→`Dialog`（`components/ui/dialog.tsx`），声明二者共用浮层规范（触发器/圆角/内边距/滚动条一致）。FR-004/005/008
+- [x] T011 [US2] 在目录表登记 **Tabs 双条目**：closable 主 tab→`TabStrip`（卡片式，链接 `## 统一标签条` 深章节）；非 closable 页内子 tab→下划线 `Tabs`（`components/ui/tabs.tsx`），写明 closable 驱动变体规则。FR-006（依赖 T003）
+- [x] T012 [P] [US2] 迁移 `frontend/components/workspace/views/ops-view.tsx` 页内手写下划线 Tab（约 L96–132）→ 复用共享下划线 `Tabs`，保持切换行为与 aria 语义。FR-005 示范迁移（依赖 T003）
+- [x] T013 [P] [US2] 迁移 `frontend/components/workspace/views/alerts-view.tsx` 页内手写下划线 Tab → 复用共享下划线 `Tabs`，保持行为。FR-005 示范迁移（依赖 T003）
+- [x] T014 [US2] 为迁移后的下划线 `Tabs` 补 vitest（变体渲染、激活态、非closable 无关闭按钮）于 `frontend/components/ui/__tests__/tabs.test.tsx`；`pnpm typecheck` 绿；浏览器抽查 ops/alerts 两页 Tab 明暗主题一致。FR-013 + 测试门（依赖 T012/T013）
+- [x] T015 [US2] 收敛魔法间距：审视 `frontend/components/ui/data-table-toolbar.tsx`（L78–103 硬编码 `px-*/py-*/gap-*`），凡属"卡片内容内边距"语义者改引 `--card-spacing`/token；纯工具条内部间距若为有意设计则在目录条目注明豁免。FR-010
+- [x] T016 [US2] 补录 `specs/037-shared-ui-kit/adoption-inventory.md`：盘点剩余 ~11 个 view 的原语采用状态（表格/下拉/弹框/加载/刷新/Tabs），逐行标 `保持`/`待迁移`。FR-015/SC-007
 
 **Checkpoint**: 9 类原语全部有唯一目录条目，示范迁移完成，差距清单成型
 
@@ -83,8 +83,8 @@
 
 **Independent Test**: 两页 date 字段一律业务日期粒度且格式统一；datetime 字段一律统一"带时间"变体（SC-004）
 
-- [ ] T017 [US3] 在 `frontend/DESIGN.md` 目录表登记"日期"条目：默认口径=业务日期 bizDate（`yyyy-MM-dd`，`yesterdayBizDate()` T-1 兜底 @ `lib/workspace/biz-date.ts`，选择器 `DatePicker`）；带时间变体=`useFormatDateTime()`（`hooks/use-format-date-time.ts`）+ `date-format-store`（`yyyy-MM-dd HH:mm:ss`，dash/slash 偏好）；声明单一 date-fns 实现、禁 dayjs/Intl 混用；注明 bizDate 直出、时间戳走 `useFormatDateTime`。FR-011（决策见 research R4）
-- [ ] T018 [US3] 审计前端日期用法一致性：`grep -rn 'bizDate\|formatDateTime\|new Date\|Intl.DateTimeFormat\|dayjs' frontend/components frontend/lib`，将粒度/格式偏离项登记进 `adoption-inventory.md` 待迁移（增量）。SC-004
+- [x] T017 [US3] 在 `frontend/DESIGN.md` 目录表登记"日期"条目：默认口径=业务日期 bizDate（`yyyy-MM-dd`，`yesterdayBizDate()` T-1 兜底 @ `lib/workspace/biz-date.ts`，选择器 `DatePicker`）；带时间变体=`useFormatDateTime()`（`hooks/use-format-date-time.ts`）+ `date-format-store`（`yyyy-MM-dd HH:mm:ss`，dash/slash 偏好）；声明单一 date-fns 实现、禁 dayjs/Intl 混用；注明 bizDate 直出、时间戳走 `useFormatDateTime`。FR-011（决策见 research R4）
+- [x] T018 [US3] 审计前端日期用法一致性：`grep -rn 'bizDate\|formatDateTime\|new Date\|Intl.DateTimeFormat\|dayjs' frontend/components frontend/lib`，将粒度/格式偏离项登记进 `adoption-inventory.md` 待迁移（增量）。SC-004
 
 **Checkpoint**: 日期口径约定成文可查
 
@@ -96,9 +96,9 @@
 
 **Independent Test**: 需加载视图 100% 居中转圈；刷新入口位置一致（SC-005）
 
-- [ ] T019 [US4] 在 `frontend/DESIGN.md` 目录表登记"加载"条目：`LoadingState`（`components/workspace/shared/loading-state.tsx`，centered/overlay 双模式、垂直+水平居中、`motion-safe:animate-spin`、`prefers-reduced-motion` 静态降级 + `role=status`/aria 可读、最小 1s 兜底）。FR-012/FR-014（035 已落地，主要文档化）
-- [ ] T020 [US4] 在目录表登记"刷新"条目：`ViewRefreshControl`（`components/workspace/views/view-refresh-control.tsx`），写明**统一位置约定**（视图右上/工具条内一致落点）+ 旋转 `motion-safe`。FR-012
-- [ ] T021 [US4] 审计加载/刷新一致性：`grep -rn '加载中\|loading\|RefreshIcon' frontend/components/workspace/views`，将"纯文字加载/非居中/刷新入口位置不一"的页面登记进 `adoption-inventory.md` 待迁移。SC-005
+- [x] T019 [US4] 在 `frontend/DESIGN.md` 目录表登记"加载"条目：`LoadingState`（`components/workspace/shared/loading-state.tsx`，centered/overlay 双模式、垂直+水平居中、`motion-safe:animate-spin`、`prefers-reduced-motion` 静态降级 + `role=status`/aria 可读、最小 1s 兜底）。FR-012/FR-014（035 已落地，主要文档化）
+- [x] T020 [US4] 在目录表登记"刷新"条目：`ViewRefreshControl`（`components/workspace/views/view-refresh-control.tsx`），写明**统一位置约定**（视图右上/工具条内一致落点）+ 旋转 `motion-safe`。FR-012
+- [x] T021 [US4] 审计加载/刷新一致性：`grep -rn '加载中\|loading\|RefreshIcon' frontend/components/workspace/views`，将"纯文字加载/非居中/刷新入口位置不一"的页面登记进 `adoption-inventory.md` 待迁移。SC-005
 
 **Checkpoint**: 加载/刷新条目成文，偏离项登记
 

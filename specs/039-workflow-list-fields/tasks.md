@@ -30,8 +30,8 @@
 
 **⚠️ CRITICAL**: US1（后端投影）依赖 T002；US4（查询/排序）依赖 T002+T003
 
-- [ ] T002 [P] 后端契约底座：`backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsContracts.java` — `WorkflowListRow` record 增 `String nextTriggerTime`（ISO，null 透传）；`WorkflowQuery` record 增 `String priorityTier`("high"|"normal"|null) / `String sortField`(白名单 "priority"|null) / `String sortDir`("asc"|"desc")。编译：`./mvnw -q -pl dataweave-master -am compile`（data-model.md §2）
-- [ ] T003 [P] 前端 DataTable 排序公共类型扩展：`frontend/lib/data-table.ts` — `ColumnDef<T>` 增 `sortable?: boolean`（缺省 false，向后兼容）；`FetchQuery` 增 `sort?: { field: string; dir: "asc"|"desc" }`；`toQueryParams` 增 `sort=field:dir` 序列化。同步 vitest `frontend/lib/data-table.test.ts` 断言 sort 序列化。`pnpm typecheck && pnpm vitest run data-table`（research.md D4）
+- [x] T002 [P] 后端契约底座：`backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsContracts.java` — `WorkflowListRow` record 增 `String nextTriggerTime`（ISO，null 透传）；`WorkflowQuery` record 增 `String priorityTier`("high"|"normal"|null) / `String sortField`(白名单 "priority"|null) / `String sortDir`("asc"|"desc")。编译：`./mvnw -q -pl dataweave-master -am compile`（data-model.md §2）
+- [x] T003 [P] 前端 DataTable 排序公共类型扩展：`frontend/lib/data-table.ts` — `ColumnDef<T>` 增 `sortable?: boolean`（缺省 false，向后兼容）；`FetchQuery` 增 `sort?: { field: string; dir: "asc"|"desc" }`；`toQueryParams` 增 `sort=field:dir` 序列化。同步 vitest `frontend/lib/data-table.test.ts` 断言 sort 序列化。`pnpm typecheck && pnpm vitest run data-table`（research.md D4）
 
 **Checkpoint**: 后端 record + 前端公共类型就绪，编译/单测通过。
 
@@ -43,10 +43,10 @@
 
 **Independent Test**: 周期卡片多出「下次触发时间」列——未来约 3 小时显示"3 小时后"；未回填/手动流显示 `—`。
 
-- [ ] T004 [P] [US1] 后端投影：`backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsService.java#queryWorkflows` — SELECT 增 `wd.next_trigger_time`；RowMapper 增 `nextTriggerTime`（`LocalDateTime`→`toString`，null 透传）。编译。（依赖 T002；data-model.md §3）
-- [ ] T005 [P] [US1] 前端相对时间 util：新建 `frontend/lib/relative-time.ts` — 纯函数 `relativeNextTrigger(iso: string|null, now: Date): { key: string; values: Record<string,number> } | null`，三态映射（临近→relSoon / 未来→relInMinutes·relInHours·relInDays / 已过期→relExpiredMinutes·relExpiredHours）；新建 vitest `frontend/lib/relative-time.test.ts` 覆盖三态 + 单位选择 + null。（research.md D5）
-- [ ] T006 [P] [US1] i18n：`frontend/messages/zh-CN.json` 与 `en-US.json`（`ops` 命名空间）— 加列头 `colNextTriggerTime` + 相对时间 keys（`relSoon`/`relInMinutes`/`relInHours`/`relInDays`/`relExpiredMinutes`/`relExpiredHours`，ICU `{n}`），两 bundle key 集一致。
-- [ ] T007 [US1] 周期 panel 接线：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` — `WorkflowRow` 增 `nextTriggerTime: string|null`；加「下次触发时间」列（`relativeNextTrigger` + `t()` 渲染，null→`—`）。`pnpm typecheck`。（依赖 T004/T005/T006）
+- [x] T004 [P] [US1] 后端投影：`backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsService.java#queryWorkflows` — SELECT 增 `wd.next_trigger_time`；RowMapper 增 `nextTriggerTime`（`LocalDateTime`→`toString`，null 透传）。编译。（依赖 T002；data-model.md §3）
+- [x] T005 [P] [US1] 前端相对时间 util：新建 `frontend/lib/relative-time.ts` — 纯函数 `relativeNextTrigger(iso: string|null, now: Date): { key: string; values: Record<string,number> } | null`，三态映射（临近→relSoon / 未来→relInMinutes·relInHours·relInDays / 已过期→relExpiredMinutes·relExpiredHours）；新建 vitest `frontend/lib/relative-time.test.ts` 覆盖三态 + 单位选择 + null。（research.md D5）
+- [x] T006 [P] [US1] i18n：`frontend/messages/zh-CN.json` 与 `en-US.json`（`ops` 命名空间）— 加列头 `colNextTriggerTime` + 相对时间 keys（`relSoon`/`relInMinutes`/`relInHours`/`relInDays`/`relExpiredMinutes`/`relExpiredHours`，ICU `{n}`），两 bundle key 集一致。
+- [x] T007 [US1] 周期 panel 接线：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` — `WorkflowRow` 增 `nextTriggerTime: string|null`；加「下次触发时间」列（`relativeNextTrigger` + `t()` 渲染，null→`—`）。`pnpm typecheck`。（依赖 T004/T005/T006）
 
 **Checkpoint**: US1 独立可验（浏览器：周期卡片下次触发列，相对时间三态）。
 
@@ -58,8 +58,8 @@
 
 **Independent Test**: 两表「优先级」列——priority=1 显示"1 + 橙色高优徽标"，priority=3 显示纯数字，null 显示 `—`。
 
-- [ ] T008 [P] [US2] i18n：`frontend/messages/{zh-CN,en-US}.json`（`ops`）— 加列头 `colPriority` + 高优徽标 `priorityHigh`（"高优"/"High"），两 bundle 一致。
-- [ ] T009 [US2] 两 panel 优先级列：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 加「优先级」列：纯数字，`priority!=null && priority<=2` 时附橙色高优徽标（shadcn 语义 token amber/warning，不手写 `dark:`）；null→`—`。`priority` 已在 DTO，纯前端。`pnpm typecheck`。（依赖 T008）
+- [x] T008 [P] [US2] i18n：`frontend/messages/{zh-CN,en-US}.json`（`ops`）— 加列头 `colPriority` + 高优徽标 `priorityHigh`（"高优"/"High"），两 bundle 一致。
+- [x] T009 [US2] 两 panel 优先级列：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 加「优先级」列：纯数字，`priority!=null && priority<=2` 时附橙色高优徽标（shadcn 语义 token amber/warning，不手写 `dark:`）；null→`—`。`priority` 已在 DTO，纯前端。`pnpm typecheck`。（依赖 T008）
 
 **Checkpoint**: US1 + US2 均独立可验。
 
@@ -71,11 +71,11 @@
 
 **Independent Test**: 选「高优」仅显 priority 0–2（URL 含 `priorityTier=high`）；点列头按 priority 重排（`sort=priority:desc`），NULL 行置末。
 
-- [ ] T010 [US4] 后端查询扩展：`backend/.../OpsService.java#queryWorkflows` — WHERE 增 priorityTier（`high`→`AND wd.priority BETWEEN 0 AND 2`；`normal`→`BETWEEN 3 AND 9`）；ORDER BY 由写死 `wd.id` 改动态：`sortField=priority` 时 `ORDER BY wd.priority <dir> NULLS LAST, wd.id`，否则默认；sortField 白名单仅 "priority"（防注入）。编译。（依赖 T002；research.md D2）
-- [ ] T011 [US4] 后端端点参数：`backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/OpsController.java` — `/periodic-workflows` 与 `/manual-workflows` 两端点增 `@RequestParam(required=false) String priorityTier, String sort`，解析 `sort=field:dir` → `sortField`/`sortDir` 传入 `WorkflowQuery`。编译。（依赖 T002/T010；contracts/list-api.md）
-- [ ] T012 [P] [US4] 前端 DataTable 表头排序 UI：`frontend/components/ui/data-table*.tsx` — `sortable` 列表头渲染可点击区域 + hugeicons 方向图标（升/降/未排序三态，点击 asc→desc→清除），点击更新 `FetchQuery.sort` 触发 server refetch。（依赖 T003）
-- [ ] T013 [US4] 两 panel 筛选器 + sortable 接线：`periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 增「优先级」`segmented` FilterDef（options high/normal，空=全部）；「优先级」列标 `sortable: true`；fetcher 透传 `sort`。（依赖 T003/T009/T011/T012）
-- [ ] T014 [P] [US4] 后端契约测试：新建 `backend/.../OpsControllerWorkflowListTest.java`（或既有 ops 测试类）— WebTestClient 带 JWT（MEMORY `backend-fullstack-http-test-jwt`）、独立 H2 库名（MEMORY `h2-shared-mem-db-test-pollution`），断言：`priorityTier=high` 仅返 0–2、`sort=priority:desc` 排序正确且 NULL `NULLS LAST`、items 含 `nextTriggerTime`。
+- [x] T010 [US4] 后端查询扩展：`backend/.../OpsService.java#queryWorkflows` — WHERE 增 priorityTier（`high`→`AND wd.priority BETWEEN 0 AND 2`；`normal`→`BETWEEN 3 AND 9`）；ORDER BY 由写死 `wd.id` 改动态：`sortField=priority` 时 `ORDER BY wd.priority <dir> NULLS LAST, wd.id`，否则默认；sortField 白名单仅 "priority"（防注入）。编译。（依赖 T002；research.md D2）
+- [x] T011 [US4] 后端端点参数：`backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/OpsController.java` — `/periodic-workflows` 与 `/manual-workflows` 两端点增 `@RequestParam(required=false) String priorityTier, String sort`，解析 `sort=field:dir` → `sortField`/`sortDir` 传入 `WorkflowQuery`。编译。（依赖 T002/T010；contracts/list-api.md）
+- [x] T012 [P] [US4] 前端 DataTable 表头排序 UI：`frontend/components/ui/data-table*.tsx` — `sortable` 列表头渲染可点击区域 + hugeicons 方向图标（升/降/未排序三态，点击 asc→desc→清除），点击更新 `FetchQuery.sort` 触发 server refetch。（依赖 T003）
+- [x] T013 [US4] 两 panel 筛选器 + sortable 接线：`periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 增「优先级」`segmented` FilterDef（options high/normal，空=全部）；「优先级」列标 `sortable: true`；fetcher 透传 `sort`。（依赖 T003/T009/T011/T012）
+- [x] T014 [P] [US4] 后端契约测试：新建 `backend/.../OpsControllerWorkflowListTest.java`（或既有 ops 测试类）— WebTestClient 带 JWT（MEMORY `backend-fullstack-http-test-jwt`）、独立 H2 库名（MEMORY `h2-shared-mem-db-test-pollution`），断言：`priorityTier=high` 仅返 0–2、`sort=priority:desc` 排序正确且 NULL `NULLS LAST`、items 含 `nextTriggerTime`。
 
 **Checkpoint**: US1/US2/US4 均独立可验。
 
@@ -87,7 +87,7 @@
 
 **Independent Test**: 有描述的流名称下方一行描述（超长截断 + tooltip）；无描述仅名称、无空行。
 
-- [ ] T015 [P] [US3] 两 panel 描述副标题：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 「任务流名称」列 cell 改为名称 + 下方 `description` 副标题（`truncate` + `title` tooltip，复用 name 列既有模式；`description` 空时不渲染副标题、不占行高）。`description` 已在 DTO，纯前端。`pnpm typecheck`。
+- [x] T015 [P] [US3] 两 panel 描述副标题：`frontend/components/workspace/views/ops/periodic-workflows-panel.tsx` + `manual-workflows-panel.tsx` — 「任务流名称」列 cell 改为名称 + 下方 `description` 副标题（`truncate` + `title` tooltip，复用 name 列既有模式；`description` 空时不渲染副标题、不占行高）。`description` 已在 DTO，纯前端。`pnpm typecheck`。
 
 **Checkpoint**: 全部 US（US1/US2/US3/US4）独立可验。
 
@@ -97,7 +97,7 @@
 
 **Purpose**: 列宽校准 + 全量验证 + 双方言
 
-- [ ] T016 列宽重分配：`periodic-workflows-panel.tsx`（9 列：名称20/下次触发14/Cron12/最近触发10/状态8/上次运行14/版本8/优先级8/操作6）+ `manual-workflows-panel.tsx`（7 列：名称24/最近触发12/状态8/上次运行18/版本8/优先级10/操作20），所有 `widthPct` 和=100，无横向滚动（research.md D6；依赖 T007/T009/T013/T015 列均加完）
+- [x] T016 列宽重分配：`periodic-workflows-panel.tsx`（9 列：名称20/下次触发14/Cron12/最近触发10/状态8/上次运行14/版本8/优先级8/操作6）+ `manual-workflows-panel.tsx`（7 列：名称24/最近触发12/状态8/上次运行18/版本8/优先级10/操作20），所有 `widthPct` 和=100，无横向滚动（research.md D6；依赖 T007/T009/T013/T015 列均加完）
 - [ ] T017 全量验证：`cd backend && ./mvnw compile`（零错误）；`cd frontend && pnpm typecheck`（零错误）+ `pnpm vitest run`（relative-time / data-table 全绿）；浏览器走 `quickstart.md` V1–V6；i18n 两 bundle key 集一致（CI 检，无 console 缺 key）
 - [ ] T018 [P] H2/PG 双方言验证：后端 SQL 改动（`BETWEEN`/`NULLS LAST`/`LIMIT OFFSET`/CONCAT）在 H2（`profiles=h2`）与 PostgreSQL（docker compose）各跑一遍契约测试，确认无方言 regression（MEMORY `h2-pg-sql-dialect-traps`）
 

@@ -97,7 +97,7 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### Implementation for US2
 
-- [ ] T020 [US2] 改造 `backend/.../master/application/ProjectSyncService.java` 的 `push`：对本次 push 落库的每个新增/修改任务，解析其 content（复用 `SqlTableExtractor` + 与 TaskService 同款 A×B/IoEdge 装配，宜抽公共 helper 避免重复）→ 调用 `lineageStore.recordTaskIo(...)`；try-catch 包裹不阻断 push 主链路（FR-002 缺口补齐 + FR-007）。注入 `LineageStore`。依赖 T014、T015。
+- [x] T020 [US2] 改造 `backend/.../master/application/ProjectSyncService.java` 的 `push`：对本次 push 落库的每个新增/修改任务，解析其 content（复用 `SqlTableExtractor` + 与 TaskService 同款 A×B/IoEdge 装配，宜抽公共 helper 避免重复）→ 调用 `lineageStore.recordTaskIo(...)`；try-catch 包裹不阻断 push 主链路（FR-002 缺口补齐 + FR-007）。注入 `LineageStore`。依赖 T014、T015。
 - [X] T021 [US2] 抽取 TaskService 与 ProjectSyncService 共用的「content → IoEdge 装配（含 A×B 交叉校验）」为一个可复用方法/小服务（如 `LineageEdgeAssembler`），消除两处重复并保证语义一致。`backend/.../master/application/lineage/`。依赖 T015、T020。
 
 **Checkpoint**: US1 + US2 均独立可测 —— createAndOnline 与 push 两条创作路径血缘语义一致。
@@ -112,8 +112,8 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### Tests for US3（先写、确保 FAIL）⚠️
 
-- [ ] T022 [P] [US3] 在 `Neo4jLineageStoreIT.java` 增去重用例：两次 recordTaskIo 用同 `(tenantId,ip,port,database)` 不同 username 的 `DatasourceCoord` → `:Datasource` 节点数 = 1、目标 `:Table` 唯一（SC-002 / 验收 #1）。依赖 T010、T014。
-- [ ] T023 [P] [US3] 同 IT 增「同 ip/port 不同 database → 两个不同 `:Datasource`」用例（验收 #2）；并增「缺连接坐标 → 降级身份 `datasource:<name>` 仍唯一不重复」用例（Edge Case）。
+- [x] T022 [P] [US3] 在 `Neo4jLineageStoreIT.java` 增去重用例：两次 recordTaskIo 用同 `(tenantId,ip,port,database)` 不同 username 的 `DatasourceCoord` → `:Datasource` 节点数 = 1、目标 `:Table` 唯一（SC-002 / 验收 #1）。依赖 T010、T014。
+- [x] T023 [P] [US3] 同 IT 增「同 ip/port 不同 database → 两个不同 `:Datasource`」用例（验收 #2）；并增「缺连接坐标 → 降级身份 `datasource:<name>` 仍唯一不重复」用例（Edge Case）。
 
 ### Implementation for US3
 
@@ -129,26 +129,26 @@ description: "Task list for 018-lineage-neo4j-store"
 
 ### 指标血缘迁图（FR-008）
 
-- [ ] T025 [P] [POLISH] 在 `Neo4jLineageStoreIT.java` 增 `recordMetricLineage` 用例：`:Metric`(metricKey)-[:COMPUTED_FROM]->`:Table` 正确入图，身份镜像 `(tenantId, metricType, id)`。依赖 T010。
+- [x] T025 [P] [POLISH] 在 `Neo4jLineageStoreIT.java` 增 `recordMetricLineage` 用例：`:Metric`(metricKey)-[:COMPUTED_FROM]->`:Table` 正确入图，身份镜像 `(tenantId, metricType, id)`。依赖 T010。
 - [ ] T026 [POLISH] 实现 `Neo4jLineageStore.recordMetricLineage`（MERGE :Metric + COMPUTED_FROM）；改造 `backend/.../master/application/LineageService.java` 指标血缘写入改走图（替代 `MetricLineageRepository` PG 写）。依赖 T014。
 
 ### schema 收口（FR-009，017 接触点 —— 删表必清悬空引用）
 
-- [ ] T027 [POLISH] 清理 PG 血缘 domain/repository：删/改 `backend/.../master/domain/{DataTable,DataTableRepository,TaskTableIo,TaskTableIoRepository,MetricLineage,MetricLineageRepository}.java` 及 `LineageGraphService.java`/`LineageService.java` 中对其的 JdbcTemplate 读写，改走 `LineageStore`/留待 020 查询；保证全模块编译通过、无悬空 JDBC 引用。`cd backend && ./mvnw -q -pl dataweave-master -am compile` 零错误。依赖 T026。
-- [ ] T028 [POLISH] 在 `backend/dataweave-api/src/main/resources/schema.sql` 删 `data_table`/`task_table_io`/`task_run_table_io`/`metric_lineage` 的 DROP+CREATE TABLE+CREATE INDEX 三段（域 F + metric_lineage）；并**递增 `schema_version`**（库内单行 INSERT 的 version + 文件头 `-- Schema Version:` 注释，较 `0.0.1` 升版，三处恒等）。依赖 T027。
-- [ ] T029 [POLISH] 在 `backend/dataweave-api/src/main/resources/data.sql` 删对应血缘 seed（域 F 的 data_table/task_table_io/task_run_table_io seed + metric_lineage seed + 相关 `ALTER ... RESTART`）。依赖 T028。
+- [x] T027 [POLISH] 清理 PG 血缘 domain/repository：删/改 `backend/.../master/domain/{DataTable,DataTableRepository,TaskTableIo,TaskTableIoRepository,MetricLineage,MetricLineageRepository}.java` 及 `LineageGraphService.java`/`LineageService.java` 中对其的 JdbcTemplate 读写，改走 `LineageStore`/留待 020 查询；保证全模块编译通过、无悬空 JDBC 引用。`cd backend && ./mvnw -q -pl dataweave-master -am compile` 零错误。依赖 T026。
+- [x] T028 [POLISH] 在 `backend/dataweave-api/src/main/resources/schema.sql` 删 `data_table`/`task_table_io`/`task_run_table_io`/`metric_lineage` 的 DROP+CREATE TABLE+CREATE INDEX 三段（域 F + metric_lineage）；并**递增 `schema_version`**（库内单行 INSERT 的 version + 文件头 `-- Schema Version:` 注释，较 `0.0.1` 升版，三处恒等）。依赖 T027。
+- [x] T029 [POLISH] 在 `backend/dataweave-api/src/main/resources/data.sql` 删对应血缘 seed（域 F 的 data_table/task_table_io/task_run_table_io seed + metric_lineage seed + 相关 `ALTER ... RESTART`）。依赖 T028。
 - [ ] T030 [P] [POLISH] 建 `backend/.../master/lineage/SchemaVersionConsistencyTest.java`：断言 `schema_version` 库内单行 version 与 schema.sql 文件头注释与项目版本三处恒等，且较 `0.0.1` 已递增（SC-005）。依赖 T028。
 
 ### greenfield 种子（FR-010）
 
-- [ ] T031 [POLISH] 建 `backend/.../master/infrastructure/lineage/Neo4jLineageSeeder.java`：`ApplicationRunner` 幂等经 `LineageStore` 路径播种 data-model.md §5 数据集（1 库/5 表/3 任务/7 io 边/1 指标，tenant=1 project=1）；neo4j 不可达时记日志不阻断启动。依赖 T014、T026。
-- [ ] T032 [P] [POLISH] 在 IT 增种子幂等用例：重复触发 seeder → 节点/边不翻倍（去重地基活体冒烟）。依赖 T031、T010。
+- [x] T031 [POLISH] 建 `backend/.../master/infrastructure/lineage/Neo4jLineageSeeder.java`：`ApplicationRunner` 幂等经 `LineageStore` 路径播种 data-model.md §5 数据集（1 库/5 表/3 任务/7 io 边/1 指标，tenant=1 project=1）；neo4j 不可达时记日志不阻断启动。依赖 T014、T026。
+- [x] T032 [P] [POLISH] 在 IT 增种子幂等用例：重复触发 seeder → 节点/边不翻倍（去重地基活体冒烟）。依赖 T031、T010。
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T033 [P] [POLISH] 实现 `Neo4jLineageStore.recordSynced`（`:TaskRun`-[:SYNCED]->`:Table`，迁 task_run_table_io 运行态）+ IT 用例；运行态采集接入点留待后续埋点（本期至少能写）。依赖 T014。
+- [x] T033 [P] [POLISH] 实现 `Neo4jLineageStore.recordSynced`（`:TaskRun`-[:SYNCED]->`:Table`，迁 task_run_table_io 运行态）+ IT 用例；运行态采集接入点留待后续埋点（本期至少能写）。依赖 T014。
 - [ ] T034 [POLISH] 按 quickstart.md §3/§4 跑端到端手动验证（本地 neo4j：建任务/push 入图、去重、replace 幂等、停 neo4j 不阻断），记录结果。依赖 全部实现任务。
 - [ ] T035 [P] [POLISH] 全套血缘 IT setsid 脱离跑通（WSL2 硬规则）：`Neo4jLineageStoreIT,PushLineageIT,SchemaVersionConsistencyTest` 全绿（SC-005）；`./mvnw -q -pl dataweave-master -am compile` + `dataweave-api` 编译零错误（删表后无悬空引用）。依赖 全部任务。
 

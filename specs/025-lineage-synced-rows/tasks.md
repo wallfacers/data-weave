@@ -40,7 +40,7 @@
 
 **Purpose**: 跨 story 的共享类型/字段，MUST 先于任何 US
 
-- [ ] T002 新增 `record StatementMetric(String sqlText, long updateCount)` 于 `master/domain/lineage/StatementMetric.java`（worker→master 可见）+ `ExecutionResult` 末位加 `List<StatementMetric> statementMetrics` 字段 + compat 构造器默认 `List.of()`（保留既有 7 参 compat + 新增 8 参(skipped) compat 各默认空 list + `skipped()` 工厂）—— `worker/domain/TaskExecutor.java:50-63`。编译验证 21 处既有构造点零改动。
+- [x] T002 新增 `record StatementMetric(String sqlText, long updateCount)` 于 `master/domain/lineage/StatementMetric.java`（worker→master 可见）+ `ExecutionResult` 末位加 `List<StatementMetric> statementMetrics` 字段 + compat 构造器默认 `List.of()`（保留既有 7 参 compat + 新增 8 参(skipped) compat 各默认空 list + `skipped()` 工厂）—— `worker/domain/TaskExecutor.java:50-63`。编译验证 21 处既有构造点零改动。
 
 **Checkpoint**: 类型 + 字段就绪（statementMetrics 全链路 worker→api→master 可见）。
 
@@ -54,16 +54,16 @@
 
 ### Implementation
 
-- [ ] T003 [US1] `SqlTaskExecutor` 成功路径收集 per-statement `(sqlText, updateCount≥0)` 进 `statementMetrics`（loop `:68-83` 内 `st.execute` 后：`!hasResultSet && updateCount>=0` 才收；SELECT/DDL 跳过）；成功 return `:86` 带真实 list（失败/skipped 走 compat 空 list）—— `worker/infrastructure/SqlTaskExecutor.java`
-- [ ] T004 [US1] `recordSynced` 签名加 `Long taskDefId`（additive，零现有调用安全）+ `Neo4jLineageStore:164` `:TaskRun` MERGE ON CREATE SET `r.taskDefId`；`WorkerReportService.reportFinished` 签名加 `List<StatementMetric> statementMetrics`，注入 `LineageEdgeAssembler` + `SqlTableExtractor`，SUCCESS CAS 后（仅成功 FR-006）逐 statement：`extract(sqlText).writes()` → 每 writeTable 构 `TableRef(resolveCoord(tenant,project,taskDef.datasource_id), name, layer)` → `recordSynced(tenantId, projectId, instanceId, tableRef, updateCount, null, bizDate, ti.getTaskId())`；bizDate/tenant/project 取自 ti —— `master/domain/lineage/LineageStore.java:45` + `master/infrastructure/lineage/Neo4jLineageStore.java:155-177` + `master/application/WorkerReportService.java:67-82`
-- [ ] T005 [P] [US1] all-in-one 路径：`InProcessTaskExecutionGateway` 3 个 reportFinished 调用点透传 statementMetrics（`:119` msg 路径 `List.of()`；`:157` skipped `List.of()`；`:160` 成功 `result.statementMetrics()`）—— `api/infrastructure/InProcessTaskExecutionGateway.java:119,157,160`
-- [ ] T006 [P] [US1] HTTP 路径 master 侧：`TaskReportRequest` 加 `List<StatementMetric> statementMetrics` + getter/setter（`@JsonIgnoreProperties(ignoreUnknown=true)` 已在 → 向后兼容）；`ClusterController:78` 透传 reportFinished —— `api/interfaces/dto/TaskReportRequest.java` + `api/interfaces/ClusterController.java:78`
-- [ ] T007 [US1] HTTP 路径 worker 侧：`WorkerExecService.ReportCallback.onFinished` 加 `List<StatementMetric>` 参数（`:53` 接口 + `:158/:160` 传 `result.statementMetrics()`）；`WorkerExecController.ReportCallback.onFinished:195` 接收 → `reportToMaster` 改 **Jackson `ObjectMapper`** 序列化整 payload（含 statementMetrics 数组，正确转义 SQL 文本 `"`/换行/反斜杠）—— `worker/application/WorkerExecService.java:48-56,158,160` + `worker/interfaces/WorkerExecController.java:182-237`
+- [x] T003 [US1] `SqlTaskExecutor` 成功路径收集 per-statement `(sqlText, updateCount≥0)` 进 `statementMetrics`（loop `:68-83` 内 `st.execute` 后：`!hasResultSet && updateCount>=0` 才收；SELECT/DDL 跳过）；成功 return `:86` 带真实 list（失败/skipped 走 compat 空 list）—— `worker/infrastructure/SqlTaskExecutor.java`
+- [x] T004 [US1] `recordSynced` 签名加 `Long taskDefId`（additive，零现有调用安全）+ `Neo4jLineageStore:164` `:TaskRun` MERGE ON CREATE SET `r.taskDefId`；`WorkerReportService.reportFinished` 签名加 `List<StatementMetric> statementMetrics`，注入 `LineageEdgeAssembler` + `SqlTableExtractor`，SUCCESS CAS 后（仅成功 FR-006）逐 statement：`extract(sqlText).writes()` → 每 writeTable 构 `TableRef(resolveCoord(tenant,project,taskDef.datasource_id), name, layer)` → `recordSynced(tenantId, projectId, instanceId, tableRef, updateCount, null, bizDate, ti.getTaskId())`；bizDate/tenant/project 取自 ti —— `master/domain/lineage/LineageStore.java:45` + `master/infrastructure/lineage/Neo4jLineageStore.java:155-177` + `master/application/WorkerReportService.java:67-82`
+- [x] T005 [P] [US1] all-in-one 路径：`InProcessTaskExecutionGateway` 3 个 reportFinished 调用点透传 statementMetrics（`:119` msg 路径 `List.of()`；`:157` skipped `List.of()`；`:160` 成功 `result.statementMetrics()`）—— `api/infrastructure/InProcessTaskExecutionGateway.java:119,157,160`
+- [x] T006 [P] [US1] HTTP 路径 master 侧：`TaskReportRequest` 加 `List<StatementMetric> statementMetrics` + getter/setter（`@JsonIgnoreProperties(ignoreUnknown=true)` 已在 → 向后兼容）；`ClusterController:78` 透传 reportFinished —— `api/interfaces/dto/TaskReportRequest.java` + `api/interfaces/ClusterController.java:78`
+- [x] T007 [US1] HTTP 路径 worker 侧：`WorkerExecService.ReportCallback.onFinished` 加 `List<StatementMetric>` 参数（`:53` 接口 + `:158/:160` 传 `result.statementMetrics()`）；`WorkerExecController.ReportCallback.onFinished:195` 接收 → `reportToMaster` 改 **Jackson `ObjectMapper`** 序列化整 payload（含 statementMetrics 数组，正确转义 SQL 文本 `"`/换行/反斜杠）—— `worker/application/WorkerExecService.java:48-56,158,160` + `worker/interfaces/WorkerExecController.java:182-237`
 
 ### Tests
 
-- [ ] T008 [P] [US1] 单测 `SqlTaskExecutor` 收 statementMetrics：多 statement 各 updateCount / SELECT(hasResultSet) 跳过 / DDL(updateCount<0) 跳过 / 无数据源 SKIPPED 空 list —— `worker/infrastructure/SqlTaskExecutorTest.java`（H2 in-memory 连接，既有 executor 测试模式）
-- [ ] T009 [US1] 单测 `WorkerReportService.reportFinished`：单表 INSERT → recordSynced 调 1 次（mock LineageStore）；多 statement 多表 → N 次；statementMetrics empty → 0 次；非 SUCCESS 不调 —— `master/application/WorkerReportServiceTest.java`
+- [x] T008 [P] [US1] 单测 `SqlTaskExecutor` 收 statementMetrics：多 statement 各 updateCount / SELECT(hasResultSet) 跳过 / DDL(updateCount<0) 跳过 / 无数据源 SKIPPED 空 list —— `worker/infrastructure/SqlTaskExecutorTest.java`（H2 in-memory 连接，既有 executor 测试模式）
+- [x] T009 [US1] 单测 `WorkerReportService.reportFinished`：单表 INSERT → recordSynced 调 1 次（mock LineageStore）；多 statement 多表 → N 次；statementMetrics empty → 0 次；非 SUCCESS 不调 —— `master/application/WorkerReportServiceTest.java`
 - [ ] T010 [US1] 集成测 testcontainers-neo4j：端到端 SQL 任务成功 → `(:TaskRun)-[:SYNCED{rowCount}]->(:Table)` + syncSummary 当日 SUM；失败任务不写 —— `master/infrastructure/lineage/`（既有 lineage IT）
 
 **Checkpoint**: MVP 达成——syncSummary 不再恒 null（US1 独立可验）。
@@ -78,8 +78,8 @@
 
 ### Implementation
 
-- [ ] T011 [US2] reportFinished recordSynced 外层 try-catch（neo4j 不可达吞，任务仍 SUCCESS，FR-005）；`updateCount<0` 跳过 statement；statementMetrics null/empty 跳过 —— `master/application/WorkerReportService.java`（依赖 T004）
-- [ ] T012 [US2] UPDATE/DELETE WARN：解析不出写表（`parsed` 但 `writes` 空 / UPDATE·DELETE 未识别）+ `updateCount>0` → WARN 日志（显式降级，不静默丢）；MVP 仅 INSERT/MERGE 识别（`SqlTableExtractor` 现状，R5）—— `master/application/WorkerReportService.java`
+- [x] T011 [US2] reportFinished recordSynced 外层 try-catch（neo4j 不可达吞，任务仍 SUCCESS，FR-005）；`updateCount<0` 跳过 statement；statementMetrics null/empty 跳过 —— `master/application/WorkerReportService.java`（依赖 T004）
+- [x] T012 [US2] UPDATE/DELETE WARN：解析不出写表（`parsed` 但 `writes` 空 / UPDATE·DELETE 未识别）+ `updateCount>0` → WARN 日志（显式降级，不静默丢）；MVP 仅 INSERT/MERGE 识别（`SqlTableExtractor` 现状，R5）—— `master/application/WorkerReportService.java`
 
 ### Tests
 
@@ -105,7 +105,7 @@
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T017 [P] 零回归：非 SQL 任务（Spark/Python/Shell/Echo/QualityProbe）statementMetrics 空、不写 `:SYNCED`；失败/skipped 不写 —— 既有测试 + 编译（21 构造点 compat 验证）
+- [x] T017 [P] 零回归：非 SQL 任务（Spark/Python/Shell/Echo/QualityProbe）statementMetrics 空、不写 `:SYNCED`；失败/skipped 不写 —— 既有测试 + 编译（21 构造点 compat 验证）
 - [ ] T018 [P] 文档：`CLAUDE.md`「Table lineage」导航补 recordSynced 接入（运行态采集打通）+ `docs/architecture.md` 运行态采集段 —— `CLAUDE.md` + `docs/architecture.md`
 - [ ] T019 跑 `quickstart.md` 端到端验证（场景1 单表 / 场景2 多表 / 降级 / 兼容 / H2 降级）
 - [ ] T020 cross-feature 检查：与 024（定义态列 catalog）边界（recordSynced vs recordTaskIo 代码路径独立不冲突）、不改 syncSummary 读侧、H2 profile 启动不崩、合并序 021→022→023→024→**025**

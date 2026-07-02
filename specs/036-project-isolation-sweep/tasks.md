@@ -44,16 +44,16 @@
 **Goal**: ops 调度/运行态总览/实例表按 (projectId, bizDate) 收敛，消除裸查，下钻保项目上下文。
 
 ### Tests（先写并 FAIL）
-- [ ] T011 [P] [US1] WebTestClient 双项目实例隔离测试：`/api/ops/instances`、`/api/ops/workflow-instances`、`summary`、`eta-summary` 跨项目 0 串（`dataweave-master/src/test/.../OpsProjectIsolationTest.java`）
+- [x] T011 [P] [US1] WebTestClient 双项目实例隔离测试：`/api/ops/instances`、`/api/ops/workflow-instances`、`summary`、`eta-summary` 跨项目 0 串（`dataweave-master/src/test/.../OpsProjectIsolationTest.java`）
 - [ ] T012 [P] [US1] bizDate 收敛测试：(projectId, bizDate) 联合过滤正确 + 切项目 bizDate 重置为 T-1 + 返回原项目恢复上次日期
 
 ### Implementation
-- [ ] T013 [US1] `OpsService.instances()` 去 `findAll()`，改按 `TenantContext.projectId()` 过滤（新增/调用 `findByTenantIdAndProjectId...`）
-- [ ] T014 [US1] `OpsService.periodicWorkflows()` 及其余无隔离查询接入项目作用域
-- [ ] T015 [US1] `OpsController` instances/workflow-instances/periodic/backfill/summary/eta-summary 端点接入 `ProjectScope.require`，(projectId,bizDate) 传递
+- [x] T013 [US1] `OpsService.instances()` 去 `findAll()`，改按 `TenantContext.projectId()` 过滤（新增/调用 `findByTenantIdAndProjectId...`）
+- [x] T014 [US1] `OpsService.periodicWorkflows()` 及其余无隔离查询接入项目作用域
+- [x] T015 [US1] `OpsController` instances/workflow-instances/periodic/backfill/summary/eta-summary 端点接入 `ProjectScope.require`，(projectId,bizDate) 传递
 - [ ] T016 [US1] SSE 日志/DAG 事件流补项目订阅校验（若可跨项目订阅）
-- [ ] T017 [P] [US1] 前端 `ops/periodic-instances-panel.tsx` fetcher 附 projectId
-- [ ] T018 [P] [US1] 前端 `ops/workflow-instances-panel.tsx` fetcher 附 projectId
+- [x] T017 [P] [US1] 前端 `ops/periodic-instances-panel.tsx` fetcher 附 projectId
+- [x] T018 [P] [US1] 前端 `ops/workflow-instances-panel.tsx` fetcher 附 projectId
 - [ ] T019 [P] [US1] 前端 `ops/backfill-panel.tsx` fetcher 附 projectId
 - [ ] T020 [US1] 下钻详情 tab（DAG/instance-log/workflow-instance-detail）params 透传 projectId
 - [ ] T021 [US1] 浏览器验证：切项目/切日期实例表刷新、下钻不串
@@ -67,18 +67,18 @@
 **Goal**: metrics/lineage/freshness 按项目隔离；指标看板支持 bizDate；移除血缘硬编码。
 
 ### Tests
-- [ ] T022 [P] [US2] 双项目指标隔离测试 `/api/metrics`（`dataweave-master/src/test/.../MetricProjectIsolationTest.java`）
+- [x] T022 [P] [US2] 双项目指标隔离测试 `/api/metrics`（`dataweave-master/src/test/.../MetricProjectIsolationTest.java`）
 - [ ] T023 [P] [US2] `LineageService` 用上下文而非常量的单测；neo4j 双项目血缘不串
-- [ ] T024 [P] [US2] 指标按 bizDate 返回对应快照测试
+- [x] T024 [P] [US2] 指标按 bizDate 返回对应快照测试
 
 ### Implementation
-- [ ] T025 [US2] `MetricService.listLatest()/findLatestByCode()` 改按 `TenantContext.projectId()` 过滤（atomic/derived_metrics 已有列）
+- [x] T025 [US2] `MetricService.listLatest()/findLatestByCode()` 改按 `TenantContext.projectId()` 过滤（atomic/derived_metrics 已有列）
 - [ ] T026 [US2] `MetricsController` 接入 `ProjectScope.require`；增加 bizDate 观察查询路径
-- [ ] T027 [US2] `LineageService.lineageOf()` 移除硬编码 `1L,1L`，从上下文取 tenantId/projectId（neo4j 查询按项目作用域）
-- [ ] T028 [US2] freshness/时效及其余含隔离列未收口读路径改按 projectId 过滤
+- [x] T027 [US2] `LineageService.lineageOf()` 移除硬编码 `1L,1L`，从上下文取 tenantId/projectId（neo4j 查询按项目作用域）
+- [x] T028 [US2] freshness/时效及其余含隔离列未收口读路径改按 projectId 过滤
 - [ ] T029 [P] [US2] 前端 `metrics-view.tsx`：附 projectId + bizDate 选择（复用 ops 模型），缺数据空态
-- [ ] T030 [P] [US2] 前端 `freshness-view.tsx`：附 projectId
-- [ ] T031 [P] [US2] 前端血缘图视图（若有）：附 projectId
+- [x] T030 [P] [US2] 前端 `freshness-view.tsx`：附 projectId
+- [x] T031 [P] [US2] 前端血缘图视图（若有）：附 projectId
 - [ ] T032 [US2] 浏览器 + neo4j（etl-neo4j）真验
 
 **Checkpoint**: 指标/血缘/时效独立隔离可用。

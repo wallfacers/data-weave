@@ -35,7 +35,7 @@
 
 **⚠️ CRITICAL**: US1 依赖此 Phase
 
-- [ ] T002 新增 `findByProjectIdAndRunModeAndBizDate` 方法到 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/TaskInstanceRepository.java`
+- [x] T002 新增 `findByProjectIdAndRunModeAndBizDate` 方法到 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/TaskInstanceRepository.java`
 
 **Checkpoint**: Repository 方法就绪，可进入 US1
 
@@ -49,10 +49,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] 修改 `summary()` 方法签名，新增 `bizDate` 参数；`instances()` 内部分流：`bizDate` 非空时调用新 Repository 方法，空时走原逻辑 in `backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsService.java`
-- [ ] T004 [US1] `/summary` 端点新增 `@RequestParam(required=false) String bizDate` 参数，传入 `opsService.summary()` in `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/OpsController.java`
+- [x] T003 [US1] 修改 `summary()` 方法签名，新增 `bizDate` 参数；`instances()` 内部分流：`bizDate` 非空时调用新 Repository 方法，空时走原逻辑 in `backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsService.java`
+- [x] T004 [US1] `/summary` 端点新增 `@RequestParam(required=false) String bizDate` 参数，传入 `opsService.summary()` in `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/OpsController.java`
 - [ ] T005 [US1] 后端编译验证：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile`
-- [ ] T006 [US1] 新增 `bizDate` state（默认今天 `yyyy-MM-dd`）+ DatePicker 组件 + URL 拼接 `bizDate` 参数 in `frontend/components/workspace/views/ops/top-strip.tsx`
+- [x] T006 [US1] 新增 `bizDate` state（默认今天 `yyyy-MM-dd`）+ DatePicker 组件 + URL 拼接 `bizDate` 参数 in `frontend/components/workspace/views/ops/top-strip.tsx`
 - [ ] T007 [US1] 前端 typecheck：`cd frontend && pnpm typecheck`
 - [ ] T008 [US1] 浏览器验证：打开运维中心，切换日期，确认 4 个统计数字变化、SLA 风险不变
 
@@ -68,7 +68,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] 验证 `GET /api/ops/eta-summary` 端点未改动（不接受 `bizDate` 参数），前端调用未传 `bizDate` in `frontend/components/workspace/views/ops/top-strip.tsx`（确认代码无需改动）
+- [x] T009 [US2] 验证 `GET /api/ops/eta-summary` 端点未改动（不接受 `bizDate` 参数），前端调用未传 `bizDate` in `frontend/components/workspace/views/ops/top-strip.tsx`（确认代码无需改动）
 
 **Checkpoint**: US2 验证通过——SLA 风险始终全局视角
 
@@ -82,8 +82,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T010 [P] [US3] 修改 `topTotal` 值：中文 "今日总数"→"总数" in `frontend/messages/zh-CN.json`
-- [ ] T011 [P] [US3] 修改 `topTotal` 值：英文 "Today Total"→"Total" in `frontend/messages/en-US.json`
+- [x] T010 [P] [US3] 修改 `topTotal` 值：中文 "今日总数"→"总数" in `frontend/messages/zh-CN.json`
+- [x] T011 [P] [US3] 修改 `topTotal` 值：英文 "Today Total"→"Total" in `frontend/messages/en-US.json`
 
 **Checkpoint**: 两 bundle 同步，标签无"今日"
 

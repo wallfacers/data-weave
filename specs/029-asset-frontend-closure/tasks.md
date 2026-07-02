@@ -130,7 +130,7 @@
 - [X] T033 [P] i18n 两 bundle key 集一致校验：跑 i18n:lint（或等价校验）确保每个 `t("key")` 双语可解析,修齐差异。（1091 键 zh=en 相等,无差异）
 - [X] T034 全闸门绿：worktree `frontend/` 跑 `pnpm typecheck` + `pnpm test` + `pnpm design:lint`,零错误（typecheck 0 错, design:lint 0 错 0 警, vitest 91/92——唯一失败 store.test.ts 为 main 预存在,与 029 无关）。
 - [X] T035 浏览器手验：按 `quickstart.md` 14 步真跑闭环（admin/admin 注 JWT,catalog+marketplace tab,后端 h2 profile）。失败如实记录+修。详见 tmp/T035-verification-report.md
-- [ ] T036 零后端/schema 验证：`git diff --stat main..029-asset-frontend` 仅含 `frontend/` + `specs/029-asset-frontend-closure/`（FR-013/SC-007）。
+- [x] T036 零后端/schema 验证：`git diff --stat main..029-asset-frontend` 仅含 `frontend/` + `specs/029-asset-frontend-closure/`（FR-013/SC-007）。
 
 ---
 
