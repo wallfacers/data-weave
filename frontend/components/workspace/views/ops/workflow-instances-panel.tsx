@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   type ColumnDef,
   type FilterDef,
@@ -198,7 +199,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "triggerType",
         header: t("colTriggerType"),
-        widthPct: 7,
+        widthPct: 5,
         cell: (row: WorkflowInstanceRow) => (
           <Badge variant="outline" className="text-xs">
             {t((TRIGGER_TYPE_I18N[row.triggerType] ?? row.triggerType) as never)}
@@ -226,7 +227,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "cronExpression",
         header: t("colCron"),
-        widthPct: 8,
+        widthPct: 7,
         cell: (row: WorkflowInstanceRow) => (
           <span className="truncate font-mono text-xs tabular-nums" title={row.cronExpression ?? ""}>
             {humanizeCron(row.cronExpression, translate)}
@@ -236,7 +237,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "scheduledFireTime",
         header: t("colScheduledFireTime"),
-        widthPct: 9,
+        widthPct: 16,
         cell: (row: WorkflowInstanceRow) =>
           row.scheduledFireTime ? (
             <span className="font-mono text-sm tabular-nums">{formatDateTime(row.scheduledFireTime)}</span>
@@ -279,7 +280,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "totalTasks",
         header: t("colProgress"),
-        widthPct: 9,
+        widthPct: 5,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">
             {row.completedTasks}/{row.totalTasks}
@@ -292,7 +293,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 8,
+        widthPct: 13,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{formatDateTime(row.startedAt)}</span>
         ),
@@ -300,7 +301,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "finishedAt",
         header: t("colFinishedAt"),
-        widthPct: 7,
+        widthPct: 11,
         cell: (row: WorkflowInstanceRow) =>
           row.finishedAt ? (
             <span className="font-mono text-sm tabular-nums">{formatDateTime(row.finishedAt)}</span>
@@ -328,45 +329,69 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 20,
+        widthPct: 8,
         cell: (row: WorkflowInstanceRow) => (
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => submitAction(row.id, "rerun", t("rerunAll"))}
-            >
-              <HugeiconsIcon icon={PlayIcon} className="size-3" />
-              {t("rerunAll")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => submitAction(row.id, "recover", t("recover"))}
-            >
-              <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3" />
-              {t("recover")}
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => submitAction(row.id, "kill", t("killTask"))}
-            >
-              <HugeiconsIcon icon={StopIcon} className="size-3" />
-              {t("killTask")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => onViewDag?.(row)}
-            >
-              <HugeiconsIcon icon={Share08Icon} className="size-3" />
-              {t("viewDag")}
-            </Button>
+          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => submitAction(row.id, "rerun", t("rerunAll"))}
+                  >
+                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("rerunAll")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => submitAction(row.id, "recover", t("recover"))}
+                  >
+                    <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("recover")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive"
+                    onClick={() => submitAction(row.id, "kill", t("killTask"))}
+                  >
+                    <HugeiconsIcon icon={StopIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("killTask")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => onViewDag?.(row)}
+                  >
+                    <HugeiconsIcon icon={Share08Icon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("viewDag")}</TooltipContent>
+            </Tooltip>
           </div>
         ),
       },

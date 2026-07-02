@@ -254,8 +254,8 @@ export function DataTable<T>({
       ) : (
         <>
           {/* 表头表（固定不滚，与数据表共享 colgroup） */}
-          <div className="shrink-0 border-b bg-background">
-            <table className="w-full table-fixed caption-bottom text-sm font-sans">
+          <div className="shrink-0 bg-background">
+            <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
               {colgroup}
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -275,7 +275,7 @@ export function DataTable<T>({
           </div>
           {/* 数据表（仅此区域 DwScroll 纵向滚动） */}
           <DwScroll direction="vertical" className="min-h-0 flex-1">
-            <table className="w-full table-fixed caption-bottom text-sm font-sans">
+            <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
               {colgroup}
               <TableBody>
                 {items.map((row) => {
