@@ -1,0 +1,29 @@
+# data-freshness-monitor Specification
+
+## Purpose
+TBD - created by archiving change unified-data-table. Update Purpose after archive.
+## Requirements
+### Requirement: 数据新鲜度后端聚合查询接口
+
+系统 SHALL 新增后端数据新鲜度聚合查询端点,取代当前前端 client 端派生(前端拉 `/api/ops/instances` 全量 + `/api/ops/tasks` 自行聚合)的实现。该端点在后端按任务产出的最近成功时间聚合,计算每个任务的时效分档:新鲜(≤6h)、老化(>6h)、陈旧(>24h)、从未成功。结果 MUST 支持时效分档筛选、任务名搜索、按时效从差到好排序与分页,返回 `Page` 信封。
+
+#### Scenario: 后端聚合而非前端派生
+
+- **WHEN** 前端请求数据新鲜度列表
+- **THEN** 后端返回已聚合的新鲜度结果(任务、最近成功时间、时效分档),前端不再拉全量实例自行计算
+
+#### Scenario: 最陈旧优先
+
+- **WHEN** 不指定排序请求新鲜度列表
+- **THEN** 后端以时效从差到好返回,陈旧与从未成功的任务排在最前
+
+#### Scenario: 按时效分档筛选
+
+- **WHEN** 筛选时效分档=陈旧
+- **THEN** 仅返回最近成功时间超过 24 小时的任务
+
+#### Scenario: 从未成功可筛出
+
+- **WHEN** 应用「从未成功」预设
+- **THEN** 仅返回从无成功产出记录的任务
+
