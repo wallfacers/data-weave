@@ -149,36 +149,39 @@ export function EventCenterView() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Tab bar — 下划线式，与 settings-view / alerts-view 同款 */}
-      <div className="flex items-center gap-1 border-b h-11 px-5" role="tablist">
-        {tabs.map(tb => {
-          const isActive = tab === tb.key
-          return (
-            <button
-              key={tb.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setTab(tb.key)}
-              className={
-                "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
-                (isActive
-                  ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
-                  : "text-muted-foreground hover:text-foreground")
-              }
-            >
-              <HugeiconsIcon icon={tb.icon} className="size-4" />
-              {t(tb.labelKey as never)}
-            </button>
-          )
-        })}
+      {/* Tab bar — 下划线式，与 quality-view 同款 */}
+      <div role="tablist">
+        <div className="flex items-center gap-1 px-5 h-11">
+          {tabs.map(tb => {
+            const isActive = tab === tb.key
+            return (
+              <button
+                key={tb.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setTab(tb.key)}
+                className={
+                  "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
+                  (isActive
+                    ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                <HugeiconsIcon icon={tb.icon} className="size-4" />
+                {t(tb.labelKey as never)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mx-5 border-b" />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-5">
       {tab === "events" ? (
         <>
           {/* filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <DropdownSelect
               value={typeFilter}
               onChange={setTypeFilter}
