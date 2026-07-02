@@ -1,6 +1,8 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.TenantContext;
+import com.dataweave.master.application.ProjectScope;
 import com.dataweave.master.application.TagService;
 import com.dataweave.master.domain.EntityTag;
 import com.dataweave.master.domain.Tag;
@@ -11,28 +13,40 @@ import java.util.Map;
 
 /**
  * 标签 REST 端点：标签 CRUD + 任务/工作流打标/解绑（4 条对称路径）。
+ *
+ * <p>036 项目隔离：list/create 按当前项目收敛，projectId 默认从 TenantContext 取，
+ * 经 ProjectScope.require 成员校验。
  */
 @RestController
 public class TagController {
 
     private final TagService tagService;
+    private final ProjectScope projectScope;
 
-    public TagController(TagService tagService) {
+    public TagController(TagService tagService, ProjectScope projectScope) {
         this.tagService = tagService;
+        this.projectScope = projectScope;
+    }
+
+    private Long resolveProjectId(Long requestProjectId) {
+        Long pid = requestProjectId != null ? requestProjectId : TenantContext.projectId();
+        return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
     }
 
     // ─── 标签 CRUD ───────────────────────────────────────
 
-    /** 列出项目内标签。 */
+    /** 列出项目内标签。036 按当前项目收敛。 */
     @GetMapping("/api/tags")
-    public ApiResponse<List<Tag>> list(@RequestParam(defaultValue = "1") Long projectId) {
-        return ApiResponse.ok(tagService.list(projectId));
+    public ApiResponse<List<Tag>> list(@RequestParam(required = false) Long projectId) {
+        return ApiResponse.ok(tagService.list(resolveProjectId(projectId)));
     }
 
-    /** 创建标签（项目内 name 唯一）。 */
+    /** 创建标签（项目内 name 唯一）。036 projectId 默认从 TenantContext 取。 */
     @PostMapping("/api/tags")
     public ApiResponse<Tag> create(@RequestBody Map<String, Object> body) {
-        Long projectId = body.get("projectId") != null ? ((Number) body.get("projectId")).longValue() : 1L;
+        Long projectId = body.containsKey("projectId")
+                ? resolveProjectId(((Number) body.get("projectId")).longValue())
+                : resolveProjectId(null);
         String name = body.get("name") != null ? body.get("name").toString() : null;
         String color = body.get("color") != null ? body.get("color").toString() : null;
         return ApiResponse.ok(tagService.create(projectId, name, color));

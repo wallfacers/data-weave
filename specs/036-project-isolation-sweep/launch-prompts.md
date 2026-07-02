@@ -145,3 +145,99 @@ i18n：messages/{zh-CN,en-US}.json 补 project/role/permission/menu 命名空间
 2. **全盘清单**：维护 SC-001 的"受隔离接口全盘清单"，四路回报后逐项打勾/标豁免。
 3. **集成兜底**：四路 worktree 合并（C 路 schema 先合），重跑共享面测试（尤其 schema + 地基接缝），确认无跨项目泄漏（SC-002）、日期收敛（SC-003）、角色矩阵一致（SC-004）。
 4. **补漏**：四路遗留接缝、遗漏的含隔离列却未收口的读路径、i18n 键集一致性 CI、schema 三处版本恒等。
+
+---
+
+# D 路细分启动提示词（D1/D2，执行 plan-d.md）
+
+> **背景**：D 路盘点后发现 T045/046/047/049~053 已落地于 main，剩余缺口集中在 **T048 写端点授权覆盖面** 与 **T054 浏览器验证**。详细设计与逐步代码见 [plan-d.md](./plan-d.md)。
+> **协作模型**：收尾方（主 Claude）已冻结授权门面契约 `ProjectAuthz`（`dataweave-api/.../infrastructure/ProjectAuthz.java`，main 已提交）；D1/D2 两个外部 agent 并发实现；收尾方最终 merge + 全量回归 + T054 浏览器验证 + 文档收口 + review。
+> **前置硬约束（两路共同遵守）**：
+> 1. **worktree 隔离（硬）**：各自 `git worktree add`，绝不在主副本改代码。
+> 2. **只消费不修改**：`ProjectAuthz.java`、`ProjectRoleService.java`、`TenantContext.java`、`JwtAuthFilter.java`、错误码 messages。契约不满足回报收尾方。
+> 3. **错误码复用勿新造**：`project.required` / `project.forbidden`(403) / `project.role.forbidden`(403)；契约响应 HTTP 200 + `$.code=403` + `$.errorCode=<code>`。
+> 4. **不弱化闸门**：授权调用置于 `gatedActionService.submit` / service 业务之前，通过后闸门照常执行。
+> 5. **TDD**：先写失败测试再实现；每改一处 `./mvnw -q -pl <module> compile`；长跑命令 WSL2 必须 `setsid` 脱离（见 CLAUDE.md）。
+
+## ▶ D1 路：任务/工作流定义写端点授权（task:manage / workflow:manage）
+
+```
+你是 data-weave 项目 036-project-isolation-sweep 特性的 D1 路实现 agent。先读：
+① specs/036-project-isolation-sweep/plan-d.md（你的任务 = Task 1 + Task 2，含完整测试与实现代码）；
+② specs/036-project-isolation-sweep/spec.md 的 US4 + FR-042；
+③ 根目录 CLAUDE.md（Working Rules：编译验证、setsid、闸门约定）。
+
+在自己的 git worktree 工作：git worktree add ../dw-036-d1 -b 036-iso-d1。
+
+目标（FR-042 任务/工作流定义写 = EDITOR+）：
+- plan-d.md Task 1：TaskController 写端点（create/update/softDelete/publish/offline/rollback/assignCatalog）
+  接入授权。注意：ProjectAuthz.java 已在 main 冻结存在，跳过 Task 1 Step 3（不要重建该文件）。
+  create 按当前项目授权并打 projectId/tenantId 戳；TaskService.create 的 1L/1L 硬编码改 default-if-null；
+  by-id 端点按实体归属 projectId 授权（requireTaskManage 辅助方法，防跨项目按 id 改删）。
+  测试 TaskRoleAuthzTest（5 用例，代码在 plan-d.md）。
+- plan-d.md Task 2：WorkflowController 写端点（update/softDelete/offline/rollback/saveDag/saveDraft/
+  publish/dependencies 增删/assignCatalog/create）接入 workflow:manage，同款模式。
+  测试 WorkflowRoleAuthzTest（4 用例）。
+- 存量测试适配（Task 4 的你的份额）：新授权会让不带 X-Project-Id 的既有 /api/tasks、/api/workflows
+  写端点测试变红（已知：TaskAndFreshnessEndpointTest / TaskControllerRunTest / ManualRunTriggerTest /
+  CatalogApiTest 等）。只允许两类修法：① WebTestClient 建 client 处加
+  .defaultHeader("X-Project-Id", "1")；② 非成员用户改用 seed user1/user2。
+  若某测试类同时涉及 marketplace/approvals/push（D2 面），只修你面的用例并回报收尾方。
+
+明确不接（记入完成报告的接缝清单，勿静默跳过）：/{id}/run、/preview-params（运行类，走 PolicyEngine
+闸门，非定义编辑）。
+
+不要碰：MetricMarketplaceController / ApprovalController / ProjectSyncController（D2 面）、
+ops(A) / metrics-lineage(B) / alert-quality-schema.sql(C) 面、地基文件与 ProjectAuthz。
+
+验收：dataweave-master + dataweave-api 编译 0 错误；TaskRoleAuthzTest 5/5、WorkflowRoleAuthzTest 4/4；
+./mvnw -pl dataweave-api,dataweave-master test 全绿（setsid 脱离跑）。
+提交信息前缀 feat(036-d1): / test(036-d1):，小步频提。
+完成输出：改动清单 + 测试结果（含全量回归数字）+ 接缝遗留。
+```
+
+## ▶ D2 路：指标市场/审批/push 写端点授权 + 前端接缝验证
+
+```
+你是 data-weave 项目 036-project-isolation-sweep 特性的 D2 路实现 agent。先读：
+① specs/036-project-isolation-sweep/plan-d.md（你的任务 = Task 3 + Task 5，含完整测试与实现代码）；
+② specs/036-project-isolation-sweep/spec.md 的 US4 + FR-042；
+③ 根目录 CLAUDE.md（Working Rules：编译验证、setsid、闸门约定、i18n 三规则）。
+
+在自己的 git worktree 工作：git worktree add ../dw-036-d2 -b 036-iso-d2。
+
+目标：
+- plan-d.md Task 3：
+  ① MetricMarketplaceController 4 个写端点（POST /metrics、certify、DELETE、reuse）接 metric:manage；
+    同时把 @RequestParam(defaultValue = "1") Long projectId 改为 required=false + null 回落
+    TenantContext.projectId()（对齐 T056 的 AssetCatalogController resolveProjectId 模式，去硬编码）。
+  ② ApprovalController approve/reject 接 project:manage（审批 = OWNER only；agent_action 无
+    project_id 列，按当前请求项目授权——该列补齐属 C 路 schema 面，记接缝勿自行改 schema.sql）。
+  ③ ProjectSyncController 仅 push 接 task:manage（pull/diff 只读不动；MCP project_push 直调
+    service 不经此控制器，不受影响）。
+  测试 GovernanceRoleAuthzTest（6 用例，代码在 plan-d.md；PushCommand 的 JSON 字段先读
+  ProjectSyncDtos.java 对齐）。授权调用一律用已冻结的 ProjectAuthz（main 已存在，只消费不修改）。
+- plan-d.md Task 5（前端接缝验证，预期零代码改动）：pnpm typecheck、pnpm test（vitest，
+  含 nav-permissions.test.ts）、permission 命名空间双 bundle 键集一致性抽查。红了先判断是否
+  你的后端改动所致；前端权限层（project-permissions.ts / left-nav / workspace / tab-bar）
+  已落地，不要重构它，异常回报收尾方。
+- 存量测试适配（Task 4 的你的份额）：只修 /api/marketplace、/api/approvals、/api/projects/{id}/push
+  相关的红；修法同 D1 约束（补 X-Project-Id 头 / 换 seed 用户）。CLI 集成类测试若涉及 push 也归你。
+
+不要碰：TaskController / WorkflowController / TaskService（D1 面）、ops(A) / metrics-lineage(B) /
+alert-quality-schema.sql(C) 面、地基文件与 ProjectAuthz、前端权限层结构。
+
+验收：dataweave-api 编译 0 错误；GovernanceRoleAuthzTest 6/6；./mvnw -pl dataweave-api test 全绿
+（setsid 脱离跑）；pnpm typecheck + pnpm test 全绿。
+提交信息前缀 feat(036-d2): / test(036-d2):，小步频提。
+完成输出：改动清单 + 测试结果 + 前端验证结论 + 接缝遗留。
+```
+
+## 收尾方（主 Claude）D 路集成职责
+
+1. **已完成**：D 路盘点（plan-d.md 现状基线表）、`ProjectAuthz` 契约冻结并提交 main、D1/D2 提示词分发。
+2. **集成**：D1/D2 完成后依次 merge（冲突面互斥，顺序无关；若同一存量测试类双方都改，收尾方裁决）；
+   merge 后全量回归 `./mvnw -pl dataweave-api,dataweave-master,dataweave-alert test`。
+3. **T054 浏览器验证**（plan-d.md Task 6）：三角色菜单差异 + VIEWER 深链 denied + 切项目重算实证。
+4. **文档收口**（plan-d.md Task 7）：tasks.md Phase 6 勾选、sc-001 清单 D 行、接缝清单汇总。
+5. **Review**：对 D1/D2 diff 做 code review（授权位置在闸门前、错误码语义、测试真实性）后合入。

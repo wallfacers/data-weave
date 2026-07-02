@@ -24,22 +24,23 @@
 | Alert (US3) | `/api/alert/rules·channels·routes·events` list + create | 项目级 + `ProjectScope.require` | `AlertRuleProjectIsolationTest` |
 | **Alert by-id (T045b, 本轮)** | rules/channels/routes/events 的 `get·update·delete`（及 channel `test`、event `ack`/notifications） | **`requireOwned` 归属守卫**：跨项目按 id 读/改/删 → `project.forbidden` | `AlertCrossProjectGuardTest` |
 | Quality (US3) | `/api/quality/*` | `findByTenantIdAndProjectId` | （repo 隔离；接线随 alert 套路） |
+| Schema (US3) | `cron_fire`/`sla_baseline` 补 `project_id` 列 + 索引 + 回填 | 统一补列，仅追加 WHERE 过滤不破调度不变 | `CronFireSchemaMigrationTest` |
 | Roles (US4) | `/api/projects/{id}/me`、`addMember`/`removeMember`/`update`/`delete` | `ProjectRoleService` `project:manage` 授权，越权→`project.role.forbidden` | `ProjectRoleServiceTest`·`ProjectRoleAuthzTest`·前端 `nav-permissions.test.ts` |
 
 ## C — 平台级豁免（结构性不做项目隔离）
 
 | 面 | 理由 |
 |----|------|
-| `cron_fire` / `sla_baseline` | 调度护栏表；加 project_id 会破去重语义且不增查询价值（036 文档化豁免） |
 | `McpAuthFilter` / MCP 工具 | MCP 无运行时项目选择，projectId 恒 null，仍按 `TenantContext.tenantId()` 租户隔离 |
 | `GET /api/projects`（列项目） | 选中项目的前置入口，本身不能要求 `X-Project-Id`（否则无法列项目再选） |
 | `/api/health`、CLI 白名单前缀 | filter 白名单放行，无身份上下文 |
 
 ## 本轮闭环补丁（Phase 7）
 
-1. **JwtAuthFilter NPE**：`projectId==null` 时不再 `exchange.getAttributes().put(...)`（ConcurrentHashMap put null → NPE，此前令所有无项目头请求 500）。→ `JwtAuthProjectContextTest`。
-2. **T045b Alert by-id 归属守卫**：`AlertController.requireOwned` 覆盖 rules/channels/routes/events by-id 读改删，防跨项目越权。→ `AlertCrossProjectGuardTest`（6/6）。
-3. **既有测试红修复**：`AlertRuleCrossTenantQueryTest` 内联建表补 `project_id` 列（036 给 repo insert 加了 project_id，漏改此既有测试的 DDL，`df4f8b5` 整合修复未覆盖）。
+1. **cron_fire/sla_baseline 豁免反转 → 统一补列**（Session 2026-07-02 澄清）：均加 `project_id` 列 + 索引 + 回填，仅追加 WHERE 过滤不改 join/lock。→ T034b + `CronFireSchemaMigrationTest`。
+2. **JwtAuthFilter NPE**：`projectId==null` 时不再 `exchange.getAttributes().put(...)`（ConcurrentHashMap put null → NPE，此前令所有无项目头请求 500）。→ `JwtAuthProjectContextTest`。
+3. **T045b Alert by-id 归属守卫**：`AlertController.requireOwned` 覆盖 rules/channels/routes/events by-id 读改删，防跨项目越权。→ `AlertCrossProjectGuardTest`（6/6）。
+4. **既有测试红修复**：`AlertRuleCrossTenantQueryTest` 内联建表补 `project_id` 列（036 给 repo insert 加了 project_id，漏改此既有测试的 DDL，`df4f8b5` 整合修复未覆盖）。
 
 ## 未纳入本轮（遗留，需独立跟进）
 

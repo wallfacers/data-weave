@@ -6,6 +6,7 @@ import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GateResult;
 import com.dataweave.master.application.GatedActionService;
+import com.dataweave.master.application.ProjectScope;
 import com.dataweave.master.application.asset.AssetCatalogService;
 import com.dataweave.master.application.asset.AssetDtos;
 import com.dataweave.master.application.asset.AssetLineageAssembler;
@@ -27,8 +28,8 @@ import java.util.Map;
  * 资产目录 REST（/api/catalog/*）。读直调 master service；写经
  * {@link ActionRequest} → {@link GatedActionService}（PolicyEngine 闸门 + agent_action 审计，零旁路 FR-009）。
  *
- * <p>租户/项目隔离：tenantId 取 {@link TenantContext}（缺身份 → catalog.tenant_required）；
- * 敏感度可见性在 service 层施加（PII 仅 owner/steward）。
+ * <p>036 项目隔离：projectId 默认从 TenantContext 取，经 ProjectScope.require 成员校验；
+ * 缺身份 → catalog.tenant_required / project.required。
  */
 @RestController
 @RequestMapping("/api/catalog")
@@ -40,6 +41,7 @@ public class AssetCatalogController {
     private final AssetLineageAssembler lineageAssembler;
     private final AssetQualityBadgeAssembler qualityAssembler;
     private final GatedActionService gatedActionService;
+    private final ProjectScope projectScope;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AssetCatalogController(AssetCatalogService catalogService,
@@ -47,13 +49,15 @@ public class AssetCatalogController {
                                   AssetSubscriptionService subscriptionService,
                                   AssetLineageAssembler lineageAssembler,
                                   AssetQualityBadgeAssembler qualityAssembler,
-                                  GatedActionService gatedActionService) {
+                                  GatedActionService gatedActionService,
+                                  ProjectScope projectScope) {
         this.catalogService = catalogService;
         this.searchService = searchService;
         this.subscriptionService = subscriptionService;
         this.lineageAssembler = lineageAssembler;
         this.qualityAssembler = qualityAssembler;
         this.gatedActionService = gatedActionService;
+        this.projectScope = projectScope;
     }
 
     // ─── 读 ────────────────────────────────────────────────────
@@ -68,11 +72,11 @@ public class AssetCatalogController {
             @RequestParam(required = false) Double qualityMin,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "1") Long projectId) {
+            @RequestParam(required = false) Long projectId) {
         long tenantId = requireTenant();
         long userId = requireUser();
         AssetDtos.SearchQuery q = new AssetDtos.SearchQuery(keyword, type, owner, tag, sensitivity, qualityMin, page, size);
-        return ApiResponse.ok(searchService.search(tenantId, projectId, userId, q));
+        return ApiResponse.ok(searchService.search(tenantId, resolveProjectId(projectId), userId, q));
     }
 
     @GetMapping("/assets/{id}")
@@ -83,19 +87,19 @@ public class AssetCatalogController {
     /** 资产血缘入口（代理 LineageQueryService）；neo4j 不可达 → degraded（前端隐藏入口，不报错）。 */
     @GetMapping("/assets/{id}/lineage")
     public ApiResponse<AssetDtos.LineageEntryView> lineage(@PathVariable Long id,
-                                                           @RequestParam(defaultValue = "1") Long projectId) {
+                                                            @RequestParam(required = false) Long projectId) {
         long tenantId = requireTenant();
         DataAsset a = catalogService.requireVisible(tenantId, id, requireUser());
-        return ApiResponse.ok(lineageAssembler.assemble(tenantId, projectId, a.getLineageTableRef()));
+        return ApiResponse.ok(lineageAssembler.assemble(tenantId, resolveProjectId(projectId), a.getLineageTableRef()));
     }
 
     /** 质量徽章（消费份2 quality_scorecard）；不可达 → degraded。 */
     @GetMapping("/assets/{id}/quality")
     public ApiResponse<AssetDtos.QualityBadgeView> quality(@PathVariable Long id,
-                                                          @RequestParam(defaultValue = "1") Long projectId) {
+                                                           @RequestParam(required = false) Long projectId) {
         long tenantId = requireTenant();
         DataAsset a = catalogService.requireVisible(tenantId, id, requireUser());
-        return ApiResponse.ok(qualityAssembler.assemble(tenantId, projectId, a.getQualifiedName()));
+        return ApiResponse.ok(qualityAssembler.assemble(tenantId, resolveProjectId(projectId), a.getQualifiedName()));
     }
 
     @GetMapping("/subscriptions")
@@ -107,11 +111,11 @@ public class AssetCatalogController {
 
     @PostMapping("/assets")
     public ApiResponse<GateResult> create(@RequestBody Map<String, Object> body,
-                                          @RequestParam(defaultValue = "1") Long projectId,
+                                          @RequestParam(required = false) Long projectId,
                                           ServerWebExchange exchange) {
         long tenantId = requireTenant();
         long userId = requireUser();
-        Map<String, Object> cmd = gateBase("asset.create", tenantId, projectId, userId);
+        Map<String, Object> cmd = gateBase("asset.create", tenantId, resolveProjectId(projectId), userId);
         cmd.put("asset", body);
         return submit("ASSET_WRITE", "ASSET", null, cmd,
                 "编目资产 " + body.getOrDefault("qualifiedName", ""), exchange);
@@ -119,10 +123,10 @@ public class AssetCatalogController {
 
     @PatchMapping("/assets/{id}")
     public ApiResponse<GateResult> update(@PathVariable Long id, @RequestBody Map<String, Object> patch,
-                                          @RequestParam(defaultValue = "1") Long projectId,
+                                          @RequestParam(required = false) Long projectId,
                                           ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("asset.update", tenantId, projectId, requireUser());
+        Map<String, Object> cmd = gateBase("asset.update", tenantId, resolveProjectId(projectId), requireUser());
         cmd.put("id", id);
         cmd.put("patch", patch);
         return submit("ASSET_WRITE", "ASSET", String.valueOf(id), cmd, "更新资产 #" + id, exchange);
@@ -130,10 +134,10 @@ public class AssetCatalogController {
 
     @DeleteMapping("/assets/{id}")
     public ApiResponse<GateResult> retire(@PathVariable Long id,
-                                          @RequestParam(defaultValue = "1") Long projectId,
+                                          @RequestParam(required = false) Long projectId,
                                           ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("asset.retire", tenantId, projectId, requireUser());
+        Map<String, Object> cmd = gateBase("asset.retire", tenantId, resolveProjectId(projectId), requireUser());
         cmd.put("id", id);
         return submit("ASSET_WRITE", "ASSET", String.valueOf(id), cmd, "下线资产 #" + id, exchange);
     }
@@ -141,20 +145,20 @@ public class AssetCatalogController {
     /** schema 对账（场景8）：底层表删/改名 → STALE；恢复 → ACTIVE。 */
     @PostMapping("/assets/{id}/reconcile")
     public ApiResponse<GateResult> reconcile(@PathVariable Long id,
-                                             @RequestParam(defaultValue = "1") Long projectId,
+                                             @RequestParam(required = false) Long projectId,
                                              ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("asset.reconcile", tenantId, projectId, requireUser());
+        Map<String, Object> cmd = gateBase("asset.reconcile", tenantId, resolveProjectId(projectId), requireUser());
         cmd.put("id", id);
         return submit("ASSET_WRITE", "ASSET", String.valueOf(id), cmd, "资产对账 #" + id, exchange);
     }
 
     @PostMapping("/subscriptions")
     public ApiResponse<GateResult> subscribe(@RequestBody Map<String, Object> body,
-                                             @RequestParam(defaultValue = "1") Long projectId,
+                                             @RequestParam(required = false) Long projectId,
                                              ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("subscribe", tenantId, projectId, requireUser());
+        Map<String, Object> cmd = gateBase("subscribe", tenantId, resolveProjectId(projectId), requireUser());
         cmd.put("targetType", body.get("targetType"));
         cmd.put("targetId", body.get("targetId"));
         cmd.put("changeFilter", body.get("changeFilter"));
@@ -163,15 +167,20 @@ public class AssetCatalogController {
 
     @DeleteMapping("/subscriptions/{id}")
     public ApiResponse<GateResult> unsubscribe(@PathVariable Long id,
-                                               @RequestParam(defaultValue = "1") Long projectId,
+                                               @RequestParam(required = false) Long projectId,
                                                ServerWebExchange exchange) {
         long tenantId = requireTenant();
-        Map<String, Object> cmd = gateBase("unsubscribe", tenantId, projectId, requireUser());
+        Map<String, Object> cmd = gateBase("unsubscribe", tenantId, resolveProjectId(projectId), requireUser());
         cmd.put("id", id);
         return submit("ASSET_SUBSCRIBE", "SUBSCRIPTION", String.valueOf(id), cmd, "退订 #" + id, exchange);
     }
 
     // ─── helpers ───────────────────────────────────────────────
+
+    private Long resolveProjectId(Long requestProjectId) {
+        Long pid = requestProjectId != null ? requestProjectId : TenantContext.projectId();
+        return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
+    }
 
     private ApiResponse<GateResult> submit(String tool, String targetType, String targetId,
                                            Map<String, Object> cmd, String summary, ServerWebExchange exchange) {

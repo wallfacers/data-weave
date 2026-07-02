@@ -15,6 +15,8 @@ public class CronFire {
 
     @Id
     private Long id;
+    private Long tenantId;
+    private Long projectId;
     private Long workflowId;
     private LocalDateTime scheduledFireTime;
     private UUID workflowInstanceId;
@@ -35,6 +37,22 @@ public class CronFire {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(Long tenantId) {
+        this.tenantId = tenantId;
+    }
+
+    public Long getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
     }
 
     public Long getWorkflowId() {

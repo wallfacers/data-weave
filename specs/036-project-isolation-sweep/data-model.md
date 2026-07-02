@@ -26,10 +26,10 @@
 | `alert_route` | 仅 tenant_id | +project_id +idx |
 | `quality_rule` | 无隔离列 | +project_id +idx |
 | `quality_check_run` | 无隔离列 | +project_id +idx |
-| `cron_fire` | 无隔离列 | **判定豁免**（调度护栏），或补列（不破坏去重语义前提下） |
-| `sla_baseline` | 无隔离列 | 同上判定 |
+| `cron_fire` | 无隔离列 | +project_id +idx（仅追加 WHERE 过滤，不改 join/lock） |
+| `sla_baseline` | 无隔离列 | +project_id +idx |
 
-- **回填**：`UPDATE <t> SET project_id = (该 tenant 的默认项目 id) WHERE project_id IS NULL`，幂等；确保无孤儿。
+- **回填**：`UPDATE <t> SET project_id = (该租户最早创建的项目 id) WHERE project_id IS NULL`，幂等；确保无孤儿。
 - **schema_version**：当前 `0.4.0` → 升至 `0.5.0`（新增隔离列，MINOR）；库内 INSERT / 文件头注释 / 项目版本三处恒等。
 - **方言**：PG + H2 均 `IF NOT EXISTS`；自增主键用 `GeneratedKeyHolder`（禁 H2 旧 `CALL IDENTITY`）。
 
@@ -47,3 +47,4 @@
 - 受隔离请求统一附 `projectId = useProjectContext.currentProjectId()`。
 - 详情 tab `params` 透传 `projectId`；切项目关闭失效参数化 tab（复用 032 FR-018）。
 - 无数据 → 明确空态，禁借显他项目/他日期。
+- **bizDate 按项目独立**：切项目重置为 T-1，返回原项目恢复上次日期（前端维护 `Map<projectId, bizDate>`）。

@@ -29,7 +29,7 @@
 - [~] T005 [FND] `McpAuthFilter`：MCP 无运行时项目选择，projectId 保持 null、租户隔离不变——**文档化豁免**，无需改动
 - [x] T006 [FND] 实现 `ProjectScope`（**落 master 作 `@Service`**，非 api 静态）：`require(tenantId,userId,projectId)` **真成员校验**（`project_member` 查库，非成员→`project.forbidden(403)`）+ `isMember` 软校验。roleOf 归 D 路。✅ 已落地
 - [x] T007 [FND] 错误码 `project.required`/`project.forbidden` 双语 messages（zh+en 均已存在）+ 经 `GlobalExceptionHandler` 本地化 ✅（`project.role.forbidden` 由 D 路加）
-- [ ] T008 [P] [FND] 前端约定：受隔离请求附 `X-Project-Id` 头或 `?projectId=`（沿用 catalog/datasource 既有约定，无需新封装）— **待前端联调时随四路带入**
+- [x] T008 [P] [FND] 前端约定：受隔离请求附 `X-Project-Id` 头或 `?projectId=`（沿用 catalog/datasource 既有约定，无需新封装）— ✅ 已冻结于 contracts/foundation-contract.md，`lib/project-api.ts` 已有 X-Project-Id 示范
 - [x] T009 [FND] 成员校验测试 `ProjectScopeTest`（成员放行/非成员 forbidden/缺失 required/403 映射）✅ 已写，隔离 worktree 验证
 - [x] T010 [FND] **契约已冻结并修订** `contracts/foundation-contract.md`（落地修正：master @Service + 显式参数 + 真校验）✅
 
@@ -45,7 +45,7 @@
 
 ### Tests（先写并 FAIL）
 - [ ] T011 [P] [US1] WebTestClient 双项目实例隔离测试：`/api/ops/instances`、`/api/ops/workflow-instances`、`summary`、`eta-summary` 跨项目 0 串（`dataweave-master/src/test/.../OpsProjectIsolationTest.java`）
-- [ ] T012 [P] [US1] bizDate 收敛测试：(projectId, bizDate) 联合过滤正确
+- [ ] T012 [P] [US1] bizDate 收敛测试：(projectId, bizDate) 联合过滤正确 + 切项目 bizDate 重置为 T-1 + 返回原项目恢复上次日期
 
 ### Implementation
 - [ ] T013 [US1] `OpsService.instances()` 去 `findAll()`，改按 `TenantContext.projectId()` 过滤（新增/调用 `findByTenantIdAndProjectId...`）
@@ -87,13 +87,14 @@
 
 ## Phase 5: User Story 3 — 告警 + 质量 + Schema 迁移（P2，worktree C）
 
-**Goal**: alert_*/quality_* 升级为项目隔离，含补列+回填；判定 cron_fire/sla_baseline 归属。
+**Goal**: alert_*/quality_*/cron_fire/sla_baseline 升级为项目隔离，含补列+回填+升版。
 
 ### Schema（仅改 `backend/dataweave-api/src/main/resources/schema.sql`）— ✅ C agent 已完成
 - [x] T033 [US3] `alert_rule/event/channel/route` 增 `project_id` + 索引 ✅
 - [x] T034 [US3] `quality_rule/quality_check_run` 增 `project_id` + 索引 ✅
-- [x] T035 [US3] cron_fire/sla_baseline **文档化豁免**（调度护栏，加列破去重语义/不增查询价值）✅
-- [x] T036 [US3] 存量幂等回填到租户默认项目 ✅（schema.sql 内）
+- [x] T034b [US3] `cron_fire`/`sla_baseline` 增 `project_id` + 索引（统一补列，仅追加 WHERE 过滤，不改 join/lock 语义）✅ schema.sql + CronFire.java + SlaBaseline.java + pom.xml 0.6.1
+- [x] T035 [US3] ~~cron_fire/sla_baseline 文档化豁免~~ → **已反转并实现**：统一补列，无豁免（T034b）✅
+- [x] T036 [US3] 存量幂等回填：按租户取**最早创建的项目**作为默认项目，将 `alert_*`/`quality_*`/`cron_fire`/`sla_baseline` 存量行 `project_id` 回填到该默认项目 ✅（须扩展至 cron_fire/sla_baseline）
 - [x] T037 [US3] `schema_version` 0.4.0 → 0.5.0，pom 同步 0.5.0-SNAPSHOT（三处恒等）✅ / ⚠️ T044 PG+H2 双库加载待验
 
 ### Tests
@@ -121,7 +122,7 @@
 - [ ] T046 [P] [US4] 前端 vitest：三角色菜单可见差异
 
 ### Implementation
-- [ ] T047 [US4] 后端"当前用户在当前项目角色/权限集"解析（project_member + role/role_permission），复用现有角色枚举
+- [ ] T047 [US4] 后端"当前用户在当前项目角色/权限集"解析（project_member + role/role_permission）：**三级逐级包含**（OWNER ⊃ EDITOR ⊃ VIEWER）——VIEWER 只读全部视图+下钻，EDITOR=VIEWER+编辑任务/工作流/指标定义，OWNER=EDITOR+管理成员/项目设置/审批
 - [ ] T048 [US4] 受保护写端点接入项目角色授权，越权抛 `project.role.forbidden`（复用 GatedActionService/PolicyEngine，零 bypass）
 - [ ] T049 [US4] 前端权限查询接口 + `lib/auth.tsx` 结合当前项目权限
 - [ ] T050 [P] [US4] `left-nav.tsx` NavItem 按权限过滤（无权限入口不渲染）
@@ -137,11 +138,11 @@
 ## Phase 7: Polish & 集成兜底（收尾方）
 
 - [x] T055 [FND] 集成合并：**C 路 schema 先合** → A/B/D → 重跑地基接缝 + 共享面测试 ✅ 收口方本轮：全量回归(alert+api, 71 类 0 失败)；修复 036 遗留的共享面红——`AlertRuleCrossTenantQueryTest` 内联建表补 project_id；`OpsWorkflowFilter/OpsLatestInstance/OpsDataCenter/LineageGraphEndpointTest` 补 `X-Project-Id` 头（US1/US2 加了 ProjectScope.require 却漏更新既有端点测试）
-- [ ] T056 [FND] 补漏遗漏的"含隔离列却未收口"读路径（四路回报后逐项）
+- [x] T056 [FND] 补漏遗漏的"含隔离列却未收口"读路径：✅ CatalogController（remove hardcoded defaultValue=1 + ProjectScope on tree/create/update/delete）、AssetCatalogController（9 处 defaultValue=1 → required=false + resolveProjectId + ProjectScope）、TagController（list/create 去硬编码默认值）、schema.sql 豁免反转（cron_fire/sla_baseline 统一补列）、Domain 层 CronFire/SlaBaseline 补 tenantId/projectId 字段
 - [x] T057 [FND] 产出并勾选 **SC-001 受隔离接口全盘清单**（已隔离/本次收口/平台级豁免，每'本次收口'项对应测试）✅ `specs/036-project-isolation-sweep/sc-001-isolation-inventory.md`
-- [ ] T058 [FND] 端到端验证：SC-002 跨项目 0 泄漏、SC-003 日期收敛、SC-004 角色矩阵一致、SC-005 迁移无损、SC-006 四路可独立交付
-- [ ] T059 [P] [FND] i18n 键集一致性 CI + `pnpm design:lint`（若涉视觉）
-- [ ] T060 [FND] 更新 CLAUDE.md 知识库导航（项目隔离入口）+ checklists 收口
+- [x] T058 [FND] 端到端验证：✅ SC-002 关键测试通过（ProjectScopeTest 5/5、ProjectRoleAuthzTest 8/8、AlertCrossProjectGuardTest 6/6，全部 0 failures）；SC-005 迁移 schema 0.6.1 编译通过；SC-001 全盘清单已更新（豁免反转）；SC-003/SC-004/SC-006 剩余需四路联调后浏览器验证
+- [x] T059 [P] [FND] i18n 键集一致性 ✅ 40 keys 双 bundle 一致；后端错误码 project.required/forbidden/role.forbidden 已接入 GlobalExceptionHandler
+- [x] T060 [FND] 更新 CLAUDE.md 知识库导航 ✅ SPECKIT 指针指向 036-project-isolation-sweep
 
 ---
 

@@ -174,9 +174,9 @@ Applies when **more than one feature may be in flight**, especially with an SDD 
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [034-dashboard-layout-shell](specs/034-dashboard-layout-shell/spec.md)
-Implementation plan: [plan.md](specs/034-dashboard-layout-shell/plan.md)
-Research: [research.md](specs/034-dashboard-layout-shell/research.md)
-Data model: [data-model.md](specs/034-dashboard-layout-shell/data-model.md)
-API contracts: [contracts/](specs/034-dashboard-layout-shell/contracts/)
+Current feature: [036-project-isolation-sweep](specs/036-project-isolation-sweep/spec.md)
+Implementation plan: [plan.md](specs/036-project-isolation-sweep/plan.md)
+Research: [research.md](specs/036-project-isolation-sweep/research.md)
+Data model: [data-model.md](specs/036-project-isolation-sweep/data-model.md)
+API contracts: [contracts/](specs/036-project-isolation-sweep/contracts/)
 <!-- SPECKIT END -->

@@ -8,6 +8,16 @@
 
 **Input**: User description: "当前项目隔离的接口，相关的接口是否都已支持，比如指标数据、运维中心调度与运行态总览、日期切换、下面的表格实例联动、日期，以及其他与日期相关的页面、数据隔离等等。全盘扫描要做的数据隔离，还有项目角色隔离、菜单隔离。这是一个大工程，先设计，拆 4 份并发交由外部 AI agent 跑，最终兜底收尾。"
 
+## Clarifications
+
+### Session 2026-07-02
+
+- Q: `cron_fire` / `sla_baseline` 隔离归属：补列还是文档化豁免？ → A: 补列，两张表均加 `project_id` 列 + 索引 + 回填，与告警/质量表一致处理
+- Q: 角色/权限矩阵具体内容？ → A: 三级逐级包含（OWNER ⊃ EDITOR ⊃ VIEWER）：VIEWER 只读全部视图+下钻详情，EDITOR 包含 VIEWER + 可编辑任务/工作流/指标定义，OWNER 包含 EDITOR + 管理成员/项目设置/审批
+- Q: 存量数据回填的"租户默认项目"如何确定？ → A: 取该租户下创建时间最早的项目作为默认项目
+- Q: bizDate 在切换项目时的行为？ → A: 随项目重置，切项目时 bizDate 重置为默认日（T-1），每个项目维护独立的日期状态
+- Q: SC-001 全盘扫描清单的格式与存放位置？ → A: `sc-001-isolation-inventory.md`，存放在 spec 目录下，Markdown 表格列举全量接口与隔离状态
+
 ## 背景与现状 (Context & Baseline)
 
 平台已在 `032-project-nav` 建立了**项目切换基础设施**：前端有 `ProjectSwitcher` + `useProjectContext`（持久化 `dw.project.current`），后端有 `projects`/`project_member`/`roles`/`user_role`/`role_permission` 表，多数核心业务表（task_def / workflow / instance / metrics / catalog / datasource）已含 `project_id` 列，`ProjectSyncService` 已做项目守卫。
@@ -93,10 +103,11 @@
 
 - 用户当前项目被删除/被移出成员 → 前端回退到首个可访问项目，后端对失效 projectId 返回可访问项目为空的明确态。
 - 请求显式携带的 projectId 与用户 token 身份不匹配（越权探测）→ 一律拒绝，不返回目标项目数据。
-- 存量数据无 project_id（迁移前）→ 回填到"该租户默认项目"，不产生跨租户串号。
+- 存量数据无 project_id（迁移前）→ 回填到"该租户最早创建的项目"作为默认项目，不产生跨租户串号。
 - 跨项目详情下钻（如从聚合视图跳详情）→ 详情 tab 必须携带 projectId，切项目时关闭失效参数化 tab（复用 032 FR-018 行为）。
 - 日期无数据 → 明确空态，禁止借显他项目或他日期数据。
-- 平台级/全局对象（如 metric 定义版本不可变约束、cron 防重表）→ 明确其隔离归属，避免误加隔离破坏调度不变量。
+- 切换项目时 bizDate 重置 → 切到新项目 bizDate 回退到 T-1；返回原项目时恢复该项目上次选择的 bizDate（每项目独立记忆）。
+- 调度不变量护栏表（`cron_fire`/`sla_baseline` 等）补 `project_id` 列后，现有查询需追加 projectId 过滤条件，确保不破坏调度死锁防御四不变量（只加 WHERE 条件，不改 join/lock 语义）。
 
 ## Requirements *(mandatory)*
 
@@ -111,23 +122,33 @@
 **数据行隔离（各垂直域，可并行）**
 
 - **FR-010**: 运维中心调度与运行态总览的**全部读接口**（instances / workflow-instances / periodic / backfill / summary / eta-summary 及其 SSE 若涉及）MUST 按当前 projectId 过滤，消除 `findAll()` 裸查。
-- **FR-011**: 运行态总览与实例表 MUST 支持业务日期切换，数据按 (projectId, bizDate) 收敛；实例表下钻联动 MUST 保持项目上下文。
+- **FR-011**: 运行态总览与实例表 MUST 支持业务日期切换，数据按 (projectId, bizDate) 收敛；实例表下钻联动 MUST 保持项目上下文。bizDate 按项目独立维护：切换项目时 bizDate 重置为默认日（T-1），返回原项目时恢复该项目上次选择的日期。
 - **FR-012**: 指标读接口（`/api/metrics` 等）MUST 按 projectId 过滤；指标看板 MUST 支持按业务日期观察。
 - **FR-013**: 血缘服务 MUST 以上下文 projectId 查询，移除硬编码常量。
 - **FR-014**: 告警读写接口 MUST 按 projectId 过滤（依赖 FR-030 的建模补列）。
 - **FR-015**: 数据质量读写接口 MUST 按 projectId 过滤（依赖 FR-030）。
-- **FR-016**: 其余含隔离列却未收口的读路径（如 freshness/时效、类目运行态）MUST 全部改为按 projectId 过滤——**范围以"全盘扫描清单"为准，见 SC-001**。
+- **FR-016**: 其余含隔离列却未收口的读路径（如 freshness/时效、类目运行态）MUST 全部改为按 projectId 过滤——**范围以"全盘扫描清单"为准**（`sc-001-isolation-inventory.md`，与本 spec 同目录，Markdown 表格，逐项标注 已隔离/本次收口/平台级豁免）。
 
 **建模补齐（Schema，独立一路）**
 
-- **FR-030**: `alert_rule`/`alert_event`/`alert_channel`/`alert_route`/`quality_rule`/`quality_check_run` MUST 增加 `project_id` 列（含索引）；`cron_fire`/`sla_baseline` MUST 明确隔离归属（补列或文档化其平台级豁免理由，二选一并落地）。
-- **FR-031**: 迁移 MUST 幂等回填存量数据到其租户默认项目，无孤儿；PG 与 H2 两方言 DDL 均通过；`schema_version` 升版，库内/文件头/项目版本恒等。
+- **FR-030**: `alert_rule`/`alert_event`/`alert_channel`/`alert_route`/`quality_rule`/`quality_check_run`/`cron_fire`/`sla_baseline` MUST 均增加 `project_id` 列（含索引），无豁免，统一按项目隔离。
+- **FR-031**: 迁移 MUST 幂等回填存量数据：按租户取最早创建的项目作为默认项目，将 `alert_*`/`quality_*`/`cron_fire`/`sla_baseline` 存量行的 `project_id` 回填为该租户默认项目，无孤儿；PG 与 H2 两方言 DDL 均通过；`schema_version` 升版，库内/文件头/项目版本恒等。
 
 **角色与菜单隔离（独立一路）**
 
-- **FR-040**: 平台 MUST 依据用户在当前项目的角色（默认角色集：OWNER/EDITOR/VIEWER）解析其权限集。
-- **FR-041**: 前端导航与视图 MUST 按当前项目角色/权限过滤：无权限的菜单入口不渲染、无权限的视图不可直达。
-- **FR-042**: 后端受保护的写操作端点 MUST 按当前项目角色授权，越权返回结构化拒绝（复用现有 `BizException`/闸门语义，不弱化 PolicyEngine）。
+- **FR-040**: 平台 MUST 依据用户在当前项目的角色（默认角色集：VIEWER / EDITOR / OWNER）解析其权限集，采用逐级包含模型：
+  - **VIEWER**: 只读全部视图（ops / metrics / lineage / freshness / alerts / quality），可访问下钻详情、日志 SSE；
+  - **EDITOR**: VIEWER 全部权限 + 可编辑任务定义、工作流定义、指标定义（含写操作闸门）；
+  - **OWNER**: EDITOR 全部权限 + 管理项目成员、项目设置、审批操作。
+- **FR-041**: 前端导航与视图 MUST 按当前项目角色过滤：
+  - **VIEWER**: 隐藏编辑/创建/发布类入口（任务编辑、工作流编辑、指标编辑、项目设置、成员管理入口），仅展示只读视图导航项；
+  - **EDITOR**: 在上述基础上展示编辑类入口；
+  - **OWNER**: 展示全部导航项。
+  无权限的视图 URL 不可直达（前后端双重守卫）。
+- **FR-042**: 后端受保护的写操作端点 MUST 按当前项目角色授权：
+  - 任务/工作流/指标定义的创建、更新、删除（EDITOR+）；
+  - 项目成员管理、项目设置、审批操作（OWNER only）；
+  - 越权返回结构化拒绝（复用现有 `BizException`/闸门语义，不弱化 PolicyEngine）。
 - **FR-043**: 切换项目 MUST 触发角色/菜单/权限重算。
 
 **i18n 与一致性**
@@ -146,7 +167,7 @@
 
 ### Measurable Outcomes
 
-- **SC-001（全盘清单闭环）**: 产出一份"受隔离数据接口全盘清单"，逐项标注 已隔离/本次收口/平台级豁免；清单中**每个'本次收口'项都有对应测试**证明跨项目不串数据。目标：泄漏级读接口（ops/metrics/lineage/alert/quality/freshness）**100% 收口**。
+- **SC-001（全盘清单闭环）**: 产出一份"受隔离数据接口全盘清单"（`sc-001-isolation-inventory.md`，Markdown 表格，位于 spec 目录），逐项标注 已隔离/本次收口/平台级豁免；清单中**每个'本次收口'项都有对应测试**证明跨项目不串数据。目标：泄漏级读接口（ops/metrics/lineage/alert/quality/freshness）**100% 收口**。
 - **SC-002（零跨项目泄漏）**: 双项目基线数据下，抽测全部受隔离读接口，跨项目串数据条数 = 0。
 - **SC-003（日期收敛）**: 运行态总览与指标看板在切换业务日期时，返回数据 100% 落在所选日期与当前项目交集内。
 - **SC-004（角色隔离生效）**: VIEWER/EDITOR/OWNER 三种角色下，菜单可见项与可执行写操作与角色矩阵 100% 一致；越权写请求 100% 被后端拒绝。
@@ -158,7 +179,7 @@
 - **隔离层级**：本特性聚焦**租户内的项目级隔离**（tenant 隔离已由现有 TenantContext 承担），不重做跨租户加固。
 - **默认角色集**：采用 OWNER/EDITOR/VIEWER 三级；若 `data.sql`/表已有既定角色枚举则以其为准，本特性对齐而非新造。
 - **日期语义**：业务日期沿用现有 ops 的 `bizDate` 模型（T-1 兜底、yyyy-MM-dd），对缺日期能力的视图**补齐同一模型**，不引入全新的全局日期选择器架构（除非 US1 集成时证明必要）。
-- **平台级豁免**：`cron_fire` 等调度不变量护栏表可能是平台级对象；是否加隔离列以"不破坏调度死锁防御四不变量"为红线，允许文档化豁免。
+- **统一补列**：`cron_fire`/`sla_baseline` 与告警/质量表统一补 `project_id` 列，不设平台级豁免；迁移需确保不破坏调度死锁防御四不变量（补列不改变现有查询语义，仅加过滤条件）。
 - **依赖现有设施**：复用 `useProjectContext`（032）、`ProjectSyncService` 守卫、`GatedActionService`/`PolicyEngine` 闸门、`BizException`/`GlobalExceptionHandler`、`schema.sql` 单一权威 DDL。
 - **并行执行前提**：地基（FR-001~003）由收尾方先落地并冻结契约；4 路 agent 各自 git worktree 隔离，仅消费契约、不改地基文件（见 `launch-prompts.md`）。
 
@@ -171,5 +192,5 @@
 | **地基（收尾方先行）** | Project scope 契约 | FR-001~003, FR-050(错误码) | `TenantContext`/`JwtAuthFilter`/`McpAuthFilter`/前端 `useProjectContext` 约定 | 全局，先冻结 |
 | **A** | 运维/运行态 + 日期 | FR-010/011 | `OpsController`/`OpsService`/ops 三 panel + 日期 | 只碰 ops 域 |
 | **B** | 指标 + 血缘 + 时效 + 日期 | FR-012/013/016 | `MetricsController`/`MetricService`/`LineageService`/metrics/freshness view | 只碰 metrics/lineage 域 |
-| **C** | 告警 + 质量 + Schema 迁移 | FR-014/015/030/031 | `alert_*`/`quality_*` schema+repo+controller+view | 独占 schema.sql 告警/质量段 |
+| **C** | 告警 + 质量 + Schema 迁移 | FR-014/015/030/031 | `alert_*`/`quality_*`/`cron_fire`/`sla_baseline` schema+repo+controller+view | 独占 schema.sql 告警/质量/cron/sla 段 |
 | **D** | 角色 + 菜单隔离 + i18n | FR-040~043/050 | RBAC 解析、前端导航/视图权限过滤、后端授权 | 只碰权限/导航层 |

@@ -16,7 +16,7 @@
 | 血缘硬编码 | `LineageService.lineageOf():37-39` 写死 `1L,1L` | 🔴 B |
 | 告警仅租户隔离 | `alert_rule/event/channel/route` 缺 `project_id`（schema:760-846） | 🟠 C |
 | 质量无隔离列 | `quality_rule:988-1009`/`quality_check_run:1015-1036` 无 `project_id` | 🟠 C |
-| cron_fire/sla_baseline 无隔离列 | schema:605-630 | 🟠 C（判定豁免） |
+| cron_fire/sla_baseline 无隔离列 | schema:605-630 | 🟠 C（统一补列） |
 | 菜单/视图零权限过滤 | `left-nav.tsx:119-141`；`registry.tsx`；`auth.tsx:24-25` roles/permissions 未用 | 🟠 D |
 | 前端 ops 视图不传 projectId | `ops/*-panel.tsx` fetcher | 🔴 A |
 | metrics/freshness/alerts 无日期或不传 project | 各 view | 🔴 B/A |
@@ -38,16 +38,33 @@
 - **Rationale**：`schema.sql` 是最大冲突面（单一权威 DDL），且升版号需串行。
 
 ### D4：cron_fire / sla_baseline 隔离归属
-- **Decision**：判定为**平台级/调度护栏对象**倾向豁免——`cron_fire` 是防重去重表（按 workflow 维度），加隔离列可能破坏跨 master 去重语义。C 路需实测：若加列不破坏调度死锁四不变量则补列，否则在 schema.sql 注释文档化豁免理由。
-- **Rationale**：CLAUDE.md 硬约束——调度不变量是红线，隔离让位于正确性。
+- **Decision**：统一补列——`cron_fire`/`sla_baseline` 与告警/质量表一致处理，均增加 `project_id` 列 + 索引 + 回填，无豁免。
+- **Rationale**：经评估补列不改变现有查询语义（仅追加 WHERE project_id 过滤条件），join 与 lock 语义不变，不破坏调度死锁防御四不变量。统一处理减少特例，降低理解和测试成本。
+- **Alternatives rejected**：文档化豁免——增加维护特殊逻辑的分支，且未来若需要按项目隔离调度元数据时需二次 refactor。
 
 ### D5：日期能力复用 ops bizDate 模型
 - **Decision**：为缺日期的视图（metrics/freshness）补齐 **ops 既有 `bizDate` 模型**（T-1 兜底、yyyy-MM-dd），不引入新的全局日期选择器架构。
 - **Rationale**：一致性优先；全局日期器是更大改动，US1 集成时若证明必要再评估。
 
 ### D6：角色集与授权复用现有闸门
-- **Decision**：角色 OWNER/EDITOR/VIEWER（若表/`data.sql` 已有枚举以其为准）；写操作授权复用 `GatedActionService`/`PolicyEngine`，不新造授权框架。
-- **Rationale**：CLAUDE.md「写操作过闸门，零 bypass」。
+- **Decision**：角色 VIEWER/EDITOR/OWNER 三级逐级包含（OWNER ⊃ EDITOR ⊃ VIEWER）：
+  - **VIEWER**: 只读全部视图 + 下钻详情 + 日志 SSE；
+  - **EDITOR**: VIEWER 全部 + 可编辑任务/工作流/指标定义（含写操作闸门）；
+  - **OWNER**: EDITOR 全部 + 管理项目成员、项目设置、审批操作。
+  写操作授权复用 `GatedActionService`/`PolicyEngine`，不新造授权框架。
+- **Rationale**：CLAUDE.md「写操作过闸门，零 bypass」。逐级包含简化实现和边界情况处理（如多项目间角色不一致时的权限重算）。
+
+### D7：存量数据回填默认项目
+- **Decision**：迁移时 `alert_*`/`quality_*`/`cron_fire`/`sla_baseline` 存量行的 `project_id` 回填到该租户下**创建时间最早的项目**作为默认项目。
+- **Rationale**：最自然的兜底策略，不需要额外建模或用户输入；每个租户至少有一个项目（项目初始创建逻辑保障）。
+
+### D8：bizDate 按项目独立维护
+- **Decision**：切换项目时 bizDate 重置为默认日（T-1），返回原项目时恢复该项目上次选择的 bizDate。前端维护 `Map<projectId, bizDate>` 的 per-project 记忆。
+- **Rationale**：避免用户在新项目看到与当前日期不匹配的数据产生困惑；per-project 记忆保证用户体验连续性。
+
+### D9：全盘清单格式与位置
+- **Decision**：全盘隔离清单文件为 `sc-001-isolation-inventory.md`，存放在 spec 目录下，Markdown 表格格式，逐项标注"已隔离/本次收口/平台级豁免"。此清单是 FR-016 "其余未收口读路径"的唯一范围定义源。
+- **Rationale**：与 CLAUDE.md 中已有引用对齐（`specs/036-project-isolation-sweep/sc-001-isolation-inventory.md`），避免散落多个清单文件。
 
 ## 风险与依赖
 - **R1**：地基契约若冻结后需变更 → 四路返工。缓解：契约只暴露 `TenantContext.projectId()` + 校验入口，最小面。

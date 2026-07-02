@@ -1,6 +1,6 @@
 # Implementation Plan: 项目级数据隔离全盘收口
 
-**Branch**: `036-project-isolation-sweep` | **Date**: 2026-07-01 | **Spec**: [spec.md](./spec.md)
+**Branch**: `036-project-isolation-sweep` | **Date**: 2026-07-02 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/036-project-isolation-sweep/spec.md`
 
@@ -32,7 +32,7 @@
 
 - ✅ **依赖方向** domain ← application ← infrastructure ← interfaces：隔离过滤下沉到 repo/service，不逆向。
 - ✅ **写操作过闸门**：角色授权（US4）复用 `GatedActionService`/`PolicyEngine`，零 bypass。
-- ✅ **调度不变量**：A 路禁改 claim/CAS/锁顺序；C 路对 `cron_fire` 加列以"不破坏不变量"为红线。
+- ✅ **调度不变量**：A 路禁改 claim/CAS/锁顺序；C 路对 `cron_fire`/`sla_baseline` 补列仅加 WHERE 过滤条件，不改 join/lock 语义。
 - ✅ **指标不可变**：B 路只加隔离过滤，不 UPDATE 旧 metric。
 - ✅ **i18n 三规则**：静态 UI 走 next-intl（by UI locale）；错误码 `project.forbidden/required/role.forbidden` 走 `BizException` + `GlobalExceptionHandler`。
 - ✅ **schema 单一权威**：C 路只改 `schema.sql`，不建增量脚本，升版三处恒等。
@@ -82,7 +82,7 @@ messages/{zh-CN,en-US}.json       # D 路 i18n 命名空间
 
 ## Phasing
 
-- **Phase 0（research.md）**：现状基线（已由并行扫描产出）+ 关键裁决（地基先行、schema 单路独占、cron_fire 豁免判定）。
+- **Phase 0（research.md）**：现状基线（已由并行扫描产出）+ 关键裁决（地基先行、schema 单路独占、cron_fire/sla_baseline 统一补列、角色逐级包含、bizDate 按项目重置、默认项目回填规则、全盘清单路径）。
 - **Phase 1（data-model.md + contracts/）**：ProjectScope 上下文模型、6 表补列 DDL 方案与回填、地基契约 + 4 域隔离契约。
 - **Phase 2（tasks.md）**：Setup → Foundational（地基，阻塞）→ US1(A)/US2(B)/US3(C)/US4(D) 并行 → Polish（集成兜底 + 全盘清单）。
 

@@ -17,6 +17,8 @@ public class SlaBaseline {
 
     @Id
     private Long id;
+    private Long tenantId;
+    private Long projectId;
     private Long workflowId;
     private String bizDate;
     private UUID workflowInstanceId;
@@ -33,6 +35,12 @@ public class SlaBaseline {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
 
     public Long getWorkflowId() { return workflowId; }
     public void setWorkflowId(Long workflowId) { this.workflowId = workflowId; }
