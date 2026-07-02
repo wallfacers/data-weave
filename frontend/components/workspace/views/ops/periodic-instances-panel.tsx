@@ -17,12 +17,14 @@ import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { format } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { BoxIcon, PlayIcon, StopIcon, CheckmarkCircle01Icon, Copy01Icon } from "@hugeicons/core-free-icons"
+import { BoxIcon, PlayIcon, StopIcon, CheckmarkCircle01Icon, Copy01Icon, FileViewIcon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 import {
   type ColumnDef,
   type FilterDef,
@@ -139,6 +141,35 @@ export function PeriodicInstancesPanel({
   const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
+
+  // confirm dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmState, setConfirmState] = useState<{
+    title: string
+    description: string
+    destructive: boolean
+    onConfirm: () => void
+  }>({ title: "", description: "", destructive: false, onConfirm: () => {} })
+
+  // 单行操作
+  const submitAction = useCallback(
+    async (id: string, action: string, label: string) => {
+      try {
+        // set-success 的 API 路径与 rerun/kill 不同
+        const path = action === "set-success" ? "task-instances" : "instances"
+        const res = await authFetch(`${API_BASE}/api/ops/${path}/${id}/${action}`, { method: "POST" })
+        const j = (await res.json()) as ApiResponse<string>
+        if (j.code === 0) {
+          toast.success(t("actionSuccess", { label }))
+        } else {
+          toast.error(t("actionFailed", { label, msg: j.message }))
+        }
+      } catch {
+        toast.error(t("actionFailed", { label, msg: "" }))
+      }
+    },
+    [t],
+  )
 
   /** cron → 简短可读形式：实现委托共享 util（@/lib/cron-format），文案走 i18n */
   const humanizeCron = useMemo(
@@ -329,17 +360,94 @@ export function PeriodicInstancesPanel({
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 10,
-        align: "right",
+        widthPct: 8,
         cell: (r) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => open("workflow-instance-detail", { instanceId: r.id })}
-          >
-            {t("btnLog")}
-          </Button>
+          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("batchRerun") }),
+                        description: t("confirmRerunDesc"),
+                        destructive: false,
+                        onConfirm: () => submitAction(r.id, "rerun", t("batchRerun")),
+                      })
+                      setConfirmOpen(true)
+                    }}
+                  >
+                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("batchRerun")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("batchSetSuccess") }),
+                        description: t("confirmSetSuccessDesc"),
+                        destructive: false,
+                        onConfirm: () => submitAction(r.id, "set-success", t("batchSetSuccess")),
+                      })
+                      setConfirmOpen(true)
+                    }}
+                  >
+                    <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("batchSetSuccess")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("batchKill") }),
+                        description: t("confirmKillDesc"),
+                        destructive: true,
+                        onConfirm: () => submitAction(r.id, "kill", t("batchKill")),
+                      })
+                      setConfirmOpen(true)
+                    }}
+                  >
+                    <HugeiconsIcon icon={StopIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("batchKill")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    onClick={() => open("workflow-instance-detail", { instanceId: r.id })}
+                  >
+                    <HugeiconsIcon icon={FileViewIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("btnLog")}</TooltipContent>
+            </Tooltip>
+          </div>
         ),
       },
     ],
@@ -435,25 +543,72 @@ export function PeriodicInstancesPanel({
         bulkActions={(ids, reload) => (
           <div className="flex items-center gap-1">
             {ids.length > 100 ? (
-              <span className="text-xs text-destructive">{t("bulkMaxHintWithCount", { count: ids.length })}</span>
+              <span className="text-xs text-destructive">{t("bulkMaxHint")}</span>
             ) : (
               <>
-                <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("rerun", ids, reload)}>
-                  <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
-                  {t("batchRerun")}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={ids.length === 0}
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchRerun") }),
+                      description: t("confirmBatchRerunDesc", { count: ids.length }),
+                      destructive: false,
+                      onConfirm: () => runBatch("rerun", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
+                  <HugeiconsIcon icon={PlayIcon} /> {t("batchRerun")}
                 </Button>
-                <Button size="sm" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("set-success", ids, reload)}>
-                  <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-3.5" />
-                  {t("batchSetSuccess")}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={ids.length === 0}
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchSetSuccess") }),
+                      description: t("confirmBatchSetSuccessDesc", { count: ids.length }),
+                      destructive: false,
+                      onConfirm: () => runBatch("set-success", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
+                  <HugeiconsIcon icon={CheckmarkCircle01Icon} /> {t("batchSetSuccess")}
                 </Button>
-                <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={ids.length === 0} onClick={() => runBatch("kill", ids, reload)}>
-                  <HugeiconsIcon icon={StopIcon} className="size-3.5" />
-                  {t("batchKill")}
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={ids.length === 0}
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchKill") }),
+                      description: t("confirmBatchKillDesc", { count: ids.length }),
+                      destructive: true,
+                      onConfirm: () => runBatch("kill", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
+                  <HugeiconsIcon icon={StopIcon} /> {t("batchKill")}
                 </Button>
               </>
             )}
           </div>
         )}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmState.title}
+        description={confirmState.description}
+        destructive={confirmState.destructive}
+        onConfirm={() => {
+          confirmState.onConfirm()
+          setConfirmOpen(false)
+        }}
       />
     </div>
   )

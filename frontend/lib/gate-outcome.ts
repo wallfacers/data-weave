@@ -36,11 +36,11 @@ type Translate = (key: string) => string
 
 /**
  * 三态 → toast 文案。已知业务错误码用调用方提供的 i18n key 映射（更友好提示,SC-006）,
- * 未知码回落后端 message,再无则通用失败。调用方的命名空间须含 `actionDone`/`pendingApproval`/`actionFailed`。
+ * 未知码回落后端 message,再无则通用失败。调用方的命名空间须含 `actionDone`/`pendingApproval`/`actionFailedGeneric`。
  */
 export function gateToast(r: GateResolution, t: Translate, errKeys: Record<string, string> = {}): string {
   if (r.kind === "executed") return t("actionDone")
   if (r.kind === "pending") return t("pendingApproval")
   if (r.errorCode && errKeys[r.errorCode]) return t(errKeys[r.errorCode])
-  return r.backendMessage && r.backendMessage.trim() ? r.backendMessage : t("actionFailed")
+  return r.backendMessage && r.backendMessage.trim() ? r.backendMessage : t("actionFailedGeneric")
 }
