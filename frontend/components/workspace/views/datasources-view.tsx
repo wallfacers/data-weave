@@ -567,7 +567,7 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
 
           {/* Test result */}
           {testResult && (
-            <div className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${testResult.success ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200" : "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"}`}>
+            <div className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${testResult.success ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
               <HugeiconsIcon icon={testResult.success ? CheckmarkCircle01Icon : Cancel01Icon} className="size-4" />
               <span>{testResult.message}</span>
               {testResult.success && testResult.latencyMs > 0 && (

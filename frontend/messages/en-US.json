@@ -143,7 +143,14 @@
       "close": "Close",
       "viewTaskDetail": "View Task Detail",
       "virtualNoTask": "Virtual node (no associated task)",
-      "config": "Runtime Config"
+      "config": "Runtime Config",
+      "taskTypeSQL": "SQL",
+      "taskTypePython": "Python",
+      "taskTypeShell": "Shell",
+      "taskTypeJava": "Java",
+      "taskTypeJavaScript": "JavaScript",
+      "taskTypeTypeScript": "TypeScript",
+      "taskTypeDataSync": "Data Sync"
     },
     "testRunLabel": "Test Run",
     "unresolvedParams": "Unresolved params",
@@ -309,7 +316,24 @@
       "versionInfo": "Published v{versionNo}, {publishedAt}",
       "close": "Close"
     },
-    "loadError": "Load failed"
+    "loadError": "Load failed",
+    "runModePeriodic": "Periodic",
+    "runModeBackfill": "Backfill",
+    "runModeManual": "Manual",
+    "runModeTest": "Test",
+    "stateSUCCESS": "Success",
+    "stateRUNNING": "Running",
+    "stateFAILED": "Failed",
+    "stateWAITING": "Waiting",
+    "stateNOT_RUN": "Not Run",
+    "stateSTOPPED": "Stopped",
+    "stateKILLED": "Killed",
+    "statePAUSED": "Paused",
+    "statePARTIAL": "Partial",
+    "statePREEMPTED": "Preempted",
+    "stateWAIT_RETRY": "Retry Wait",
+    "stateDISPATCHED": "Dispatched",
+    "stateSKIPPED": "Skipped"
   },
   "views": {
     "cockpit": "Cockpit",
@@ -490,7 +514,18 @@
     "noCrossCycleDeps": "No cross-cycle dependencies",
     "earliestBizDate": "First-cycle exempt before",
     "selectNodeForDep": "Select node (self-dependency)",
-    "noNodesForDep": "Add workflow nodes on the canvas first"
+    "noNodesForDep": "Add workflow nodes on the canvas first",
+    "scheduleManual": "Manual",
+    "scheduleCron": "Cron",
+    "scheduleDependency": "Dependency",
+    "priorityLevel": "Priority {level}",
+    "dateOffsetLastDay": "LAST_DAY",
+    "dateOffsetCurrentDay": "CURRENT_DAY",
+    "addDep": "+ Add",
+    "bizDateFormat": "yyyy-MM-dd",
+    "sepDot": " · ",
+    "sepArrow": " ← ",
+    "depGte": " ≥ "
   },
   "workflowInstanceDetail": {
     "title": "Workflow Instance Detail",
@@ -676,7 +711,9 @@
     "runScopeToNode": "Run to node",
     "runScopeDownstream": "Run downstream",
     "runScopeOnlyNode": "Only this node",
-    "nodeUnpublished": "Unpublished"
+    "nodeUnpublished": "Unpublished",
+    "taskTypeSQL": "SQL",
+    "taskTypeShell": "Shell"
   },
   "fleet": {
     "title": "Cluster Nodes",
@@ -758,7 +795,11 @@
     "filterStatusProject": "Status",
     "statusProjectArchived": "Archived",
     "colCreatedAt": "Created",
-    "colUpdatedAt": "Updated"
+    "colUpdatedAt": "Updated",
+    "usernamePlaceholder": "username",
+    "emailPlaceholder": "user@example.com",
+    "roleCodePlaceholder": "DEVELOPER",
+    "projectCodePlaceholder": "my-project"
   },
   "logPanel": {
     "taskFallback": "Task #{id}",
@@ -780,6 +821,18 @@
     "signingIn": "Signing in",
     "loginFailed": "Login failed",
     "defaultAccount": "Default account: admin / admin"
+  },
+  "instanceLog": {
+    "title": "Instance Log",
+    "noInstanceId": "No instance ID provided",
+    "live": "Live",
+    "ended": "Ended",
+    "disconnected": "Disconnected",
+    "connecting": "Connecting",
+    "clear": "Clear",
+    "waitingLogs": "Waiting for log output",
+    "noLogs": "No log records",
+    "connectingDots": "Connecting"
   },
   "instanceTable": {
     "stateRunning": "Running",
@@ -847,6 +900,7 @@
     "mem": "Memory",
     "disk": "Disk",
     "load": "Load",
+    "cpu": "CPU",
     "runningTasks": "Running Tasks",
     "spec": "Spec"
   },
@@ -991,6 +1045,15 @@
   "eventCenter": {
     "tab": { "events": "Events", "subscriptions": "Subscriptions" },
     "filter": { "allTypes": "All types", "allSeverities": "All severities" },
+    "severity": {
+      "INFO": "Info",
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "WARNING": "Warning",
+      "HIGH": "High",
+      "CRITICAL": "Critical"
+    },
+    "severityGte": "≥ {level}",
     "refresh": "Refresh",
     "loading": "Loading",
     "empty": "No events yet",
@@ -1072,10 +1135,20 @@
     "severityCritical": "CRITICAL",
     "severityWarning": "WARNING",
     "severityInfo": "INFO",
+    "severityLOW": "LOW",
+    "severityMEDIUM": "MEDIUM",
+    "severityHIGH": "HIGH",
+    "severityCRITICAL": "CRITICAL",
+    "severityEllipsis": "—",
     "stateFiring": "FIRING",
     "stateResolved": "RESOLVED",
     "stateAcked": "ACKED",
-    "stateSuppressed": "SUPPRESSED"
+    "stateSuppressed": "SUPPRESSED",
+    "stateFIRING": "FIRING",
+    "stateRESOLVED": "RESOLVED",
+    "stateACKED": "ACKED",
+    "stateSUPPRESSED": "SUPPRESSED",
+    "disabled": "Disabled"
   },
   "qualityView": {
     "checkNow": "Check Now",
@@ -1089,7 +1162,22 @@
     "sampled": "Sampled",
     "tabRules": "Rules",
     "tabRuns": "Run History",
-    "tabScorecards": "Scorecards"
+    "tabScorecards": "Scorecards",
+    "triggerPostTask": "post-task",
+    "triggerScheduled": "scheduled",
+    "triggerOnDemand": "on-demand",
+    "statusPass": "Pass",
+    "statusFail": "Fail",
+    "statusWarn": "Warn",
+    "statusError": "Error",
+    "statusRunning": "Running",
+    "blocked": "Blocked",
+    "failUnit": "fail",
+    "measuredLabel": "measured",
+    "expectedLabel": "expected",
+    "passRateLabel": "pass rate",
+    "checksLabel": "checks",
+    "failedLabel": "failed"
   },
   "assetCatalog": {
     "title": "Data Assets",

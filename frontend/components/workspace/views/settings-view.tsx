@@ -312,7 +312,7 @@ function UsersTab() {
                 autoFocus
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="username"
+                placeholder={t("usernamePlaceholder")}
                 readOnly={dialog.mode === "edit"}
               />
             </FormField>
@@ -341,7 +341,7 @@ function UsersTab() {
               <Input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@example.com"
+                placeholder={t("emailPlaceholder")}
               />
             </FormField>
           </div>
@@ -500,7 +500,7 @@ function RolesTab() {
                 autoFocus
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="DEVELOPER"
+                placeholder={t("roleCodePlaceholder")}
                 readOnly={dialog.mode === "edit"}
               />
             </FormField>
@@ -692,7 +692,7 @@ function ProjectsTab() {
                 autoFocus
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="my-project"
+                placeholder={t("projectCodePlaceholder")}
                 readOnly={dialog.mode === "edit"}
               />
             </FormField>

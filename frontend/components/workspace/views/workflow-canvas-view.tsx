@@ -772,13 +772,13 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
         <div className="ml-auto flex items-center gap-2">
           {online && <Badge variant="success">{t("online")}</Badge>}
           {(dirty || hasDraft) && (
-            <Badge variant="outline" className="text-amber-600">
+            <Badge variant="outline" className="text-warning">
               {dirty ? t("unsavedChanges") : t("unpublishedChanges")}
             </Badge>
           )}
           {online && drift?.drifted && (
             <>
-              <Badge variant="outline" className="cursor-help text-amber-600" title={driftTitle}>
+              <Badge variant="outline" className="cursor-help text-warning" title={driftTitle}>
                 {t("driftBadge", { count: drift.driftedNodes.length })}
               </Badge>
               <Button size="sm" variant="outline" onClick={publish} disabled={busy || dirty} title={t("rePromoteHint")}>
@@ -1389,14 +1389,14 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
               variant={taskType === "SQL" ? "default" : "outline"}
               onClick={() => setTaskType("SQL")}
             >
-              SQL
+              {t("taskTypeSQL")}
             </Button>
             <Button
               size="xs"
               variant={taskType === "SHELL" ? "default" : "outline"}
               onClick={() => setTaskType("SHELL")}
             >
-              SHELL
+              {t("taskTypeShell")}
             </Button>
           </div>
           <DialogFooter>

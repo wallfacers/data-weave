@@ -38,11 +38,6 @@ import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { cn } from "@/lib/utils"
 
-const TYPE_OPTIONS = [
-  { value: "SQL", label: "SQL" },
-  { value: "SHELL", label: "SHELL" },
-]
-
 // 快捷表达式预设：点选即填入当前参数的「表达式」，免去手敲 ${...}。
 // value 为表达式字面量（不翻译），label 经 i18n 在组件内生成。
 const PRESET_PLACEHOLDER = "__preset__"

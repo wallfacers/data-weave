@@ -1110,8 +1110,8 @@ export function CatalogTree({
                 )
               }
               options={[
-                { value: "SQL", label: "SQL" },
-                { value: "SHELL", label: "SHELL" },
+                { value: "SQL", label: t("nodeDetail.taskTypeSQL") },
+                { value: "SHELL", label: t("nodeDetail.taskTypeShell") },
               ]}
               disableClear
             />

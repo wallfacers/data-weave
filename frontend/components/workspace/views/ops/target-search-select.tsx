@@ -39,6 +39,13 @@ interface RawDef {
 
 export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSelectProps) {
   const t = useTranslations("ops")
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case "ONLINE": return t("statusOnline")
+      case "DRAFT": return t("statusDraft")
+      default: return s
+    }
+  }
   const [open, setOpen] = useState(false)
   const [kw, setKw] = useState("")
   const [results, setResults] = useState<TargetOption[]>([])
@@ -178,7 +185,7 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
                     {opt.path && <span className="truncate">{opt.path}</span>}
                     {opt.status && (
                       <span className="inline-flex shrink-0 items-center justify-center rounded bg-muted px-1 font-mono text-[10px] uppercase">
-                        {opt.status}
+                        {statusLabel(opt.status)}
                       </span>
                     )}
                   </span>

@@ -31,6 +31,15 @@ export function InstanceDagDialog({
   onOpenChange,
 }: InstanceDagDialogProps) {
   const t = useTranslations("ops")
+  const stateLabel = (s: string) => t(`state${s}` as any) || s
+  const triggerLabel = (tr: string) => {
+    switch (tr) {
+      case "CRON": return t("triggerTypeCron")
+      case "MANUAL": return t("triggerTypeManual")
+      case "BACKFILL": return t("triggerTypeBackfill")
+      default: return tr
+    }
+  }
   const { dag, loading, error, reload } = useInstanceDag(open ? workflowInstanceId : null)
   const [selectedTaskInstanceId, setSelectedTaskInstanceId] = useState<string | null>(null)
   const [selectedNodeName, setSelectedNodeName] = useState<string | undefined>(undefined)
@@ -84,9 +93,9 @@ export function InstanceDagDialog({
 
   const title = dag ? `${dag.workflowName} — ${dag.bizDate}` : t("instanceDagTitle")
   const envLabel = dag?.env ? ` · ${dag.env}` : ""
-  const subtitle = dag ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.state}${envLabel}` : undefined
+  const subtitle = dag ? `v${dag.workflowVersionNo} · ${triggerLabel(dag.triggerType)} · ${stateLabel(dag.state)}${envLabel}` : undefined
   const footerInfo = dag
-    ? `v${dag.workflowVersionNo} · ${dag.triggerType} · ${dag.bizDate}${envLabel}`
+    ? `v${dag.workflowVersionNo} · ${triggerLabel(dag.triggerType)} · ${dag.bizDate}${envLabel}`
     : " "
 
   return (

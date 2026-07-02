@@ -49,7 +49,7 @@ function severityClass(sev?: string): string {
       return "text-destructive"
     case "WARNING":
     case "MEDIUM":
-      return "text-amber-500"
+      return "text-warning"
     default:
       return "text-muted-foreground"
   }
@@ -179,7 +179,7 @@ export function EventCenterView() {
   const severityOptions = useMemo<DropdownOption[]>(
     () => [
       { value: "", label: t("filter.allSeverities") },
-      ...SEVERITIES.map((s) => ({ value: s, label: s })),
+      ...SEVERITIES.map((s) => ({ value: s, label: t(`severity.${s}` as never) })),
     ],
     [t],
   )
@@ -187,7 +187,7 @@ export function EventCenterView() {
   const subSeverityOptions = useMemo<DropdownOption[]>(
     () => [
       { value: "", label: t("sub.anySeverity") },
-      ...SEVERITIES.map((s) => ({ value: s, label: `≥ ${s}` })),
+      ...SEVERITIES.map((s) => ({ value: s, label: t("severityGte", { level: t(`severity.${s}` as never) }) })),
     ],
     [t],
   )
@@ -278,7 +278,7 @@ export function EventCenterView() {
                     className="flex items-start gap-3 rounded-lg border border-border bg-card p-3"
                   >
                     <span className={`mt-0.5 text-xs font-medium ${severityClass(e.severity)}`}>
-                      {e.severity || "—"}
+                      {e.severity ? t(`severity.${e.severity}` as never) : "—"}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">

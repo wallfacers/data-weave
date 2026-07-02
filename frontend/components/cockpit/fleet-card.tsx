@@ -92,7 +92,7 @@ export function FleetCard({ node }: { node: WorkerNode }) {
       <CardContent className="flex flex-col gap-4">
         {/* Resource bars */}
         <div className="flex flex-col gap-3">
-          <ResourceBar label="CPU" value={node.cpu} icon={CpuIcon} />
+          <ResourceBar label={t("cpu")} value={node.cpu} icon={CpuIcon} />
           <ResourceBar label={t("mem")} value={node.mem} icon={MemoryStickIcon} />
           <ResourceBar label={t("disk")} value={node.disk} icon={Database01Icon} />
         </div>

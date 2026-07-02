@@ -17,8 +17,13 @@ import { useFormatDateTime } from "@/hooks/use-format-date-time"
 /** 任务类型 → 人类可读标签 */
 function taskTypeLabel(taskType: string, t: (key: string) => string): string {
   const m: Record<string, string> = {
-    SQL: "SQL", PYTHON: "Python", SHELL: "Shell", JAVA: "Java",
-    JAVASCRIPT: "JavaScript", TYPESCRIPT: "TypeScript", DATA_SYNC: "Data Sync",
+    SQL: t("nodeDetail.taskTypeSQL"),
+    PYTHON: t("nodeDetail.taskTypePython"),
+    SHELL: t("nodeDetail.taskTypeShell"),
+    JAVA: t("nodeDetail.taskTypeJava"),
+    JAVASCRIPT: t("nodeDetail.taskTypeJavaScript"),
+    TYPESCRIPT: t("nodeDetail.taskTypeTypeScript"),
+    DATA_SYNC: t("nodeDetail.taskTypeDataSync"),
   }
   return m[taskType.toUpperCase()] || taskType
 }

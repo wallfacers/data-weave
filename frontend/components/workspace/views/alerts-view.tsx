@@ -114,15 +114,15 @@ export function AlertsView({ active }: ViewProps) {
   ]
 
   const severityColor = (s: string) =>
-    s === "CRITICAL" ? "text-red-600 bg-red-50" :
-    s === "WARNING" ? "text-amber-600 bg-amber-50" :
-    "text-blue-600 bg-blue-50"
+    s === "CRITICAL" ? "text-destructive bg-destructive/10" :
+    s === "WARNING" ? "text-warning bg-warning/10" :
+    "text-info bg-info/10"
 
   const stateColor = (s: string) =>
-    s === "FIRING" ? "text-red-700 bg-red-100" :
-    s === "RESOLVED" ? "text-green-700 bg-green-100" :
-    s === "ACKED" ? "text-gray-600 bg-gray-100" :
-    "text-purple-700 bg-purple-100"
+    s === "FIRING" ? "text-destructive bg-destructive/10" :
+    s === "RESOLVED" ? "text-success bg-success/10" :
+    s === "ACKED" ? "text-muted-foreground bg-muted" :
+    "text-info bg-info/10"
 
   return (
     <div className="flex flex-col h-full">
@@ -184,7 +184,7 @@ export function AlertsView({ active }: ViewProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${severityColor(e.severity)}`}>
-                      {e.severity}
+                      {e.severity ? t(`severity${e.severity}` as never) : t("severityEllipsis")}
                     </span>
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${stateColor(e.state)}`}>
                       {e.state === "FIRING" ? t("stateFiring") :
@@ -227,8 +227,8 @@ export function AlertsView({ active }: ViewProps) {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{r.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {r.signalSource} · {r.evalMode} · <span className={severityColor(r.severity)}>{r.severity}</span>
-                    {r.enabled === 0 && " · Disabled"}
+                    {r.signalSource} · {r.evalMode} · <span className={severityColor(r.severity)}>{r.severity ? t(`severity${r.severity}` as never) : t("severityEllipsis")}</span>
+                    {r.enabled === 0 && ` · ${t("disabled")}`}
                   </p>
                 </div>
               </div>
@@ -249,7 +249,7 @@ export function AlertsView({ active }: ViewProps) {
               <div key={c.id} className="border rounded-lg p-3 flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <p className="font-medium text-sm">{c.name}</p>
-                  <p className="text-xs text-muted-foreground">{c.type}{c.enabled === 0 && " · Disabled"}</p>
+                  <p className="text-xs text-muted-foreground">{c.type}{c.enabled === 0 && ` · ${t("disabled")}`}</p>
                 </div>
               </div>
             ))}

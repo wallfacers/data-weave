@@ -21,25 +21,26 @@ import {
   type WorkflowDependency,
 } from "@/lib/types"
 
-const SCHEDULE_TYPE_OPTIONS = [
-  { value: "MANUAL", label: "MANUAL" },
-  { value: "CRON", label: "CRON" },
-  { value: "DEPENDENCY", label: "DEPENDENCY" },
-]
+function scheduleTypeLabel(v: string, t: ReturnType<typeof useTranslations>): string {
+  switch (v) {
+    case "MANUAL": return t("workflowConfig.scheduleManual")
+    case "CRON": return t("workflowConfig.scheduleCron")
+    case "DEPENDENCY": return t("workflowConfig.scheduleDependency")
+    default: return v
+  }
+}
 
-const PRIORITY_OPTIONS = [
-  { value: "0", label: "0" }, { value: "1", label: "1" },
-  { value: "2", label: "2" }, { value: "3", label: "3" },
-  { value: "4", label: "4" }, { value: "5", label: "5" },
-  { value: "6", label: "6" }, { value: "7", label: "7" },
-  { value: "8", label: "8" }, { value: "9", label: "9" },
-]
+function priorityLabel(v: string, t: ReturnType<typeof useTranslations>): string {
+  return t("workflowConfig.priorityLevel", { level: v })
+}
 
-/** 日期偏移：LAST_DAY=依赖上一周期（自依赖常用）；CURRENT_DAY=当天。 */
-const DATE_OFFSET_OPTIONS = [
-  { value: "LAST_DAY", label: "LAST_DAY" },
-  { value: "CURRENT_DAY", label: "CURRENT_DAY" },
-]
+function dateOffsetLabel(v: string, t: ReturnType<typeof useTranslations>): string {
+  switch (v) {
+    case "LAST_DAY": return t("workflowConfig.dateOffsetLastDay")
+    case "CURRENT_DAY": return t("workflowConfig.dateOffsetCurrentDay")
+    default: return v
+  }
+}
 
 export interface WorkflowConfigPanelProps {
   name: string
@@ -99,7 +100,11 @@ export function WorkflowConfigPanel({
         <DropdownSelect
           value={scheduleType}
           onChange={(v) => { setScheduleType(v); onDirty() }}
-          options={SCHEDULE_TYPE_OPTIONS}
+          options={[
+            { value: "MANUAL", label: scheduleTypeLabel("MANUAL", t) },
+            { value: "CRON", label: scheduleTypeLabel("CRON", t) },
+            { value: "DEPENDENCY", label: scheduleTypeLabel("DEPENDENCY", t) },
+          ]}
           disableClear
         />
       </div>
@@ -123,7 +128,7 @@ export function WorkflowConfigPanel({
         <DropdownSelect
           value={String(priority)}
           onChange={(v) => { setPriority(Number(v)); onDirty() }}
-          options={PRIORITY_OPTIONS}
+          options={Array.from({ length: 10 }, (_, i) => ({ value: String(i), label: priorityLabel(String(i), t) }))}
           disableClear
         />
       </div>
@@ -199,9 +204,9 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
               <div key={d.id} className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs">
                 <span className="flex-1 truncate">
                   {d.nodeKey}
-                  {d.dependNodeKey && d.dependNodeKey !== d.nodeKey ? ` ← ${d.dependNodeKey}` : ""}
-                  {" · "}{d.dateOffset}
-                  {d.earliestBizDate ? ` · ≥${d.earliestBizDate}` : ""}
+                  {d.dependNodeKey && d.dependNodeKey !== d.nodeKey ? `${t("workflowConfig.sepArrow")}${d.dependNodeKey}` : ""}
+                  {t("workflowConfig.sepDot")}{d.dateOffset}
+                  {d.earliestBizDate ? `${t("workflowConfig.sepDot")}${t("workflowConfig.depGte")}${d.earliestBizDate}` : ""}
                 </span>
                 <button
                   type="button"
@@ -226,16 +231,19 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
       )}
       <div className="flex gap-1">
         <div className="min-w-28">
-          <DropdownSelect value={dateOffset} onChange={setDateOffset} options={DATE_OFFSET_OPTIONS} disableClear />
+          <DropdownSelect value={dateOffset} onChange={setDateOffset} options={[
+            { value: "LAST_DAY", label: dateOffsetLabel("LAST_DAY", t) },
+            { value: "CURRENT_DAY", label: dateOffsetLabel("CURRENT_DAY", t) },
+          ]} disableClear />
         </div>
         <Input
           className="h-8 flex-1 text-xs"
           value={earliest}
           onChange={(e) => setEarliest(e.target.value)}
-          placeholder="yyyy-MM-dd"
+          placeholder={t("workflowConfig.bizDateFormat")}
           aria-label={t("workflowConfig.earliestBizDate")}
         />
-        <Button size="sm" onClick={add} disabled={!nodeKey}>+</Button>
+        <Button size="sm" onClick={add} disabled={!nodeKey}>{t("workflowConfig.addDep")}</Button>
       </div>
     </div>
   )

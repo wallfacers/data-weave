@@ -12,11 +12,6 @@ import { DropdownSelect } from "@/components/ui/select"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import type { DatasourceVO } from "@/lib/types"
 
-const TYPE_OPTIONS = [
-  { value: "SQL", label: "SQL" },
-  { value: "SHELL", label: "SHELL" },
-]
-
 const PRESET_PLACEHOLDER = "__preset__"
 const DATASOURCE_NONE = ""
 
@@ -120,7 +115,10 @@ export function TaskConfigPanel({
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.type")}</label>
-          <DropdownSelect value={type} onChange={(v) => { setType(v); onDirty() }} options={TYPE_OPTIONS} disableClear />
+          <DropdownSelect value={type} onChange={(v) => { setType(v); onDirty() }} options={[
+            { value: "SQL", label: t("ops.nodeDetail.taskTypeSQL") },
+            { value: "SHELL", label: t("ops.nodeDetail.taskTypeShell") },
+          ]} disableClear />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.priority")}</label>

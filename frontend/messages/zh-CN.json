@@ -143,7 +143,14 @@
       "close": "关闭",
       "viewTaskDetail": "查看任务详情",
       "virtualNoTask": "虚拟节点（无关联任务）",
-      "config": "运行配置"
+      "config": "运行配置",
+      "taskTypeSQL": "SQL",
+      "taskTypePython": "Python",
+      "taskTypeShell": "Shell",
+      "taskTypeJava": "Java",
+      "taskTypeJavaScript": "JavaScript",
+      "taskTypeTypeScript": "TypeScript",
+      "taskTypeDataSync": "Data Sync"
     },
     "testRunLabel": "测试运行",
     "unresolvedParams": "未解析参数",
@@ -309,7 +316,24 @@
       "versionInfo": "发布版本 v{versionNo}，{publishedAt}",
       "close": "关闭"
     },
-    "loadError": "加载失败"
+    "loadError": "加载失败",
+    "runModePeriodic": "周期",
+    "runModeBackfill": "补数据",
+    "runModeManual": "手动",
+    "runModeTest": "测试",
+    "stateSUCCESS": "成功",
+    "stateRUNNING": "运行中",
+    "stateFAILED": "失败",
+    "stateWAITING": "等待",
+    "stateNOT_RUN": "未运行",
+    "stateSTOPPED": "已终止",
+    "stateKILLED": "已终止",
+    "statePAUSED": "已暂停",
+    "statePARTIAL": "部分完成",
+    "statePREEMPTED": "已抢占",
+    "stateWAIT_RETRY": "重试等待",
+    "stateDISPATCHED": "已派发",
+    "stateSKIPPED": "已跳过"
   },
   "views": {
     "cockpit": "驾驶舱",
@@ -490,7 +514,18 @@
     "noCrossCycleDeps": "暂无跨周期依赖",
     "earliestBizDate": "首周期豁免截止日",
     "selectNodeForDep": "选择节点（自依赖）",
-    "noNodesForDep": "请先在画布上添加工作流节点"
+    "noNodesForDep": "请先在画布上添加工作流节点",
+    "scheduleManual": "手动",
+    "scheduleCron": "周期",
+    "scheduleDependency": "依赖",
+    "priorityLevel": "优先级 {level}",
+    "dateOffsetLastDay": "LAST_DAY",
+    "dateOffsetCurrentDay": "CURRENT_DAY",
+    "addDep": "+ 添加",
+    "bizDateFormat": "yyyy-MM-dd",
+    "sepDot": " · ",
+    "sepArrow": " ← ",
+    "depGte": " ≥ "
   },
   "workflowInstanceDetail": {
     "title": "工作流实例详情",
@@ -676,7 +711,9 @@
     "runScopeToNode": "运行到节点",
     "runScopeDownstream": "运行下游",
     "runScopeOnlyNode": "仅本节点",
-    "nodeUnpublished": "未发布"
+    "nodeUnpublished": "未发布",
+    "taskTypeSQL": "SQL",
+    "taskTypeShell": "Shell"
   },
   "fleet": {
     "title": "集群机器",
@@ -758,7 +795,11 @@
     "filterStatusProject": "状态",
     "statusProjectArchived": "已归档",
     "colCreatedAt": "创建时间",
-    "colUpdatedAt": "修改时间"
+    "colUpdatedAt": "修改时间",
+    "usernamePlaceholder": "用户名",
+    "emailPlaceholder": "user@example.com",
+    "roleCodePlaceholder": "DEVELOPER",
+    "projectCodePlaceholder": "my-project"
   },
   "logPanel": {
     "taskFallback": "任务 #{id}",
@@ -780,6 +821,18 @@
     "signingIn": "登录中",
     "loginFailed": "登录失败",
     "defaultAccount": "默认账号：admin / admin"
+  },
+  "instanceLog": {
+    "title": "实例日志",
+    "noInstanceId": "未提供实例 ID",
+    "live": "实时",
+    "ended": "已结束",
+    "disconnected": "断开",
+    "connecting": "连接中",
+    "clear": "清空",
+    "waitingLogs": "等待日志输出",
+    "noLogs": "无日志记录",
+    "connectingDots": "连接中"
   },
   "instanceTable": {
     "stateRunning": "运行中",
@@ -847,6 +900,7 @@
     "mem": "内存",
     "disk": "磁盘",
     "load": "负载",
+    "cpu": "CPU",
     "runningTasks": "运行任务",
     "spec": "规格"
   },
@@ -991,6 +1045,15 @@
   "eventCenter": {
     "tab": { "events": "事件", "subscriptions": "订阅" },
     "filter": { "allTypes": "全部类型", "allSeverities": "全部级别" },
+    "severity": {
+      "INFO": "信息",
+      "LOW": "低",
+      "MEDIUM": "中",
+      "WARNING": "警告",
+      "HIGH": "高",
+      "CRITICAL": "严重"
+    },
+    "severityGte": "≥ {level}",
     "refresh": "刷新",
     "loading": "加载中",
     "empty": "暂无事件",
@@ -1072,10 +1135,20 @@
     "severityCritical": "严重",
     "severityWarning": "警告",
     "severityInfo": "信息",
+    "severityLOW": "低",
+    "severityMEDIUM": "中",
+    "severityHIGH": "高",
+    "severityCRITICAL": "严重",
+    "severityEllipsis": "—",
     "stateFiring": "触发中",
     "stateResolved": "已恢复",
     "stateAcked": "已确认",
-    "stateSuppressed": "已静默"
+    "stateSuppressed": "已静默",
+    "stateFIRING": "触发中",
+    "stateRESOLVED": "已恢复",
+    "stateACKED": "已确认",
+    "stateSUPPRESSED": "已静默",
+    "disabled": "已禁用"
   },
   "qualityView": {
     "checkNow": "立即检查",
@@ -1089,7 +1162,22 @@
     "sampled": "采样",
     "tabRules": "断言",
     "tabRuns": "执行历史",
-    "tabScorecards": "评分卡"
+    "tabScorecards": "评分卡",
+    "triggerPostTask": "任务后",
+    "triggerScheduled": "定时",
+    "triggerOnDemand": "手动",
+    "statusPass": "通过",
+    "statusFail": "失败",
+    "statusWarn": "警告",
+    "statusError": "错误",
+    "statusRunning": "运行中",
+    "blocked": "已阻断",
+    "failUnit": "失败",
+    "measuredLabel": "实测",
+    "expectedLabel": "预期",
+    "passRateLabel": "通过率",
+    "checksLabel": "检查项",
+    "failedLabel": "失败数"
   },
   "assetCatalog": {
     "title": "数据资产",

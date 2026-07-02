@@ -70,18 +70,32 @@ interface QualityScorecard {
 type TabKey = "rules" | "runs" | "scorecards";
 
 const STATUS_COLORS: Record<string, string> = {
-  PASS: "text-green-600 dark:text-green-400",
-  FAIL: "text-red-600 dark:text-red-400",
-  WARN: "text-yellow-600 dark:text-yellow-400",
-  ERROR: "text-gray-500",
-  RUNNING: "text-blue-500",
+  PASS: "text-success",
+  FAIL: "text-destructive",
+  WARN: "text-warning",
+  ERROR: "text-muted-foreground",
+  RUNNING: "text-info",
 };
 
-const TRIGGER_LABELS: Record<string, string> = {
-  POST_TASK: "post-task",
-  SCHEDULED: "scheduled",
-  ON_DEMAND: "on-demand",
-};
+function triggerLabel(trigger: string, t: ReturnType<typeof import("next-intl").useTranslations>): string {
+  switch (trigger) {
+    case "POST_TASK": return t("triggerPostTask")
+    case "SCHEDULED": return t("triggerScheduled")
+    case "ON_DEMAND": return t("triggerOnDemand")
+    default: return trigger
+  }
+}
+
+function qualityStatusLabel(status: string, t: ReturnType<typeof import("next-intl").useTranslations>): string {
+  switch (status) {
+    case "PASS": return t("statusPass")
+    case "FAIL": return t("statusFail")
+    case "WARN": return t("statusWarn")
+    case "ERROR": return t("statusError")
+    case "RUNNING": return t("statusRunning")
+    default: return status
+  }
+}
 
 export function QualityView({ active }: ViewProps) {
   const t = useTranslations("qualityView");
@@ -277,25 +291,25 @@ export function QualityView({ active }: ViewProps) {
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className={`text-xs font-medium ${STATUS_COLORS[r.status] || ""}`}>
-                      {r.status}
+                      {qualityStatusLabel(r.status, t)}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {TRIGGER_LABELS[r.trigger] || r.trigger}
+                      {triggerLabel(r.trigger, t)}
                     </span>
                     <span className="text-xs text-muted-foreground truncate max-w-48">
                       {r.datasetRef}
                     </span>
                     <span className="text-xs">
-                      {r.failCount}/{r.ruleCount} fail
+                      {r.failCount}/{r.ruleCount} {t("failUnit")}
                     </span>
                     {r.blocked === 1 && (
-                      <span className="text-xs px-1 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
-                        BLOCKED
+                      <span className="text-xs px-1 py-0.5 rounded bg-destructive/10 text-destructive">
+                        {t("blocked")}
                       </span>
                     )}
                     {r.sampled === 1 && (
-                      <span className="text-xs px-1 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
-                        sampled
+                      <span className="text-xs px-1 py-0.5 rounded bg-warning/10 text-warning">
+                        {t("sampled")}
                       </span>
                     )}
                   </div>
@@ -322,17 +336,17 @@ export function QualityView({ active }: ViewProps) {
                   >
                     <div className="flex items-center gap-2">
                       <span className={`font-medium ${STATUS_COLORS[r.status] || ""}`}>
-                        {r.status}
+                        {qualityStatusLabel(r.status, t)}
                       </span>
                       <span>{r.assertionType}</span>
                       {r.sampled === 1 && (
-                        <span className="text-yellow-600">{t("sampled")}</span>
+                        <span className="text-warning">{t("sampled")}</span>
                       )}
                     </div>
                     {r.measuredValue && (
                       <div className="text-muted-foreground">
-                        measured: {r.measuredValue}
-                        {r.expected && <> / expected: {r.expected}</>}
+                        {t("measuredLabel")}: {r.measuredValue}
+                        {r.expected && <> / {t("expectedLabel")}: {r.expected}</>}
                       </div>
                     )}
                     {r.message && (
@@ -365,8 +379,8 @@ export function QualityView({ active }: ViewProps) {
                   <div className="space-y-0.5">
                     <div className="font-medium truncate max-w-64">{s.datasetRef}</div>
                     <div className="text-xs text-muted-foreground">
-                      pass rate: {s.passRate} · checks: {s.totalChecks}
-                      {s.failedChecks > 0 && <> · failed: {s.failedChecks}</>}
+                      {t("passRateLabel")}: {s.passRate} · {t("checksLabel")}: {s.totalChecks}
+                      {s.failedChecks > 0 && <> · {t("failedLabel")}: {s.failedChecks}</>}
                     </div>
                   </div>
                 </div>

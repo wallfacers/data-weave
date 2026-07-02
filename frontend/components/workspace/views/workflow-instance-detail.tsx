@@ -83,8 +83,24 @@ function stateVariant(state: string): "success" | "destructive" | "warning" | "i
   }
 }
 
+function stateLabel(state: string, t: ReturnType<typeof useTranslations>): string {
+  const key = (state ? `state${state}` : "") as any
+  return t(key) || state
+}
+
+function runModeLabel(runMode: string, t: ReturnType<typeof useTranslations>): string {
+  switch (runMode) {
+    case "PERIODIC": return t("runModePeriodic" as any)
+    case "BACKFILL": return t("runModeBackfill" as any)
+    case "MANUAL": return t("runModeManual" as any)
+    case "TEST": return t("runModeTest" as any)
+    default: return runMode
+  }
+}
+
 export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) {
   const t = useTranslations("workflowInstanceDetail")
+  const to = useTranslations("ops")
   const instanceId = params?.instanceId as string | undefined
   const [instance, setInstance] = useState<WorkflowInstance | null>(null)
   const [loading, setLoading] = useState(true)
@@ -241,7 +257,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
             </Button>
           )}
           <Badge variant={stateVariant(instance.state)}>
-            {instance.state}
+            {stateLabel(instance.state, to)}
           </Badge>
           <Badge variant={connected ? "success" : "outline"}>
             {connected ? t("live") : t("offline")}
@@ -265,7 +281,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
           </div>
           <div>
             <span className="text-muted-foreground">{t("runMode")}</span>
-            <span className="ml-2 font-mono">{instance.runMode}</span>
+            <span className="ml-2 font-mono">{runModeLabel(instance.runMode, to)}</span>
           </div>
         </div>
       </div>
@@ -286,7 +302,7 @@ export function WorkflowInstanceDetail({ params }: WorkflowInstanceDetailProps) 
                 </div>
               </div>
               <Badge variant={stateVariant(task.state)}>
-                {task.state}
+                {stateLabel(task.state, to)}
               </Badge>
             </div>
           ))}

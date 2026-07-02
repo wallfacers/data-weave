@@ -80,6 +80,7 @@ export function InstanceDetailSidePanel({
   onClose,
 }: InstanceDetailSidePanelProps) {
   const t = useTranslations("ops")
+  const stateLabel = (s: string) => t(`state${s}` as any) || s
   const [codeData, setCodeData] = useState<ResolvedCodeView | null>(null)
   const [configData, setConfigData] = useState<ResolvedConfigView | null>(null)
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading")
@@ -156,7 +157,7 @@ export function InstanceDetailSidePanel({
           <div className="flex items-center gap-2 flex-wrap">
             {taskState && (
               <Badge variant={taskState === "FAILED" || taskState === "STOPPED" ? "destructive" : taskState === "SUCCESS" ? "success" : taskState === "RUNNING" || taskState === "DISPATCHED" ? "success" : "outline"} className="text-xs">
-                {taskState}
+                {stateLabel(taskState)}
               </Badge>
             )}
             {availableActions.map((action) => {
