@@ -477,6 +477,7 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
                 }}
                 placeholder={t("form.typePh")}
                 triggerClassName="h-9"
+                disableClear
                 groups={CATEGORY_ORDER.map((cat) => ({
                   value: cat,
                   label: t(`category.${cat}`),

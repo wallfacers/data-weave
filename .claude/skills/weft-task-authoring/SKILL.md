@@ -319,6 +319,10 @@ dw run --test <task> [--dir DIR] [--biz-date DATE]
 
 全部支持 `--json` 结构化输出。
 
+## 前端复用优先规则
+
+**改动任何 `frontend/` UI 前，先读 `frontend/DESIGN.md` 的 `## 公共组件目录（先查此处 · reuse-first）` 章节**——确认所需原语（Tabs/表格/下拉/弹框/日期/加载/刷新/滚动/卡片）是否已有规范组件。命中则必须复用，禁止手写同类；未命中方可新建并回填目录。交付前按 `specs/037-shared-ui-kit/contracts/reuse-first-checklist.md` 自查。
+
 ## 支持文件
 
 - **`file-contract.md`**：文件契约一页速查（字段结构、必填/可选、数据术语）

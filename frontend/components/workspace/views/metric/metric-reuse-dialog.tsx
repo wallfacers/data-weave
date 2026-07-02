@@ -70,7 +70,7 @@ export function MetricReuseDialog({ open, onOpenChange, onSubmit }: MetricReuseD
 
         <div className="flex flex-col gap-3">
           <Field label={t("consumerType")}>
-            <DropdownSelect value={consumerType} onChange={setConsumerType} options={typeOptions} triggerClassName="h-9" />
+            <DropdownSelect value={consumerType} onChange={setConsumerType} options={typeOptions} triggerClassName="h-9" disableClear />
           </Field>
           <Field label={t("consumerRef")}>
             <Input

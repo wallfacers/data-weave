@@ -29,6 +29,8 @@ interface DropdownSelectProps {
   groups?: DropdownGroup[]
   /** Extra classes for the trigger button (e.g. "h-9" to match form inputs) */
   triggerClassName?: string
+  /** When true, always show ▼ chevron instead of × (for required/always-set fields) */
+  disableClear?: boolean
 }
 
 /**
@@ -46,6 +48,7 @@ export function DropdownSelect({
   className,
   groups,
   triggerClassName,
+  disableClear,
 }: DropdownSelectProps) {
   const tc = useTranslations("common")
   const resolvedPlaceholder = placeholder ?? tc("selectPlaceholder")
@@ -206,7 +209,7 @@ export function DropdownSelect({
         aria-expanded={open}
       >
         <span className="min-w-0 flex-1 truncate text-left">{displayLabel}</span>
-        {value ? (
+        {value && !disableClear ? (
           <span
             role="button"
             aria-label="Clear selection"

@@ -100,6 +100,7 @@ export function WorkflowConfigPanel({
           value={scheduleType}
           onChange={(v) => { setScheduleType(v); onDirty() }}
           options={SCHEDULE_TYPE_OPTIONS}
+          disableClear
         />
       </div>
 
@@ -123,6 +124,7 @@ export function WorkflowConfigPanel({
           value={String(priority)}
           onChange={(v) => { setPriority(Number(v)); onDirty() }}
           options={PRIORITY_OPTIONS}
+          disableClear
         />
       </div>
 
@@ -224,7 +226,7 @@ function CrossCycleDepsEditor({ workflowId, nodes }: { workflowId: number; nodes
       )}
       <div className="flex gap-1">
         <div className="min-w-28">
-          <DropdownSelect value={dateOffset} onChange={setDateOffset} options={DATE_OFFSET_OPTIONS} />
+          <DropdownSelect value={dateOffset} onChange={setDateOffset} options={DATE_OFFSET_OPTIONS} disableClear />
         </div>
         <Input
           className="h-8 flex-1 text-xs"

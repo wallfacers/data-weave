@@ -120,7 +120,7 @@ export function TaskConfigPanel({
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.type")}</label>
-          <DropdownSelect value={type} onChange={(v) => { setType(v); onDirty() }} options={TYPE_OPTIONS} />
+          <DropdownSelect value={type} onChange={(v) => { setType(v); onDirty() }} options={TYPE_OPTIONS} disableClear />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("taskEditor.priority")}</label>
@@ -206,6 +206,7 @@ export function TaskConfigPanel({
                     if (v !== PRESET_PLACEHOLDER) { updateParam(idx, { expr: v }); onDirty() }
                   }}
                   options={expressionPresets}
+                  disableClear
                 />
               </div>
             ))}

@@ -106,6 +106,113 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - 暗色靠 `.dark` 下的变量覆盖，不手写 `dark:` 颜色覆盖。
 - 间距用 `gap-*`，等宽高用 `size-*`。
 
+## 公共组件目录（先查此处 · reuse-first）
+
+> **⚠️ 硬规则**：实现任何界面原语（Tabs、表格、下拉、弹框、日期、加载、刷新、滚动区、卡片容器）之前，**必须先查本目录**。目录已存在对应规范组件 → **必须直接复用**，禁止手写同类原语（含页面级一次性样式/硬编码间距/写死分割）。**只有当目录确无该能力时**，才允许实现新组件，且在**同一改动内回填目录条目**。改公共组件时，**必须同步更新本目录对应条目**，防止目录与实现漂移。
+>
+> 本目录是设计系统的**可复用资产索引**，各条目提供：规范组件路径、适用/不适用场景、关键 props/变体、关联 token 与深章节链接。每条按 `specs/037-shared-ui-kit/contracts/catalog-entry.schema.md` 结构填写。
+>
+> **交付前自查**：走一遍 `specs/037-shared-ui-kit/contracts/reuse-first-checklist.md` 的「实现前（先查后写）」+「实现后（自查/评审）」清单。
+
+### 卡片内容内边距 —— 单一 token `--card-spacing`
+
+主内容卡片（`Card` @ `components/ui/card.tsx`）的内容内边距**一律走 `--card-spacing`**，禁止页面手填内边距字面值（如 `p-5` / `20px` / `px-4 py-3` 等魔法数值）：
+
+| token | 值 | 使用场景 |
+|---|---|---|
+| `--card-spacing`（默认） | `--spacing(6)` = **24px** | 常规卡片（`<Card>` 或 `size="default"`） |
+| `--card-spacing`（`data-[size=sm]`） | `--spacing(4)` = **16px** | 紧凑卡片（`<Card size="sm">`） |
+
+**真相源**：`card.tsx` 通过 `py-(--card-spacing)` / `px-(--card-spacing)` / `gap-(--card-spacing)` 驱动 Header / Content / Footer 纵向节奏与横向留白；`data-[size=sm]:[--card-spacing:--spacing(4)]` 控制紧凑变体。`--spacing()` 来自 Tailwind 4 的 spacing 刻度（`app/globals.css`）。
+
+**跨组件引用**：其它需要"卡片级内容留白"的容器也应引用 `--card-spacing`，而非各自造字面值。工具条等**非卡片容器**的内部微间距（如 `<1rem`）不强制套用 24/16，但应在目录条目注明豁免。
+
+### 原语速查表
+
+| 原语类别 | 规范组件 | 路径 | 深章节 |
+|---|---|---|---|
+| 滚动条/滚动区 | `DwScroll` | `components/ui/dw-scroll.tsx` | [## 滚动条](#滚动条) |
+| Tabs（可关闭·主 tab） | `TabStrip` | `components/ui/tab-strip.tsx` | [## 统一标签条](#统一标签条--tabstripchrome-卡片风格) |
+| Tabs（非可关闭·页内子 tab） | `Tabs` | `components/ui/tabs.tsx` | 见下方 Tabs 条目 |
+| 表格 | `DataTable` + `DataTableToolbar` | `components/ui/data-table.tsx` | [## 数据表格](#数据表格--datatable) |
+| 下拉框 | `DropdownSelect` | `components/ui/select.tsx` | 见下方下拉/弹框条目 |
+| 弹框 | `Dialog` | `components/ui/dialog.tsx` | 见下方下拉/弹框条目 |
+| 日期 | `DatePicker` + `biz-date`/`useFormatDateTime` | `components/ui/date-picker.tsx` · `lib/workspace/biz-date.ts` · `hooks/use-format-date-time.ts` | 见下方日期条目 |
+| 加载态 | `LoadingState` | `components/workspace/shared/loading-state.tsx` | 见下方加载条目 |
+| 刷新入口 | `ViewRefreshControl` | `components/workspace/views/view-refresh-control.tsx` | 见下方刷新条目 |
+| 卡片容器 | `Card` | `components/ui/card.tsx` | 见 [卡片内容内边距](#卡片内容内边距--单一-token---card-spacing) |
+
+### 滚动条/滚动区 —— `DwScroll`
+
+- **用途/何时用**：任何需要可滚动内容的容器——视图主内容区、表格水平滚动区、下拉浮层列表、侧面板。
+- **何时不用/禁写**：存在 `DwScroll` 即**禁止手写 `overflow-y:auto` + WebKit 滚动条伪元素**或引入其他滚动条库。整个项目统一用 OverlayScrollbars。
+- **关键 props/变体**：`className`（透传容器样式）; 结构 = `<DwScroll><你的内容/></DwScroll>`，单子节点包裹。
+- **外观**：无箭头、细条浮叠（`--os-size:4px`）、中性灰、亮/暗自适应。详见 [## 滚动条](#滚动条)。
+
+### 卡片容器 —— `Card`
+
+- **用途/何时用**：任何需要"卡片包裹"的内容区块——视图主内容区、表单、详情、指标面板。同时承载 034 的卡片栅格约定：卡片网格用 `gap-2.5`。
+- **何时不用/禁写**：**禁止**页面级手写内边距（`p-5`/`20px`/`px-4 py-3` 等）；必须走 `--card-spacing` token。卡片间网格间距统一 `gap-2.5`。
+- **关键 props/变体**：`size="default"`（24px 内边距）/ `size="sm"`（16px）; 子组件 = `CardHeader` / `CardContent` / `CardFooter` / `CardTitle` / `CardDescription` / `CardAction`。
+- **token/间距引用**：`--card-spacing`（见上方卡片内边距小节）。注：034 面包屑已撤回，本特性不恢复。
+
+### 表格 —— `DataTable` + `DataTableToolbar`
+
+- **用途/何时用**：任何需要数据表格的视图——指标、报告、数据源、新鲜度、实例列表等。033 已收口：表格统一由一个 `Card` 式边框容器包裹。
+- **何时不用/禁写**：**禁止**手写 `<table>` + 自造边框/分页/工具栏。所有表格走 `DataTable` 的 column-def + toolbar 模式。
+- **关键 props/变体**：`columns` / `data` （必填）; `toolbar` 插 `DataTableToolbar`（筛选/搜索/批量操作）。详见 [## 数据表格](#数据表格--datatable)。
+- **间距豁免**：`DataTableToolbar` 内部微间距（`gap-2`/`px-2.5`/`py-0.5` 等，均为 `<1rem`）属工具条控件级间距，不强制套用 `--card-spacing` 卡片级 token。表格整体边框包裹的容器留白仍走 `--card-spacing`。
+
+### 下拉框 —— `DropdownSelect` · 弹框 —— `Dialog`
+
+下拉与弹框共用浮层规范（触发器/圆角/内边距/滚动条一致）。
+
+- **下拉 —— `DropdownSelect`** @ `components/ui/select.tsx`
+  - **用途/何时用**：单选/多选下拉（筛选、数据源选择、参数配置）。portal + fixed 定位。
+  - **关键 props/变体**：`options`、`value`/`onChange`、`placeholder`、`clearable`（清除选择后 × 变回 ▼）。
+- **弹框 —— `Dialog`** @ `components/ui/dialog.tsx`（@base-ui/react/dialog）
+  - **用途/何时用**：确认对话框、表单弹窗、详情展示。
+  - **关键 props/变体**：`open`/`onOpenChange`、`title`、`description`、`children`。
+- **何时不用/禁写**：**禁止**手写 `<select>`/`<option>` 原生下拉（浏览器样式不可控）；**禁止**手写自定义 modal 替代 `Dialog`。
+
+### Tabs（双变体）—— `TabStrip`（卡片式）· `Tabs`（下划线式）
+
+**closable 驱动变体**：可关闭的主 tab → 卡片式 `TabStrip`；不可关闭的页内子 tab → 下划线式 `Tabs`。禁止手写下划线分割或写死等分宽度。
+
+- **卡片式 —— `TabStrip`** @ `components/ui/tab-strip.tsx`
+  - **用途/何时用**：工作区主标签条、底部日志面板、侧面板 mini tab——需要关闭/右键菜单的场景。
+  - **关键 props/变体**：`tabs`（{id,label,closable}[]）、`activeTab`/`onActiveTabChange`、`onCloseTab`; 右键菜单（关闭/关闭其他/关闭右侧/关闭左侧/关闭全部）+ 调用方注入项。
+  - **外观**：激活态用内容面色 + 底角外凸弧度（`.dw-tab-active` 伪元素 `radial-gradient`），非激活相邻竖分隔线。详见 [## 统一标签条](#统一标签条--tabstripchrome-卡片风格)。
+- **下划线式 —— `Tabs`** @ `components/ui/tabs.tsx`
+  - **用途/何时用**：页内不可关闭的子导航（如 `ops-view` / `alerts-view` 的状态筛选 tab）。**禁止**手写 `role="tab"` + `after:bottom-0` 内联下划线。
+  - **关键 props/变体**：`<Tabs value={v} onValueChange={fn}>` → `<TabsList size="md"|"sm">` → `<TabsTrigger value="x" icon={...} suffix={...}>` → `<TabsContent value="x">`。支持键盘 ArrowLeft/ArrowRight 导航。
+  - **外观**：`border-b border-border` 底部分割线，激活态 `border-primary text-primary font-medium`，非激活 `border-transparent text-muted-foreground`。
+
+### 日期 —— bizDate 默认 + 带时间变体
+
+- **默认口径 = 业务日期 bizDate**（`yyyy-MM-dd`，到日粒度）
+  - **选择器**：`DatePicker` @ `components/ui/date-picker.tsx`（react-day-picker）。
+  - **默认值**：`yesterdayBizDate()` @ `lib/workspace/biz-date.ts`（T-1 兜底，与后端 `WorkflowTriggerService.defaultBizDate` 同约定）。
+  - **展示**：后端返回的 bizDate 字符串（已是 `yyyy-MM-dd`）**直出**，不过 `formatDateTime`。
+- **带时间变体**（精确到时间）
+  - **格式化**：`useFormatDateTime()` @ `hooks/use-format-date-time.ts`，格式 `yyyy-MM-dd HH:mm:ss`（dash/slash 用户偏好存 `date-format-store.ts`）。
+  - **仅用于时间戳**：启动/完成时间、日志时间等。
+- **何时不用/禁写**：**禁止**混用 dayjs / `Intl.DateTimeFormat`——全站单一 date-fns 实现。**禁止**对 bizDate 字段自定格式（如中文年月日）或自造粒度（如无时间字段硬加 `00:00:00`）。
+
+### 加载态 —— `LoadingState`
+
+- **用途/何时用**：任何异步加载中的区域——页面首次加载、数据刷新中、组件等待数据。**禁止**手写"加载中..."纯文字或非居中占位。
+- **关键 props/变体**：`mode="centered"`（垂直+水平居中，默认） / `mode="overlay"`（覆盖层，用于面板内加载）；`minDurationMs=1000`（最小 1s 兜底避免闪烁）；`className` 透传。
+- **动画与降级**：`motion-safe:animate-spin`（`RefreshIcon` 持续旋转）；`prefers-reduced-motion` 时静态展示图标 + `role="status"` aria label。
+- **真相源**：`components/workspace/shared/loading-state.tsx`（035 已落地 main，本特性收编编目）。
+
+### 刷新入口 —— `ViewRefreshControl`
+
+- **用途/何时用**：每个视图右上角/工具条内的统一刷新入口。**禁止**在各视图自造刷新按钮位置或动画。
+- **统一位置约定**：视图工具条右侧（与筛选/搜索同行，`ml-auto` 推右），跨视图一致。
+- **关键 props/变体**：`lastRefreshMs` / `autoRefresh` / `onAutoRefreshChange` / `onRefresh` / `refreshing` / `disabled`；刷新中 `RefreshIcon` 旋转（`motion-safe`），秒级更新 last-refresh 时间戳。
+- **组件**：`components/workspace/views/view-refresh-control.tsx`。
+
 ## CopilotKit 主题对齐（`/agent` 对话）
 
 CopilotKit v2 在自身作用域 `[data-copilotkit]` 内用一套**零彩度中性灰**重定义了整套 shadcn 变量。本应用已是 neutral 黑白主题、与 cpk 自带中性阶同家族，故 `app/globals.css` 仅做**最小对齐**：

@@ -180,7 +180,7 @@ export function AssetFormDialog({ open, onOpenChange, mode, initial, datasources
             </Field>
           </div>
           <Field label={t("sensitivity")}>
-            <DropdownSelect value={form.sensitivity} onChange={set("sensitivity")} options={sensOptions} triggerClassName="h-9" />
+            <DropdownSelect value={form.sensitivity} onChange={set("sensitivity")} options={sensOptions} triggerClassName="h-9" disableClear />
           </Field>
           <Field label={t("tagsLabel")}>
             <Input value={form.tags} onChange={(e) => set("tags")(e.target.value)} placeholder={t("tagsPlaceholder")} />

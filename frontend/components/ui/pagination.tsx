@@ -70,6 +70,7 @@ function Pagination({
             onChange={(v) => onSizeChange(Number(v))}
             options={sizeOptions}
             triggerClassName="h-7 w-16"
+            disableClear
           />
         </div>
       )}

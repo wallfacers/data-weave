@@ -20,6 +20,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import type { ViewProps } from "@/lib/workspace/registry"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
 import { WorkflowInstancesPanel } from "./ops/workflow-instances-panel"
@@ -102,31 +103,14 @@ function OpsTabBar({
 }) {
   const t = useTranslations("ops")
   return (
-    <div role="tablist">
-      <div className="flex items-center gap-1 px-5 h-11">
-      {TAB_ORDER.map((tb) => {
-        const isActive = tb.id === active
-        return (
-          <button
-            key={tb.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(tb.id)}
-            className={
-              "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
-              (isActive
-                ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
-                : "text-muted-foreground hover:text-foreground")
-            }
-          >
-            <HugeiconsIcon icon={tb.icon} className="size-4" />
+    <Tabs value={active} onValueChange={(v) => onChange(v as TabId)}>
+      <TabsList size="md">
+        {TAB_ORDER.map((tb) => (
+          <TabsTrigger key={tb.id} value={tb.id} icon={tb.icon}>
             {t(tb.labelKey)}
-          </button>
-        )
-      })}
-      </div>
-      <div className="mx-5 border-b" />
-    </div>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }

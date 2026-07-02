@@ -1113,6 +1113,7 @@ export function CatalogTree({
                 { value: "SQL", label: "SQL" },
                 { value: "SHELL", label: "SHELL" },
               ]}
+              disableClear
             />
           )}
           <DialogFooter>

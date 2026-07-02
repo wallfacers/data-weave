@@ -198,6 +198,7 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
               value={sensitivity}
               onChange={(v) => setSensitivity((v || "INTERNAL") as Sensitivity)}
               options={SENSITIVITY_OPTIONS}
+              disableClear
             />
           </div>
 
