@@ -103,14 +103,16 @@ function OpsTabBar({
 }) {
   const t = useTranslations("ops")
   return (
-    <Tabs value={active} onValueChange={(v) => onChange(v as TabId)}>
-      <TabsList size="md">
-        {TAB_ORDER.map((tb) => (
-          <TabsTrigger key={tb.id} value={tb.id} icon={tb.icon}>
-            {t(tb.labelKey)}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
+    <div className="px-5">
+      <Tabs value={active} onValueChange={(v) => onChange(v as TabId)}>
+        <TabsList size="md">
+          {TAB_ORDER.map((tb) => (
+            <TabsTrigger key={tb.id} value={tb.id} icon={tb.icon}>
+              {t(tb.labelKey)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </div>
   )
 }
