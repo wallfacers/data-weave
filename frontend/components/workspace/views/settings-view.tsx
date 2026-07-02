@@ -272,7 +272,7 @@ function UsersTab() {
   const isOpen = dialog.mode !== "closed"
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <DataTable<User>
         columns={columns}
         getRowId={(r) => String(r.id)}
@@ -285,7 +285,6 @@ function UsersTab() {
         }
         emptyTitle={t("emptyTitleUsers")}
         pageSize={15}
-        className="min-h-[300px]"
       />
 
       {/* ---- Dialog ---- */}
@@ -458,7 +457,7 @@ function RolesTab() {
   const isOpen = dialog.mode !== "closed"
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <DataTable<Role>
         columns={columns}
         getRowId={(r) => String(r.id)}
@@ -471,7 +470,6 @@ function RolesTab() {
         }
         emptyTitle={t("emptyTitleRoles")}
         pageSize={15}
-        className="min-h-[300px]"
       />
 
       {/* ---- Dialog ---- */}
@@ -648,7 +646,7 @@ function ProjectsTab() {
   const isOpen = dialog.mode !== "closed"
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <DataTable<Project>
         columns={columns}
         getRowId={(r) => String(r.id)}
@@ -661,7 +659,6 @@ function ProjectsTab() {
         }
         emptyTitle={t("emptyTitleProjects")}
         pageSize={15}
-        className="min-h-[300px]"
       />
 
       {/* ---- Dialog ---- */}
