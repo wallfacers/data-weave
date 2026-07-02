@@ -45,6 +45,28 @@ class OpsWorkflowFilterEndpointTest {
                 id, name, scheduleType, status, hasDraft, cron, now, now);
     }
 
+    /** 039：含 priority + next_trigger_time 的任务流（验证优先级筛选/排序/下次触发投影）。 */
+    void insertWorkflowFull(long id, String name, String scheduleType, int priority, LocalDateTime nextTrigger) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update(
+                "INSERT INTO workflow_def (id, tenant_id, project_id, name, schedule_type, status, "
+                        + "has_draft_change, cron, current_version_no, priority, next_trigger_time, "
+                        + "created_at, updated_at, deleted, version) "
+                        + "VALUES (?, 1, 1, ?, ?, 'ONLINE', 0, NULL, 1, ?, ?, ?, ?, 0, 0)",
+                id, name, scheduleType, priority, nextTrigger, now, now);
+    }
+
+    /** 039：priority 显式 NULL（schema DEFAULT 5 会干扰 NULLS LAST 测试，故显式插 NULL）。 */
+    void insertWorkflowNullPriority(long id, String name, String scheduleType, String cron) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update(
+                "INSERT INTO workflow_def (id, tenant_id, project_id, name, schedule_type, status, "
+                        + "has_draft_change, cron, current_version_no, priority, "
+                        + "created_at, updated_at, deleted, version) "
+                        + "VALUES (?, 1, 1, ?, ?, 'ONLINE', 0, ?, 1, NULL, ?, ?, 0, 0)",
+                id, name, scheduleType, cron, now, now);
+    }
+
     void insertWorkflowInstance(UUID id, long workflowId, String state) {
         LocalDateTime now = LocalDateTime.now();
         jdbc.update(
@@ -325,6 +347,63 @@ class OpsWorkflowFilterEndpointTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.items[0].state").isEqualTo("FAILED")
                 .jsonPath("$.data.items[2].state").isEqualTo("SUCCESS");
+    }
+
+    // ─── 039：优先级筛选 + 排序 + 下次触发时间投影 ──────────────────────
+
+    @Test
+    void periodicWorkflows_按priorityTier高优筛选() {
+        insertWorkflowFull(992001L, "tiertkw_high", "CRON", 1, LocalDateTime.now().plusHours(3));
+        insertWorkflowFull(992002L, "tiertkw_normal", "CRON", 5, LocalDateTime.now().plusHours(3));
+
+        // priorityTier=high（priority 0–2）→ 只剩 high
+        client.get().uri(b -> b.path("/api/ops/periodic-workflows")
+                        .queryParam("keyword", "tiertkw_")
+                        .queryParam("priorityTier", "high")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(1)
+                .jsonPath("$.data.items[0].name").isEqualTo("tiertkw_high")
+                .jsonPath("$.data.items[0].priority").isEqualTo(1);
+    }
+
+    @Test
+    void periodicWorkflows_按priority降序排序_NULL在末尾() {
+        insertWorkflowFull(992101L, "sorttkw_p8", "CRON", 8, LocalDateTime.now().plusHours(3));
+        insertWorkflowFull(992102L, "sorttkw_p2", "CRON", 2, LocalDateTime.now().plusHours(3));
+        insertWorkflowNullPriority(992103L, "sorttkw_null", "CRON", "0 0 2 * ?");
+
+        // sort=priority:desc → 8 > 2 > NULL（NULLS LAST）
+        client.get().uri(b -> b.path("/api/ops/periodic-workflows")
+                        .queryParam("keyword", "sorttkw_")
+                        .queryParam("sort", "priority:desc")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(3)
+                .jsonPath("$.data.items[0].name").isEqualTo("sorttkw_p8")
+                .jsonPath("$.data.items[1].name").isEqualTo("sorttkw_p2")
+                .jsonPath("$.data.items[2].name").isEqualTo("sorttkw_null");
+    }
+
+    @Test
+    void periodicWorkflows_投影nextTriggerTime() {
+        LocalDateTime nt = LocalDateTime.now().plusHours(3).withMinute(0).withSecond(0).withNano(0);
+        insertWorkflowFull(992201L, "nttkw_one", "CRON", 5, nt);
+
+        client.get().uri(b -> b.path("/api/ops/periodic-workflows")
+                        .queryParam("keyword", "nttkw_one")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items[0].nextTriggerTime").isNotEmpty();
     }
 
     // ─── 鉴权 ──────────────────────

@@ -102,7 +102,8 @@ public final class OpsContracts {
     public record WorkflowListRow(Long id, String name, String description, String cron, String status,
                                   Integer currentVersionNo, Integer hasDraftChange, String lastFireTime,
                                   Integer priority, Integer timeoutSec, String updatedAt, Long updatedBy,
-                                  Long catalogNodeId, String recentTriggerResult) {}
+                                  Long catalogNodeId, String recentTriggerResult,
+                                  String nextTriggerTime) {}
 
     /**
      * 任务流列表筛选 + 分页条件（任一为空即不约束该维度）。page 从 0 起；size 上限由 service 夹取。
@@ -110,7 +111,8 @@ public final class OpsContracts {
      */
     public record WorkflowQuery(String scheduleType, String keyword, Integer hasDraftChange,
                                 String recentResult, Long catalogNodeId, Long createdBy,
-                                Long projectId, int page, int size) {}
+                                Long projectId, int page, int size,
+                                String priorityTier, String sortField, String sortDir) {}
 
     /**
      * 任务流实例列表行（筛选/分页投影）。durationMs 为 started→finished 毫秒（未结束为 null）。

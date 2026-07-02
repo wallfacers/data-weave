@@ -126,29 +126,32 @@ export function AlertsView({ active }: ViewProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar — 下划线式，与 settings-view / event-center-view 同款 */}
-      <div className="flex items-center gap-1 border-b h-11 px-5" role="tablist">
-        {tabs.map(tb => {
-          const isActive = tab === tb.key
-          return (
-            <button
-              key={tb.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setTab(tb.key)}
-              className={
-                "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
-                (isActive
-                  ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
-                  : "text-muted-foreground hover:text-foreground")
-              }
-            >
-              <HugeiconsIcon icon={tb.icon} className="size-4" />
-              {t(tb.labelKey as never)}
-            </button>
-          )
-        })}
+      {/* Tab bar — 下划线式，与 quality-view 同款 */}
+      <div role="tablist">
+        <div className="flex items-center gap-1 px-5 h-11">
+          {tabs.map(tb => {
+            const isActive = tab === tb.key
+            return (
+              <button
+                key={tb.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setTab(tb.key)}
+                className={
+                  "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
+                  (isActive
+                    ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                <HugeiconsIcon icon={tb.icon} className="size-4" />
+                {t(tb.labelKey as never)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mx-5 border-b" />
       </div>
 
       {/* Toolbar */}

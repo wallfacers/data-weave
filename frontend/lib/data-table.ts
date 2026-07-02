@@ -26,6 +26,10 @@ export interface ColumnDef<T> {
   cellClassName?: string
   /** 自定义单元格渲染；缺省时渲染 String(row[key]) */
   cell?: (row: T) => ReactNode
+  /** 列头可点击排序（server 模式触发 server 端排序）；缺省 false，向后兼容 */
+  sortable?: boolean
+  /** sortable 时传给后端的字段名（缺省取 key）；后端白名单校验 */
+  sortKey?: string
 }
 
 // ──────────────────────────────── 筛选 ────────────────────────────────
@@ -88,10 +92,16 @@ export interface PageResult<T> {
   size: number
 }
 
+export interface SortState {
+  field: string
+  dir: "asc" | "desc"
+}
+
 export interface FetchQuery {
   filters: FilterValues
   page: number
   size: number
+  sort?: SortState
 }
 
 // ──────────────────────────────── 纯逻辑 ────────────────────────────────
@@ -159,6 +169,7 @@ export function toQueryParams(query: FetchQuery, defs: FilterDef[]): URLSearchPa
   }
   qs.set("page", String(query.page))
   qs.set("size", String(query.size))
+  if (query.sort) qs.set("sort", `${query.sort.field}:${query.sort.dir}`)
   return qs
 }
 
