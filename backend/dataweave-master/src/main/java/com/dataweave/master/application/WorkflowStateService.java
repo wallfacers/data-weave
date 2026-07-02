@@ -62,14 +62,16 @@ public class WorkflowStateService {
             normalCount++;
             String s = n.getState() == null ? "NOT_RUN" : n.getState();
             switch (s) {
-                case "RUNNING" -> hasRunning = true;
+                // DISPATCHED（已认领待跑）/ PREEMPTED（软抢占回炉中）都是进行中态，不是未开始——
+                // 归入 RUNNING 桶，避免被 default 误判为 NOT_RUN。
+                case "RUNNING", "DISPATCHED", "PREEMPTED" -> hasRunning = true;
                 case "FAILED" -> hasFailed = true;
                 case "WAITING" -> hasWaiting = true;
                 // SKIPPED（冻结跳过）是终态、非失败，与 SUCCESS 同归「已结算」桶参与聚合：
                 // 不阻塞收尾、不算失败。区别仅在 task_instance.state 层面对 UI 可见（ops-center-publish-boundary）。
                 case "SUCCESS", "SKIPPED" -> hasSuccess = true;
                 case "STOPPED" -> { hasStopped = true; stoppedCount++; }
-                default -> hasNotRun = true; // NOT_RUN
+                default -> hasNotRun = true; // NOT_RUN / PAUSED
             }
         }
 

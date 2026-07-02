@@ -35,6 +35,7 @@ class OpsServiceDataCenterTest {
     private TaskInstanceRepository instanceRepository;
     private TaskDefRepository taskDefRepository;
     private InstanceStateMachine stateMachine;
+    private WorkflowStateService workflowStateService;
     private EventBus eventBus;
     private JdbcTemplate jdbc;
     private OpsService ops;
@@ -47,11 +48,12 @@ class OpsServiceDataCenterTest {
         com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository =
                 mock(com.dataweave.master.domain.WorkflowDefRepository.class);
         stateMachine = mock(InstanceStateMachine.class);
+        workflowStateService = mock(WorkflowStateService.class);
         LogBus logBus = mock(LogBus.class);
         eventBus = mock(EventBus.class);
         jdbc = mock(JdbcTemplate.class);
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
-                workflowDefRepository, stateMachine, logBus, eventBus, jdbc,
+                workflowDefRepository, stateMachine, workflowStateService, logBus, eventBus, jdbc,
                 mock(com.dataweave.master.domain.AgentActionRepository.class));
     }
 
@@ -87,6 +89,20 @@ class OpsServiceDataCenterTest {
         ops.setSuccess(ti.getId());
 
         verify(stateMachine).casTaskTerminal(ti.getId(), InstanceStates.RUNNING, InstanceStates.SUCCESS, null);
+    }
+
+    @Test
+    void setSuccessFromRunning_属于工作流实例_重算父流聚合态() {
+        // 回归：强制置成功若恰好是父流最后一个未完成节点，此前无人重算，父流永久悬挂 RUNNING。
+        TaskInstance ti = instance(InstanceStates.RUNNING);
+        UUID wiId = UUID.randomUUID();
+        ti.setWorkflowInstanceId(wiId);
+        when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
+        when(stateMachine.casTaskTerminal(any(), any(), any(), any())).thenReturn(true);
+
+        ops.setSuccess(ti.getId());
+
+        verify(workflowStateService).computeAndUpdate(wiId);
     }
 
     @Test
@@ -131,6 +147,35 @@ class OpsServiceDataCenterTest {
         assertThatThrownBy(() -> ops.rerunInstance(ti.getId()))
                 .isInstanceOf(BizException.class);
         verify(eventBus, never()).publish(any(), any());
+    }
+
+    // ─── 终止单个任务实例 ─────────────────────────────────
+
+    @Test
+    void killTask_属于工作流实例_重算父流聚合态() {
+        // 回归：手动停单节点若恰好是父流最后一个未完成节点，此前无人重算，父流永久悬挂 RUNNING。
+        TaskInstance ti = instance(InstanceStates.RUNNING);
+        UUID wiId = UUID.randomUUID();
+        ti.setWorkflowInstanceId(wiId);
+        when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
+        when(stateMachine.casTaskTerminal(ti.getId(), InstanceStates.RUNNING, "STOPPED", "MANUAL_STOP"))
+                .thenReturn(true);
+
+        ops.killTask(ti.getId());
+
+        verify(workflowStateService).computeAndUpdate(wiId);
+    }
+
+    @Test
+    void killTask_单跑任务无工作流实例_不重算() {
+        TaskInstance ti = instance(InstanceStates.RUNNING);
+        when(instanceRepository.findById(ti.getId())).thenReturn(Optional.of(ti));
+        when(stateMachine.casTaskTerminal(ti.getId(), InstanceStates.RUNNING, "STOPPED", "MANUAL_STOP"))
+                .thenReturn(true);
+
+        ops.killTask(ti.getId());
+
+        verify(workflowStateService, never()).computeAndUpdate(any());
     }
 
 }

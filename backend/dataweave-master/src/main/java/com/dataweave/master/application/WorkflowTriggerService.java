@@ -244,6 +244,7 @@ public class WorkflowTriggerService {
             }
         }
 
+        boolean anyPending = false;  // 是否存在会真正进调度队列的 WAITING 节点
         for (MatNode m : subNodes) {
             TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now, locale);
             ti.setWorkflowInstanceId(savedWi.getId());
@@ -275,13 +276,17 @@ public class WorkflowTriggerService {
                     ti.setFinishedAt(now);
                 } else {
                     ti.setState(InstanceStates.WAITING);
+                    anyPending = true;
                 }
             }
             taskInstanceRepository.save(ti);
         }
 
-        // 含冻结跳过时重算聚合态/进度：全节点终态（全 SKIPPED/SUCCESS）的实例据此落 SUCCESS，不悬挂 RUNNING。
-        if (!frozenClosure.isEmpty()) {
+        // 物化落库的 RUNNING 是乐观初值（设计意图：触发即视为运行中，不给用户看"等待中"的中间态；
+        // 正常场景很快会被调度认领的节点事件自然推进/校正）。仅当整批节点里**没有任何 WAITING 节点**
+        // （全虚拟锚点 / 全冻结跳过）时才补一次聚合校正——这种情况不会再有后续调度事件，
+        // 若不在此兜底，实例会永久悬挂 RUNNING（aggregate 应得 SUCCESS）。
+        if (!anyPending) {
             workflowStateService.computeAndUpdate(savedWi.getId());
         }
 

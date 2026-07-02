@@ -40,6 +40,7 @@ public class RecoveryService {
             return false;  // 非失败工作流，不可断点恢复
         }
         resetNodes(workflowInstanceId, false, now);
+        publishWorkflowState(workflowInstanceId);
         wake();
         return true;
     }
@@ -55,8 +56,14 @@ public class RecoveryService {
             return false;
         }
         resetNodes(workflowInstanceId, true, now);
+        publishWorkflowState(workflowInstanceId);
         wake();
         return true;
+    }
+
+    /** 原生 SQL 绕过 casWorkflowState，未发布 dw:evt：手动补发，避免实例详情视图停留旧态直到下次轮询。 */
+    private void publishWorkflowState(UUID workflowInstanceId) {
+        eventBus.publish("dw:evt:" + workflowInstanceId, "{\"workflowState\":\"RUNNING\"}");
     }
 
     private void resetNodes(UUID workflowInstanceId, boolean includeSuccess, LocalDateTime now) {

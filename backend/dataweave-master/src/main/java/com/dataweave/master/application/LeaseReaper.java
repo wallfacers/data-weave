@@ -42,6 +42,7 @@ public class LeaseReaper {
     private final EventBus eventBus;
     private final SchedulerMetrics metrics;
     private final ApplicationEventPublisher eventPublisher;
+    private final WorkflowStateService workflowStateService;
 
     public LeaseReaper(JdbcTemplate jdbc,
                        InstanceStateMachine stateMachine,
@@ -49,7 +50,8 @@ public class LeaseReaper {
                        WorkerNodeRepository nodeRepository,
                        EventBus eventBus,
                        SchedulerMetrics metrics,
-                       ApplicationEventPublisher eventPublisher) {
+                       ApplicationEventPublisher eventPublisher,
+                       WorkflowStateService workflowStateService) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.retryService = retryService;
@@ -57,6 +59,7 @@ public class LeaseReaper {
         this.eventBus = eventBus;
         this.metrics = metrics;
         this.eventPublisher = eventPublisher;
+        this.workflowStateService = workflowStateService;
     }
 
     /**
@@ -80,7 +83,7 @@ public class LeaseReaper {
     private int reapLostInstances(LocalDateTime now) {
         // 查找 lease_expire_at 已过期 且 节点 OFFLINE 的 DISPATCHED/RUNNING 实例
         List<ExpiredInstance> expired = jdbc.query(
-                "SELECT ti.id, ti.state, ti.worker_node_code, ti.attempt " +
+                "SELECT ti.id, ti.state, ti.worker_node_code, ti.attempt, ti.workflow_instance_id " +
                         "FROM task_instance ti " +
                         "JOIN worker_nodes wn ON ti.worker_node_code = wn.node_code " +
                         "WHERE ti.state IN ('DISPATCHED','RUNNING') " +
@@ -95,6 +98,7 @@ public class LeaseReaper {
                     inst.state = rs.getString("state");
                     inst.workerNodeCode = rs.getString("worker_node_code");
                     inst.attempt = rs.getInt("attempt");
+                    inst.workflowInstanceId = rs.getObject("workflow_instance_id", UUID.class);
                     return inst;
                 },
                 now);
@@ -117,7 +121,7 @@ public class LeaseReaper {
         // 简化实现：查找 lease_expire_at 已过期的 DISPATCHED/RUNNING 且节点 ONLINE 的实例
         // 如果节点 ONLINE 但租约过期，说明可能 incarnation 已变但 worker 尚未上报运行中实例
         List<ExpiredInstance> expired = jdbc.query(
-                "SELECT ti.id, ti.state, ti.worker_node_code, ti.attempt " +
+                "SELECT ti.id, ti.state, ti.worker_node_code, ti.attempt, ti.workflow_instance_id " +
                         "FROM task_instance ti " +
                         "JOIN worker_nodes wn ON ti.worker_node_code = wn.node_code " +
                         "WHERE ti.state IN ('DISPATCHED','RUNNING') " +
@@ -132,6 +136,7 @@ public class LeaseReaper {
                     inst.state = rs.getString("state");
                     inst.workerNodeCode = rs.getString("worker_node_code");
                     inst.attempt = rs.getInt("attempt");
+                    inst.workflowInstanceId = rs.getObject("workflow_instance_id", UUID.class);
                     return inst;
                 },
                 now);
@@ -161,6 +166,11 @@ public class LeaseReaper {
 
         // 尝试重试（如果仍有次数）
         tryRetry(inst, reason);
+        // 重算父流聚合态：无论最终是重试回队 WAITING 还是耗尽留 FAILED，都可能是该流最后一个未完成节点，
+        // 且租约回收不属于 WorkerReportService 回报路径，没有其他事件会顺带重算。
+        if (inst.workflowInstanceId != null) {
+            workflowStateService.computeAndUpdate(inst.workflowInstanceId);
+        }
         metrics.markLeaseReclaim(); // 仅在 casTaskTerminal 成功（真实回收）后计数一次
         // 021 alert-engine: publish NODE_OFFLINE for heartbeat timeout
         if ("WORKER_LOST".equals(reason)) {
@@ -192,6 +202,7 @@ public class LeaseReaper {
         String state;
         String workerNodeCode;
         int attempt;
+        UUID workflowInstanceId;
     }
 
     // ─── 告警信号发布（021 alert-engine）─────────────────────

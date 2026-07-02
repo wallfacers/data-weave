@@ -9,9 +9,7 @@
 
 import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  Loading03Icon,
   Calendar03Icon,
   BoxIcon,
   RefreshIcon,
@@ -25,19 +23,17 @@ import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
 import { WorkflowInstancesPanel } from "./ops/workflow-instances-panel"
 import { InstanceDagDialog } from "./ops/instance-dag-dialog"
-import { BackfillPanel } from "./ops/backfill-panel"
 import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
 import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
 
 // 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 任务实例 / 补数据实例。
-type TabId = "periodicWf" | "manualWf" | "workflowInstances" | "taskInstances" | "backfill"
+type TabId = "periodicWf" | "manualWf" | "workflowInstances" | "taskInstances"
 
 const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "periodicWf", labelKey: "tabPeriodicWorkflows", icon: Calendar03Icon },
   { id: "manualWf", labelKey: "tabManualWorkflows", icon: CursorMagicSelection02Icon },
   { id: "workflowInstances", labelKey: "tabWorkflowInstances", icon: RefreshIcon },
   { id: "taskInstances", labelKey: "tabTaskInstances", icon: Task01Icon },
-  { id: "backfill", labelKey: "tabBackfillInstances", icon: Loading03Icon },
 ]
 
 export function OpsView({ params, active }: ViewProps) {
@@ -79,8 +75,7 @@ export function OpsView({ params, active }: ViewProps) {
             {activeTab === "taskInstances" && (
               <PeriodicInstancesPanel initialFilter={initialFilter} active={active} />
             )}
-            {activeTab === "backfill" && <BackfillPanel />}
-          </div>
+                      </div>
         </main>
       </div>
 

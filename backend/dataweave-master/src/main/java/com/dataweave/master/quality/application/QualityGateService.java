@@ -1,6 +1,7 @@
 package com.dataweave.master.quality.application;
 
 import com.dataweave.master.application.InstanceStateMachine;
+import com.dataweave.master.application.WorkflowStateService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,10 +31,13 @@ public class QualityGateService {
     private static final Logger log = LoggerFactory.getLogger(QualityGateService.class);
 
     private final InstanceStateMachine stateMachine;
+    private final WorkflowStateService workflowStateService;
     private final JdbcTemplate jdbc;
 
-    public QualityGateService(InstanceStateMachine stateMachine, JdbcTemplate jdbc) {
+    public QualityGateService(InstanceStateMachine stateMachine, WorkflowStateService workflowStateService,
+                              JdbcTemplate jdbc) {
         this.stateMachine = stateMachine;
+        this.workflowStateService = workflowStateService;
         this.jdbc = jdbc;
     }
 
@@ -89,6 +93,11 @@ public class QualityGateService {
                 blocked++;
                 log.info("[QualityGate] BLOCK 阻断下游 {} reason={}", downstreamId, reason);
             }
+        }
+        if (blocked > 0 && workflowInstanceId != null) {
+            // 阻断可能让下游全部落 SKIPPED，恰好补齐该流最后未完成节点；此路径不经 WorkerReportService，
+            // 无其他事件会重算父流聚合态，须在此兜底。
+            workflowStateService.computeAndUpdate(workflowInstanceId);
         }
         return blocked;
     }

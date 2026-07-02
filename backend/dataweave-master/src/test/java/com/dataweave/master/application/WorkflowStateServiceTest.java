@@ -89,6 +89,13 @@ class WorkflowStateServiceTest {
         assertThat(service.aggregate(List.of())).isEqualTo("NOT_RUN");
     }
 
+    @Test
+    void 已认领待跑或软抢占回炉中_视为进行中_聚合为_RUNNING() {
+        // 回归：DISPATCHED/PREEMPTED 曾误落入 default→NOT_RUN 分支，被当作「未开始」。
+        assertThat(service.aggregate(List.of(n("DISPATCHED"), n("WAITING")))).isEqualTo("RUNNING");
+        assertThat(service.aggregate(List.of(n("PREEMPTED"), n("WAITING")))).isEqualTo("RUNNING");
+    }
+
     // ── computeAndUpdate：除聚合态外，须维护 completed_tasks / failed_tasks 进度计数 ──
 
     @Test
