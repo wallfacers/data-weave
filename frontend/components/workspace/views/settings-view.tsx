@@ -6,8 +6,6 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Edit02Icon,
   Delete02Icon,
-  Cancel01Icon,
-  CheckmarkCircle01Icon,
 } from "@hugeicons/core-free-icons"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
@@ -22,6 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DataTable } from "@/components/ui/data-table"
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ColumnDef, type FilterDef, type FetchQuery, type PageResult, toQueryParams } from "@/lib/data-table"
 
 /* ------------------------------------------------------------------ */
@@ -129,6 +129,8 @@ function UsersTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
   const [dialog, setDialog] = useState<UserDialogState>({ mode: "closed" })
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
 
   /* form fields */
   const [username, setUsername] = useState("")
@@ -169,6 +171,7 @@ function UsersTab() {
         body: JSON.stringify(body),
       })
     }
+    reload()
     closeDialog()
   }
 
@@ -178,10 +181,12 @@ function UsersTab() {
       method: "PUT",
       body: JSON.stringify({ status: newStatus }),
     })
+    reload()
   }
 
   const deleteUser = async (id: number) => {
     await api(`/api/users/${id}`, { method: "DELETE" })
+    reload()
   }
 
   // Filters
@@ -229,22 +234,36 @@ function UsersTab() {
       widthPct: 14,
       align: "right",
       cell: (row) => (
-        <div className="flex justify-end gap-0.5">
-          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
-            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            title={row.status === "ACTIVE" ? t("disable") : t("enable")}
-            onClick={async () => { await toggleStatus(row) }}
-          >
-            <HugeiconsIcon icon={row.status === "ACTIVE" ? Cancel01Icon : CheckmarkCircle01Icon} className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteUser(row.id) }}>
-            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
-          </Button>
+        <div className="flex justify-end items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(row)}>
+                  <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("edit")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger className="flex">
+              <Switch
+                checked={row.status === "ACTIVE"}
+                onCheckedChange={async () => { await toggleStatus(row) }}
+              />
+            </TooltipTrigger>
+            <TooltipContent>{row.status === "ACTIVE" ? t("disable") : t("enable")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => { void deleteUser(row.id) }}>
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("delete")}</TooltipContent>
+          </Tooltip>
         </div>
       ),
     },
@@ -260,6 +279,7 @@ function UsersTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        reloadSignal={reloadSignal}
         toolbarActions={
           <Button size="sm" onClick={openCreate}>{t("addUser")}</Button>
         }
@@ -337,6 +357,8 @@ function RolesTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
   const [dialog, setDialog] = useState<RoleDialogState>({ mode: "closed" })
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
 
   const [code, setCode] = useState("")
   const [name, setName] = useState("")
@@ -372,11 +394,13 @@ function RolesTab() {
         body: JSON.stringify({ name, description }),
       })
     }
+    reload()
     closeDialog()
   }
 
   const deleteRole = async (id: number) => {
     await api(`/api/roles/${id}`, { method: "DELETE" })
+    reload()
   }
 
   // Filters: only search (克制)
@@ -405,13 +429,27 @@ function RolesTab() {
       widthPct: 12,
       align: "right",
       cell: (row) => (
-        <div className="flex justify-end gap-0.5">
-          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
-            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteRole(row.id) }}>
-            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
-          </Button>
+        <div className="flex justify-end items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(row)}>
+                  <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("edit")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => { void deleteRole(row.id) }}>
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("delete")}</TooltipContent>
+          </Tooltip>
         </div>
       ),
     },
@@ -427,6 +465,7 @@ function RolesTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        reloadSignal={reloadSignal}
         toolbarActions={
           <Button size="sm" onClick={openCreate}>{t("addRole")}</Button>
         }
@@ -492,6 +531,8 @@ function ProjectsTab() {
   const t = useTranslations("settingsView")
   const api = useApi()
   const [dialog, setDialog] = useState<ProjectDialogState>({ mode: "closed" })
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
 
   const [code, setCode] = useState("")
   const [name, setName] = useState("")
@@ -525,11 +566,13 @@ function ProjectsTab() {
         body: JSON.stringify({ name }),
       })
     }
+    reload()
     closeDialog()
   }
 
   const deleteProject = async (id: number) => {
     await api(`/api/projects/${id}`, { method: "DELETE" })
+    reload()
   }
 
   // Filters
@@ -576,13 +619,27 @@ function ProjectsTab() {
       widthPct: 12,
       align: "right",
       cell: (row) => (
-        <div className="flex justify-end gap-0.5">
-          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
-            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteProject(row.id) }}>
-            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
-          </Button>
+        <div className="flex justify-end items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(row)}>
+                  <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("edit")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => { void deleteProject(row.id) }}>
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+                </Button>
+              }
+            />
+            <TooltipContent>{t("delete")}</TooltipContent>
+          </Tooltip>
         </div>
       ),
     },
@@ -598,6 +655,7 @@ function ProjectsTab() {
         mode="server"
         fetcher={fetcher}
         filters={filters}
+        reloadSignal={reloadSignal}
         toolbarActions={
           <Button size="sm" onClick={openCreate}>{t("addProject")}</Button>
         }
