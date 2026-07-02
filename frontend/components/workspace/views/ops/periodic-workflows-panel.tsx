@@ -5,12 +5,13 @@
  * 仅展示已发布(ONLINE) 且 schedule_type=CRON 的工作流（GET /api/ops/periodic-workflows，server 分页+筛选）。
  * 筛选：名称搜索 + 草稿改动段控 + 最近触发结果；预设：有未发布改动 / 最近触发失败。
  * 冻结改为节点级——点「查看 DAG」进入画布对节点冻结/解冻。
+ * 行操作含「触发补数据」（预填 workflow 目标）；补数据实例可在补数据实例 Tab 查看。
  */
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Share08Icon } from "@hugeicons/core-free-icons"
+import { Share08Icon, Calendar03Icon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,10 @@ import {
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
 import { currentProjectId } from "@/lib/project-context"
+import { useRefreshSchedule } from "@/lib/workspace/use-api"
+import { ViewRefreshControl } from "../view-refresh-control"
 import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
+import { BackfillDialog } from "@/components/workspace/views/ops/backfill-dialog"
 
 /** 后端 WorkflowListRow 投影（GET /api/ops/periodic-workflows） */
 export interface WorkflowRow {
@@ -91,6 +95,18 @@ export function PeriodicWorkflowsPanel() {
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
   const [dagWorkflow, setDagWorkflow] = useState<WorkflowRow | null>(null)
+  const [backfillWorkflow, setBackfillWorkflow] = useState<WorkflowRow | null>(null)
+
+  // 自动刷新
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
+  const { tickNow } = useRefreshSchedule(onTick, { active: true, enabled: autoEnabled })
+  const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
+  const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -181,11 +197,26 @@ export function PeriodicWorkflowsPanel() {
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 8,
+        widthPct: 12,
         cell: (w) => {
           if (w.status !== "ONLINE") return null
           return (
             <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      onClick={() => setBackfillWorkflow(w)}
+                    >
+                      <HugeiconsIcon icon={Calendar03Icon} className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("backfillTrigger")}</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -219,6 +250,19 @@ export function PeriodicWorkflowsPanel() {
           fetcher={(q) => fetchWorkflowPage("periodic-workflows", q, filters)}
           filters={filters}
           presets={presets}
+          reloadSignal={reloadSignal}
+          onLoadingChange={onLoadingChange}
+          onLoaded={onLoaded}
+          toolbarActions={
+            <ViewRefreshControl
+              lastUpdatedAt={lastUpdatedAt}
+              refreshing={refreshing}
+              stale={false}
+              autoEnabled={autoEnabled}
+              onToggleAuto={setAutoEnabled}
+              onRefresh={tickNow}
+            />
+          }
           emptyTitle={t("periodicWfEmpty")}
           emptyHint={t("periodicWfEmptyHint")}
         />
@@ -231,6 +275,13 @@ export function PeriodicWorkflowsPanel() {
           onOpenChange={(v) => { if (!v) setDagWorkflow(null) }}
         />
       )}
+      <BackfillDialog
+        open={!!backfillWorkflow}
+        onOpenChange={(v) => { if (!v) setBackfillWorkflow(null) }}
+        initialTargetType="workflow"
+        initialTargetId={backfillWorkflow?.id ?? ""}
+        initialTargetName={backfillWorkflow?.name}
+      />
     </>
   )
 }

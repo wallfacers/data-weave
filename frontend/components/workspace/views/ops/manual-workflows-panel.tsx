@@ -6,7 +6,7 @@
  * 筛选：名称搜索 + 最近触发结果。「运行一次」= POST /api/workflows/{id}/run，按 outcome 三态分流。
  */
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlayIcon, Share08Icon } from "@hugeicons/core-free-icons"
@@ -19,6 +19,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { type ColumnDef, type FilterDef } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
+import { useRefreshSchedule } from "@/lib/workspace/use-api"
+import { ViewRefreshControl } from "../view-refresh-control"
 import { yesterdayBizDate } from "@/lib/workspace/biz-date"
 import { authFetch, API_BASE } from "@/lib/types"
 import { type WorkflowRow, fetchWorkflowPage, recentResultBadge } from "./periodic-workflows-panel"
@@ -34,6 +36,17 @@ export function ManualWorkflowsPanel() {
   const formatDateTime = useFormatDateTime()
   const [busyId, setBusyId] = useState<number | null>(null)
   const [dagWorkflow, setDagWorkflow] = useState<WorkflowRow | null>(null)
+
+  // 自动刷新
+  const [reloadSignal, setReloadSignal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
+  const { tickNow } = useRefreshSchedule(onTick, { active: true, enabled: autoEnabled })
+  const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
+  const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
   const filters = useMemo<FilterDef[]>(
     () => [
@@ -181,6 +194,19 @@ export function ManualWorkflowsPanel() {
           mode="server"
           fetcher={(q) => fetchWorkflowPage("manual-workflows", q, filters)}
           filters={filters}
+          reloadSignal={reloadSignal}
+          onLoadingChange={onLoadingChange}
+          onLoaded={onLoaded}
+          toolbarActions={
+            <ViewRefreshControl
+              lastUpdatedAt={lastUpdatedAt}
+              refreshing={refreshing}
+              stale={false}
+              autoEnabled={autoEnabled}
+              onToggleAuto={setAutoEnabled}
+              onRefresh={tickNow}
+            />
+          }
           emptyTitle={t("manualWfEmpty")}
           emptyHint={t("manualWfEmptyHint")}
         />
