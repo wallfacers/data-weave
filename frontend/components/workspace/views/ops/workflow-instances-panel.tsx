@@ -469,7 +469,6 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         filters={filters}
         presets={presets}
         selectable
-        onRowClick={(row) => onViewDag?.(row)}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
         onLoaded={onLoaded}

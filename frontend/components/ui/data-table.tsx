@@ -287,8 +287,14 @@ export function DataTable<T>({
                       <TableRow
                         key={id}
                         data-selected={checked || undefined}
-                        className={cn(onRowClick && "cursor-pointer", rowClassName?.(row))}
-                        onClick={onRowClick ? () => onRowClick(row) : undefined}
+                        className={cn((onRowClick || selectable) && "cursor-pointer", rowClassName?.(row))}
+                        onClick={
+                          onRowClick
+                            ? () => onRowClick(row)
+                            : selectable
+                              ? () => toggleRow(id)
+                              : undefined
+                        }
                       >
                         {selectable && (
                           <TableCell onClick={(e) => e.stopPropagation()}>
