@@ -720,7 +720,7 @@ export function SettingsView() {
   const [tab, setTab] = useState<Tab>("users")
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <div className="flex flex-1 flex-col gap-5 p-5">
       {/* Tab 条 — 下划线式 */}
       <div className="flex items-center gap-1 border-b h-11" role="tablist">
         {TABS.map((tabItem) => {
