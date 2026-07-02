@@ -101,10 +101,11 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
         <div className="flex items-center gap-3">
           <DatePicker
             value={bizDate}
-            onChange={setBizDate}
+            onChange={(d) => { if (d) setBizDate(d) }}
             triggerClassName="h-8 w-36"
             locale={dateFnsLocale}
             quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
+            disableClear
           />
           <ViewRefreshControl
             lastUpdatedAt={lastUpdatedAt}
