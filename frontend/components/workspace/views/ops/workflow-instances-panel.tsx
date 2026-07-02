@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 import {
   type ColumnDef,
   type FilterDef,
@@ -103,6 +104,15 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
   const [autoEnabled, setAutoEnabled] = useState(true)
+
+  // ── 确认对话框状态 ──
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmState, setConfirmState] = useState<{
+    title: string
+    description: string
+    destructive: boolean
+    onConfirm: () => void
+  }>({ title: "", description: "", destructive: false, onConfirm: () => {} })
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
   const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
@@ -339,7 +349,15 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7"
-                    onClick={() => submitAction(row.id, "rerun", t("rerunAll"))}
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("rerunAll") }),
+                        description: t("confirmRerunDesc"),
+                        destructive: false,
+                        onConfirm: () => submitAction(row.id, "rerun", t("rerunAll")),
+                      })
+                      setConfirmOpen(true)
+                    }}
                   >
                     <HugeiconsIcon icon={PlayIcon} className="size-4" />
                   </Button>
@@ -354,7 +372,15 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7"
-                    onClick={() => submitAction(row.id, "recover", t("recover"))}
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("recover") }),
+                        description: t("confirmRecoverDesc"),
+                        destructive: false,
+                        onConfirm: () => submitAction(row.id, "recover", t("recover")),
+                      })
+                      setConfirmOpen(true)
+                    }}
                   >
                     <HugeiconsIcon icon={CheckmarkCircle01Icon} className="size-4" />
                   </Button>
@@ -369,7 +395,15 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7 text-destructive hover:text-destructive"
-                    onClick={() => submitAction(row.id, "kill", t("killTask"))}
+                    onClick={() => {
+                      setConfirmState({
+                        title: t("batchConfirm", { label: t("killTask") }),
+                        description: t("confirmKillDesc"),
+                        destructive: true,
+                        onConfirm: () => submitAction(row.id, "kill", t("killTask")),
+                      })
+                      setConfirmOpen(true)
+                    }}
                   >
                     <HugeiconsIcon icon={StopIcon} className="size-4" />
                   </Button>
@@ -454,19 +488,66 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
               <span className="text-xs text-destructive">{t("bulkMaxHint")}</span>
             ) : (
               <>
-                <Button size="sm" variant="outline" onClick={() => runBatch("rerun", ids, reload)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchRerun") }),
+                      description: t("confirmBatchRerunDesc", { count: ids.length }),
+                      destructive: false,
+                      onConfirm: () => runBatch("rerun", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
                   <HugeiconsIcon icon={PlayIcon} /> {t("batchRerun")}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => runBatch("set-success", ids, reload)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchSetSuccess") }),
+                      description: t("confirmBatchSetSuccessDesc", { count: ids.length }),
+                      destructive: false,
+                      onConfirm: () => runBatch("set-success", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
                   <HugeiconsIcon icon={CheckmarkCircle01Icon} /> {t("batchSetSuccess")}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => runBatch("kill", ids, reload)}>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    setConfirmState({
+                      title: t("batchConfirm", { label: t("batchKill") }),
+                      description: t("confirmBatchKillDesc", { count: ids.length }),
+                      destructive: true,
+                      onConfirm: () => runBatch("kill", ids, reload),
+                    })
+                    setConfirmOpen(true)
+                  }}
+                >
                   <HugeiconsIcon icon={StopIcon} /> {t("batchKill")}
                 </Button>
               </>
             )}
           </div>
         )}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmState.title}
+        description={confirmState.description}
+        destructive={confirmState.destructive}
+        onConfirm={() => {
+          confirmState.onConfirm()
+          setConfirmOpen(false)
+        }}
       />
     </div>
   )
