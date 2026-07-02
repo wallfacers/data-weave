@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ColumnDef, type FilterDef } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { DagViewerDialog } from "@/components/workspace/dag-viewer-dialog"
@@ -127,25 +128,42 @@ export function ManualWorkflowsPanel() {
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 24,
-        align: "right",
+        widthPct: 8,
         cell: (w) => (
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             {w.status === "ONLINE" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setDagWorkflow(w)}
-              >
-                <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
-                {t("viewDag")}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      onClick={() => setDagWorkflow(w)}
+                    >
+                      <HugeiconsIcon icon={Share08Icon} className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("viewDag")}</TooltipContent>
+              </Tooltip>
             )}
-            <Button size="sm" className="h-7 text-xs" disabled={busyId === w.id} onClick={() => runOnce(w)}>
-              <HugeiconsIcon icon={PlayIcon} className="size-3.5" />
-              {t("runOnce")}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    disabled={busyId === w.id}
+                    onClick={() => runOnce(w)}
+                  >
+                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("runOnce")}</TooltipContent>
+            </Tooltip>
           </div>
         ),
       },

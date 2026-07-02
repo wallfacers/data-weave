@@ -15,6 +15,7 @@ import { Share08Icon } from "@hugeicons/core-free-icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   type ColumnDef,
   type FilterDef,
@@ -180,20 +181,27 @@ export function PeriodicWorkflowsPanel() {
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 12,
-        align: "right",
+        widthPct: 8,
         cell: (w) => {
           if (w.status !== "ONLINE") return null
           return (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => setDagWorkflow(w)}
-            >
-              <HugeiconsIcon icon={Share08Icon} className="size-3.5" />
-              {t("viewDag")}
-            </Button>
+            <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      onClick={() => setDagWorkflow(w)}
+                    >
+                      <HugeiconsIcon icon={Share08Icon} className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("viewDag")}</TooltipContent>
+              </Tooltip>
+            </div>
           )
         },
       },
