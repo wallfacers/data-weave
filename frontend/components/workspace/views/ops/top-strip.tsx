@@ -8,9 +8,10 @@
  * 后端未起时 graceful fallback 到全 0，不抛错。
  */
 
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 import { useState, useMemo } from "react"
 import { format } from "date-fns"
+import { zhCN, enUS } from "date-fns/locale"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Alert01Icon,
@@ -70,6 +71,8 @@ function TopStat({
 
 export function OpsTopStrip({ active }: { active?: boolean }) {
   const t = useTranslations("ops")
+  const locale = useLocale()
+  const dateFnsLocale = useMemo(() => (locale === "zh-CN" ? zhCN : enUS), [locale])
   const [autoEnabled, setAutoEnabled] = useState(true)
   const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
 
@@ -95,11 +98,12 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
     <div className="p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-muted-foreground">{t("subtitle")}</span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <DatePicker
             value={bizDate}
             onChange={setBizDate}
-            className="w-[180px]"
+            triggerClassName="h-8 w-36"
+            locale={dateFnsLocale}
           />
           <ViewRefreshControl
             lastUpdatedAt={lastUpdatedAt}
