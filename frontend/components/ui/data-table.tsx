@@ -317,22 +317,20 @@ export function DataTable<T>({
             </DwScroll>
           </div>
 
-          {totalPages > 1 && (
-            <div className="shrink-0 px-3 pb-3">
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                total={total}
-                size={size}
-                onPageChange={setPage}
-                onSizeChange={(s) => {
-                  setSize(s)
-                  setPage(1)
-                }}
-                pageSizeOptions={pageSizeOptions}
-              />
-            </div>
-          )}
+          <div className="shrink-0 px-3 pb-3">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              size={size}
+              onPageChange={setPage}
+              onSizeChange={(s) => {
+                setSize(s)
+                setPage(1)
+              }}
+              pageSizeOptions={pageSizeOptions}
+            />
+          </div>
         </>
       )}
     </div>
