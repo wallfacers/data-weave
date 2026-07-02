@@ -20,6 +20,8 @@ public interface TaskInstanceRepository extends CrudRepository<TaskInstance, UUI
 
     /** 036 项目隔离：按项目 + runMode 过滤实例。 */
     List<TaskInstance> findByProjectIdAndRunMode(Long projectId, String runMode);
+    /** 040 日期筛选：按项目 + runMode + 业务日期过滤实例。 */
+    List<TaskInstance> findByProjectIdAndRunModeAndBizDate(Long projectId, String runMode, String bizDate);
     /** 036 项目隔离：按项目 + 状态过滤实例。 */
     List<TaskInstance> findByProjectIdAndState(Long projectId, String state);
     /** 036 项目隔离：按项目过滤全部实例。 */

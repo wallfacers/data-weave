@@ -42,7 +42,7 @@
   "ops": {
     "title": "Ops Center",
     "subtitle": "Scheduling and runtime overview",
-    "topTotal": "Today Total",
+    "topTotal": "Total",
     "topRunning": "Running",
     "topSuccess": "Succeeded",
     "topFailed": "Failed",

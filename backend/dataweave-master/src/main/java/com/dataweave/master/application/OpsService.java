@@ -231,6 +231,23 @@ public class OpsService {
         return instances(null);
     }
 
+    /** 040 日期筛选：按 projectId + bizDate 过滤（bizDate 非空时追加 WHERE biz_date=?，空时走原逻辑）。 */
+    public List<TaskInstance> instances(Long projectId, String bizDate) {
+        if (bizDate == null) {
+            return instances(projectId);
+        }
+        if (projectId == null) {
+            return StreamSupport.stream(instanceRepository.findAll().spliterator(), false)
+                    .filter(i -> "NORMAL".equals(i.getRunMode()))
+                    .filter(i -> bizDate.equals(i.getBizDate()))
+                    .sorted(Comparator.comparing(TaskInstance::getId, Comparator.nullsLast(Comparator.reverseOrder())))
+                    .collect(Collectors.toList());
+        }
+        return instanceRepository.findByProjectIdAndRunModeAndBizDate(projectId, "NORMAL", bizDate).stream()
+                .sorted(Comparator.comparing(TaskInstance::getId, Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
+    }
+
     /**
      * 某任务定义按 run_mode 过滤后的最近一个实例（供前端重开/刷新续接运行态）。
      * runMode 省略/空白默认 NORMAL；无实例返回 null。
@@ -277,6 +294,23 @@ public class OpsService {
         return failedInstances(null);
     }
 
+    /** 040 日期筛选：失败实例按 bizDate 过滤（bizDate 非空时追加 WHERE biz_date=?，空时走原逻辑）。 */
+    public List<TaskInstance> failedInstances(Long projectId, String bizDate) {
+        if (bizDate == null) {
+            return failedInstances(projectId);
+        }
+        if (projectId == null) {
+            return instanceRepository.findByState("FAILED").stream()
+                    .filter(i -> "NORMAL".equals(i.getRunMode()))
+                    .filter(i -> bizDate.equals(i.getBizDate()))
+                    .collect(Collectors.toList());
+        }
+        return instanceRepository.findByProjectIdAndState(projectId, "FAILED").stream()
+                .filter(i -> "NORMAL".equals(i.getRunMode()))
+                .filter(i -> bizDate.equals(i.getBizDate()))
+                .collect(Collectors.toList());
+    }
+
     /**
      * 工作流实例详情：实例本身 + 其下任务节点（供实例详情视图渲染/操作）。
      * workflow_instance 恒为正式运行（runMode=NORMAL，试跑不建 workflow_instance）。
@@ -304,9 +338,9 @@ public class OpsService {
         }).orElse(null);
     }
 
-    /** 驾驶舱全局态势。036 项目隔离：按 projectId 收敛。 */
-    public DashboardSummary summary(Long projectId) {
-        List<TaskInstance> all = instances(projectId);
+    /** 驾驶舱全局态势。036 项目隔离：按 projectId 收敛。040：bizDate 非空时按业务日期过滤。 */
+    public DashboardSummary summary(Long projectId, String bizDate) {
+        List<TaskInstance> all = bizDate != null ? instances(projectId, bizDate) : instances(projectId);
         int success = 0;
         int failed = 0;
         int running = 0;
@@ -321,7 +355,7 @@ public class OpsService {
             }
         }
         return new DashboardSummary(all.size(), success, failed, running,
-                failedInstances(projectId));
+                failedInstances(projectId, bizDate));
     }
 
     // ─── 实例生命周期管理 ─────────────────────────────────

@@ -102,11 +102,12 @@ public class OpsController {
         return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
     }
 
-    /** 驾驶舱全局态势：计数 + 失败实例清单 + Agent 诊断中事项。036 项目隔离：按当前项目收敛。 */
+    /** 驾驶舱全局态势：计数 + 失败实例清单。036 项目隔离，040 支持 bizDate 按业务日期过滤。 */
     @GetMapping("/summary")
     public ApiResponse<OpsService.DashboardSummary> summary(
-            @RequestParam(required = false) Long projectId) {
-        return ApiResponse.ok(opsService.summary(resolveProjectId(projectId)));
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) String bizDate) {
+        return ApiResponse.ok(opsService.summary(resolveProjectId(projectId), bizDate));
     }
 
 

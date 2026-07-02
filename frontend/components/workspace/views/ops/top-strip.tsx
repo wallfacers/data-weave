@@ -1,14 +1,16 @@
 "use client"
 
 /**
- * 运维中心顶条：今日大盘（总 / 运行中 / 成功 / 失败 / SLA 风险）。
+ * 运维中心顶条：大盘统计（总 / 运行中 / 成功 / 失败 / SLA 风险）。
+ * 040：支持按 biz_date 单日筛选。
  *
  * 数据来源：GET /api/ops/summary（DashboardSummary）+ GET /api/ops/eta-summary（ETA 计数）。
  * 后端未起时 graceful fallback 到全 0，不抛错。
  */
 
 import { useTranslations } from "next-intl"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { format } from "date-fns"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Alert01Icon,
@@ -21,6 +23,7 @@ import {
 import { useLiveData } from "@/lib/workspace/use-api"
 import { ViewRefreshControl } from "../view-refresh-control"
 import { useProjectContext } from "@/lib/project-context"
+import { DatePicker } from "@/components/ui/date-picker"
 import type { DashboardSummary } from "@/lib/types"
 
 interface EtaSummary {
@@ -69,7 +72,13 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
   const t = useTranslations("ops")
   const [autoEnabled, setAutoEnabled] = useState(true)
   const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
-  const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>(`/api/ops/summary?projectId=${projectId}`, { active, enabled: autoEnabled })
+
+  // 040: 默认选中今天的 bizDate
+  const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
+  const [bizDate, setBizDate] = useState<string>(todayStr)
+
+  const summaryUrl = `/api/ops/summary?projectId=${projectId}&bizDate=${bizDate}`
+  const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>(summaryUrl, { active, enabled: autoEnabled })
   const { data: eta, refreshing: r2, stale: s2, lastUpdatedAt: lu2, refresh: ref2 } = useLiveData<EtaSummary>(`/api/ops/eta-summary?projectId=${projectId}`, { active, enabled: autoEnabled })
 
   const total = summary?.total ?? 0
@@ -86,14 +95,21 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
     <div className="p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-muted-foreground">{t("subtitle")}</span>
-        <ViewRefreshControl
-          lastUpdatedAt={lastUpdatedAt}
-          refreshing={r1 || r2}
-          stale={s1 || s2}
-          autoEnabled={autoEnabled}
-          onToggleAuto={setAutoEnabled}
-          onRefresh={handleRefresh}
-        />
+        <div className="flex items-center gap-2">
+          <DatePicker
+            value={bizDate}
+            onChange={setBizDate}
+            className="w-[180px]"
+          />
+          <ViewRefreshControl
+            lastUpdatedAt={lastUpdatedAt}
+            refreshing={r1 || r2}
+            stale={s1 || s2}
+            autoEnabled={autoEnabled}
+            onToggleAuto={setAutoEnabled}
+            onRefresh={handleRefresh}
+          />
+        </div>
       </div>
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 2xl:grid-cols-5">
         <TopStat label={t("topTotal")} value={String(total)} icon={Layers01Icon} tone="default" />

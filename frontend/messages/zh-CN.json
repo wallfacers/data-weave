@@ -42,7 +42,7 @@
   "ops": {
     "title": "运营中心",
     "subtitle": "调度与运行态总览",
-    "topTotal": "今日总数",
+    "topTotal": "总数",
     "topRunning": "运行中",
     "topSuccess": "成功",
     "topFailed": "失败",
