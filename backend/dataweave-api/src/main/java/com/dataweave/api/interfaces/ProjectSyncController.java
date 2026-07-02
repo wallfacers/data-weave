@@ -1,6 +1,7 @@
 package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.application.ProjectSyncDtos;
 import com.dataweave.master.application.ProjectSyncService;
@@ -15,9 +16,11 @@ import org.springframework.web.bind.annotation.*;
 public class ProjectSyncController {
 
     private final ProjectSyncService syncService;
+    private final ProjectAuthz projectAuthz;
 
-    public ProjectSyncController(ProjectSyncService syncService) {
+    public ProjectSyncController(ProjectSyncService syncService, ProjectAuthz projectAuthz) {
         this.syncService = syncService;
+        this.projectAuthz = projectAuthz;
     }
 
     /** US1: 拉取项目定义为文件集。 */
@@ -26,10 +29,11 @@ public class ProjectSyncController {
         return ApiResponse.ok(syncService.pull(projectId, TenantContext.tenantId()));
     }
 
-    /** US2: 推送文件集落库并生成版本快照。 */
+    /** US2: 推送文件集落库并生成版本快照。036-D2：定义写入 = EDITOR+（task:manage，FR-042），闸门前置门。 */
     @PostMapping("/{projectId}/push")
     public ApiResponse<ProjectSyncDtos.PushResult> push(@PathVariable Long projectId,
                                                         @RequestBody ProjectSyncDtos.PushCommand cmd) {
+        projectAuthz.require("task:manage", projectId);
         return ApiResponse.ok(syncService.push(projectId, TenantContext.tenantId(),
                 TenantContext.userId(), cmd));
     }

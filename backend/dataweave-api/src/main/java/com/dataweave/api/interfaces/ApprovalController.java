@@ -2,6 +2,7 @@ package com.dataweave.api.interfaces;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
+import com.dataweave.api.infrastructure.ProjectAuthz;
 import com.dataweave.master.application.ApprovalService;
 import com.dataweave.master.application.ApprovalService.ApprovalResult;
 import com.dataweave.master.domain.AgentAction;
@@ -25,9 +26,11 @@ import java.util.List;
 public class ApprovalController {
 
     private final ApprovalService approvalService;
+    private final ProjectAuthz projectAuthz;
 
-    public ApprovalController(ApprovalService approvalService) {
+    public ApprovalController(ApprovalService approvalService, ProjectAuthz projectAuthz) {
         this.approvalService = approvalService;
+        this.projectAuthz = projectAuthz;
     }
 
     @GetMapping("/pending")
@@ -39,6 +42,9 @@ public class ApprovalController {
     public ApiResponse<ApprovalResult> approve(@PathVariable Long id,
                                                @RequestBody(required = false) ApproveRequest body,
                                                ServerWebExchange exchange) {
+        // 036-D2：审批 = OWNER only（project:manage，FR-042）。agent_action 无 project_id 列
+        // （补列属 C 路 schema 独占面），暂按当前请求项目（X-Project-Id）授权——接缝已记入清单。
+        projectAuthz.requireCurrent("project:manage");
         String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
         String confirmation = body != null ? body.confirmation() : null;
         return ApiResponse.ok(approvalService.approve(id, approver, confirmation,
@@ -47,6 +53,7 @@ public class ApprovalController {
 
     @PostMapping("/{id}/reject")
     public ApiResponse<ApprovalResult> reject(@PathVariable Long id, @RequestBody(required = false) ApproveRequest body) {
+        projectAuthz.requireCurrent("project:manage"); // 036-D2：审批 = OWNER only（FR-042）
         String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
         return ApiResponse.ok(approvalService.reject(id, approver));
     }
