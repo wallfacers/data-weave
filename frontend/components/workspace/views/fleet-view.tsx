@@ -42,7 +42,7 @@ export function FleetView({ active }: ViewProps) {
           onRefresh={refresh}
         />
       </div>
-      <DwScroll className="flex-1" innerClassName="flex flex-col gap-4">
+      <DwScroll className="flex-1" innerClassName="flex flex-col gap-4 min-h-full">
         {!nodes ? (
           <div className="flex flex-1 items-center justify-center p-10 text-center">
             <p className="text-muted-foreground">{tc("loading")}</p>
