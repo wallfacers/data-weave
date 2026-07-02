@@ -38,6 +38,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { DwScroll } from "@/components/ui/dw-scroll"
 
 /** 顶部企业项目切换器：展示当前项目 + 下拉切换（空/单项/错误态降级）。 */
 function ProjectSwitcher() {
@@ -232,25 +233,27 @@ export function LeftNav() {
           </button>
         </div>
 
-        {/* 中部：分组目录（可纵向滚动） */}
-        <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-          {NAV_GROUPS.map((group) => {
-            // 036-D：按当前项目权限过滤菜单项；整组无可见项则隐藏分组（FR-041）。
-            const items = group.items.filter(canView)
-            if (items.length === 0) return null
-            return (
-              <div key={group.id} className="mb-2 last:mb-0">
-                <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {t(group.titleKey)}
+        {/* 中部：分组目录（可纵向滚动）——DwScroll 统一 4px 中性灰浮叠滚动条，禁原生带箭头条 */}
+        <nav className="min-h-0 flex-1">
+          <DwScroll className="h-full" innerClassName="px-2 py-2">
+            {NAV_GROUPS.map((group) => {
+              // 036-D：按当前项目权限过滤菜单项；整组无可见项则隐藏分组（FR-041）。
+              const items = group.items.filter(canView)
+              if (items.length === 0) return null
+              return (
+                <div key={group.id} className="mb-2 last:mb-0">
+                  <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t(group.titleKey)}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    {items.map((view) => (
+                      <NavItem key={view} view={view} active={highlight.view === view} />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  {items.map((view) => (
-                    <NavItem key={view} view={view} active={highlight.view === view} />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </DwScroll>
         </nav>
 
         {/* 底部：用户菜单 */}
