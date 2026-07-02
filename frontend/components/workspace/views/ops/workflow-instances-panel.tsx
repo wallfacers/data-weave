@@ -199,6 +199,16 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       const translate = (k: string, p?: Record<string, unknown>) => t(k as never, p as never)
       return [
       {
+        key: "id",
+        header: t("colInstanceId"),
+        widthPct: 8,
+        cell: (row: WorkflowInstanceRow) => (
+          <span className="font-mono text-xs tabular-nums" title={row.id}>
+            {row.id.slice(0, 8)}…
+          </span>
+        ),
+      },
+      {
         key: "workflowName",
         header: t("colWorkflowName"),
         widthPct: 10,

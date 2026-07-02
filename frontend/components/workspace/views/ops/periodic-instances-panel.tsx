@@ -45,6 +45,7 @@ interface InstanceRow {
   taskDefId: number
   taskDefName: string
   workflowId?: string | null
+  workflowInstanceId?: string | null
   runMode: "PERIODIC" | "BACKFILL" | "MANUAL" | "TEST"
   state: string
   bizDate: string
@@ -172,6 +173,7 @@ export function PeriodicInstancesPanel({
       },
       { key: "taskId", label: t("filterTaskId"), kind: "search", width: "w-32", placeholder: t("filterTaskId") },
       { key: "bizDate", label: t("filterBizDate"), kind: "date", width: "w-40" },
+      { key: "workflowInstanceId", label: t("filterWorkflowInstanceId"), kind: "search", width: "w-48", placeholder: t("filterWorkflowInstanceId") },
       // 高级：排障定位维度，收进「更多筛选」
       { key: "workerNodeCode", label: t("filterWorkerNode"), kind: "search", tier: "advanced", placeholder: t("filterWorkerNode") },
       { key: "failureReason", label: t("filterFailureReason"), kind: "search", tier: "advanced", placeholder: t("filterFailureReason") },
@@ -223,6 +225,19 @@ export function PeriodicInstancesPanel({
         cell: (r) => (
           <span className="truncate text-sm">{r.workflowName || "—"}</span>
         ),
+      },
+      {
+        key: "workflowInstanceId",
+        header: t("colWorkflowInstanceId"),
+        widthPct: 7,
+        cell: (r) =>
+          r.workflowInstanceId ? (
+            <span className="font-mono text-xs tabular-nums" title={r.workflowInstanceId}>
+              {r.workflowInstanceId.slice(0, 8)}…
+            </span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       {
         key: "state",

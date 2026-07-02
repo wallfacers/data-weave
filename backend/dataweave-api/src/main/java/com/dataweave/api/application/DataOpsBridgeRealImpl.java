@@ -100,7 +100,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
         OpsContracts.PageResult<OpsContracts.InstanceRow> pr = opsService.queryInstances(
                 new OpsContracts.InstanceQuery(q.runMode(), q.state(), q.taskId(), q.bizDate(),
                         q.stateIn(), q.bizDateFrom(), q.bizDateTo(), q.startedAtFrom(), q.startedAtTo(),
-                        q.workerNodeCode(), q.failureReason(), q.projectId(),
+                        q.workerNodeCode(), q.failureReason(), q.projectId(), q.workflowInstanceId(),
                         Math.max(0, q.page() - 1), q.size()));
         List<InstanceRow> rows = pr.items().stream().map(DataOpsBridgeRealImpl::toDtoRow).toList();
         return new Page<>(rows, pr.total(), q.page(), q.size());

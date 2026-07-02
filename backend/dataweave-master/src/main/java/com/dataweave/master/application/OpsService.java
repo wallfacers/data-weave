@@ -40,6 +40,7 @@ public class OpsService {
     private final WorkflowInstanceRepository workflowInstanceRepository;
     private final com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository;
     private final InstanceStateMachine stateMachine;
+    private final WorkflowStateService workflowStateService;
     private final LogBus logBus;
     private final EventBus eventBus;
     private final JdbcTemplate jdbc;
@@ -50,6 +51,7 @@ public class OpsService {
                       WorkflowInstanceRepository workflowInstanceRepository,
                       com.dataweave.master.domain.WorkflowDefRepository workflowDefRepository,
                       InstanceStateMachine stateMachine,
+                      WorkflowStateService workflowStateService,
                       LogBus logBus,
                       EventBus eventBus,
                       JdbcTemplate jdbc,
@@ -59,6 +61,7 @@ public class OpsService {
         this.workflowInstanceRepository = workflowInstanceRepository;
         this.workflowDefRepository = workflowDefRepository;
         this.stateMachine = stateMachine;
+        this.workflowStateService = workflowStateService;
         this.logBus = logBus;
         this.eventBus = eventBus;
         this.jdbc = jdbc;
@@ -444,6 +447,10 @@ public class OpsService {
         }
         if (stateMachine.casTaskTerminal(instanceId, ti.getState(), "STOPPED", "MANUAL_STOP")) {
             appendManualStopLog(instanceId);
+            // 手动停单节点可能恰好是父流最后一个未完成节点：无其他后续事件会重算，须在此兜底聚合。
+            if (ti.getWorkflowInstanceId() != null) {
+                workflowStateService.computeAndUpdate(ti.getWorkflowInstanceId());
+            }
         }
         // 返回最新态（CAS 已落库）。
         var latest = instanceRepository.findById(instanceId).orElse(ti);
@@ -468,6 +475,10 @@ public class OpsService {
         if (stateMachine.casTaskTerminal(instanceId, from, InstanceStates.SUCCESS, null)) {
             // 唤醒：下游 WAITING 经调度认领的就绪门（上游 SUCCESS）自然解锁。
             eventBus.publish(InstanceStates.WAKE_CHANNEL, "set-success");
+            // 强制置成功可能恰好是父流最后一个未完成节点：无其他后续事件会重算，须在此兜底聚合。
+            if (ti.getWorkflowInstanceId() != null) {
+                workflowStateService.computeAndUpdate(ti.getWorkflowInstanceId());
+            }
         }
         audit("SET_SUCCESS", instanceId, "置成功任务实例");
         return instanceRepository.findById(instanceId).orElse(ti);
@@ -490,8 +501,12 @@ public class OpsService {
                 + "started_at=NULL, log=NULL, updated_at=? WHERE id=? AND deleted=0", now, instanceId);
         UUID wiId = ti.getWorkflowInstanceId();
         if (wiId != null) {
-            jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
+            int updated = jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
                     + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0", now, wiId);
+            if (updated == 1) {
+                // 原生 SQL 绕过 casWorkflowState，未发布 dw:evt：手动补发，避免实例详情视图停留旧态直到下次轮询。
+                eventBus.publish("dw:evt:" + wiId, "{\"workflowState\":\"RUNNING\"}");
+            }
         }
         eventBus.publish(InstanceStates.WAKE_CHANNEL, "rerun");
         audit("RERUN_INSTANCE", instanceId, "重跑任务实例");
@@ -555,6 +570,10 @@ public class OpsService {
         if (q.failureReason() != null && !q.failureReason().isBlank()) {
             where.append("AND ti.failure_reason LIKE CONCAT('%', ?, '%') ");
             args.add(q.failureReason().trim());
+        }
+        if (q.workflowInstanceId() != null) {
+            where.append("AND ti.workflow_instance_id=? ");
+            args.add(q.workflowInstanceId());
         }
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());

@@ -32,10 +32,10 @@ public final class OpsContracts {
                                 String stateIn, String bizDateFrom, String bizDateTo,
                                 String startedAtFrom, String startedAtTo,
                                 String workerNodeCode, String failureReason,
-                                Long projectId, int page, int size) {
+                                Long projectId, UUID workflowInstanceId, int page, int size) {
         /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
-            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, page, size);
+            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, page, size);
         }
         /** 036 项目隔离：不含 projectId 的构造（向后兼容），projectId 置 null。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate,
@@ -44,7 +44,7 @@ public final class OpsContracts {
                             String workerNodeCode, String failureReason,
                             int page, int size) {
             this(runMode, state, taskId, bizDate, stateIn, bizDateFrom, bizDateTo,
-                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, page, size);
+                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, null, page, size);
         }
     }
 
