@@ -104,6 +104,7 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
             onChange={setBizDate}
             triggerClassName="h-8 w-36"
             locale={dateFnsLocale}
+            quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
           />
           <ViewRefreshControl
             lastUpdatedAt={lastUpdatedAt}
