@@ -26,6 +26,11 @@
 | Quality (US3) | `/api/quality/*` | `findByTenantIdAndProjectId` | （repo 隔离；接线随 alert 套路） |
 | Schema (US3) | `cron_fire`/`sla_baseline` 补 `project_id` 列 + 索引 + 回填 | 统一补列，仅追加 WHERE 过滤不破调度不变 | `CronFireSchemaMigrationTest` |
 | Roles (US4) | `/api/projects/{id}/me`、`addMember`/`removeMember`/`update`/`delete` | `ProjectRoleService` `project:manage` 授权，越权→`project.role.forbidden` | `ProjectRoleServiceTest`·`ProjectRoleAuthzTest`·前端 `nav-permissions.test.ts` |
+| **Task 定义写 (US4/D1)** | `POST/PUT/DELETE /api/tasks`、`publish`/`offline`/`rollback`/`catalog` | `ProjectAuthz` `task:manage`（create 按当前项目+打戳；by-id 按实体归属 projectId，跨项目→`project.forbidden`） | `TaskRoleAuthzTest`(5) |
+| **Workflow 定义写 (US4/D1)** | `POST/PUT/DELETE /api/workflows`、`dag`/`draft`/`publish`/`offline`/`rollback`/`dependencies`/`catalog` | `ProjectAuthz` `workflow:manage`（同上模式） | `WorkflowRoleAuthzTest`(4) |
+| **指标市场写 (US4/D2)** | `POST /api/marketplace/metrics`、`certify`/`DELETE`/`reuse` | `ProjectAuthz` `metric:manage` + 去 `defaultValue=1`（resolveProjectId 回落 TenantContext），闸门前置门 | `GovernanceRoleAuthzTest`(6) |
+| **审批 (US4/D2)** | `POST /api/approvals/{id}/approve`/`reject` | `ProjectAuthz` `project:manage`（OWNER only；`agent_action` 无 project_id 列→按请求头项目，补列属 C 面接缝） | `GovernanceRoleAuthzTest` |
+| **项目 push (US4/D2)** | `POST /api/projects/{id}/push` | `ProjectAuthz` `task:manage`（定义写入=EDITOR+；pull/diff 只读不接；MCP project_push 直调 service 走自身闸门不受影响） | `GovernanceRoleAuthzTest` |
 
 ## C — 平台级豁免（结构性不做项目隔离）
 

@@ -28,12 +28,32 @@ class CatalogApiTest {
     @LocalServerPort int port;
     @Autowired ObjectMapper objectMapper;
     @Autowired JwtUtil jwtUtil;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     WebTestClient client;
 
     @BeforeEach
     void setUp() {
+        // 036：catalog/tag 端点经 ProjectScope.require 真成员校验——本测试各用例用独立项目
+        // 8101~8105 相互隔离，须先造真项目 + user1 成员行（幂等：先删后插），否则 project.forbidden。
+        jdbc.update("DELETE FROM project_member WHERE project_id BETWEEN 8101 AND 8105");
+        jdbc.update("DELETE FROM projects WHERE id BETWEEN 8101 AND 8105");
+        for (long pid = 8101L; pid <= 8105L; pid++) {
+            jdbc.update("INSERT INTO projects (id, tenant_id, code, name, owner_id, status, "
+                    + "created_by, updated_by, created_at, updated_at, deleted, version) VALUES "
+                    + "(?, 1, ?, ?, 1, 'ACTIVE', 1, 1, TIMESTAMP '2026-06-01 00:00:00', "
+                    + "TIMESTAMP '2026-06-01 00:00:00', 0, 0)", pid, "cat-p" + pid, "catalog 测试项目 " + pid);
+            jdbc.update("INSERT INTO project_member (id, tenant_id, project_id, user_id, role_id, "
+                    + "created_by, updated_by, created_at, updated_at, deleted, version) VALUES "
+                    + "(?, 1, ?, 1, 1, 1, 1, TIMESTAMP '2026-06-01 00:00:00', "
+                    + "TIMESTAMP '2026-06-01 00:00:00', 0, 0)", pid, pid);
+        }
+        // 固定 id 插入会把 H2 IDENTITY 计数器停在 8105，避免后续自增撞主键（仅 H2 测试环境）
+        jdbc.execute("ALTER TABLE projects ALTER COLUMN id RESTART WITH 100000");
+        jdbc.execute("ALTER TABLE project_member ALTER COLUMN id RESTART WITH 100000");
+
         client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port)
                 .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .defaultHeader("X-Project-Id", "1")
                 .build();
     }
 

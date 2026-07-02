@@ -118,20 +118,22 @@
 **Goal**: 按当前项目角色做前端菜单/视图隔离 + 后端写授权，切项目重算。
 
 ### Tests
-- [ ] T045 [P] [US4] 后端角色授权测试：VIEWER/EDITOR/OWNER 越权写被拒（`dataweave-master/src/test/.../ProjectRoleAuthzTest.java`）
-- [ ] T046 [P] [US4] 前端 vitest：三角色菜单可见差异
+- [x] T045 [P] [US4] 后端角色授权测试 ✅ `ProjectRoleAuthzTest`(8, api 模块) + D1 `TaskRoleAuthzTest`(5)/`WorkflowRoleAuthzTest`(4) + D2 `GovernanceRoleAuthzTest`(6)
+- [x] T046 [P] [US4] 前端 vitest：三角色菜单可见差异 ✅ `nav-permissions.test.ts`(9)
 
 ### Implementation
-- [ ] T047 [US4] 后端"当前用户在当前项目角色/权限集"解析（project_member + role/role_permission）：**三级逐级包含**（OWNER ⊃ EDITOR ⊃ VIEWER）——VIEWER 只读全部视图+下钻，EDITOR=VIEWER+编辑任务/工作流/指标定义，OWNER=EDITOR+管理成员/项目设置/审批
-- [ ] T048 [US4] 受保护写端点接入项目角色授权，越权抛 `project.role.forbidden`（复用 GatedActionService/PolicyEngine，零 bypass）
-- [ ] T049 [US4] 前端权限查询接口 + `lib/auth.tsx` 结合当前项目权限
-- [ ] T050 [P] [US4] `left-nav.tsx` NavItem 按权限过滤（无权限入口不渲染）
-- [ ] T051 [P] [US4] `registry.tsx`/`nav-groups.ts` 视图级权限过滤（无权限视图不可直达）
-- [ ] T052 [US4] 切项目触发角色/菜单/权限重算（配合 useProjectContext）
-- [ ] T053 [P] [US4] i18n：messages/{zh-CN,en-US}.json 补 project/role/permission/menu 命名空间 + 越权提示，双 bundle 键集一致
-- [ ] T054 [US4] 浏览器验证三角色菜单差异 + 切项目重算
+- [x] T047 [US4] 角色/权限集解析 ✅ `ProjectRoleService`（master @Service，显式三元组参数）+ `ProjectRoleServiceTest`(10)。角色以 seed 为准：ADMIN≈OWNER、DEVELOPER≈EDITOR、VIEWER
+- [x] T048 [US4] 受保护写端点项目角色授权 ✅ 收尾方冻结 `ProjectAuthz` 门面（89eeca0）→ D1：TaskController(7 写端点, task:manage)+WorkflowController(11 写端点, workflow:manage)+Task/WorkflowService.create 去 1L/1L 硬编码；D2：MetricMarketplaceController(4 写, metric:manage+去 defaultValue=1)+ApprovalController(approve/reject, project:manage)+ProjectSyncController.push(task:manage)；ProjectController(设置/成员, project:manage) 收尾方先落。by-id 一律按实体归属 projectId 授权
+- [x] T049 [US4] 前端权限查询 ✅ `GET /api/projects/{id}/me` + `lib/project-permissions.ts`（zustand store）
+- [x] T050 [P] [US4] `left-nav.tsx` 按权限过滤 ✅ canView + 整组隐藏
+- [x] T051 [P] [US4] 视图级权限守卫 ✅ `views.ts` requirePermission 声明 + `workspace.tsx` denied 遮罩 + `tab-bar.tsx` 过滤
+- [x] T052 [US4] 切项目重算 ✅ `syncProjectPermissions()` 订阅 currentProjectId
+- [x] T053 [P] [US4] i18n ✅ `permission` 命名空间双 bundle 键集一致(7/7)
+- [x] T054 [US4] 浏览器验证 ✅ 收尾方 Playwright 实证 5/5（2026-07-02）：ADMIN 16 项菜单含 5 写入口；VIEWER 11 项写入口全隐藏、只读可见；VIEWER 深链 `?open=workflow-canvas` 被「权限不足」遮罩拒绝；切项目（ADMIN→非成员项目）菜单 16→11 收敛 + 重拉 `/projects/{id}/me`
 
 **Checkpoint**: 角色/菜单隔离可用。
+
+> **D 路接缝遗留（D1/D2 回报，收尾方汇总）**：① `agent_action` 无 `project_id` 列 → 审批授权暂按请求头项目（requireCurrent）；补列属 C 路 schema 面。② `/{id}/run`（task/workflow）、`/preview-params` 与 ops 运维动作（rerun/kill）未接角色授权——运行类走 PolicyEngine 闸门，非定义编辑；若产品要求 VIEWER 禁 run 另立任务。③ MetricMarketplaceController 的 GET 端点仍 `defaultValue="1"`（只读，归 B 路/收尾方后续）。④ MCP `project_push` 直调 service 不经控制器，风险自适应闸门语义不变。⑤ `AssetCatalogIT`（failsafe 才跑）含 marketplace 写调用，启用 failsafe 时需补 `X-Project-Id: 1` 头。⑥ 血缘 `recordTaskIo` 内部 1L/1L 占位未动。⑦ 调度 E2E 类（CrossCycleDependency 等 ~10 红）为 main 既有时序/环境问题，归 A 路治理。⑧ **项目创建者未自动成为成员**（收尾方 T054 实证发现）：`POST /api/projects` 只写 ownerId 不插 project_member → 创建者在新项目 member=false、无任何权限，且因 addMember 需 project:manage 陷入死锁（新项目无人可管理，只能 DB 直插）；建议后续：create 时自动插入创建者为 ADMIN 成员。⑨ `CatalogApiTest` 夹具曾用虚构项目 id（8101~8105）依赖旧的无守卫行为，收尾方已修（setUp 真造项目+成员行）——后续新测试涉及受 ProjectScope 守卫的端点须造真成员关系。
 
 ---
 
