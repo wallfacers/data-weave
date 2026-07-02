@@ -253,60 +253,63 @@ export function DataTable<T>({
         </div>
       ) : (
         <>
-          {/* 表头表（固定不滚，与数据表共享 colgroup） */}
-          <div className="shrink-0 bg-background">
-            <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
-              {colgroup}
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  {selectable && (
-                    <TableHead>
-                      <Checkbox checked={allSelected} onChange={toggleAll} aria-label="select all" />
-                    </TableHead>
-                  )}
-                  {columns.map((c) => (
-                    <TableHead key={c.key} className={cn(alignClass(c.align), c.headClassName)}>
-                      {c.header}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-            </table>
+          {/* 表头表+数据表包成单一 flex 子元素，容器 gap-3 不落在两表之间（否则首行上方多 12px） */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* 表头表（固定不滚，与数据表共享 colgroup） */}
+            <div className="shrink-0 bg-background">
+              <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
+                {colgroup}
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    {selectable && (
+                      <TableHead>
+                        <Checkbox checked={allSelected} onChange={toggleAll} aria-label="select all" />
+                      </TableHead>
+                    )}
+                    {columns.map((c) => (
+                      <TableHead key={c.key} className={cn(alignClass(c.align), c.headClassName)}>
+                        {c.header}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+              </table>
+            </div>
+            {/* 数据表（仅此区域 DwScroll 纵向滚动） */}
+            <DwScroll direction="vertical" className="min-h-0 flex-1">
+              <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
+                {colgroup}
+                <TableBody>
+                  {items.map((row) => {
+                    const id = getRowId(row)
+                    const checked = selected.has(id)
+                    return (
+                      <TableRow
+                        key={id}
+                        data-selected={checked || undefined}
+                        className={cn(onRowClick && "cursor-pointer", rowClassName?.(row))}
+                        onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      >
+                        {selectable && (
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox checked={checked} onChange={() => toggleRow(id)} />
+                          </TableCell>
+                        )}
+                        {columns.map((c) => (
+                          <TableCell
+                            key={c.key}
+                            className={cn("overflow-hidden", alignClass(c.align), c.cellClassName)}
+                          >
+                            {c.cell ? c.cell(row) : String((row as Record<string, unknown>)[c.key] ?? "—")}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </table>
+            </DwScroll>
           </div>
-          {/* 数据表（仅此区域 DwScroll 纵向滚动） */}
-          <DwScroll direction="vertical" className="min-h-0 flex-1">
-            <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
-              {colgroup}
-              <TableBody>
-                {items.map((row) => {
-                  const id = getRowId(row)
-                  const checked = selected.has(id)
-                  return (
-                    <TableRow
-                      key={id}
-                      data-selected={checked || undefined}
-                      className={cn(onRowClick && "cursor-pointer", rowClassName?.(row))}
-                      onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    >
-                      {selectable && (
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox checked={checked} onChange={() => toggleRow(id)} />
-                        </TableCell>
-                      )}
-                      {columns.map((c) => (
-                        <TableCell
-                          key={c.key}
-                          className={cn("overflow-hidden", alignClass(c.align), c.cellClassName)}
-                        >
-                          {c.cell ? c.cell(row) : String((row as Record<string, unknown>)[c.key] ?? "—")}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </table>
-          </DwScroll>
 
           {totalPages > 1 && (
             <div className="shrink-0 px-3 pb-3">
