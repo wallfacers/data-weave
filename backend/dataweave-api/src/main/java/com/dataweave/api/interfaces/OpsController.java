@@ -711,6 +711,11 @@ public class OpsController {
 
     /**
      * 工作流实例状态事件流：订阅 EventBus，实时推送 DAG 节点状态变迁。
+     *
+     * <p>连接时先补发一份当前实际态快照（各任务 taskState + 工作流自身 workflowState），再接续实时事件——
+     * dw:evt 是纯 Redis pub/sub 无回放，若实例跑得比"HTTP 建连 + Redis 订阅注册"这段握手还快
+     * （本地/mock 任务常见毫秒级完成），快照缺失时前端会永久停留在初始 WAITING/RUNNING 态。
+     * 顺序：先 {@code eventBus.subscribe}（此刻起的实时事件即被 sink 缓冲）再查快照，避免两者之间的窗口漏事件。
      */
     @GetMapping(value = "/workflow-instances/{id}/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> workflowEventsStream(@PathVariable UUID id) {
@@ -724,7 +729,9 @@ public class OpsController {
                     .build());
         });
 
-        return sink.asFlux()
+        Flux<ServerSentEvent<String>> snapshot = Flux.defer(() -> Flux.fromIterable(snapshotEvents(id)));
+
+        return Flux.concat(snapshot, sink.asFlux())
                 .doOnSubscribe(s -> sseConnect())
                 .doFinally(s -> {
                     sseDisconnect();
@@ -734,6 +741,30 @@ public class OpsController {
                         // 忽略
                     }
                 });
+    }
+
+    /** 取工作流实例当前态，构造与实时事件同格式的快照事件（各任务 + 工作流自身）。实例不存在/查询异常返回空列表。 */
+    private List<ServerSentEvent<String>> snapshotEvents(UUID id) {
+        try {
+            var detail = opsService.workflowInstanceDetail(id);
+            if (detail == null) {
+                return List.of();
+            }
+            List<ServerSentEvent<String>> out = new ArrayList<>();
+            for (var task : detail.tasks()) {
+                out.add(ServerSentEvent.<String>builder()
+                        .event("status")
+                        .data("{\"taskId\":\"" + task.id() + "\",\"taskState\":\"" + task.state() + "\"}")
+                        .build());
+            }
+            out.add(ServerSentEvent.<String>builder()
+                    .event("status")
+                    .data("{\"workflowState\":\"" + detail.state() + "\"}")
+                    .build());
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     // ─── helpers ────────────────────────────────────────
