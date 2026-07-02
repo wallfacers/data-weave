@@ -80,15 +80,29 @@ export async function fetchWorkflowPage(
   return empty
 }
 
-/** 最近触发结果 Badge：成功/失败/从未触发 */
+/** 最近触发结果 Badge：与实例状态颜色保持一致 */
 export function recentResultBadge(
   result: string | null,
   t: (k: string) => string,
 ): React.ReactNode {
   if (!result) return <Badge variant="outline" className="text-muted-foreground">{t("recentNever")}</Badge>
+
+  // 终态/异常态 → 红色
+  if (result === "FAILED" || result === "STOPPED" || result === "KILLED") {
+    const key = result === "FAILED" ? "stateFailed" : result === "STOPPED" ? "stateStopped" : "stateKilled"
+    return <Badge variant="destructive">{t(key)}</Badge>
+  }
+
+  // 运行中 → 红色（最近一次触发仍在跑 = 需关注）
+  if (result === "RUNNING") return <Badge variant="destructive">{t("stateRunning")}</Badge>
+
+  // 部分完成 → 警告色
+  if (result === "PARTIAL") return <Badge variant="warning">{t("statePartial")}</Badge>
+
   if (result === "SUCCESS") return <Badge variant="success">{t("stateSuccess")}</Badge>
-  if (result === "FAILED") return <Badge variant="destructive">{t("stateFailed")}</Badge>
-  return <Badge variant="info">{result}</Badge>
+
+  // 未知状态兜底
+  return <Badge variant="outline" className="text-muted-foreground">{result}</Badge>
 }
 
 export function PeriodicWorkflowsPanel() {
