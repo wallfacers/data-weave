@@ -21,6 +21,8 @@ interface DatePickerProps {
   showQuickActions?: boolean
   /** Override labels for quick-action buttons */
   quickLabels?: { today?: string; yesterday?: string }
+  /** When true, always show ▼ even when a date is selected (required fields). Default false. */
+  disableClear?: boolean
 }
 
 const DATE_FMT = "yyyy-MM-dd"
@@ -34,6 +36,7 @@ function DatePicker({
   locale,
   showQuickActions = true,
   quickLabels,
+  disableClear = false,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -82,7 +85,7 @@ function DatePicker({
             <span className="min-w-0 flex-1 truncate text-left">
               {value ?? placeholder}
             </span>
-            {value ? (
+            {value && !disableClear ? (
               <span
                 role="button"
                 aria-label="Clear date"

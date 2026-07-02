@@ -55,6 +55,7 @@ export function ReportsView({ active }: ViewProps) {
             triggerClassName="h-8 w-[150px]"
             locale={dateLocale}
             quickLabels={{ today: t("today"), yesterday: t("yesterday") }}
+            disableClear
           />
           <ViewRefreshControl
             lastUpdatedAt={lastUpdatedAt}

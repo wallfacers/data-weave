@@ -232,6 +232,7 @@ export function BackfillDialog({
                 placeholder={t("backfillDateStart")}
                 locale={dateFnsLocale}
                 quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
+                disableClear
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -244,6 +245,7 @@ export function BackfillDialog({
                 placeholder={t("backfillDateEnd")}
                 locale={dateFnsLocale}
                 quickLabels={{ today: t("quickToday"), yesterday: t("quickYesterday") }}
+                disableClear
               />
             </div>
           </div>
