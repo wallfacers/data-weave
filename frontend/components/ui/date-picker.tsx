@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format, parse, subDays, setHours, setMinutes, setSeconds, type Locale } from "date-fns"
+import { format, parse, isValid, subDays, setHours, setMinutes, setSeconds, type Locale } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Calendar01Icon } from "@hugeicons/core-free-icons"
 
@@ -40,17 +40,13 @@ const MINUTES_SECONDS = Array.from({ length: 60 }, (_, i) => String(i).padStart(
 /** Parse a date string (date-only or datetime) into a Date, or return undefined. */
 function parseDatetime(value: string | undefined): Date | undefined {
   if (!value) return undefined
-  try {
-    // Try datetime format first
-    return parse(value, DATETIME_FMT, new Date())
-  } catch {
-    try {
-      // Fall back to date-only format
-      return parse(value, DATE_FMT, new Date())
-    } catch {
-      return undefined
-    }
-  }
+  // Try datetime format first
+  const dt = parse(value, DATETIME_FMT, new Date())
+  if (isValid(dt)) return dt
+  // Fall back to date-only format
+  const d = parse(value, DATE_FMT, new Date())
+  if (isValid(d)) return d
+  return undefined
 }
 
 /** 时/分/秒下拉：自定义面板 + DwScroll，避免原生 select 弹层过高、滚动条不统一。 */
