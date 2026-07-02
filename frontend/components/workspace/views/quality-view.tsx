@@ -192,7 +192,7 @@ export function QualityView({ active }: ViewProps) {
             )
           })}
         </div>
-        <div className="mx-6 border-b" />
+        <div className="mx-5 border-b" />
       </div>
 
       {/* Toolbar */}
