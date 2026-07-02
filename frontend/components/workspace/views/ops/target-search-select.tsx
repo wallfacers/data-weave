@@ -1,8 +1,9 @@
 "use client"
 
 /**
- * 补数据目标的可搜索选择器：按名称搜索任务/工作流,替代手输数字 ID。
- * - 防抖请求 GET /api/tasks?keyword= 或 /api/workflows?keyword=
+ * 补数据目标的可搜索选择器：按名称搜索周期工作流,替代手输数字 ID。
+ * - 候选项仅来自 GET /api/ops/periodic-workflows(服务端已保证 status=ONLINE 且 schedule_type=CRON),
+ *   不展示 task 与未上线/非周期 workflow — 补数据本质是重跑周期调度的历史实例,目标必须已在运维上线。
  * - 候选项展示 名称 · catalog 路径 · 状态;选中后内部持有 id,数字 ID 对用户隐形
  * - 面板用相对容器 + 绝对定位(置于 Dialog 内,随同一 transform 上下文,无需 portal)
  */
@@ -11,6 +12,7 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { authFetch, API_BASE, type ApiResponse } from "@/lib/types"
+import { currentProjectId } from "@/lib/project-context"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
 export interface TargetOption {
@@ -60,7 +62,7 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
     if (open) inputRef.current?.focus()
   }, [open])
 
-  // 防抖搜索(打开期间;关键词变化触发);并行搜索 task + workflow
+  // 防抖搜索(打开期间;关键词变化触发);只查已上线的周期工作流
   useEffect(() => {
     if (!open) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -68,24 +70,21 @@ export function TargetSearchSelect({ value, onChange, pathMap }: TargetSearchSel
       setLoading(true)
       try {
         const q = encodeURIComponent(kw.trim())
-        const [taskRes, wfRes] = await Promise.all([
-          authFetch(`${API_BASE}/api/tasks?keyword=${q}&size=20`),
-          authFetch(`${API_BASE}/api/workflows?keyword=${q}&size=20`),
-        ])
-        const parse = async (r: Response, type: "task" | "workflow"): Promise<TargetOption[]> => {
-          const json = (await r.json().catch(() => null)) as ApiResponse<unknown> | null
-          const data = json && json.code === 0 ? (json.data as Record<string, unknown> | null) : null
-          const content = data && Array.isArray(data.content) ? (data.content as RawDef[]) : []
-          return content.map((item) => ({
+        const res = await authFetch(
+          `${API_BASE}/api/ops/periodic-workflows?keyword=${q}&page=1&size=20&projectId=${currentProjectId()}`,
+        )
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null
+        const data = json && json.code === 0 ? (json.data as Record<string, unknown> | null) : null
+        const items = data && Array.isArray(data.items) ? (data.items as RawDef[]) : []
+        setResults(
+          items.map((item) => ({
             id: item.id,
             name: item.name,
-            type,
+            type: "workflow" as const,
             path: item.catalogNodeId != null ? pathMap?.get(item.catalogNodeId) : undefined,
             status: item.status,
-          }))
-        }
-        const [tasks, workflows] = await Promise.all([parse(taskRes, "task"), parse(wfRes, "workflow")])
-        setResults([...tasks, ...workflows])
+          })),
+        )
       } catch {
         setResults([])
       } finally {

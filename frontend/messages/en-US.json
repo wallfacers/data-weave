@@ -184,7 +184,7 @@
     "backfillTargetTypeTask": "Task",
     "backfillTargetTypeWorkflow": "Workflow",
     "backfillTarget": "Target",
-    "backfillTargetPickHint": "Pick a task or workflow by name",
+    "backfillTargetPickHint": "Pick an online periodic workflow by name",
     "backfillTargetSearchPh": "Search by name",
     "backfillTargetSearching": "Searching",
     "backfillTargetNoResult": "No matching target",

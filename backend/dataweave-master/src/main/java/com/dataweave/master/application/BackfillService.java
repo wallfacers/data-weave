@@ -122,6 +122,9 @@ public class BackfillService {
         } else {
             wf = workflowDefRepository.findById(req.targetId())
                     .orElseThrow(() -> new IllegalStateException("Workflow def not found: " + req.targetId()));
+            if (!"ONLINE".equals(wf.getStatus()) || !"CRON".equals(wf.getScheduleType())) {
+                throw new BizException("backfill.workflow_not_periodic_online", wf.getName());
+            }
             targetName = wf.getName();
             tenantId = wf.getTenantId();
             projectId = wf.getProjectId();
