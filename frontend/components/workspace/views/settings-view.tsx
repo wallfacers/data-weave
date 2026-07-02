@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  Edit02Icon,
+  Delete02Icon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+} from "@hugeicons/core-free-icons"
 import { useApi } from "@/lib/auth"
 import type { ApiResponse } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -203,9 +210,9 @@ function UsersTab() {
   )
 
   const columns = useMemo<ColumnDef<User>[]>(() => [
-    { key: "username", header: t("colUsername"), widthPct: 16, cellClassName: "font-mono text-xs" },
-    { key: "displayName", header: t("colDisplayName"), widthPct: 16 },
-    { key: "email", header: t("colEmail"), widthPct: 22, cell: (row) => <span className="text-muted-foreground">{row.email || "—"}</span> },
+    { key: "username", header: t("colUsername"), widthPct: 18, cellClassName: "font-mono text-xs" },
+    { key: "displayName", header: t("colDisplayName"), widthPct: 18 },
+    { key: "email", header: t("colEmail"), widthPct: 28, cell: (row) => <span className="text-muted-foreground">{row.email || "—"}</span> },
     {
       key: "status",
       header: t("colStatus"),
@@ -219,19 +226,25 @@ function UsersTab() {
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 34,
+      widthPct: 14,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end gap-0.5">
-          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
+            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+          </Button>
           <Button
-            size="xs"
             variant="ghost"
+            size="icon"
+            className="size-7"
+            title={row.status === "ACTIVE" ? t("disable") : t("enable")}
             onClick={async () => { await toggleStatus(row) }}
           >
-            {row.status === "ACTIVE" ? t("disable") : t("enable")}
+            <HugeiconsIcon icon={row.status === "ACTIVE" ? Cancel01Icon : CheckmarkCircle01Icon} className="size-3.5" />
           </Button>
-          <Button size="xs" variant="ghost" onClick={() => { void deleteUser(row.id) }}>{t("delete")}</Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteUser(row.id) }}>
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+          </Button>
         </div>
       ),
     },
@@ -383,18 +396,22 @@ function RolesTab() {
   )
 
   const columns = useMemo<ColumnDef<Role>[]>(() => [
-    { key: "code", header: t("colCode"), widthPct: 20, cellClassName: "font-mono text-xs" },
-    { key: "name", header: t("colName"), widthPct: 20 },
-    { key: "description", header: t("colDescription"), widthPct: 32, cell: (row) => <span className="text-muted-foreground">{row.description || "—"}</span> },
+    { key: "code", header: t("colCode"), widthPct: 22, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 22 },
+    { key: "description", header: t("colDescription"), widthPct: 44, cell: (row) => <span className="text-muted-foreground">{row.description || "—"}</span> },
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 28,
+      widthPct: 12,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end gap-0.5">
-          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
-          <Button size="xs" variant="ghost" onClick={() => { void deleteRole(row.id) }}>{t("delete")}</Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
+            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteRole(row.id) }}>
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+          </Button>
         </div>
       ),
     },
@@ -541,12 +558,12 @@ function ProjectsTab() {
   )
 
   const columns = useMemo<ColumnDef<Project>[]>(() => [
-    { key: "code", header: t("colCode"), widthPct: 20, cellClassName: "font-mono text-xs" },
-    { key: "name", header: t("colName"), widthPct: 22 },
+    { key: "code", header: t("colCode"), widthPct: 24, cellClassName: "font-mono text-xs" },
+    { key: "name", header: t("colName"), widthPct: 28 },
     {
       key: "status",
       header: t("colStatus"),
-      widthPct: 14,
+      widthPct: 16,
       cell: (row) => (
         <Badge variant={row.status === "ACTIVE" ? "success" : "secondary"}>
           {row.status === "ACTIVE" ? t("statusProjectActive") : (row.status === "ARCHIVED" ? t("statusProjectArchived") : row.status)}
@@ -556,12 +573,16 @@ function ProjectsTab() {
     {
       key: "actions",
       header: t("colActions"),
-      widthPct: 44,
+      widthPct: 12,
       align: "right",
       cell: (row) => (
         <div className="flex justify-end gap-0.5">
-          <Button size="xs" variant="ghost" onClick={() => openEdit(row)}>{t("edit")}</Button>
-          <Button size="xs" variant="ghost" onClick={() => { void deleteProject(row.id) }}>{t("delete")}</Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("edit")} onClick={() => openEdit(row)}>
+            <HugeiconsIcon icon={Edit02Icon} className="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-7" title={t("delete")} onClick={() => { void deleteProject(row.id) }}>
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5 text-destructive" />
+          </Button>
         </div>
       ),
     },
