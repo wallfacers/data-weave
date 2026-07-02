@@ -469,6 +469,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         filters={filters}
         presets={presets}
         selectable
+        onRowClick={(row) => onViewDag?.(row)}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
         onLoaded={onLoaded}
@@ -491,6 +492,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={ids.length === 0}
                   onClick={() => {
                     setConfirmState({
                       title: t("batchConfirm", { label: t("batchRerun") }),
@@ -506,6 +508,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={ids.length === 0}
                   onClick={() => {
                     setConfirmState({
                       title: t("batchConfirm", { label: t("batchSetSuccess") }),
@@ -521,6 +524,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                 <Button
                   size="sm"
                   variant="destructive"
+                  disabled={ids.length === 0}
                   onClick={() => {
                     setConfirmState({
                       title: t("batchConfirm", { label: t("batchKill") }),
