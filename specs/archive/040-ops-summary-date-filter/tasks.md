@@ -25,7 +25,7 @@
 
 **Purpose**: 无需新项目初始化——改动在既有代码上增量进行。
 
-- [ ] T001 确认分支 `040-ops-summary-date-filter` 已创建，基于 `main` 最新提交
+- [x] T001 确认分支 `040-ops-summary-date-filter` 已创建，基于 `main` 最新提交（实际直接提交 main：aa73ca4）
 
 ---
 
@@ -51,10 +51,10 @@
 
 - [x] T003 [US1] 修改 `summary()` 方法签名，新增 `bizDate` 参数；`instances()` 内部分流：`bizDate` 非空时调用新 Repository 方法，空时走原逻辑 in `backend/dataweave-master/src/main/java/com/dataweave/master/application/OpsService.java`
 - [x] T004 [US1] `/summary` 端点新增 `@RequestParam(required=false) String bizDate` 参数，传入 `opsService.summary()` in `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/OpsController.java`
-- [ ] T005 [US1] 后端编译验证：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile`
+- [x] T005 [US1] 后端编译验证：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile`（mvnd+JDK25 exit=0 2026-07-03）
 - [x] T006 [US1] 新增 `bizDate` state（默认今天 `yyyy-MM-dd`）+ DatePicker 组件 + URL 拼接 `bizDate` 参数 in `frontend/components/workspace/views/ops/top-strip.tsx`
-- [ ] T007 [US1] 前端 typecheck：`cd frontend && pnpm typecheck`
-- [ ] T008 [US1] 浏览器验证：打开运维中心，切换日期，确认 4 个统计数字变化、SLA 风险不变
+- [x] T007 [US1] 前端 typecheck：`cd frontend && pnpm typecheck`（exit=0 2026-07-03）
+- [x] T008 [US1] 浏览器验证：打开运维中心，切换日期，确认 4 个统计数字变化、SLA 风险不变（Playwright 2026-07-03：DatePicker bizDate 联动 today→yesterday ✅、日历选 2026-06-09 total 0→6 ✅、SLA 风险始终全局无 bizDate ✅、console 0 error ✅）
 
 **Checkpoint**: US1 功能完整可独立验证
 
@@ -93,10 +93,10 @@
 
 **Purpose**: 最终验证与收尾
 
-- [ ] T012 后端编译 + 测试：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile` 零错误
-- [ ] T013 前端 typecheck：`cd frontend && pnpm typecheck` 零错误
-- [ ] T014 运行 quickstart.md 全部验证场景（API curl × 3 + 浏览器 × 2 + H2）
-- [ ] T015 如有测试新增，运行 `cd backend && ./mvnw -pl dataweave-api test -Dtest="OpsProjectIsolationTest"` 确认存量测试通过
+- [x] T012 后端编译 + 测试：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile` 零错误（mvnd exit=0 2026-07-03）
+- [x] T013 前端 typecheck：`cd frontend && pnpm typecheck` 零错误（exit=0 2026-07-03）
+- [x] T014 运行 quickstart.md 全部验证场景（API curl × 3 + 浏览器 × 2 + H2）—— 全部通过 2026-07-03：API curl×3 ✅ + H2(OpsProjectIsolationTest 12 绿) ✅ + 浏览器×2(DatePicker 联动+total 0→6+SLA 不变 / 标签"总数") ✅
+- [x] T015 如有测试新增，运行 `cd backend && ./mvnw -pl dataweave-api test -Dtest="OpsProjectIsolationTest"` 确认存量测试通过（Tests run:12 Failures:0 2026-07-03）
 
 ---
 
