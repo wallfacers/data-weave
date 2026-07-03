@@ -1048,7 +1048,25 @@
     "unavailable": "血缘存储不可达，暂时无法查看",
     "noColumns": "仅表级",
     "estimating": "估算中",
-    "syncedToday": "今日同步 {rows} 行"
+    "syncedToday": "今日同步 {rows} 行",
+    "legendInferred": "推断（虚线）",
+    "edgeDetailTitle": "边详情",
+    "edgeSource": "来源",
+    "edgeConfidence": "置信度",
+    "edgeConfirmed": "已确认",
+    "edgeModelVersion": "模型版本",
+    "sourceScriptSql": "内嵌 SQL 解析",
+    "sourceScriptInferred": "规则推断",
+    "sourceScriptModel": "模型推断",
+    "sourceSqlParsed": "SQL 解析",
+    "hintsTitle": "未解析提示",
+    "hintsEmpty": "无未解析提示",
+    "actionConfirm": "确认",
+    "actionRemove": "剔除",
+    "actionRevoke": "撤销裁决",
+    "correctionDone": "裁决已提交",
+    "correctionFailed": "裁决提交失败",
+    "close": "关闭"
   },
   "dataTable": {
     "allLabel": "全部",
@@ -1064,8 +1082,14 @@
     "yesterday": "昨天"
   },
   "eventCenter": {
-    "tab": { "events": "事件", "subscriptions": "订阅" },
-    "filter": { "allTypes": "全部类型", "allSeverities": "全部级别" },
+    "tab": {
+      "events": "事件",
+      "subscriptions": "订阅"
+    },
+    "filter": {
+      "allTypes": "全部类型",
+      "allSeverities": "全部级别"
+    },
     "severity": {
       "INFO": "信息",
       "LOW": "低",

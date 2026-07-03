@@ -46,7 +46,7 @@ class BackfillDownstreamNeo4jIT extends Neo4jTestSupport {
         store.recordTaskIo(T, P, 9003L, 1, "etl_dws_to_ads",
                 List.of(io(dws, Direction.READS), io(ads, Direction.WRITES)), List.of(), null);
 
-        LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver));
+        LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver), noCorrections());
 
         // 9001 下游：9002(level1)、9003(level2)
         assertThat(query.downstreamTaskLevels(T, P, 9001L))
@@ -60,5 +60,13 @@ class BackfillDownstreamNeo4jIT extends Neo4jTestSupport {
 
     private static IoEdge io(TableRef t, Direction dir) {
         return new IoEdge(t, dir, Source.SQL_PARSED, Confidence.CONFIRMED);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static org.springframework.beans.factory.ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> noCorrections() {
+        org.springframework.beans.factory.ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> p =
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(p.getIfAvailable()).thenReturn(null);
+        return p;
     }
 }

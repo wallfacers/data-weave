@@ -602,6 +602,10 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (50, 'TOOL', 'ASSET_WRITE',             NULL, 'L1', '资产编目/上架/复用写（租户项目内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (51, 'TOOL', 'METRIC_CERTIFY',          NULL, 'L2', '指标认证（可信背书，需审批）',         1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (52, 'TOOL', 'ASSET_SUBSCRIBE',         NULL, 'L1', '资产/指标订阅（可逆例行）',           1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 041 血缘人工修正（可逆治理动作：剔除=抑制展示非删数据、可撤销 → 均 L1 直通+审计；53-55）
+(53, 'TOOL', 'LINEAGE_EDGE_CONFIRM',      NULL, 'L1', '血缘推断边人工确认（可撤销）',          1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(54, 'TOOL', 'LINEAGE_EDGE_REMOVE',       NULL, 'L1', '血缘推断边人工剔除（抑制展示，可撤销）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(55, 'TOOL', 'LINEAGE_CORRECTION_REVOKE', NULL, 'L1', '血缘修正裁决撤销',                    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 	-- 告警引擎写工具（021）
 	(46, 'TOOL', 'ALERT_RULE_WRITE',    NULL, 'L1', '告警规则/通道/静默写（租户内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),

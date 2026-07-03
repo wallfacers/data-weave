@@ -61,6 +61,8 @@ class DefaultPlatformActionExecutorTest {
     private ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingServiceProvider;
     @Mock
     private ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionServiceProvider;
+    @Mock
+    private ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionServiceProvider;
 
     private DefaultPlatformActionExecutor executor;
 
@@ -79,7 +81,8 @@ class DefaultPlatformActionExecutorTest {
                 fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
                 opsServiceProvider, projectSyncServiceProvider, java.util.List.of(),
                 qualityRuleServiceProvider, qualityCheckRunnerProvider,
-                assetCatalogServiceProvider, metricListingServiceProvider, assetSubscriptionServiceProvider, realMessages());
+                assetCatalogServiceProvider, metricListingServiceProvider, assetSubscriptionServiceProvider,
+                lineageCorrectionServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));

@@ -1048,7 +1048,25 @@
     "unavailable": "Lineage store unavailable",
     "noColumns": "Table level only",
     "estimating": "Estimating",
-    "syncedToday": "{rows} rows synced today"
+    "syncedToday": "{rows} rows synced today",
+    "legendInferred": "Inferred (dashed)",
+    "edgeDetailTitle": "Edge Detail",
+    "edgeSource": "Source",
+    "edgeConfidence": "Confidence",
+    "edgeConfirmed": "Confirmed",
+    "edgeModelVersion": "Model Version",
+    "sourceScriptSql": "Embedded SQL parsed",
+    "sourceScriptInferred": "Rule inferred",
+    "sourceScriptModel": "Model inferred",
+    "sourceSqlParsed": "SQL parsed",
+    "hintsTitle": "Unresolved hints",
+    "hintsEmpty": "No unresolved hints",
+    "actionConfirm": "Confirm",
+    "actionRemove": "Remove",
+    "actionRevoke": "Revoke",
+    "correctionDone": "Correction submitted",
+    "correctionFailed": "Correction failed",
+    "close": "Close"
   },
   "dataTable": {
     "allLabel": "All",
@@ -1064,8 +1082,14 @@
     "yesterday": "Yesterday"
   },
   "eventCenter": {
-    "tab": { "events": "Events", "subscriptions": "Subscriptions" },
-    "filter": { "allTypes": "All types", "allSeverities": "All severities" },
+    "tab": {
+      "events": "Events",
+      "subscriptions": "Subscriptions"
+    },
+    "filter": {
+      "allTypes": "All types",
+      "allSeverities": "All severities"
+    },
     "severity": {
       "INFO": "Info",
       "LOW": "Low",

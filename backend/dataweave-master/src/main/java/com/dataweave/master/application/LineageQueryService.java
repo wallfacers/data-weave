@@ -29,9 +29,63 @@ public class LineageQueryService {
     public static final int DEFAULT_LIMIT = 100;
 
     private final LineageGraphReader reader;
+    private final org.springframework.beans.factory.ObjectProvider<
+            com.dataweave.master.application.lineage.LineageCorrectionService> correctionService;
 
-    public LineageQueryService(LineageGraphReader reader) {
+    public LineageQueryService(LineageGraphReader reader,
+                               org.springframework.beans.factory.ObjectProvider<
+                                       com.dataweave.master.application.lineage.LineageCorrectionService> correctionService) {
         this.reader = reader;
+        this.correctionService = correctionService;
+    }
+
+    /**
+     * 041 读侧裁决注解（FR-004/FR-007）：REMOVED 语义键边兜底过滤（正常已在写侧抑制），
+     * CONFIRMED 键回填 humanState。PG 不可达 → 原样返回（降级）。
+     */
+    private List<FlowEdgeView> annotateCorrections(long tenantId, long projectId, List<FlowEdgeView> edges) {
+        if (edges.isEmpty()) {
+            return edges;
+        }
+        try {
+            var svc = correctionService.getIfAvailable();
+            if (svc == null) {
+                return edges;
+            }
+            Set<Long> taskIds = new LinkedHashSet<>();
+            for (FlowEdgeView e : edges) {
+                if (e.taskDefId() != null) {
+                    taskIds.add(e.taskDefId());
+                }
+            }
+            Map<String, String> decisions = svc.decisionsForTasks(tenantId, projectId, taskIds);
+            if (decisions.isEmpty()) {
+                return edges;
+            }
+            List<FlowEdgeView> out = new ArrayList<>(edges.size());
+            for (FlowEdgeView e : edges) {
+                if (e.taskDefId() == null) {
+                    out.add(e);
+                    continue;
+                }
+                // 节点 id 与语义键同构：表级 = tableKey，列级 = tableKey|col（columnKey）
+                String r = decisions.get(e.taskDefId() + "|READ|" + e.from());
+                String w = decisions.get(e.taskDefId() + "|WRITE|" + e.to());
+                if ("REMOVED".equals(r) || "REMOVED".equals(w)) {
+                    continue;   // 兜底：已剔除语义键不出图（SC-005）
+                }
+                if ("CONFIRMED".equals(r) || "CONFIRMED".equals(w)) {
+                    out.add(new FlowEdgeView(e.from(), e.to(), e.granularity(), e.taskDefId(),
+                            e.confidence(), e.transform(), e.source(), "CONFIRMED", e.modelVersion()));
+                } else {
+                    out.add(e);
+                }
+            }
+            return out;
+        } catch (Exception ex) {
+            log.debug("correction annotate degraded: {}", ex.toString());
+            return edges;
+        }
     }
 
     // ─── 工具方法 ──────────────────────────────────────────────
@@ -94,7 +148,10 @@ public class LineageQueryService {
                 (String) row.get("from"), (String) row.get("to"), g,
                 row.get("taskDefId") instanceof Number n ? n.longValue() : null,
                 row.get("confidence") != null ? FlowEdgeView.Confidence.valueOf((String) row.get("confidence")) : null,
-                row.get("transform") != null ? FlowEdgeView.Transform.valueOf((String) row.get("transform")) : null);
+                row.get("transform") != null ? FlowEdgeView.Transform.valueOf((String) row.get("transform")) : null,
+                (String) row.get("source"),
+                (String) row.get("humanState"),
+                (String) row.get("modelVersion"));
     }
 
     private static Map<String, Object> params(long tenantId, long projectId, Object... kv) {
@@ -228,7 +285,23 @@ public class LineageQueryService {
         boolean truncated = nodes.size() >= MAX_NODES;
         if (truncated) logTruncation(tableId, d, nodes.size());
 
-        return new LineageGraph(nodes, List.of(),
+        // 041：补真实边投影（此前 edges 恒空、mapEdge 死代码——修读侧既有缝，边详情面板依赖）
+        String edgeCypher = String.format("""
+                MATCH path = (start {id:$tableId})%s[:%s*1..%d]%s(end)
+                WHERE start.tenantId=$tenantId AND start.projectId=$projectId
+                UNWIND relationships(path) AS r
+                WITH DISTINCT r
+                RETURN startNode(r).id AS from, endNode(r).id AS to,
+                       CASE type(r) WHEN 'DERIVES_FROM' THEN 'COLUMN' ELSE 'TABLE' END AS granularity,
+                       r.taskDefId AS taskDefId, r.confidence AS confidence, r.transform AS transform,
+                       r.source AS source, r.modelVersion AS modelVersion
+                LIMIT $limit""", dir, relPattern, d, arrow);
+        List<Map<String, Object>> edgeRows = execute(edgeCypher, params(tenantId, projectId,
+                "tableId", tableId, "limit", MAX_NODES));
+        List<FlowEdgeView> edges = annotateCorrections(tenantId, projectId,
+                edgeRows.stream().map(LineageQueryService::mapEdge).toList());
+
+        return new LineageGraph(nodes, edges,
                 granularity, d, truncated, truncated ? nodes.size() : null);
     }
 
@@ -264,7 +337,23 @@ public class LineageQueryService {
         boolean truncated = nodes.size() >= MAX_NODES;
         if (truncated) logTruncation(columnId, d, nodes.size());
 
-        return new LineageGraph(nodes, List.of(),
+        // 041：补真实列级边投影（同 traverse）
+        String edgeCypher = String.format("""
+                MATCH path = (start:Column {id:$columnId})%s[:DERIVES_FROM*1..%d]%s(end:Column)
+                WHERE start.tenantId=$tenantId AND start.projectId=$projectId
+                UNWIND relationships(path) AS r
+                WITH DISTINCT r
+                RETURN startNode(r).id AS from, endNode(r).id AS to,
+                       'COLUMN' AS granularity,
+                       r.taskDefId AS taskDefId, r.confidence AS confidence, r.transform AS transform,
+                       r.source AS source, r.modelVersion AS modelVersion
+                LIMIT $limit""", dir, d, arrow);
+        List<Map<String, Object>> edgeRows = execute(edgeCypher, params(tenantId, projectId,
+                "columnId", columnId, "limit", MAX_NODES));
+        List<FlowEdgeView> edges = annotateCorrections(tenantId, projectId,
+                edgeRows.stream().map(LineageQueryService::mapEdge).toList());
+
+        return new LineageGraph(nodes, edges,
                 GraphNodeView.Granularity.COLUMN, d, truncated, truncated ? nodes.size() : null);
     }
 

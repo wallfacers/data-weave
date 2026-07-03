@@ -36,6 +36,7 @@ public class TaskService {
     private final LineageEdgeAssembler lineageEdgeAssembler;
     private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
     private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
+    private final com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -46,7 +47,8 @@ public class TaskService {
                        LineageStore lineageStore,
                        LineageEdgeAssembler lineageEdgeAssembler,
                        SqlColumnLineageExtractor sqlColumnLineageExtractor,
-                       com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog) {
+                       com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog,
+                       com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -57,6 +59,7 @@ public class TaskService {
         this.lineageEdgeAssembler = lineageEdgeAssembler;
         this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
         this.columnLineageCatalog = columnLineageCatalog;
+        this.scriptLineageService = scriptLineageService;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -489,10 +492,20 @@ public class TaskService {
                         lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
                         lineageEdgeAssembler.resolveCoord(1L, 1L, targetDatasourceId));
             }
-            if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
+            // 041 脚本血缘：PYTHON/SHELL(/SPARK) 并联脚本通道（tenant/project 沿本路径 1L/1L 现状）
+            var ioEdges = new java.util.ArrayList<>(assembly.ioEdges());
+            var allColumnEdges = new java.util.ArrayList<>(columnEdges);
+            if (scriptLineageService.handles(type)) {
+                var scriptResult = scriptLineageService.extract(
+                        new com.dataweave.master.application.lineage.script.ScriptSource(
+                                1L, 1L, taskDefId, type, content, datasourceId, targetDatasourceId));
+                ioEdges.addAll(scriptResult.ioEdges());
+                allColumnEdges.addAll(scriptResult.columnEdges());
+            }
+            if (!ioEdges.isEmpty() || !allColumnEdges.isEmpty()) {
                 // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
-                        assembly.ioEdges(), columnEdges, null);
+                        ioEdges, allColumnEdges, null);
             }
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）

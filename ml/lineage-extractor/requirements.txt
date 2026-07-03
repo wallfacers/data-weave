@@ -1,0 +1,10 @@
+# 041 script-lineage 小模型全流程（锁主版本，复现性由固定 seed + 本文件保证）
+torch>=2.10,<2.12
+transformers>=5.5,<6
+peft>=0.18,<0.20
+trl>=0.24,<0.26
+datasets>=4.3,<5
+accelerate>=1.6
+huggingface_hub>=0.30
+fastapi>=0.115
+uvicorn>=0.34

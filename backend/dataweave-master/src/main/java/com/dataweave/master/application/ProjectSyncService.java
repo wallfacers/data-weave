@@ -48,6 +48,7 @@ public class ProjectSyncService {
     private final LineageEdgeAssembler lineageEdgeAssembler;
     private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
     private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
+    private final com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService;
 
     public ProjectSyncService(ProjectRepository projectRepository,
                               CatalogNodeRepository catalogNodeRepository,
@@ -63,7 +64,8 @@ public class ProjectSyncService {
                               LineageStore lineageStore,
                               LineageEdgeAssembler lineageEdgeAssembler,
                               SqlColumnLineageExtractor sqlColumnLineageExtractor,
-                              com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog) {
+                              com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog,
+                              com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService) {
         this.projectRepository = projectRepository;
         this.catalogNodeRepository = catalogNodeRepository;
         this.taskDefRepository = taskDefRepository;
@@ -79,6 +81,7 @@ public class ProjectSyncService {
         this.lineageEdgeAssembler = lineageEdgeAssembler;
         this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
         this.columnLineageCatalog = columnLineageCatalog;
+        this.scriptLineageService = scriptLineageService;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -894,10 +897,22 @@ public class ProjectSyncService {
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getTargetDatasourceId()));
                 }
-                if (!assembly.ioEdges().isEmpty() || !columnEdges.isEmpty()) {
+
+                // 041 脚本血缘：PYTHON/SHELL(/SPARK) 并联脚本通道（SQL 分支零改动，FR-001/FR-005）
+                var ioEdges = new java.util.ArrayList<>(assembly.ioEdges());
+                var allColumnEdges = new java.util.ArrayList<>(columnEdges);
+                if (scriptLineageService.handles(t.getType())) {
+                    var scriptResult = scriptLineageService.extract(
+                            new com.dataweave.master.application.lineage.script.ScriptSource(
+                                    tenantId, projectId, taskId, t.getType(), t.getContent(),
+                                    t.getDatasourceId(), t.getTargetDatasourceId()));
+                    ioEdges.addAll(scriptResult.ioEdges());
+                    allColumnEdges.addAll(scriptResult.columnEdges());
+                }
+                if (!ioEdges.isEmpty() || !allColumnEdges.isEmpty()) {
                     lineageStore.recordTaskIo(tenantId, projectId, taskId,
                             t.getCurrentVersionNo(), t.getName(),
-                            assembly.ioEdges(), columnEdges, null);
+                            ioEdges, allColumnEdges, null);
                 }
             } catch (Exception e) {
                 log.warn("push lineage record skipped for task {} (FR-007): {}", taskId, e.toString());

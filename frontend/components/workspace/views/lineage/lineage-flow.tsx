@@ -22,10 +22,20 @@ interface Props {
   edges: FlowEdgeView[]
   granularity: Granularity
   selectedId?: string
+  /** 041：选中边（详情面板锚点）。 */
+  selectedEdge?: FlowEdgeView | null
   impactedIds?: Set<string>
   truncated?: boolean
   onSelect?: (node: GraphNodeView) => void
+  /** 041：点击边 → 打开边详情面板。 */
+  onSelectEdge?: (edge: FlowEdgeView) => void
   onToggleGranularity?: () => void
+}
+
+/** 041：推断来源边（规则/模型）→ 虚线区分。 */
+function isInferredEdge(edge: FlowEdgeView): boolean {
+  return edge.source === "SCRIPT_INFERRED" || edge.source === "SCRIPT_MODEL"
+    || edge.confidence === "UNVERIFIED"
 }
 
 export function LineageFlow({
@@ -33,9 +43,11 @@ export function LineageFlow({
   edges,
   granularity,
   selectedId,
+  selectedEdge,
   impactedIds,
   truncated,
   onSelect,
+  onSelectEdge,
   onToggleGranularity,
 }: Props) {
   const t = useTranslations("lineageView")
@@ -110,16 +122,38 @@ export function LineageFlow({
             const midX = (x1 + x2) / 2
             const isImpacted =
               impactedIds?.has(edge.to) || impactedIds?.has(edge.from)
+            const isSelectedEdge =
+              selectedEdge != null &&
+              selectedEdge.from === edge.from &&
+              selectedEdge.to === edge.to &&
+              selectedEdge.taskDefId === edge.taskDefId
+            const points = `${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}`
             return (
-              <polyline
-                key={i}
-                points={`${x1},${y1} ${midX},${y1} ${midX},${y2} ${x2},${y2}`}
-                fill="none"
-                stroke={isImpacted ? "var(--color-primary)" : "var(--color-border)"}
-                strokeWidth={isImpacted ? 2 : 1}
-                strokeDasharray={edge.confidence === "UNVERIFIED" ? "4 2" : undefined}
-                opacity={isImpacted ? 0.8 : 0.4}
-              />
+              <g key={i}>
+                <polyline
+                  points={points}
+                  fill="none"
+                  stroke={
+                    isSelectedEdge
+                      ? "var(--color-primary)"
+                      : isImpacted
+                        ? "var(--color-primary)"
+                        : "var(--color-border)"
+                  }
+                  strokeWidth={isSelectedEdge || isImpacted ? 2 : 1}
+                  strokeDasharray={isInferredEdge(edge) ? "4 2" : undefined}
+                  opacity={isSelectedEdge ? 0.9 : isImpacted ? 0.8 : 0.4}
+                />
+                {/* 041：透明加粗命中区——边可点开详情面板 */}
+                <polyline
+                  points={points}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={12}
+                  className="cursor-pointer"
+                  onClick={() => onSelectEdge?.(edge)}
+                />
+              </g>
             )
           })}
 
@@ -191,6 +225,13 @@ export function LineageFlow({
         <span className="flex items-center gap-1">
           <HugeiconsIcon icon={ArrowRight02Icon} className="size-3" />
           {granularity === "TABLE" ? t("granularityTable") : t("granularityColumn")}
+        </span>
+        {/* 041：推断边图例（虚线） */}
+        <span className="flex items-center gap-1">
+          <svg width="20" height="6" aria-hidden>
+            <line x1="0" y1="3" x2="20" y2="3" stroke="var(--color-border)" strokeWidth="1.5" strokeDasharray="4 2" />
+          </svg>
+          {t("legendInferred")}
         </span>
       </div>
     </div>

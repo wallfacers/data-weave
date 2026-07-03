@@ -22,6 +22,7 @@ import {
 import { LineageTree } from "./lineage/lineage-tree"
 import { LineageFlow } from "./lineage/lineage-flow"
 import { ImpactPanel } from "./lineage/impact-panel"
+import { EdgeDetailPanel } from "./lineage/edge-detail-panel"
 
 export function LineageView() {
   const t = useTranslations("lineageView")
@@ -41,12 +42,12 @@ export function LineageView() {
   const [impact, setImpact] = useState<ImpactResult | null>(null)
   const [impactedIds, setImpactedIds] = useState<Set<string>>(new Set())
 
-  // 选中节点 → 加载下游血缘
-  const handleSelect = useCallback(async (node: GraphNodeView) => {
-    setSelectedNode(node)
-    setShowImpact(false)
-    setImpact(null)
-    setLoading(true)
+  // 041：选中边 → 右侧边详情面板
+  const [selectedEdge, setSelectedEdge] = useState<FlowEdgeView | null>(null)
+
+  // 加载某节点的下游子图（silent=true 不切 loading，供裁决后无感刷新）
+  const loadFlow = useCallback(async (node: GraphNodeView, silent = false) => {
+    if (!silent) setLoading(true)
     try {
       if (node.type === "COLUMN") {
         const res = await fetchColumnDownstream(node.id, 10)
@@ -68,9 +69,18 @@ export function LineageView() {
       setNodes([])
       setEdges([])
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [granularity])
+
+  // 选中节点 → 加载下游血缘
+  const handleSelect = useCallback(async (node: GraphNodeView) => {
+    setSelectedNode(node)
+    setShowImpact(false)
+    setImpact(null)
+    setSelectedEdge(null)
+    await loadFlow(node)
+  }, [loadFlow])
 
   // 切换粒度
   const handleToggleGranularity = useCallback(() => {
@@ -85,6 +95,7 @@ export function LineageView() {
   const handleImpact = useCallback(async () => {
     if (!selectedNode) return
     setShowImpact(true)
+    setSelectedEdge(null)
     setLoading(true)
     try {
       const res = await fetchImpact(selectedNode.id, 20)
@@ -140,16 +151,35 @@ export function LineageView() {
               onSelect={handleSelect}
             />
           ) : nodes.length > 0 || edges.length > 0 ? (
-            <LineageFlow
-              nodes={nodes}
-              edges={edges}
-              granularity={granularity}
-              selectedId={selectedNode?.id}
-              impactedIds={impactedIds}
-              truncated={truncated}
-              onSelect={handleSelect}
-              onToggleGranularity={handleToggleGranularity}
-            />
+            <div className="flex h-full min-w-0">
+              <div className="flex-1 min-w-0">
+                <LineageFlow
+                  nodes={nodes}
+                  edges={edges}
+                  granularity={granularity}
+                  selectedId={selectedNode?.id}
+                  selectedEdge={selectedEdge}
+                  impactedIds={impactedIds}
+                  truncated={truncated}
+                  onSelect={handleSelect}
+                  onSelectEdge={setSelectedEdge}
+                  onToggleGranularity={handleToggleGranularity}
+                />
+              </div>
+              {/* 041：边详情面板（与画布并排，右侧固定宽） */}
+              {selectedEdge && (
+                <aside className="w-80 shrink-0">
+                  <EdgeDetailPanel
+                    edge={selectedEdge}
+                    nodes={nodes}
+                    onClose={() => setSelectedEdge(null)}
+                    onChanged={() => {
+                      if (selectedNode) void loadFlow(selectedNode, true)
+                    }}
+                  />
+                </aside>
+              )}
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
               {selectedNode ? t("empty") : t("expand")}

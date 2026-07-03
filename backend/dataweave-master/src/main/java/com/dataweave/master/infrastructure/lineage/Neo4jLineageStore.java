@@ -89,34 +89,41 @@ public class Neo4jLineageStore implements LineageStore {
                 }
 
                 // 3+4. MERGE 表节点 + CREATE READS/WRITES（顺带建 datasource/HAS_TABLE）
-                List<String> readTableKeys = new ArrayList<>();
-                List<String> writeTableKeys = new ArrayList<>();
+                record EdgeRef(String tableKey, IoEdge edge) {}
+                List<EdgeRef> readRefs = new ArrayList<>();
+                List<EdgeRef> writeRefs = new ArrayList<>();
                 for (IoEdge e : edges) {
                     String tk = ensureTable(tx, e.table(), tenantId, projectId);
                     if (e.direction() == Direction.READS) {
-                        readTableKeys.add(tk);
+                        readRefs.add(new EdgeRef(tk, e));
                     } else {
-                        writeTableKeys.add(tk);
+                        writeRefs.add(new EdgeRef(tk, e));
                     }
                     String relType = e.direction() == Direction.READS ? "READS" : "WRITES";
+                    // modelVersion 仅 SCRIPT_MODEL 边有值（041 FR-015）；null 属性 neo4j 不落
                     tx.run("""
                             MATCH (n:Task {taskKey:$kk}),(t:Table {tableKey:$tk})
-                            CREATE (n)-[:%s {source:$s,confidence:$c,version:$v,taskDefId:$td}]->(t)
+                            CREATE (n)-[:%s {source:$s,confidence:$c,version:$v,taskDefId:$td,modelVersion:$mv}]->(t)
                             """.formatted(relType),
                             params("kk", taskKey, "tk", tk, "s", nameOf(e.source()),
-                                    "c", nameOf(e.confidence()), "v", v, "td", taskDefId)).consume();
+                                    "c", nameOf(e.confidence()), "v", v, "td", taskDefId,
+                                    "mv", e.modelVersion())).consume();
                 }
 
-                // 派生 FLOWS_TO：READ 表 × WRITE 表（带 taskDefId；跳过自环）
-                for (String rk : readTableKeys) {
-                    for (String wk : writeTableKeys) {
-                        if (rk.equals(wk)) {
+                // 派生 FLOWS_TO：READ 表 × WRITE 表（带 taskDefId；跳过自环）。
+                // 041：补 source/confidence（取两端较弱边，修读侧 FlowEdgeView.confidence 落空的既有缝）
+                for (EdgeRef r : readRefs) {
+                    for (EdgeRef w : writeRefs) {
+                        if (r.tableKey().equals(w.tableKey())) {
                             continue;
                         }
+                        IoEdge weaker = weakerOf(r.edge(), w.edge());
                         tx.run("""
                                 MATCH (a:Table {tableKey:$rk}),(b:Table {tableKey:$wk})
-                                CREATE (a)-[:FLOWS_TO {taskDefId:$td}]->(b)
-                                """, params("rk", rk, "wk", wk, "td", taskDefId)).consume();
+                                CREATE (a)-[:FLOWS_TO {taskDefId:$td,source:$s,confidence:$c,modelVersion:$mv}]->(b)
+                                """, params("rk", r.tableKey(), "wk", w.tableKey(), "td", taskDefId,
+                                "s", nameOf(weaker.source()), "c", nameOf(weaker.confidence()),
+                                "mv", weaker.modelVersion())).consume();
                     }
                 }
 
@@ -128,15 +135,68 @@ public class Neo4jLineageStore implements LineageStore {
                     String dstCk = ensureColumn(tx, dstTk, ce.dstCol(), null, null, tenantId, projectId);
                     tx.run("""
                             MATCH (a:Column {columnKey:$sck}),(b:Column {columnKey:$dck})
-                            CREATE (a)-[:DERIVES_FROM {taskDefId:$td,transform:$tr,confidence:$cf}]->(b)
+                            CREATE (a)-[:DERIVES_FROM {taskDefId:$td,transform:$tr,confidence:$cf,source:$src}]->(b)
                             """, params("sck", srcCk, "dck", dstCk, "td", taskDefId,
-                            "tr", nameOf(ce.transform()), "cf", nameOf(ce.confidence()))).consume();
+                            "tr", nameOf(ce.transform()), "cf", nameOf(ce.confidence()),
+                            "src", nameOf(ce.source()))).consume();
                 }
                 return null;
             });
         }
         log.debug("recordTaskIo: tenant={} project={} taskDef={} io={} col={}",
                 tenantId, projectId, taskDefId, edges.size(), cols.size());
+    }
+
+    @Override
+    public void applyCorrection(long tenantId, long projectId, long taskDefId,
+                                Direction direction, String tableKey, String columnKey, boolean remove) {
+        String taskKey = taskKey(tenantId, taskDefId);
+        String rel = direction == Direction.READS ? "READS" : "WRITES";
+        boolean columnLevel = columnKey != null && !columnKey.isBlank();
+        try (Session session = driver.session()) {
+            session.executeWrite(tx -> {
+                if (columnLevel) {
+                    String colKey = tableKey + "|" + norm(columnKey);
+                    if (remove) {
+                        // 列级剔除：该任务落在此列上的 DERIVES_FROM（方向按裁决：WRITE=入边，READ=出边）
+                        String pattern = direction == Direction.READS
+                                ? "(c:Column {columnKey:$ck})-[d:DERIVES_FROM {taskDefId:$td}]->()"
+                                : "()-[d:DERIVES_FROM {taskDefId:$td}]->(c:Column {columnKey:$ck})";
+                        tx.run("MATCH " + pattern + " DELETE d",
+                                params("ck", colKey, "td", taskDefId)).consume();
+                    } else {
+                        String pattern = direction == Direction.READS
+                                ? "(c:Column {columnKey:$ck})-[d:DERIVES_FROM {taskDefId:$td}]->()"
+                                : "()-[d:DERIVES_FROM {taskDefId:$td}]->(c:Column {columnKey:$ck})";
+                        tx.run("MATCH " + pattern + " SET d.confidence='CONFIRMED', d.humanState='CONFIRMED'",
+                                params("ck", colKey, "td", taskDefId)).consume();
+                    }
+                    return null;
+                }
+                if (remove) {
+                    tx.run("MATCH (:Task {taskKey:$k})-[r:" + rel + "]->(:Table {tableKey:$tk}) DELETE r",
+                            params("k", taskKey, "tk", tableKey)).consume();
+                    // 该任务的派生 FLOWS_TO：READ 剔除删出边侧，WRITE 剔除删入边侧
+                    String flowPattern = direction == Direction.READS
+                            ? "(a:Table {tableKey:$tk})-[f:FLOWS_TO {taskDefId:$td}]->()"
+                            : "()-[f:FLOWS_TO {taskDefId:$td}]->(b:Table {tableKey:$tk})";
+                    tx.run("MATCH " + flowPattern + " DELETE f",
+                            params("tk", tableKey, "td", taskDefId)).consume();
+                } else {
+                    tx.run("MATCH (:Task {taskKey:$k})-[r:" + rel + "]->(:Table {tableKey:$tk}) "
+                                    + "SET r.confidence='CONFIRMED', r.humanState='CONFIRMED'",
+                            params("k", taskKey, "tk", tableKey)).consume();
+                    String flowPattern = direction == Direction.READS
+                            ? "(a:Table {tableKey:$tk})-[f:FLOWS_TO {taskDefId:$td}]->()"
+                            : "()-[f:FLOWS_TO {taskDefId:$td}]->(b:Table {tableKey:$tk})";
+                    tx.run("MATCH " + flowPattern + " SET f.confidence='CONFIRMED', f.humanState='CONFIRMED'",
+                            params("tk", tableKey, "td", taskDefId)).consume();
+                }
+                return null;
+            });
+        }
+        log.debug("applyCorrection: task={} {} {} col={} remove={}",
+                taskDefId, rel, tableKey, columnKey, remove);
     }
 
     @Override
@@ -256,6 +316,23 @@ public class Neo4jLineageStore implements LineageStore {
 
     private static String nameOf(Enum<?> e) {
         return e == null ? null : e.name();
+    }
+
+    /** FLOWS_TO 的 source/confidence 取两端读写边中较弱者（041）：CONFIRMED&lt;DECLARED&lt;UNVERIFIED&lt;CONFLICT。 */
+    private static IoEdge weakerOf(IoEdge a, IoEdge b) {
+        return weakness(a.confidence()) >= weakness(b.confidence()) ? a : b;
+    }
+
+    private static int weakness(Confidence c) {
+        if (c == null) {
+            return 0;
+        }
+        return switch (c) {
+            case CONFIRMED -> 0;
+            case DECLARED -> 1;
+            case UNVERIFIED -> 2;
+            case CONFLICT -> 3;
+        };
     }
 
     private static Map<String, Object> params(Object... kv) {

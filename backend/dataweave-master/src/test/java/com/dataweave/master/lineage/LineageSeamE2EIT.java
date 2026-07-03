@@ -52,7 +52,7 @@ class LineageSeamE2EIT extends Neo4jTestSupport {
 
         store.recordTaskIo(T, P, 100L, 1, "etl_ods_to_dwd", io, cols, null);
 
-        LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver));
+        LineageQueryService query = new LineageQueryService(new Neo4jLineageGraphReader(driver), noCorrections());
 
         // 1. 数据源去重节点可被读回
         assertThat(query.datasources(T, P, 0, 100))
@@ -72,5 +72,13 @@ class LineageSeamE2EIT extends Neo4jTestSupport {
         assertThat(query.columns(T, P, DST_TK, 0, 100))
                 .extracting(GraphNodeView::name)
                 .contains("id");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static org.springframework.beans.factory.ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> noCorrections() {
+        org.springframework.beans.factory.ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> p =
+                org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
+        org.mockito.Mockito.when(p.getIfAvailable()).thenReturn(null);
+        return p;
     }
 }

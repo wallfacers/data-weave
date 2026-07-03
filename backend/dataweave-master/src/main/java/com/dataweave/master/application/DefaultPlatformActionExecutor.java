@@ -60,6 +60,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final ObjectProvider<com.dataweave.master.application.asset.AssetCatalogService> assetCatalogService;
     private final ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingService;
     private final ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionService;
+    private final ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionService;
     private final Messages messages;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -79,6 +80,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<com.dataweave.master.application.asset.AssetCatalogService> assetCatalogService,
                                          ObjectProvider<com.dataweave.master.application.asset.MetricListingService> metricListingService,
                                          ObjectProvider<com.dataweave.master.application.asset.AssetSubscriptionService> assetSubscriptionService,
+                                         ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionService,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -96,6 +98,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.assetCatalogService = assetCatalogService;
         this.metricListingService = metricListingService;
         this.assetSubscriptionService = assetSubscriptionService;
+        this.lineageCorrectionService = lineageCorrectionService;
         this.messages = messages;
     }
 
@@ -128,6 +131,10 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "ASSET_WRITE" -> assetWrite(action, locale);
             case "METRIC_CERTIFY" -> metricCertify(action, locale);
             case "ASSET_SUBSCRIBE" -> assetSubscribe(action, locale);
+            // 041 血缘人工修正（镜像 projectPush：command=JSON payload → 领域服务）
+            case "LINEAGE_EDGE_CONFIRM" -> lineageCorrection(action, "CONFIRM", locale);
+            case "LINEAGE_EDGE_REMOVE" -> lineageCorrection(action, "REMOVE", locale);
+            case "LINEAGE_CORRECTION_REVOKE" -> lineageCorrection(action, "REVOKE", locale);
             default -> {
                 // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {
@@ -263,6 +270,46 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         } catch (Exception e) {
             return new ExecOutcome(false, e.getMessage(),
                     json(Map.of("error", e.getClass().getSimpleName())), null);
+        }
+    }
+
+    /** 041 血缘人工修正：解码 command JSON → LineageCorrectionService.apply（PG 裁决 + 图即时同步）。 */
+    private ExecOutcome lineageCorrection(AgentAction action, String correctionAction, Locale locale) {
+        try {
+            Map<String, Object> payload = objectMapper.readValue(action.getCommand(),
+                    new TypeReference<Map<String, Object>>() {});
+            Long tenantId = longVal(payload, "tenantId");
+            Long projectId = longVal(payload, "projectId");
+            Long taskDefId = longVal(payload, "taskDefId");
+            String direction = (String) payload.get("direction");
+            String tableKey = (String) payload.get("tableKey");
+            String columnKey = (String) payload.get("columnKey");
+            if (tenantId == null || projectId == null || taskDefId == null) {
+                return new ExecOutcome(false,
+                        messages.get("executor.lineage_correction.missing_params", locale),
+                        json(Map.of("error", "missing_params")), null);
+            }
+            var view = lineageCorrectionService.getObject().apply(tenantId, projectId, taskDefId,
+                    correctionAction, direction, tableKey, columnKey,
+                    action.getActor() == null ? "unknown" : action.getActor());
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("action", correctionAction);
+            out.put("taskDefId", taskDefId);
+            out.put("tableKey", tableKey);
+            if (view != null) {
+                out.put("correctionId", view.id());
+                out.put("status", view.status());
+            }
+            return new ExecOutcome(true,
+                    messages.get("executor.lineage_correction.success", locale, correctionAction),
+                    json(out), null);
+        } catch (BizException e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getCode(), "detail", String.valueOf(e.getMessage()))), null);
+        } catch (Exception e) {
+            return new ExecOutcome(false,
+                    messages.get("executor.lineage_correction.failed", locale, String.valueOf(e.getMessage())),
+                    json(Map.of("error", "correction_failed", "detail", String.valueOf(e.getMessage()))), null);
         }
     }
 

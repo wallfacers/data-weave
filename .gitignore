@@ -44,3 +44,7 @@ deploy/workhorse/bin/
 # 进程 cwd 因运行模块而异（backend/dataweave-api/data/…），用 ** 匹配任意层级。
 **/data/chat-files/
 data/chat-files/
+
+# 041 训练产物(多GB，不入库；模型不发布 HF)
+ml/lineage-extractor/out/
+**/__pycache__/

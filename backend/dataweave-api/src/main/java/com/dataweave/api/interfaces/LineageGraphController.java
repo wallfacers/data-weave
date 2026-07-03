@@ -24,9 +24,41 @@ import java.util.List;
 public class LineageGraphController {
 
     private final LineageQueryService lineageQueryService;
+    private final com.dataweave.master.domain.lineage.LineageHintRepository lineageHintRepository;
+    private final com.dataweave.master.application.lineage.LineageCorrectionService lineageCorrectionService;
+    private final com.dataweave.master.application.GatedActionService gatedActionService;
+    private final com.dataweave.api.infrastructure.ProjectAuthz projectAuthz;
+    private final tools.jackson.databind.ObjectMapper objectMapper = new tools.jackson.databind.ObjectMapper();
 
-    public LineageGraphController(LineageQueryService lineageQueryService) {
+    public LineageGraphController(LineageQueryService lineageQueryService,
+                                  com.dataweave.master.domain.lineage.LineageHintRepository lineageHintRepository,
+                                  com.dataweave.master.application.lineage.LineageCorrectionService lineageCorrectionService,
+                                  com.dataweave.master.application.GatedActionService gatedActionService,
+                                  com.dataweave.api.infrastructure.ProjectAuthz projectAuthz) {
         this.lineageQueryService = lineageQueryService;
+        this.lineageHintRepository = lineageHintRepository;
+        this.lineageCorrectionService = lineageCorrectionService;
+        this.gatedActionService = gatedActionService;
+        this.projectAuthz = projectAuthz;
+    }
+
+    // ─── 041 脚本血缘：未解析提示（US2，FR-006） ────────────────
+
+    /** 未解析提示视图。 */
+    public record UnresolvedHintView(Long id, String kind, String scriptHint,
+                                     Integer versionNo, java.time.LocalDateTime createdAt) {}
+
+    /** 某任务的未解析提示（脚本中疑似读写但静态无法确定目标的点）。 */
+    @GetMapping("/tasks/{taskDefId}/hints")
+    public ApiResponse<List<UnresolvedHintView>> taskHints(
+            @RequestParam(required = false) Long projectId,
+            @PathVariable long taskDefId) {
+        return ApiResponse.ok(lineageHintRepository
+                .findByTenantIdAndProjectIdAndTaskDefIdOrderByIdAsc(tenant(), project(projectId), taskDefId)
+                .stream()
+                .map(h -> new UnresolvedHintView(h.getId(), h.getKind(), h.getScriptHint(),
+                        h.getVersionNo(), h.getCreatedAt()))
+                .toList());
     }
 
     // ─── 结构下钻（US1） ───────────────────────────────────────
@@ -149,6 +181,60 @@ public class LineageGraphController {
                 GraphNodeView.Granularity.TABLE, d,
                 up.truncated() || down.truncated(),
                 up.truncated() ? up.truncatedAt() : down.truncatedAt()));
+    }
+
+    // ─── 041 脚本血缘：人工修正（US3，FR-007，经门禁 L1 + agent_action 留痕） ───
+
+    /** 修正请求：action=CONFIRM|REMOVE|REVOKE + 血缘语义键。 */
+    public record CorrectionRequest(String action, long taskDefId, String direction,
+                                    String tableKey, String columnKey) {}
+
+    /** 提交人工修正（项目管理权限；contracts §1）。 */
+    @PostMapping("/corrections")
+    public ApiResponse<java.util.Map<String, Object>> submitCorrection(
+            @RequestParam(required = false) Long projectId,
+            @RequestBody CorrectionRequest req,
+            org.springframework.web.server.ServerWebExchange exchange) {
+        long tenantId = tenant();
+        long pid = project(projectId);
+        projectAuthz.require("project:manage", pid);
+        var locale = com.dataweave.api.infrastructure.Locales.uiLocale(exchange.getRequest().getHeaders());
+
+        String actionType = switch (req.action() == null ? "" : req.action().toUpperCase()) {
+            case "CONFIRM" -> "LINEAGE_EDGE_CONFIRM";
+            case "REMOVE" -> "LINEAGE_EDGE_REMOVE";
+            case "REVOKE" -> "LINEAGE_CORRECTION_REVOKE";
+            default -> throw new BizException("lineage.correction_conflict", String.valueOf(req.action()));
+        };
+        String command = objectMapper.writeValueAsString(java.util.Map.of(
+                "tenantId", tenantId, "projectId", pid, "taskDefId", req.taskDefId(),
+                "direction", req.direction() == null ? "" : req.direction(),
+                "tableKey", req.tableKey() == null ? "" : req.tableKey(),
+                "columnKey", req.columnKey() == null ? "" : req.columnKey()));
+        var actionReq = com.dataweave.master.application.ActionRequest.builder()
+                .toolName(actionType).actionType(actionType)
+                .targetType("LINEAGE_EDGE")
+                .targetId(req.taskDefId() + "|" + req.direction() + "|" + req.tableKey())
+                .command(command)
+                .actor(String.valueOf(TenantContext.userId())).actorSource("UI")
+                .summary(actionType + " " + req.tableKey())
+                .build();
+        var gr = gatedActionService.submit(actionReq, locale);
+
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("outcome", gr.outcome().name());
+        out.put("actionId", gr.actionId());
+        if (!gr.executed()) {
+            out.put("message", gr.message());
+        }
+        return ApiResponse.ok(out);
+    }
+
+    /** 某任务当前生效裁决列表（contracts §3）。 */
+    @GetMapping("/tasks/{taskDefId}/corrections")
+    public ApiResponse<List<com.dataweave.master.application.lineage.LineageCorrectionService.CorrectionView>>
+    taskCorrections(@RequestParam(required = false) Long projectId, @PathVariable long taskDefId) {
+        return ApiResponse.ok(lineageCorrectionService.listForTask(tenant(), project(projectId), taskDefId));
     }
 
     // ─── 上下文解析助手 ────────────────────────────────────────

@@ -49,6 +49,17 @@ public interface LineageStore {
     void recordMetricLineage(MetricEdge edge);
 
     /**
+     * 041 人工修正的即时图同步（FR-007）。裁决持久于 PG（lineage_edge_correction），
+     * 重复 push 时由编排器重放；本方法只让当前图立即反映裁决，失败可降级（下次 push 补齐）。
+     *
+     * @param remove    true=剔除（删 READS/WRITES 边及其派生 FLOWS_TO / 列级 DERIVES_FROM）；
+     *                  false=确认（confidence 升 CONFIRMED）
+     * @param columnKey 字段级裁决的列名（norm 后）；null/空 = 表级
+     */
+    void applyCorrection(long tenantId, long projectId, long taskDefId,
+                         Direction direction, String tableKey, String columnKey, boolean remove);
+
+    /**
      * 运行态同步行数/字节（:TaskRun-[:SYNCED]->:Table）。
      *
      * <p>feature 025 接入：{@code WorkerReportService.reportFinished} 仅 SUCCESS 时，对每个 statement 的

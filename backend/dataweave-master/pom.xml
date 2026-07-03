@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.dataweave</groupId>
         <artifactId>dataweave-backend</artifactId>
-        <version>0.6.2-SNAPSHOT</version>
+        <version>0.7.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>dataweave-master</artifactId>

@@ -16,8 +16,16 @@ const BASE = "/api/lineage";
 
 export type NodeType = "DATASOURCE" | "TABLE" | "COLUMN" | "METRIC";
 export type Granularity = "TABLE" | "COLUMN";
-export type Confidence = "CONFIRMED" | "UNVERIFIED" | "CONFLICT";
+export type Confidence = "CONFIRMED" | "UNVERIFIED" | "CONFLICT" | "DECLARED";
 export type Transform = "DIRECT" | "EXPRESSION" | "AGGREGATE";
+/** 041：边来源通道（旧边可缺省）。 */
+export type EdgeSource =
+  | "AGENT"
+  | "SQL_PARSED"
+  | "FORM"
+  | "SCRIPT_SQL"
+  | "SCRIPT_INFERRED"
+  | "SCRIPT_MODEL";
 
 export interface GraphNodeView {
   id: string;
@@ -36,6 +44,21 @@ export interface FlowEdgeView {
   taskDefId?: number;
   confidence?: Confidence;
   transform?: Transform;
+  /** 041：来源通道（脚本推断/模型推断边用于视觉区分）。 */
+  source?: EdgeSource;
+  /** 041：人工裁决态（CONFIRMED；REMOVED 边不出图）。 */
+  humanState?: "CONFIRMED";
+  /** 041：仅 SCRIPT_MODEL 边——产出模型版本。 */
+  modelVersion?: string;
+}
+
+/** 041：脚本未解析提示（FR-006）。 */
+export interface UnresolvedHintView {
+  id: number;
+  kind: "DYNAMIC_TABLE" | "DYNAMIC_SQL" | "TIMEOUT" | "PARSE_FAIL";
+  scriptHint: string;
+  versionNo?: number;
+  createdAt?: string;
 }
 
 export interface LineageGraph {
@@ -66,6 +89,33 @@ export interface SyncSummary {
   syncedRows: number | null;
 }
 
+/** 041：人工裁决记录（确认/剔除）。 */
+export interface CorrectionView {
+  id: number;
+  direction: "READ" | "WRITE";
+  tableKey: string;
+  columnKey?: string;
+  status: "CONFIRMED" | "REMOVED";
+  operator: string;
+  createdAt?: string;
+}
+
+/** 041：裁决动作请求。 */
+export interface CorrectionRequest {
+  action: "CONFIRM" | "REMOVE" | "REVOKE";
+  taskDefId: number;
+  direction: string;
+  tableKey: string;
+  columnKey?: string;
+}
+
+/** 041：裁决动作结果。 */
+export interface CorrectionOutcome {
+  outcome: string;
+  actionId?: number;
+  message?: string;
+}
+
 interface ApiResponse<T> {
   code: string;
   message: string;
@@ -91,6 +141,28 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   const token = localStorage.getItem("dw.auth.token") ?? "";
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Lineage API ${path} returned ${res.status}`);
+  }
+  return res.json();
+}
+
+async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  const url = new URL(path, window.location.origin);
+  // 036 FR-013：统一附带当前 projectId（后端按项目作用域校验）
+  const pid = currentProjectId();
+  if (pid != null) {
+    url.searchParams.set("projectId", String(pid));
+  }
+  const token = localStorage.getItem("dw.auth.token") ?? "";
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     throw new Error(`Lineage API ${path} returned ${res.status}`);
@@ -177,4 +249,23 @@ export function fetchMetricLineage(metricId: string) {
 /** 今日同步行数（可 null）。 */
 export function fetchSyncSummary() {
   return get<SyncSummary>(`${BASE}/sync-summary`);
+}
+
+// ─── 041 脚本血缘：未解析提示 ─────────────────────────────────
+
+/** 某任务的未解析提示（脚本中疑似读写但静态无法确定目标的点）。 */
+export function fetchTaskHints(taskDefId: number) {
+  return get<UnresolvedHintView[]>(`${BASE}/tasks/${taskDefId}/hints`);
+}
+
+// ─── 041 脚本血缘：人工裁决 ───────────────────────────────────
+
+/** 某任务当前生效的裁决记录。 */
+export function fetchTaskCorrections(taskDefId: number) {
+  return get<CorrectionView[]>(`${BASE}/tasks/${taskDefId}/corrections`);
+}
+
+/** 提交裁决（确认/剔除/撤销），写操作走后端统一 gate。 */
+export function postCorrection(req: CorrectionRequest) {
+  return post<CorrectionOutcome>(`${BASE}/corrections`, req);
 }
