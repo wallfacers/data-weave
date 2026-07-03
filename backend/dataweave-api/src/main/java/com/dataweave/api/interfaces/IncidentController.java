@@ -46,6 +46,13 @@ public class IncidentController {
         return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
     }
 
+    /** by-id 端点跨项目守卫：非成员视作 not_found（安全惯例：不暴露资源存在性）。 */
+    private void requireOwned(Incident inc) {
+        if (!projectScope.isMember(TenantContext.tenantId(), TenantContext.userId(), inc.getProjectId())) {
+            throw new BizException("incident.not_found", inc.getId());
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     // §1 GET /api/incidents — 监督席队列（三区）
     // ═══════════════════════════════════════════════════════════
@@ -84,7 +91,7 @@ public class IncidentController {
         Incident inc = (Incident) detail.get("incident");
         if (inc == null) throw new BizException("incident.not_found", id);
         // 跨项目守卫：实体 projectId 必须匹配当前请求 projectId
-        resolveProjectId(inc.getProjectId());
+        requireOwned(inc);
         return ApiResponse.ok(detail);
     }
 
@@ -100,7 +107,7 @@ public class IncidentController {
         if (inc == null) throw new BizException("incident.not_found", id);
 
         // 归属校验：当前请求项目必须匹配工单归属项目
-        resolveProjectId(inc.getProjectId());
+        requireOwned(inc);
 
         // 校验 taskInstanceId 属于该工单来源
         String taskInstanceId = body.taskInstanceId().toString();
@@ -143,7 +150,7 @@ public class IncidentController {
         Map<String, Object> detail = incidentService.detail(id);
         Incident inc = (Incident) detail.get("incident");
         if (inc == null) throw new BizException("incident.not_found", id);
-        resolveProjectId(inc.getProjectId());
+        requireOwned(inc);
 
         if (body.reason() == null || body.reason().isBlank()) {
             throw new BizException("incident.suppress_reason_required");
@@ -158,7 +165,7 @@ public class IncidentController {
         Map<String, Object> detail = incidentService.detail(id);
         Incident inc = (Incident) detail.get("incident");
         if (inc == null) throw new BizException("incident.not_found", id);
-        resolveProjectId(inc.getProjectId());
+        requireOwned(inc);
         incidentService.unsuppress(id, String.valueOf(TenantContext.userId()));
         return ApiResponse.ok();
     }
@@ -173,7 +180,7 @@ public class IncidentController {
         Map<String, Object> detail = incidentService.detail(id);
         Incident inc = (Incident) detail.get("incident");
         if (inc == null) throw new BizException("incident.not_found", id);
-        resolveProjectId(inc.getProjectId());
+        requireOwned(inc);
 
         if (body.text() == null || body.text().isBlank()) {
             throw new BizException("incident.invalid_state", inc.getState());
