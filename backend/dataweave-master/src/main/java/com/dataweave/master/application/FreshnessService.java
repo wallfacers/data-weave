@@ -62,21 +62,17 @@ public class FreshnessService {
                 + "  WHEN EXTRACT(EPOCH FROM (NOW() - MAX(CASE WHEN ti.state = 'SUCCESS' THEN ti.finished_at ELSE NULL END))) / 3600.0 <= ? THEN 'AGING' "
                 + "  ELSE 'STALE' "
                 + "END AS freshness_tier, "
-                + "COALESCE(ftd.trend_json, '[]') AS trend_json "
+                + "COALESCE((SELECT JSON_ARRAYAGG("
+                + "    CASE tier WHEN 'FRESH' THEN 4 WHEN 'AGING' THEN 3 WHEN 'STALE' THEN 2 ELSE 1 END "
+                + "    ORDER BY snapshot_date ASC) "
+                + "  FROM freshness_task_daily "
+                + "  WHERE task_id = td.id AND snapshot_date >= CURRENT_DATE - 7), '[]') AS trend_json "
                 + "FROM task_def td "
                 + "LEFT JOIN task_instance ti ON ti.task_id = td.id AND ti.deleted = 0 "
                 + "LEFT JOIN workflow_node wn ON wn.task_id = td.id "
                 + "LEFT JOIN workflow_def wd ON wd.id = wn.workflow_id AND wd.deleted = 0 "
-                + "LEFT JOIN LATERAL ("
-                + "  SELECT JSON_ARRAYAGG("
-                + "    CASE tier WHEN 'FRESH' THEN 4 WHEN 'AGING' THEN 3 WHEN 'STALE' THEN 2 ELSE 1 END "
-                + "    ORDER BY snapshot_date ASC"
-                + "  ) AS trend_json "
-                + "  FROM freshness_task_daily "
-                + "  WHERE task_id = td.id AND snapshot_date >= CURRENT_DATE - 7"
-                + ") ftd ON true "
                 + "WHERE td.deleted = 0 AND td.tenant_id = ? AND td.project_id = ? "
-                + "GROUP BY td.id, td.name, wd.name, wd.schedule_type, wd.cron, wd.schedule_interval_ms, ftd.trend_json";
+                + "GROUP BY td.id, td.name, wd.name, wd.schedule_type, wd.cron, wd.schedule_interval_ms";
 
         // 参数顺序：FRESH_HOURS/STALE_HOURS（base CASE），tenantId/projectId（WHERE）
         List<Object> params = new ArrayList<>();
@@ -186,6 +182,12 @@ public class FreshnessService {
      * 写入 freshness_task_daily 和 freshness_daily_snapshot（幂等）。
      */
     public void takeSnapshot(Long tenantId, Long projectId) {
+        // 每日快照为"覆盖今日"语义：先清今日该 (tenant, project) 的行再重新聚合写入。
+        // 用 DELETE + INSERT 替代 PG 专有的 ON CONFLICT，H2（PostgreSQL 兼容模式）与 PG 两库通用且幂等。
+        jdbcTemplate.update(
+                "DELETE FROM freshness_task_daily WHERE tenant_id = ? AND project_id = ? AND snapshot_date = CURRENT_DATE",
+                tenantId, projectId);
+
         // 每任务档位聚合（与 query 共享相同聚合逻辑）
         String sql = """
                 INSERT INTO freshness_task_daily (tenant_id, project_id, task_id, snapshot_date, tier, age_hours)
@@ -204,11 +206,14 @@ public class FreshnessService {
                 LEFT JOIN task_instance ti ON ti.task_id = td.id AND ti.deleted = 0
                 WHERE td.deleted = 0 AND td.tenant_id = ? AND td.project_id = ?
                 GROUP BY td.id
-                ON CONFLICT (tenant_id, project_id, task_id, snapshot_date) DO NOTHING
                 """;
         jdbcTemplate.update(sql, tenantId, projectId, FRESH_HOURS, STALE_HOURS, tenantId, projectId);
 
-        // 项目级聚合快照
+        // 项目级聚合快照同理
+        jdbcTemplate.update(
+                "DELETE FROM freshness_daily_snapshot WHERE tenant_id = ? AND project_id = ? AND snapshot_date = CURRENT_DATE",
+                tenantId, projectId);
+
         String aggSql = """
                 INSERT INTO freshness_daily_snapshot (tenant_id, project_id, snapshot_date, total_tasks, fresh_count, aging_count, stale_count, never_count)
                 SELECT ?, ?, CURRENT_DATE,
@@ -219,7 +224,6 @@ public class FreshnessService {
                   COUNT(*) FILTER (WHERE tier = 'NEVER')
                 FROM freshness_task_daily
                 WHERE tenant_id = ? AND project_id = ? AND snapshot_date = CURRENT_DATE
-                ON CONFLICT (tenant_id, project_id, snapshot_date) DO NOTHING
                 """;
         jdbcTemplate.update(aggSql, tenantId, projectId, tenantId, projectId);
     }

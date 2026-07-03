@@ -12,8 +12,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Freshness dashboard 端点 + 快照功能全栈测试（H2）。
@@ -37,9 +38,7 @@ class FreshnessDashboardTest {
     void setUp() {
         client = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
-                .defaultHeaders(h -> {
-                    h.setBearerAuth(jwtUtil.generateToken(1L));
-                })
+                .defaultHeaders(h -> h.set("Authorization", JwtTestSupport.bearer(jwtUtil)))
                 .build();
     }
 
@@ -64,17 +63,30 @@ class FreshnessDashboardTest {
         insertTask(1001, "dashboard-test-task");
         insertInstance(UUID.randomUUID(), 1001, "SUCCESS", LocalDateTime.now().minusHours(3));
 
-        Map<?, ?> data = client.get()
+        client.get()
                 .uri("/api/freshness/dashboard?projectId=1")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.summary").exists()
-                .jsonPath("$.data.snapshotDate").isNotEmpty()
-                .jsonPath("$.data").value(v -> {
-                    // verify structure
-                });
+                .jsonPath("$.data.snapshotDate").isNotEmpty();
+    }
+
+    @Test
+    void queryReturnsRows() {
+        // 覆盖列表端点 GET /api/freshness（含 trend 标量子查询），防 LATERAL 等 H2 兼容回归
+        insertTask(1004, "query-test-task");
+        insertInstance(UUID.randomUUID(), 1004, "SUCCESS", LocalDateTime.now().minusHours(2));
+
+        client.get()
+                .uri("/api/freshness?projectId=1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items").exists()
+                .jsonPath("$.data.total").isNotEmpty();
     }
 
     @Test
@@ -82,15 +94,15 @@ class FreshnessDashboardTest {
         insertTask(1002, "snapshot-idempotent-task");
         insertInstance(UUID.randomUUID(), 1002, "SUCCESS", LocalDateTime.now().minusHours(1));
 
-        // 两次调用不应报错
+        // 两次调用不应报错（ON CONFLICT DO NOTHING 幂等）
         freshnessService.takeSnapshot(1L, 1L);
         freshnessService.takeSnapshot(1L, 1L);
 
-        // 验证 1 条记录（不重复）
+        // 今日项目级聚合快照唯一（幂等不重复）
         Integer count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM freshness_task_daily WHERE project_id = 4",
+                "SELECT COUNT(*) FROM freshness_daily_snapshot WHERE project_id = 1 AND snapshot_date = CURRENT_DATE",
                 Integer.class);
-        // 因为 project_id 不同... let's just verify no exception
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
@@ -104,7 +116,7 @@ class FreshnessDashboardTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.trend").doesNotExist(); // null or absent
+                .jsonPath("$.data.trend").doesNotExist();
     }
 
     @Test
@@ -116,6 +128,6 @@ class FreshnessDashboardTest {
         freshnessService.cleanupOldSnapshots();
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM freshness_task_daily WHERE task_id = 9999", Integer.class);
-        assert count != null && count == 0 : "Old snapshot should be cleaned up";
+        assertThat(count).isZero();
     }
 }
