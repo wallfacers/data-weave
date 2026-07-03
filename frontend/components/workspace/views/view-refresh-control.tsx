@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils"
 import { useMinSpin } from "@/hooks/use-min-spin"
 
 export interface ViewRefreshControlProps {
-  /** 最近一次成功刷新的时间戳（ms）；null 则显示"从未" */
+  /** 最近一次成功刷新的时间戳（ms）；null 则不渲染时间 */
   lastUpdatedAt: number | null
   /** 是否正在刷新（驱动图标旋转） */
   refreshing: boolean
@@ -33,21 +33,6 @@ export interface ViewRefreshControlProps {
   onRefresh: () => void
 }
 
-function formatRelative(ts: number): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
-  if (seconds < 60) return "刚刚"
-  if (seconds < 3600) {
-    const m = Math.floor(seconds / 60)
-    return `${m} 分钟前`
-  }
-  if (seconds < 86400) {
-    const h = Math.floor(seconds / 3600)
-    return `${h} 小时前`
-  }
-  const d = Math.floor(seconds / 86400)
-  return `${d} 天前`
-}
-
 export function ViewRefreshControl({
   lastUpdatedAt,
   refreshing,
@@ -57,6 +42,15 @@ export function ViewRefreshControl({
   onRefresh,
 }: ViewRefreshControlProps) {
   const t = useTranslations("viewRefresh")
+
+  /** 把时间戳格式化为相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）。 */
+  function formatRelative(ts: number): string {
+    const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+    if (seconds < 60) return t("justNow")
+    if (seconds < 3600) return t("minutesAgo", { m: Math.floor(seconds / 60) })
+    if (seconds < 86400) return t("hoursAgo", { h: Math.floor(seconds / 3600) })
+    return t("daysAgo", { d: Math.floor(seconds / 86400) })
+  }
 
   // 自动刷新 / 手动点击都把 refreshing 拉 true，本地秒回接口会让它只闪一帧；
   // useMinSpin 把旋转兜底到至少一整圈，保证肉眼可见（详见 hook 注释）。

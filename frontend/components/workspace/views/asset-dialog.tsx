@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,25 +53,10 @@ const SENSITIVITY_OPTIONS = [
   { value: "PII", label: "PII" },
 ];
 
-// ─── helpers ────────────────────────────────────────────────────
-
-function handleGate(r: GateResult, verb: string) {
-  switch (r.outcome) {
-    case "EXECUTED":
-      toast.success(verb);
-      return true;
-    case "PENDING_APPROVAL":
-      toast.info(r.message ?? "Submitted for approval");
-      return true;
-    default:
-      toast.error(r.message ?? "Action failed");
-      return false;
-  }
-}
-
 // ─── component ──────────────────────────────────────────────────
 
 export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }: AssetDialogProps) {
+  const t = useTranslations("assetCatalog");
   const [saving, setSaving] = useState(false);
   const [datasourceId, setDatasourceId] = useState<number | undefined>(asset?.datasourceId);
   const [qualifiedName, setQualifiedName] = useState(asset?.qualifiedName ?? "");
@@ -95,15 +81,30 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
   }, [open, asset]);
 
   const isCreate = mode === "create";
-  const title = isCreate ? "编目资产" : "编辑资产";
+  const title = isCreate ? t("createTitle") : t("editTitle");
+
+  // 写操作闸门三态 → toast（成功用动词；待审批/失败回落后端 message，再无则通用文案）。
+  function handleGate(r: GateResult, successVerb: string) {
+    switch (r.outcome) {
+      case "EXECUTED":
+        toast.success(successVerb);
+        return true;
+      case "PENDING_APPROVAL":
+        toast.info(r.message ?? t("pendingApproval"));
+        return true;
+      default:
+        toast.error(r.message ?? t("actionFailedGeneric"));
+        return false;
+    }
+  }
 
   async function doSave() {
     if (!qualifiedName.trim()) {
-      toast.error("限定名不能为空");
+      toast.error(t("errAssetInvalid"));
       return;
     }
     if (isCreate && !datasourceId) {
-      toast.error("请选择数据源");
+      toast.error(t("formDatasourceRequired"));
       return;
     }
     setSaving(true);
@@ -116,7 +117,7 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
       };
       if (ownerId) body.ownerId = Number(ownerId);
       if (stewardId) body.stewardId = Number(stewardId);
-      if (tags.trim()) body.tags = tags.split(",").map((t) => t.trim()).filter(Boolean);
+      if (tags.trim()) body.tags = tags.split(",").map((tag) => tag.trim()).filter(Boolean);
 
       let res: { data: GateResult };
       if (isCreate) {
@@ -126,12 +127,12 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
         res = await updateAsset(asset!.id!, body);
       }
 
-      if (handleGate(res.data, isCreate ? "资产已编目" : "资产已更新")) {
+      if (handleGate(res.data, isCreate ? t("createdToast") : t("updatedToast"))) {
         onSaved();
         onClose();
       }
     } catch {
-      toast.error("操作失败，请稍后重试");
+      toast.error(t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -143,14 +144,14 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {isCreate ? "填写资产元数据，限定名在同数据源下唯一" : "仅修改被变更的字段，未触及字段不变"}
+            {isCreate ? t("createDesc") : t("editDesc")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           {isCreate && (
             <div className="grid grid-cols-4 items-center gap-4">
-              <label className="text-right text-sm font-medium">数据源</label>
+              <label className="text-right text-sm font-medium">{t("datasource")}</label>
               <DropdownSelect
                 className="col-span-3"
                 value={datasourceId?.toString() ?? ""}
@@ -161,7 +162,7 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
           )}
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">限定名 *</label>
+            <label className="text-right text-sm font-medium">{t("qualifiedName")} *</label>
             <Input
               className="col-span-3"
               value={qualifiedName}
@@ -172,27 +173,27 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">名称</label>
-            <Input className="col-span-3" value={name} onChange={(e) => setName(e.target.value)} placeholder="可读名称" />
+            <label className="text-right text-sm font-medium">{t("name")}</label>
+            <Input className="col-span-3" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("namePlaceholder")} />
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">描述</label>
-            <Input className="col-span-3" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="简要描述" />
+            <label className="text-right text-sm font-medium">{t("descriptionLabel")}</label>
+            <Input className="col-span-3" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("descriptionPlaceholder")} />
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">负责人 ID</label>
-            <Input className="col-span-3" value={ownerId} onChange={(e) => setOwnerId(e.target.value)} placeholder="数字" />
+            <label className="text-right text-sm font-medium">{t("ownerIdLabel")}</label>
+            <Input className="col-span-3" value={ownerId} onChange={(e) => setOwnerId(e.target.value)} placeholder={t("numberPlaceholder")} />
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">管家 ID</label>
-            <Input className="col-span-3" value={stewardId} onChange={(e) => setStewardId(e.target.value)} placeholder="数字" />
+            <label className="text-right text-sm font-medium">{t("stewardIdLabel")}</label>
+            <Input className="col-span-3" value={stewardId} onChange={(e) => setStewardId(e.target.value)} placeholder={t("numberPlaceholder")} />
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">敏感度</label>
+            <label className="text-right text-sm font-medium">{t("sensitivity")}</label>
             <DropdownSelect
               className="col-span-3"
               value={sensitivity}
@@ -203,14 +204,14 @@ export function AssetDialog({ open, mode, asset, datasources, onClose, onSaved }
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">标签</label>
-            <Input className="col-span-3" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="逗号分隔" />
+            <label className="text-right text-sm font-medium">{t("tagsLabel")}</label>
+            <Input className="col-span-3" value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("tagsPlaceholder")} />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>取消</Button>
-          <Button onClick={doSave} disabled={saving}>{saving ? "提交中…" : "提交"}</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>{t("cancel")}</Button>
+          <Button onClick={doSave} disabled={saving}>{saving ? t("submitting") : t("submit")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -229,21 +230,22 @@ export function RetireConfirmDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("assetCatalog");
   const [loading, setLoading] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>下线资产</DialogTitle>
+          <DialogTitle>{t("retireDialogTitle")}</DialogTitle>
           <DialogDescription>
-            确认下线 {assetName ?? "此资产"}？下线后状态变为 RETIRED，不可逆转。
+            {t("retireDialogDesc", { name: assetName ?? t("thisAsset") })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>取消</Button>
+          <Button variant="outline" onClick={onClose} disabled={loading}>{t("cancel")}</Button>
           <Button variant="destructive" onClick={() => { setLoading(true); onConfirm(); }} disabled={loading}>
-            {loading ? "处理中…" : "确认下线"}
+            {loading ? t("processing") : t("confirmRetire")}
           </Button>
         </DialogFooter>
       </DialogContent>

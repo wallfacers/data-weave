@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useTranslations } from "next-intl"
 import { format, parse, isValid, subDays, setHours, setMinutes, setSeconds, type Locale } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Calendar01Icon } from "@hugeicons/core-free-icons"
@@ -129,8 +130,9 @@ function DatePicker({
   quickLabels,
   disableClear = false,
   showTime = false,
-  confirmLabel = "确认",
+  confirmLabel,
 }: DatePickerProps) {
+  const t = useTranslations("datePicker")
   const [open, setOpen] = React.useState(false)
   const fmt = showTime ? DATETIME_FMT : DATE_FMT
   const displayFmt = showTime ? DISPLAY_DATETIME_FMT : DATE_FMT
@@ -196,9 +198,8 @@ function DatePicker({
 
   const today = new Date()
   const yesterday = subDays(today, 1)
-  const isZh = locale?.code === "zh-CN"
-  const todayLabel = quickLabels?.today ?? (isZh ? "今天" : "Today")
-  const yesterdayLabel = quickLabels?.yesterday ?? (isZh ? "昨天" : "Yesterday")
+  const todayLabel = quickLabels?.today ?? t("today")
+  const yesterdayLabel = quickLabels?.yesterday ?? t("yesterday")
 
   const displayValue = React.useMemo(() => {
     if (!value) return null
@@ -308,7 +309,7 @@ function DatePicker({
               onClick={handleConfirm}
               className="ml-2 h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              {confirmLabel}
+              {confirmLabel ?? t("confirm")}
             </button>
           </div>
         )}

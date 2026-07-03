@@ -1120,7 +1120,16 @@
     "auto": "自动刷新",
     "paused": "已暂停",
     "updateFailed": "更新失败",
-    "stale": "数据可能过时"
+    "stale": "数据可能过时",
+    "justNow": "刚刚",
+    "minutesAgo": "{m} 分钟前",
+    "hoursAgo": "{h} 小时前",
+    "daysAgo": "{d} 天前"
+  },
+  "datePicker": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "confirm": "确认"
   },
   "alerts": {
     "title": "告警中心",
@@ -1257,7 +1266,25 @@
     "reconcileConfirmDesc": "按血缘锚点存在性校验：缺失则标记 STALE，恢复则置 ACTIVE。",
     "errDuplicateAsset": "资产已存在（限定名重复）",
     "errAssetInvalid": "限定名不能为空",
-    "errForbiddenSensitivity": "无权查看该敏感资产"
+    "errForbiddenSensitivity": "无权查看该敏感资产",
+    "createDesc": "填写资产元数据，限定名在同数据源下唯一",
+    "editDesc": "仅修改被变更的字段，未触及字段不变",
+    "ownerIdLabel": "负责人 ID",
+    "stewardIdLabel": "管家 ID",
+    "cancel": "取消",
+    "submit": "提交",
+    "submitting": "提交中",
+    "saveFailed": "操作失败，请稍后重试",
+    "createdToast": "资产已编目",
+    "updatedToast": "资产已更新",
+    "namePlaceholder": "可读名称",
+    "descriptionPlaceholder": "简要描述",
+    "numberPlaceholder": "数字",
+    "retireDialogTitle": "下线资产",
+    "retireDialogDesc": "确认下线 {name}？下线后状态变为 RETIRED，不可逆转。",
+    "thisAsset": "此资产",
+    "processing": "处理中",
+    "confirmRetire": "确认下线"
   },
   "leftNav": {
     "groups": {

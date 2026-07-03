@@ -55,8 +55,8 @@ describe("gateToast", () => {
     expect(gateToast({ kind: "failed", errorCode: "catalog.unknown", backendMessage: "boom" }, t)).toBe("boom")
   })
 
-  it("failed + 无 message → 通用 actionFailed", () => {
-    expect(gateToast({ kind: "failed" }, t)).toBe("T:actionFailed")
-    expect(gateToast({ kind: "failed", backendMessage: "  " }, t)).toBe("T:actionFailed")
+  it("failed + 无 message → 通用 actionFailedGeneric", () => {
+    expect(gateToast({ kind: "failed" }, t)).toBe("T:actionFailedGeneric")
+    expect(gateToast({ kind: "failed", backendMessage: "  " }, t)).toBe("T:actionFailedGeneric")
   })
 })

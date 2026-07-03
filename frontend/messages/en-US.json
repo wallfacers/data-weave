@@ -1120,7 +1120,16 @@
     "auto": "Auto-refresh",
     "paused": "Paused",
     "updateFailed": "Update failed",
-    "stale": "Data may be stale"
+    "stale": "Data may be stale",
+    "justNow": "Just now",
+    "minutesAgo": "{m} min ago",
+    "hoursAgo": "{h} h ago",
+    "daysAgo": "{d} d ago"
+  },
+  "datePicker": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "confirm": "Confirm"
   },
   "alerts": {
     "title": "Alert Center",
@@ -1257,7 +1266,25 @@
     "reconcileConfirmDesc": "Checks the lineage table anchor: missing marks STALE, restored sets ACTIVE.",
     "errDuplicateAsset": "Asset already exists (duplicate qualified name)",
     "errAssetInvalid": "Qualified name is required",
-    "errForbiddenSensitivity": "Not authorized to view this sensitive asset"
+    "errForbiddenSensitivity": "Not authorized to view this sensitive asset",
+    "createDesc": "Fill in the asset metadata; qualified name must be unique within the same datasource",
+    "editDesc": "Only changed fields are updated; untouched fields stay as-is",
+    "ownerIdLabel": "Owner ID",
+    "stewardIdLabel": "Steward ID",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "submitting": "Submitting",
+    "saveFailed": "Operation failed, please try again later",
+    "createdToast": "Asset cataloged",
+    "updatedToast": "Asset updated",
+    "namePlaceholder": "Readable name",
+    "descriptionPlaceholder": "Brief description",
+    "numberPlaceholder": "Number",
+    "retireDialogTitle": "Retire asset",
+    "retireDialogDesc": "Retire {name}? Status becomes RETIRED and cannot be undone.",
+    "thisAsset": "this asset",
+    "processing": "Processing",
+    "confirmRetire": "Confirm retire"
   },
   "leftNav": {
     "groups": {
