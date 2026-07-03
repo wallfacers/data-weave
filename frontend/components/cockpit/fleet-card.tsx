@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ServerStack01Icon,
   CpuIcon,
@@ -14,47 +14,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { ResourceBar } from "@/components/ui/resource-bar"
 import { type WorkerNode } from "@/lib/types";
-
-function ResourceBar({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: number;
-  icon: IconSvgElement;
-}) {
-  // mem ≥ 90 → destructive; cpu/disk ≥ 90 → destructive; otherwise primary
-  const isHigh = value >= 90;
-  const pct = Math.min(100, Math.max(0, value));
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-xs font-sans">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <HugeiconsIcon icon={icon} className="size-3.5" />
-          {label}
-        </span>
-        <span
-          className={isHigh ? "font-medium text-destructive" : "text-foreground"}
-        >
-          {pct.toFixed(1)}%
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full transition-all ${
-            isHigh ? "bg-destructive" : "bg-primary"
-          }`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
 
 export function FleetCard({ node }: { node: WorkerNode }) {
   const t = useTranslations("fleetCard");
