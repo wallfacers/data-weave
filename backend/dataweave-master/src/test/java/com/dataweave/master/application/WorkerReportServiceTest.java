@@ -44,7 +44,8 @@ class WorkerReportServiceTest {
         return new WorkerReportService(stateMachine, taskInstanceRepository,
                 mock(WorkflowStateService.class), mock(RetryService.class),
                 mock(SchedulerMetrics.class), mock(SlaService.class),
-                mock(EventBus.class), mock(JdbcTemplate.class),
+                mock(EventBus.class), mock(org.springframework.context.ApplicationEventPublisher.class),
+                mock(JdbcTemplate.class),
                 lineageStore, extractor, assembler);
     }
 

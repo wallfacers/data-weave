@@ -30,6 +30,7 @@ public class AgentAction {
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long incidentId;       // 043 incident 工单反查键；NULL = 非 incident 发起
 
     public AgentAction() {
     }
@@ -176,5 +177,13 @@ public class AgentAction {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getIncidentId() {
+        return incidentId;
+    }
+
+    public void setIncidentId(Long incidentId) {
+        this.incidentId = incidentId;
     }
 }

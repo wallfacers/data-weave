@@ -62,6 +62,7 @@ public class GatedActionService {
         action.setActorSource(req.actorSource());
         action.setCreatedAt(now);
         action.setUpdatedAt(now);
+        action.setIncidentId(req.incidentId()); // 043: incident 卡片发起的闸门动作反向回挂工单
 
         return switch (decision.outcome()) {
             case REJECTED -> {

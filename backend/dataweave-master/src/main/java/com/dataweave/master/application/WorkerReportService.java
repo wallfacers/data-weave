@@ -11,6 +11,7 @@ import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.master.domain.lineage.TableRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,7 @@ public class WorkerReportService {
     private final SchedulerMetrics metrics;
     private final SlaService slaService;
     private final EventBus eventBus;
+    private final ApplicationEventPublisher eventPublisher;
     private final JdbcTemplate jdbc;
     private final LineageStore lineageStore;
     private final SqlTableExtractor sqlTableExtractor;
@@ -49,6 +51,7 @@ public class WorkerReportService {
                                SchedulerMetrics metrics,
                                SlaService slaService,
                                EventBus eventBus,
+                               ApplicationEventPublisher eventPublisher,
                                JdbcTemplate jdbc,
                                LineageStore lineageStore,
                                SqlTableExtractor sqlTableExtractor,
@@ -60,6 +63,7 @@ public class WorkerReportService {
         this.metrics = metrics;
         this.slaService = slaService;
         this.eventBus = eventBus;
+        this.eventPublisher = eventPublisher;
         this.jdbc = jdbc;
         this.lineageStore = lineageStore;
         this.sqlTableExtractor = sqlTableExtractor;
@@ -203,6 +207,19 @@ public class WorkerReportService {
                 }
             } else if (InstanceStates.SUCCESS.equals(state)) {
                 slaService.recordCompletion(workflowInstanceId);
+                // 043: publish WorkflowSucceededEvent for incident auto-heal (best-effort)
+                try {
+                    var row = jdbc.queryForMap(
+                            "SELECT tenant_id, workflow_id FROM workflow_instance WHERE id = ?",
+                            workflowInstanceId);
+                    if (row != null && !row.isEmpty()) {
+                        long tid = ((Number) row.get("TENANT_ID")).longValue();
+                        Long wfId = (Long) row.get("WORKFLOW_ID");
+                        eventPublisher.publishEvent(new WorkflowSucceededEvent(workflowInstanceId, wfId, tid));
+                    }
+                } catch (Exception e) {
+                    // auto-heal signal is best-effort; do not fail workflow completion
+                }
             }
         });
     }
