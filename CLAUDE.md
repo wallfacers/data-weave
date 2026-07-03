@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [041-freshness-redesign](specs/041-freshness-redesign/spec.md)
-Implementation plan: [plan.md](specs/041-freshness-redesign/plan.md)
-Research: [research.md](specs/041-freshness-redesign/research.md)
-Data model: [data-model.md](specs/041-freshness-redesign/data-model.md)
-API contracts: [contracts/](specs/041-freshness-redesign/contracts/)
+Current feature: [042-product-surface-shrink](specs/042-product-surface-shrink/spec.md)
+Implementation plan: [plan.md](specs/042-product-surface-shrink/plan.md)
+Research: [research.md](specs/042-product-surface-shrink/research.md)
+Data model: [data-model.md](specs/042-product-surface-shrink/data-model.md)
+API contracts: [contracts/](specs/042-product-surface-shrink/contracts/)
 <!-- SPECKIT END -->

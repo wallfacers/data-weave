@@ -340,19 +340,15 @@
     "ops": "Ops Center",
     "workflowCanvas": "Data Development",
     "freshness": "Data Freshness",
-    "reports": "Business Reports",
     "metrics": "System Metrics",
     "diagnosis": "Failure Diagnosis",
     "fleet": "Cluster Nodes",
     "lineage": "Data Lineage",
     "catalog": "Asset Catalog",
     "quality": "Data Quality",
-    "integration": "Data Integration",
-    "service": "Data Service",
     "settings": "Settings",
     "datasources": "Datasources",
     "alerts": "Alert Center",
-    "marketplace": "Metric Marketplace",
     "eventCenter": "Event Center",
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance"
@@ -661,16 +657,6 @@
     "actionSuccess": "{label} succeeded",
     "actionFailed": "{label} failed: {msg}"
   },
-  "reports": {
-    "title": "Business Reports",
-    "subtitle": "Core metrics dashboard, versioned and tamper-proof definitions",
-    "empty": "No metrics defined yet. Define metric definitions via the Agent on the left.",
-    "noData": "No data",
-    "bizDate": "Business date",
-    "today": "Today",
-    "yesterday": "Yesterday",
-    "noProject": "Please select a current project first"
-  },
   "workflowCanvas": {
     "nodeTaskFallback": "Task",
     "nodeVirtualFallback": "Virtual node",
@@ -764,9 +750,7 @@
     "agentHint": "Operations for this module are handled through the Agent chat on the left",
     "descLineage": "Upstream/downstream dependency graph of tables and tasks.",
     "descCatalog": "Tables, subject domains and asset inventory.",
-    "descQuality": "Quality rules, validation results and alerts.",
-    "descIntegration": "Data source ingestion and sync pipelines.",
-    "descService": "Data APIs and service orchestration."
+    "descQuality": "Quality rules, validation results and alerts."
   },
   "settingsView": {
     "cancel": "Cancel",
@@ -1273,47 +1257,6 @@
     "errAssetInvalid": "Qualified name is required",
     "errForbiddenSensitivity": "Not authorized to view this sensitive asset"
   },
-  "metricMarketplace": {
-    "searchPlaceholder": "Search metric code/description",
-    "loading": "Loading",
-    "totalCount": "{count} items",
-    "empty": "No listed metrics",
-    "all": "All",
-    "facetCertification": "Certification",
-    "certified": "Certified",
-    "uncertified": "Uncertified",
-    "loadFailed": "Load failed",
-    "actionDone": "Done",
-    "pendingApproval": "Submitted for approval",
-    "actionFailedGeneric": "Action failed",
-    "metricType": "Metric type",
-    "owner": "Owner",
-    "freshness": "Freshness",
-    "reuseCount": "Reuse count",
-    "definition": "Definition",
-    "lineageSources": "{count} lineage sources",
-    "certify": "Certify",
-    "reuse": "Reuse",
-    "selectHint": "Select a metric to view details",
-    "listAction": "List metric",
-    "listTitle": "List metric to marketplace",
-    "listMetric": "Metric definition",
-    "listMetricPlaceholder": "Select an existing metric",
-    "listMetricRequired": "Select a metric definition first",
-    "listDescription": "Description",
-    "delistAction": "Delist",
-    "delistConfirmTitle": "Delist this metric?",
-    "delistConfirmDesc": "Once delisted the metric is removed from the marketplace; existing reuse references are unaffected.",
-    "reuseTitle": "Reuse metric",
-    "reuseRefRequired": "Consumer ref is required",
-    "consumerType": "Consumer type",
-    "consumerRef": "Consumer ref",
-    "consumerRefPlaceholder": "Consumer id or code",
-    "errReuseCycle": "Reuse would create a circular dependency and was rejected",
-    "errReuseInvalid": "Invalid consumer ref",
-    "errListingInvalid": "Invalid listing (missing metric definition)",
-    "errNotCertifiable": "A delisted metric cannot be certified"
-  },
   "leftNav": {
     "groups": {
       "dev": "Data Development",
@@ -1321,7 +1264,6 @@
       "alerting": "Alerts & Events",
       "governance": "Data Governance",
       "assets": "Data Assets",
-      "analytics": "Analytics",
       "admin": "Administration"
     },
     "switcher": {

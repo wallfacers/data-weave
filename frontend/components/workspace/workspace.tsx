@@ -13,7 +13,6 @@ import { useProjectPermissions } from "@/lib/project-permissions"
 import { cn } from "@/lib/utils"
 import { WorkspaceTabBar } from "./tab-bar"
 import { WorkspaceLogPanel } from "./log-panel"
-import { PlaceholderView } from "./views/placeholder-view"
 
 /**
  * Workspace 主区：tab 条 + 视图渲染区。
@@ -83,7 +82,12 @@ export function Workspace() {
                   )}
                 >
                   {denied ? (
-                    <PlaceholderView title={t("deniedTitle")} description={t("deniedDesc")} />
+                    <div className="flex h-full items-center justify-center">
+                      <div className="max-w-md space-y-2 text-center">
+                        <p className="text-lg font-semibold text-muted-foreground">{t("deniedTitle")}</p>
+                        <p className="text-sm text-muted-foreground">{t("deniedDesc")}</p>
+                      </div>
+                    </div>
                   ) : (
                     <View params={tab.params} active={tab.id === activeTabId} />
                   )}

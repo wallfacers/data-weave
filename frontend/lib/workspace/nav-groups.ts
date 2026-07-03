@@ -24,8 +24,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { id: "ops", titleKey: "groups.ops", items: ["ops", "metrics", "fleet", "freshness"] },
   { id: "alerting", titleKey: "groups.alerting", items: ["alerts", "event-center"] },
   { id: "governance", titleKey: "groups.governance", items: ["catalog", "quality", "lineage"] },
-  { id: "assets", titleKey: "groups.assets", items: ["marketplace", "datasources", "integration", "service"] },
-  { id: "analytics", titleKey: "groups.analytics", items: ["reports"] },
+  { id: "assets", titleKey: "groups.assets", items: ["datasources"] },
   { id: "admin", titleKey: "groups.admin", items: ["settings"] },
 ]
 

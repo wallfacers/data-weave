@@ -10,16 +10,12 @@ export type ViewType =
   | "ops"
   | "workflow-canvas"
   | "freshness"
-  | "reports"
   | "metrics"
   | "fleet"
   | "lineage"
   | "catalog"
-  | "marketplace"
   | "quality"
-  | "integration"
   | "datasources"
-  | "service"
   | "alerts"
   | "event-center"
   | "settings"
@@ -43,18 +39,14 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas", requirePermission: "workflow:manage" },
   freshness: { title: "views.freshness", defaultPinned: true },
-  reports: { title: "views.reports", defaultPinned: true },
   metrics: { title: "views.metrics", defaultPinned: true },
   fleet: { title: "views.fleet" },
   lineage: { title: "views.lineage" },
   catalog: { title: "views.catalog", requirePermission: "task:manage" },
-  marketplace: { title: "views.marketplace", requirePermission: "metric:manage" },
   quality: { title: "views.quality" },
-  integration: { title: "views.integration" },
   datasources: { title: "views.datasources", requirePermission: "datasource:manage" },
   alerts: { title: "views.alerts" },
   "event-center": { title: "views.eventCenter" },
-  service: { title: "views.service" },
   settings: { title: "views.settings", requirePermission: "project:manage" },
   "instance-log": { title: "views.instanceLog" },
   "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
