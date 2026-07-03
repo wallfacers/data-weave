@@ -340,19 +340,15 @@
     "ops": "运营中心",
     "workflowCanvas": "数据开发",
     "freshness": "数据新鲜度",
-    "reports": "业务报表",
     "metrics": "系统指标",
     "diagnosis": "失败诊断",
     "fleet": "集群机器",
     "lineage": "数据血缘",
     "catalog": "资产目录",
     "quality": "数据质量",
-    "integration": "数据集成",
-    "service": "数据服务",
     "settings": "系统设置",
     "datasources": "数据源管理",
     "alerts": "告警中心",
-    "marketplace": "指标市场",
     "eventCenter": "事件中心",
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例"
@@ -661,16 +657,6 @@
     "actionSuccess": "{label} 成功",
     "actionFailed": "{label} 失败：{msg}"
   },
-  "reports": {
-    "title": "业务报表",
-    "subtitle": "核心指标看板，口径版本化、不可篡改",
-    "empty": "暂无指标定义，可通过左侧 Agent 定义指标口径",
-    "noData": "暂无数据",
-    "bizDate": "业务日期",
-    "today": "今天",
-    "yesterday": "昨天",
-    "noProject": "请先选择当前项目"
-  },
   "workflowCanvas": {
     "nodeTaskFallback": "任务",
     "nodeVirtualFallback": "虚拟节点",
@@ -764,9 +750,7 @@
     "agentHint": "本模块的操作统一通过左侧 Agent 对话完成",
     "descLineage": "表与任务的上下游依赖图谱。",
     "descCatalog": "数据表、主题域与资产盘点。",
-    "descQuality": "质量规则、校验结果与告警。",
-    "descIntegration": "数据源接入与同步链路。",
-    "descService": "数据 API 与服务编排。"
+    "descQuality": "质量规则、校验结果与告警。"
   },
   "settingsView": {
     "cancel": "取消",
@@ -1273,47 +1257,6 @@
     "errAssetInvalid": "限定名不能为空",
     "errForbiddenSensitivity": "无权查看该敏感资产"
   },
-  "metricMarketplace": {
-    "searchPlaceholder": "搜索指标编码/描述",
-    "loading": "加载中",
-    "totalCount": "共 {count} 项",
-    "empty": "暂无上架指标",
-    "all": "全部",
-    "facetCertification": "认证",
-    "certified": "已认证",
-    "uncertified": "未认证",
-    "loadFailed": "加载失败",
-    "actionDone": "操作成功",
-    "pendingApproval": "已提交审批",
-    "actionFailedGeneric": "操作失败",
-    "metricType": "指标类型",
-    "owner": "负责人",
-    "freshness": "新鲜度",
-    "reuseCount": "复用次数",
-    "definition": "口径定义",
-    "lineageSources": "血缘来源 {count} 个",
-    "certify": "认证",
-    "reuse": "复用",
-    "selectHint": "选择左侧指标查看详情",
-    "listAction": "上架指标",
-    "listTitle": "上架指标到市场",
-    "listMetric": "指标定义",
-    "listMetricPlaceholder": "选择既有指标",
-    "listMetricRequired": "请先选择指标定义",
-    "listDescription": "描述",
-    "delistAction": "下架",
-    "delistConfirmTitle": "下架该指标？",
-    "delistConfirmDesc": "下架后该指标将从市场移除，已有复用引用不受影响。",
-    "reuseTitle": "复用指标",
-    "reuseRefRequired": "请填写复用方标识",
-    "consumerType": "复用方类型",
-    "consumerRef": "复用方标识",
-    "consumerRefPlaceholder": "复用方 id 或 code",
-    "errReuseCycle": "复用会形成循环依赖，已被拒绝",
-    "errReuseInvalid": "复用方标识无效",
-    "errListingInvalid": "上架信息无效（缺指标定义）",
-    "errNotCertifiable": "已下架的指标不可认证"
-  },
   "leftNav": {
     "groups": {
       "dev": "数据开发",
@@ -1321,7 +1264,6 @@
       "alerting": "告警事件",
       "governance": "数据治理",
       "assets": "数据资产",
-      "analytics": "数据分析",
       "admin": "系统管理"
     },
     "switcher": {
