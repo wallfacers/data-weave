@@ -48,7 +48,6 @@ describe("nav-groups 覆盖不变量", () => {
       "alerting",
       "governance",
       "assets",
-      "analytics",
       "admin",
     ])
   })
@@ -58,7 +57,7 @@ describe("resolveActiveHighlight 高亮映射（FR-006/FR-007）", () => {
   it("入口视图 → 高亮自身 + 所属分组", () => {
     expect(resolveActiveHighlight("ops")).toEqual({ view: "ops", group: "ops" })
     expect(resolveActiveHighlight("catalog")).toEqual({ view: "catalog", group: "governance" })
-    expect(resolveActiveHighlight("reports")).toEqual({ view: "reports", group: "analytics" })
+    expect(resolveActiveHighlight("datasources")).toEqual({ view: "datasources", group: "assets" })
   })
 
   it("上下文详情视图 → 归运维监控模块，无具体高亮项", () => {
