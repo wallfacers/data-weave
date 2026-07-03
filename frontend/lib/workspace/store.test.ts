@@ -136,4 +136,55 @@ describe("snapshot / restore", () => {
     store().restore(JSON.stringify({ version: 1, tabs: [], activeTabId: "ghost" }))
     expect(store().activeTabId).toBe(store().tabs[0].id)
   })
+
+  // 042 产品面收缩：含已移除视图（reports/marketplace 等）的旧快照降级。
+  // US1 收缩 ViewType 后这些值落入 isKnownView=false 分支被静默丢弃，
+  // 用例随之转绿；收缩落地前为红属预期（等待 US1）。
+  it("restore 含被删视图(reports)的标签 → 该标签静默丢弃，其余照常恢复", () => {
+    store().restore(
+      JSON.stringify({
+        version: 1,
+        tabs: [
+          { view: "reports", pinned: false },
+          { view: "fleet", pinned: false },
+        ],
+        activeTabId: tabKey("fleet"),
+      }),
+    )
+    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet"])
+    expect(store().tabs.some((t) => (t.view as string) === "reports")).toBe(false)
+    expect(store().activeTabId).toBe(tabKey("fleet"))
+  })
+
+  it("被丢弃者恰为激活标签 → 激活态回退到剩余标签（首个 Pinned）", () => {
+    store().restore(
+      JSON.stringify({
+        version: 1,
+        tabs: [
+          { view: "reports", pinned: false },
+          { view: "fleet", pinned: false },
+        ],
+        activeTabId: tabKey("reports"),
+      }),
+    )
+    expect(store().tabs.some((t) => (t.view as string) === "reports")).toBe(false)
+    expect(store().tabs.some((t) => t.view === "fleet")).toBe(true)
+    // snap.activeTabId 指向被丢弃的 reports → 不在 seen → 回退首个 Pinned
+    expect(store().activeTabId).toBe(store().tabs[0].id)
+  })
+
+  it("快照全部标签均为被删视图 → 回到纯 Pinned 底座", () => {
+    store().restore(
+      JSON.stringify({
+        version: 1,
+        tabs: [
+          { view: "reports", pinned: false },
+          { view: "marketplace", pinned: false },
+        ],
+        activeTabId: tabKey("reports"),
+      }),
+    )
+    expect(store().tabs.map((t) => t.view)).toEqual(PINNED_VIEWS)
+    expect(store().activeTabId).toBe(store().tabs[0].id)
+  })
 })
