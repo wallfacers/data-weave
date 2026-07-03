@@ -1,27 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  BoxIcon,
-  FileViewIcon,
-  TaskDaily01Icon,
-  WorkflowSquare01Icon,
-  PlayIcon,
-  Notification02Icon,
-  Notification03Icon,
-} from "@hugeicons/core-free-icons"
+import { BoxIcon } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { type ColumnDef, type FilterDef, type FilterPreset, type FetchQuery, type PageResult } from "@/lib/data-table"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useProjectContext } from "@/lib/project-context"
 import type { ViewProps } from "@/lib/workspace/registry"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { ViewRefreshControl } from "./view-refresh-control"
 import { FreshnessSummaryStrip } from "./freshness-summary-strip"
 import {
@@ -84,45 +73,13 @@ export function FreshnessView({ active }: ViewProps) {
   // ── External tier filter (US3) ──
   const [externalTier, setExternalTier] = useState<string | null>(null)
 
-  // ── Row actions (US4) ──
-  const [subscribedTasks, setSubscribedTasks] = useState<Set<number>>(new Set())
-
-  const openView = useCallback((view: string, params: Record<string, unknown>) => {
-    // Navigate via workspace open mechanism
-    const searchParams = new URLSearchParams()
-    searchParams.set("open", view)
-    Object.entries(params).forEach(([k, v]) => searchParams.set(k, String(v)))
-    window.history.pushState(null, "", `/?${searchParams.toString()}`)
-  }, [])
-
-  const handleRerun = useCallback((taskId: number, taskName: string) => {
-    if (confirm(t("confirmRerunDesc"))) {
-      // Submit rerun via API — simplified; prod uses ConfirmDialog
-      import("@/lib/types").then(({ authFetch, API_BASE }) => {
-        authFetch(`${API_BASE}/api/ops/instances/${taskId}/rerun`, { method: "POST" })
-          .then((res) => res.json())
-          .then((json) => {
-            if (json.code === 0) {
-              // trigger refresh on success
-              tickNow()
-            }
-          })
-          .catch(() => {})
-      })
-    }
-  }, [t, tickNow])
-
-  const handleSubscribe = useCallback((taskId: number) => {
-    setSubscribedTasks((prev) => {
-      const next = new Set(prev)
-      if (next.has(taskId)) {
-        next.delete(taskId)
-      } else {
-        next.add(taskId)
-      }
-      return next
-    })
-  }, [])
+  // 时效分档卡片点击 → 触发表格重新查询
+  const prevExternalTier = useRef<string | null>(null)
+  useEffect(() => {
+    if (prevExternalTier.current === externalTier) return
+    prevExternalTier.current = externalTier
+    setReloadSignal((n) => n + 1)
+  }, [externalTier])
 
   // ── Filters ──
   const filters = useMemo<FilterDef[]>(
@@ -170,22 +127,14 @@ export function FreshnessView({ active }: ViewProps) {
   const columns = useMemo<ColumnDef<FreshnessRow>[]>(
     () => [
       {
-        key: "taskId",
-        header: t("colTask"),
-        widthPct: 5,
-        headClassName: "font-mono",
-        cellClassName: "font-mono tabular-nums text-xs",
-        cell: (r) => String(r.taskId),
-      },
-      {
         key: "name",
-        header: t("colTaskName"),
-        widthPct: 22,
+        header: t("colWorkflowName"),
+        widthPct: 28,
         cell: (r) => (
-          <div className="truncate" title={r.name}>
-            <span className="font-medium">{r.name}</span>
+          <div className="truncate" title={r.workflowName || r.name}>
+            <span className="font-medium">{r.workflowName || r.name}</span>
             {r.workflowName && (
-              <span className="ml-2 text-xs text-muted-foreground">{r.workflowName}</span>
+              <span className="ml-2 text-xs text-muted-foreground">{r.name}</span>
             )}
           </div>
         ),
@@ -193,14 +142,14 @@ export function FreshnessView({ active }: ViewProps) {
       {
         key: "schedule",
         header: t("colSchedule"),
-        widthPct: 11,
+        widthPct: 14,
         cellClassName: "text-muted-foreground text-xs",
         cell: (r) => r.scheduleHuman ?? "—",
       },
       {
         key: "tier",
         header: t("colFreshness"),
-        widthPct: 8,
+        widthPct: 10,
         cell: (r) => (
           <span
             role="button"
@@ -218,22 +167,21 @@ export function FreshnessView({ active }: ViewProps) {
       {
         key: "lastSuccessAt",
         header: t("colLastSuccess"),
-        widthPct: 14,
+        widthPct: 16,
         cellClassName: "tabular-nums text-muted-foreground text-xs",
         cell: (r) => formatDateTime(r.lastSuccessAt),
       },
       {
         key: "ageHours",
         header: t("colAge"),
-        widthPct: 8,
+        widthPct: 10,
         cellClassName: "text-muted-foreground text-xs",
         cell: (r) => ageDisplay(r.ageHours, t),
       },
       {
         key: "trend",
         header: t("colTrend"),
-        widthPct: 12,
-        cellClassName: "flex items-center justify-center",
+        widthPct: 22,
         cell: (r) => {
           const days = r.trend7Days
           if (!days || days.length === 0) {
@@ -275,76 +223,6 @@ export function FreshnessView({ active }: ViewProps) {
             </svg>
           )
         },
-      },
-      // Actions
-      {
-        key: "actions",
-        header: "",
-        widthPct: 10,
-        cell: (r) => (
-          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button size="icon" variant="ghost" className="size-7"
-                    onClick={() => openView("instance-log", { taskId: r.taskId })}>
-                    <HugeiconsIcon icon={FileViewIcon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("btnLog")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button size="icon" variant="ghost" className="size-7"
-                    onClick={() => openView("instances", { taskId: r.taskId })}>
-                    <HugeiconsIcon icon={TaskDaily01Icon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("btnInstances")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button size="icon" variant="ghost" className="size-7"
-                    onClick={() => openView("lineage", { taskId: r.taskId })}>
-                    <HugeiconsIcon icon={WorkflowSquare01Icon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("btnDag")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button size="icon" variant="ghost" className="size-7"
-                    onClick={() => handleRerun(r.taskId, r.name)}>
-                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("btnRerun")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button size="icon" variant="ghost" className="size-7"
-                    onClick={() => handleSubscribe(r.taskId)}>
-                    <HugeiconsIcon
-                      icon={subscribedTasks.has(r.taskId) ? Notification03Icon : Notification02Icon}
-                      className="size-4"
-                    />
-                  </Button>
-                }
-              />
-              <TooltipContent>
-                {subscribedTasks.has(r.taskId) ? t("btnUnsubscribe") : t("btnSubscribe")}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        ),
       },
     ],
     [t, formatDateTime],
