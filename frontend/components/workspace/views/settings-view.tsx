@@ -8,6 +8,7 @@ import {
   Delete02Icon,
 } from "@hugeicons/core-free-icons"
 import { useApi } from "@/lib/auth"
+import { useProjectContext } from "@/lib/project-context"
 import type { ApiResponse } from "@/lib/types"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { Button } from "@/components/ui/button"
@@ -577,6 +578,8 @@ function ProjectsTab() {
         method: "PUT",
         body: JSON.stringify({ name }),
       })
+      // 联动更新 ProjectSwitcher 中展示的项目名称
+      useProjectContext.getState().updateProject(dialog.id, { name })
     }
     reload()
     closeDialog()

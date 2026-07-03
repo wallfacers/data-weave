@@ -26,6 +26,8 @@ interface ProjectContextState {
   status: ProjectStatus
   loadProjects: () => Promise<void>
   setProject: (id: number) => void
+  /** 局部更新 projects 中某一项的字段（name/status），不发起网络请求 */
+  updateProject: (id: number, patch: Partial<Pick<ProjectVO, "name" | "status">>) => void
 }
 
 /** 从 localStorage 同步读取已选项目 id；SSR/无 localStorage/非法值时回退 null。 */
@@ -81,6 +83,14 @@ export const useProjectContext = create<ProjectContextState>((set, get) => ({
     persist(id)
     // 切项目：关闭带参数的非固定标签页（旧项目资源失效），保留无参功能标签让其重取（FR-018）。
     useWorkspaceStore.getState().closeMany((t) => !!t.params)
+  },
+
+  updateProject: (id, patch) => {
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, ...patch } : p
+      ),
+    }))
   },
 }))
 
