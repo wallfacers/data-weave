@@ -351,6 +351,7 @@
     "settings": "系统设置",
     "datasources": "数据源管理",
     "alerts": "告警中心",
+    "incidents": "监督席",
     "eventCenter": "事件中心",
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例"
@@ -1282,5 +1283,92 @@
     "dateTimeFormat": "显示格式",
     "dateFormat_dash": "短横线（2026-06-25）",
     "dateFormat_slash": "斜线（2026/06/25）"
+  },
+  "incidents": {
+    "title": "监督席",
+    "subtitle": "故障工单队列，异常自动开单、自动愈合",
+    "activeSection": "活跃 ({count})",
+    "recentResolvedSection": "近 24 小时已自动解决 ({count})",
+    "history": "历史",
+    "emptyActive": "数据管线一切正常",
+    "emptyActiveHint": "暂无活跃故障工单",
+    "emptyHistory": "暂无历史工单",
+    "loading": "加载中",
+    "loadError": "加载失败",
+    "severity": {
+      "CRITICAL": "严重",
+      "HIGH": "高",
+      "MEDIUM": "中",
+      "LOW": "低",
+      "WARNING": "警告"
+    },
+    "state": {
+      "OPEN": "待处置",
+      "MITIGATING": "处置中",
+      "RESOLVED": "已解决",
+      "SUPPRESSED": "已静默",
+      "CLOSED": "已关闭"
+    },
+    "card": {
+      "occurrenceCount": "发生 {count} 次",
+      "priorCount": "历史发生 {count} 次",
+      "blastRadiusNull": "血缘不可用",
+      "blastRadiusZero": "无下游影响",
+      "blastRadius": "影响 {count} 个下游",
+      "timeBudgetOverdue": "已超期 {time}",
+      "timeBudgetNoSla": "无 SLA 约束",
+      "countdown": "距最近 SLA {time}",
+      "diagnosisPlaceholder": "等待运维编队接入",
+      "proposalPlaceholder": "等待运维编队接入",
+      "suppressReason": "静默原因：{reason}",
+      "resolvedAt": "已解决于 {time}",
+      "autoHealed": "已自动愈合"
+    },
+    "action": {
+      "rerun": "重跑",
+      "suppress": "静默",
+      "unsuppress": "取消静默",
+      "viewTimeline": "时间线",
+      "addNote": "备注",
+      "viewLog": "查看日志",
+      "viewInstance": "查看实例",
+      "viewWorkflow": "查看工作流",
+      "approve": "批准",
+      "reject": "驳回"
+    },
+    "rerun": {
+      "executed": "重跑已执行",
+      "pendingApproval": "已生成审批单",
+      "rejected": "重跑被拒绝：{message}"
+    },
+    "suppressDialog": {
+      "title": "静默工单",
+      "description": "静默后工单退出队列主视图，期间同签名故障仅累加计数。",
+      "reasonLabel": "静默原因",
+      "reasonPlaceholder": "请填写静默原因",
+      "reasonRequired": "静默原因不能为空",
+      "confirm": "确认静默",
+      "cancel": "取消"
+    },
+    "timeline": {
+      "title": "事件时间线",
+      "empty": "暂无事件记录",
+      "kind": {
+        "SIGNAL": "原始信号",
+        "STATE_CHANGE": "状态变更",
+        "ACTION": "处置动作",
+        "APPROVAL": "审批",
+        "NOTE": "备注"
+      },
+      "actorSystem": "系统"
+    },
+    "noteDialog": {
+      "title": "添加备注",
+      "placeholder": "备注内容（不超过 2000 字）",
+      "confirm": "添加",
+      "cancel": "取消"
+    },
+    "pendingApproval": "待审批",
+    "deepLink": "跳转到 {kind}"
   }
 }

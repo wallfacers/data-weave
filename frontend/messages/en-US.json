@@ -351,6 +351,7 @@
     "settings": "Settings",
     "datasources": "Datasources",
     "alerts": "Alert Center",
+    "incidents": "Incidents",
     "eventCenter": "Event Center",
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance"
@@ -1282,5 +1283,92 @@
     "dateTimeFormat": "Display format",
     "dateFormat_dash": "Dash (2026-06-25)",
     "dateFormat_slash": "Slash (2026/06/25)"
+  },
+  "incidents": {
+    "title": "Incidents",
+    "subtitle": "Incident queue — automatic ticket creation and auto-healing",
+    "activeSection": "Active ({count})",
+    "recentResolvedSection": "Auto-resolved in 24h ({count})",
+    "history": "History",
+    "emptyActive": "All pipelines running smoothly",
+    "emptyActiveHint": "No active incidents",
+    "emptyHistory": "No history records",
+    "loading": "Loading",
+    "loadError": "Failed to load",
+    "severity": {
+      "CRITICAL": "Critical",
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low",
+      "WARNING": "Warning"
+    },
+    "state": {
+      "OPEN": "Open",
+      "MITIGATING": "Mitigating",
+      "RESOLVED": "Resolved",
+      "SUPPRESSED": "Suppressed",
+      "CLOSED": "Closed"
+    },
+    "card": {
+      "occurrenceCount": "{count} occurrences",
+      "priorCount": "{count} prior occurrences",
+      "blastRadiusNull": "Lineage unavailable",
+      "blastRadiusZero": "No downstream impact",
+      "blastRadius": "Impacts {count} downstream",
+      "timeBudgetOverdue": "Overdue {time}",
+      "timeBudgetNoSla": "No SLA constraint",
+      "countdown": "Next SLA in {time}",
+      "diagnosisPlaceholder": "Awaiting ops fleet",
+      "proposalPlaceholder": "Awaiting ops fleet",
+      "suppressReason": "Suppress reason: {reason}",
+      "resolvedAt": "Resolved at {time}",
+      "autoHealed": "Auto-healed"
+    },
+    "action": {
+      "rerun": "Rerun",
+      "suppress": "Suppress",
+      "unsuppress": "Unsuppress",
+      "viewTimeline": "Timeline",
+      "addNote": "Note",
+      "viewLog": "View Log",
+      "viewInstance": "View Instance",
+      "viewWorkflow": "View Workflow",
+      "approve": "Approve",
+      "reject": "Reject"
+    },
+    "rerun": {
+      "executed": "Rerun executed",
+      "pendingApproval": "Approval request submitted",
+      "rejected": "Rerun rejected: {message}"
+    },
+    "suppressDialog": {
+      "title": "Suppress Incident",
+      "description": "Suppressed incidents are removed from the main queue. Recurrences of the same fault only increment the counter.",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Enter reason for suppression",
+      "reasonRequired": "Reason is required",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "timeline": {
+      "title": "Event Timeline",
+      "empty": "No events recorded",
+      "kind": {
+        "SIGNAL": "Signal",
+        "STATE_CHANGE": "State Change",
+        "ACTION": "Action",
+        "APPROVAL": "Approval",
+        "NOTE": "Note"
+      },
+      "actorSystem": "System"
+    },
+    "noteDialog": {
+      "title": "Add Note",
+      "placeholder": "Note content (max 2000 characters)",
+      "confirm": "Add",
+      "cancel": "Cancel"
+    },
+    "pendingApproval": "Pending Approval",
+    "deepLink": "Open {kind}"
   }
 }

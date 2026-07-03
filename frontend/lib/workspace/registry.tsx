@@ -36,6 +36,7 @@ import { LineageView } from "@/components/workspace/views/lineage-view"
 import { AlertsView } from "@/components/workspace/views/alerts-view"
 import { EventCenterView } from "@/components/workspace/views/event-center-view"
 import { QualityView } from "@/components/workspace/views/quality-view"
+import { IncidentsView } from "@/components/workspace/views/incidents-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { type ViewType } from "./views"
@@ -52,6 +53,7 @@ interface ViewRender {
 }
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
+  incidents: { icon: BugIcon, component: IncidentsView },
   ops: { icon: SettingDone02Icon, component: OpsView },
   "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },
