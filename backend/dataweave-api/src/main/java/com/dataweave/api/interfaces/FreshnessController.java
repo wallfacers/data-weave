@@ -4,6 +4,7 @@ import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.application.FreshnessService;
+import com.dataweave.master.application.FreshnessService.FreshnessDashboard;
 import com.dataweave.master.application.FreshnessService.FreshnessRow;
 import com.dataweave.master.application.FreshnessService.PageResult;
 import org.springframework.web.bind.annotation.*;
@@ -60,6 +61,18 @@ public class FreshnessController {
                 : Collections.emptyList();
 
         return ApiResponse.ok(freshnessService.query(tenantId, resolvedProjectId, taskName, tierList, sort, page - 1, size));
+    }
+
+    /**
+     * 查询新鲜度概览区数据（dashboard）。
+     * 返回当前分布 + 日环比趋势（依赖 freshness_daily_snapshot）。
+     */
+    @GetMapping("/dashboard")
+    public ApiResponse<FreshnessDashboard> dashboard(
+            @RequestParam(required = false) Long projectId) {
+        Long tenantId = TenantContext.tenantId();
+        Long resolvedProjectId = resolveProjectId(projectId);
+        return ApiResponse.ok(freshnessService.getDashboard(tenantId, resolvedProjectId));
     }
 
     /** projectId：优先 TenantContext（地基注入、已校验成员归属），回退查询参数。 */
