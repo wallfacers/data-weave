@@ -43,7 +43,7 @@ import {
   type AssetQueryState,
 } from "@/lib/asset-search-query"
 import { Button } from "@/components/ui/button"
-import { LoadingState } from "@/components/ui/loading-state"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { Pagination } from "@/components/ui/pagination"
 import { AssetCard } from "@/components/workspace/views/asset/asset-card"
 import { AssetFilterToolbar } from "@/components/workspace/views/asset/asset-filter-toolbar"
@@ -326,7 +326,7 @@ export function AssetCatalogView() {
           open={editOpen}
           onOpenChange={setEditOpen}
           mode="edit"
-          asset={editingAsset}
+          initial={editingAsset}
           datasources={datasources}
           onSubmit={submitEdit}
         />
@@ -346,6 +346,12 @@ export function AssetCatalogView() {
         <SubscriptionsDialog
           open={subsOpen}
           onOpenChange={setSubsOpen}
+          onUnsubscribe={async (subId: number) => {
+            const r = resolveGate(await unsubscribe(subId))
+            if (r.kind !== "failed") { toast.success(r.message); void loadSubscriptions(); return true }
+            toast.error(r.message)
+            return false
+          }}
         />
       )}
     </div>
