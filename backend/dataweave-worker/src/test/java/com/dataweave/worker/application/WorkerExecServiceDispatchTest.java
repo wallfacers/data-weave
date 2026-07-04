@@ -1,5 +1,6 @@
 package com.dataweave.worker.application;
 
+import com.dataweave.master.i18n.Messages;
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor.ExecutionResult;
@@ -8,8 +9,10 @@ import com.dataweave.worker.infrastructure.PythonTaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
 import com.dataweave.worker.infrastructure.SparkTaskExecutor;
 import com.dataweave.worker.infrastructure.SqlTaskExecutor;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +30,16 @@ import static org.mockito.Mockito.mock;
 class WorkerExecServiceDispatchTest {
 
     private WorkerExecService service;
+    private static Messages messages;
+
+    @BeforeAll
+    static void setUpMessages() {
+        ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        messages = new Messages(ms);
+    }
 
     @BeforeEach
     void setup() {
@@ -37,7 +50,7 @@ class WorkerExecServiceDispatchTest {
         executors.put("python", new PythonTaskExecutor());
         executors.put("echo", new EchoTaskExecutor());
         executors.put("spark", new SparkTaskExecutor());
-        service = new WorkerExecService(executors);
+        service = new WorkerExecService(executors, messages);
     }
 
     /** SC-003：SQL 任务在 distributed 路径选 SQL 执行器（非 SHELL）。

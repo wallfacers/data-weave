@@ -50,22 +50,31 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
     protected ExecutionResult doExecute(ExecutionContext ctx, Consumer<String> onLine) {
         String content = ctx.content() == null ? "" : ctx.content().trim();
         ExecutionContext.DataSourceRef ds = ctx.datasource();
+        StringBuilder captured = new StringBuilder();
+        // 复合 emit：同时写入 captured stdout 和 onLine 回调（确保 distributed worker 日志不丢）
+        Consumer<String> emitLine = line -> {
+            captured.append(line).append('\n');
+            if (onLine != null) {
+                onLine.accept(line);
+            }
+        };
 
         if (content.isEmpty()) {
-            return new ExecutionResult(false, -1, "", "", false, false, "执行内容为空");
+            emitLine.accept("执行内容为空");
+            return new ExecutionResult(false, -1, captured.toString(), "", false, false, "执行内容为空");
         }
 
         // 环境缺失：未绑定可用数据源 → SKIPPED（不伪装成功、不阻塞下游，FR-008 / contracts C3）
         if (ds == null || ds.jdbcUrl() == null || ds.jdbcUrl().isBlank()) {
-            emit(onLine, "未配置可用数据源，已跳过（绑定数据源后走真实连库执行）");
-            emit(onLine, "脚本预览：" + firstLine(content));
-            return ExecutionResult.skipped("已跳过：未配置可用数据源");
+            emitLine.accept("未配置可用数据源，已跳过（绑定数据源后走真实连库执行）");
+            emitLine.accept("脚本预览：" + firstLine(content));
+            return ExecutionResult.skippedWithStdout(captured.toString(), "已跳过：未配置可用数据源");
         }
 
-        emit(onLine, "连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + ds.jdbcUrl());
+        emitLine.accept("连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + ds.jdbcUrl());
         long t0 = System.currentTimeMillis();
         try (Connection conn = openConnection(ds)) {
-            emit(onLine, "连接成功，开始执行");
+            emitLine.accept("连接成功，开始执行");
             List<String> statements = splitStatements(content);
             List<StatementMetric> metrics = new ArrayList<>();   // feature 025: per-statement affected-rows（喂 recordSynced）
             int idx = 0;
@@ -77,11 +86,11 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
                     long cost = System.currentTimeMillis() - s0;
                     if (hasResultSet) {
                         // 本期不打印结果集，仅汇报有返回（行数据展示留作后续）。
-                        emit(onLine, String.format("语句 %d/%d 执行完成：返回结果集（本期不展示行数据），耗时 %dms",
+                        emitLine.accept(String.format("语句 %d/%d 执行完成：返回结果集（本期不展示行数据），耗时 %dms",
                                 idx, statements.size(), cost));
                     } else {
                         int updateCount = st.getUpdateCount();
-                        emit(onLine, String.format("语句 %d/%d 执行完成：影响 %d 行，耗时 %dms",
+                        emitLine.accept(String.format("语句 %d/%d 执行完成：影响 %d 行，耗时 %dms",
                                 idx, statements.size(), updateCount, cost));
                         // feature 025: 收集写语句 affected-rows（>=0；SELECT/DDL hasResultSet 不收）
                         if (updateCount >= 0) {
@@ -91,20 +100,22 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
                 }
             }
             long total = System.currentTimeMillis() - t0;
-            emit(onLine, "全部语句执行完成，共 " + statements.size() + " 条，总耗时 " + total + "ms");
-            return ExecutionResult.successWithMetrics(0, "", "", "执行完成", metrics);
+            emitLine.accept("全部语句执行完成，共 " + statements.size() + " 条，总耗时 " + total + "ms");
+            return ExecutionResult.successWithMetrics(0, captured.toString(), "", "执行完成", metrics);
         } catch (SQLException e) {
             // 连接期失败（无驱动 / 无法建连）→ SKIPPED（环境缺失）；语句级 SQL 错误 → 如实置失败。
             if (isConnectionFailure(e)) {
-                emit(onLine, "数据源连接失败，已跳过：" + e.getMessage());
-                return ExecutionResult.skipped("已跳过：数据源连接失败（" + e.getMessage() + "）");
+                emitLine.accept("数据源连接失败，已跳过：" + e.getMessage());
+                return ExecutionResult.skippedWithStdout(captured.toString(),
+                        "已跳过：数据源连接失败（" + e.getMessage() + "）");
             }
-            emit(onLine, "SQL 执行失败：" + e.getMessage());
-            return new ExecutionResult(false, -1, "", e.getMessage(), false, false, "SQL 执行失败");
+            emitLine.accept("SQL 执行失败：" + e.getMessage());
+            return new ExecutionResult(false, -1, captured.toString(), e.getMessage(), false, false, "SQL 执行失败");
         } catch (Exception e) {
             // 隔离加载失败（上传 jar 损坏 / 驱动类缺失等 RuntimeException）→ SKIPPED（环境缺失），不中断调度闭环
-            emit(onLine, "驱动隔离加载/执行失败，已跳过：" + e.getMessage());
-            return ExecutionResult.skipped("已跳过：驱动隔离加载失败（" + e.getMessage() + "）");
+            emitLine.accept("驱动隔离加载/执行失败，已跳过：" + e.getMessage());
+            return ExecutionResult.skippedWithStdout(captured.toString(),
+                    "已跳过：驱动隔离加载失败（" + e.getMessage() + "）");
         }
     }
 
@@ -161,9 +172,4 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
         return nl >= 0 ? s.substring(0, nl) : s;
     }
 
-    private void emit(Consumer<String> onLine, String line) {
-        if (onLine != null) {
-            onLine.accept(line);
-        }
-    }
 }

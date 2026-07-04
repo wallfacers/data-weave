@@ -79,5 +79,10 @@ public interface TaskExecutor {
         public static ExecutionResult skipped(String reason) {
             return new ExecutionResult(false, 0, "", "", false, false, reason, true);
         }
+
+        /** 环境缺失跳过（带 stdout 日志）：{@code success=false, exitCode=0, skipped=true}。 */
+        public static ExecutionResult skippedWithStdout(String stdout, String reason) {
+            return new ExecutionResult(false, 0, stdout, "", false, false, reason, true);
+        }
     }
 }

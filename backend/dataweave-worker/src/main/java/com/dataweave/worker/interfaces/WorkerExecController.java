@@ -28,6 +28,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -97,7 +98,8 @@ public class WorkerExecController {
         // C4.2：反序列化 over-wire 数据源 → 完整 ExecutionContext（worker 不新增 DB 依赖，与 all-in-one 对称）
         ExecutionContext ctx = buildContextFromBody(body, content, bizDate, attempt, timeoutSeconds, taskType);
 
-        boolean accepted = execService.submit(instanceId, attempt, ctx, null, new ReportCallback(instanceId));
+        boolean accepted = execService.submit(instanceId, attempt, ctx, null,
+                new ReportCallback(instanceId), parseLocale(body));
 
         return ResponseEntity.ok(Map.of("accepted", accepted,
                 "reason", accepted ? "executing" : "duplicate"));
@@ -239,6 +241,19 @@ public class WorkerExecController {
                 log.warn("[WorkerExec] 回报 master 失败：instance={}, event={}, error={}",
                         id, event, e.getMessage());
             }
+        }
+    }
+
+    /** 解析 body 中的 locale 字段；null/空/无效 → null（WorkerExecService 兜底 zh-CN）。 */
+    private static Locale parseLocale(Map<String, Object> body) {
+        Object raw = body.get("locale");
+        if (!(raw instanceof String tag) || tag.isBlank()) {
+            return null;
+        }
+        try {
+            return Locale.forLanguageTag(tag);
+        } catch (Exception ignored) {
+            return null;
         }
     }
 }

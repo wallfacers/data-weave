@@ -1,18 +1,20 @@
 "use client"
 
 /**
- * 实例详情侧面板 —— DAG 弹窗内右侧展开，展示「实际代码」和「实际配置」。
+ * 实例详情侧面板 —— DAG 弹窗内右侧展开，支持「详情」和「日志」两个 Tab。
  *
- * 风格与 NodeDetailPanel 统一：共享 DetailPanelShell + shared/* UI 子组件。
- *
- * GET /api/ops/task-instances/{id}/resolved-code
- * GET /api/ops/task-instances/{id}/resolved-config
+ * - 详情 Tab：展示「实际代码」和「实际配置」（GET /api/ops/task-instances/{id}/resolved-code
+ *   + GET /api/ops/task-instances/{id}/resolved-config）。
+ * - 日志 Tab：SSE 流式日志（GET /api/ops/instances/{id}/logs/stream），风格与数据开发
+ *   运行日志（run-logs-tabs LogTab）一致。
  */
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlayIcon, StopIcon, CheckmarkCircle01Icon, PauseIcon, RepeatIcon } from "@hugeicons/core-free-icons"
+import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
+import "overlayscrollbars/overlayscrollbars.css"
 import { toast } from "sonner"
 import { DetailPanelShell } from "@/components/workspace/detail-panel-shell"
 import { CodeBlock } from "@/components/workspace/shared/code-block"
@@ -20,6 +22,8 @@ import { ParamsTable, InfoRow, taskTypeToLang } from "@/components/workspace/sha
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { authFetch, API_BASE, type ApiResponse, type ResolvedCodeView, type ResolvedConfigView } from "@/lib/types"
+import { useEventSource } from "@/lib/workspace/use-event-source"
+import { cn } from "@/lib/utils"
 
 // ─── 任务操作可用性矩阵 (T025) ─────────────────────────
 
@@ -62,6 +66,81 @@ const ACTION_META: Record<string, { icon: typeof PlayIcon; label: string; varian
   resume: { icon: PlayIcon, label: "resumeTask", variant: "outline" },
 }
 
+// ─── Tab 类型 ─────────────────────────────────────────
+
+type PanelTab = "detail" | "log"
+
+// ─── 内联日志查看器 ──────────────────────────────────
+
+/**
+ * 侧面板内嵌日志查看器，复用 run-logs-tabs 的 LogTab 样式：
+ * - OverlayScrollbars + os-theme-dark
+ * - font-mono text-xs leading-relaxed
+ * - 自动滚底（用户上滚暂停）
+ * - banner 行（=== 开头）弱化着色
+ */
+function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
+  const t = useTranslations("ops")
+  const osRef = useRef<OverlayScrollbarsComponentRef>(null)
+  const autoScroll = useRef(true)
+  const { events, connected } = useEventSource(
+    `${API_BASE}/api/ops/instances/${taskInstanceId}/logs/stream`,
+  )
+  const lines = events.filter((e) => e.type === "log").map((e) => e.data)
+  const endEvent = events.find((e) => e.type === "end")
+  const ended = Boolean(endEvent)
+
+  // 自动滚动到底部（用户上滚则暂停）
+  useEffect(() => {
+    if (!autoScroll.current) return
+    const vp = osRef.current?.osInstance()?.elements().viewport
+    if (vp) vp.scrollTop = vp.scrollHeight
+  }, [events])
+
+  const handleScroll = () => {
+    const vp = osRef.current?.osInstance()?.elements().viewport
+    if (!vp) return
+    autoScroll.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 50
+  }
+
+  return (
+    <div className="flex-1 min-h-0 -m-4">
+      <OverlayScrollbarsComponent
+        ref={osRef}
+        element="div"
+        className="h-full bg-muted/20"
+        options={{
+          scrollbars: { theme: "os-theme-dark", autoHide: "never" },
+          overflow: { x: "hidden", y: "scroll" },
+        }}
+        events={{ scroll: handleScroll }}
+      >
+        <div className="px-3 py-2 font-mono text-xs leading-relaxed">
+          {lines.length === 0 ? (
+            <div className="text-muted-foreground">
+              {connected ? t("logWaiting") : ended ? t("logNoRecords") : t("logConnectingShort")}
+            </div>
+          ) : (
+            <div className="space-y-px">
+              {lines.map((line, i) => {
+                const banner = line.startsWith("===")
+                return (
+                  <div
+                    key={i}
+                    className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
+                  >
+                    {line}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </OverlayScrollbarsComponent>
+    </div>
+  )
+}
+
 // ─── Main ────────────────────────────────────────────
 
 interface InstanceDetailSidePanelProps {
@@ -69,6 +148,8 @@ interface InstanceDetailSidePanelProps {
   nodeName?: string
   taskState?: string
   env?: string
+  activeTab?: PanelTab
+  onTabChange?: (tab: PanelTab) => void
   onClose: () => void
 }
 
@@ -77,6 +158,8 @@ export function InstanceDetailSidePanel({
   nodeName,
   taskState,
   env,
+  activeTab = "detail",
+  onTabChange,
   onClose,
 }: InstanceDetailSidePanelProps) {
   const t = useTranslations("ops")
@@ -107,8 +190,8 @@ export function InstanceDetailSidePanel({
   }, [taskInstanceId])
 
   useEffect(() => {
-    if (taskInstanceId) load()
-  }, [taskInstanceId, load])
+    if (taskInstanceId && activeTab === "detail") load()
+  }, [taskInstanceId, activeTab, load])
 
   if (!taskInstanceId) return null
 
@@ -142,6 +225,48 @@ export function InstanceDetailSidePanel({
   const isTestRun = codeData?.isOverride || configData?.isOverride
   const hasData = loadState === "loaded" || (loadState === "loading" && Boolean(codeData || configData))
 
+  // ── Tab 切换条 ──────────────────────────────────────
+  const tabBar = (
+    <div className="shrink-0 flex border-b border-border px-4">
+      {(["detail", "log"] as PanelTab[]).map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          className={cn(
+            "relative px-3 py-2 text-xs font-medium transition-colors",
+            activeTab === tab
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          onClick={() => onTabChange?.(tab)}
+        >
+          {t(`nodeDetail.tab${tab === "detail" ? "Detail" : "Log"}`)}
+          {activeTab === tab && (
+            <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+      ))}
+    </div>
+  )
+
+  // ── 日志 Tab 内容 ──────────────────────────────────
+  if (activeTab === "log") {
+    return (
+      <DetailPanelShell
+        title={nodeName ?? t("nodeDetail")}
+        onClose={onClose}
+        loading={false}
+        error={null}
+        onRetry={load}
+        hasData
+        headerExtra={tabBar}
+      >
+        <InstanceLogView taskInstanceId={taskInstanceId} />
+      </DetailPanelShell>
+    )
+  }
+
+  // ── 详情 Tab 内容（原逻辑）─────────────────────────
   return (
     <DetailPanelShell
       title={nodeName ?? t("nodeDetail")}
@@ -150,6 +275,7 @@ export function InstanceDetailSidePanel({
       error={loadState === "error" ? (errorMessage || t("loadError")) : null}
       onRetry={load}
       hasData={hasData}
+      headerExtra={tabBar}
     >
       {hasData && (
         <>

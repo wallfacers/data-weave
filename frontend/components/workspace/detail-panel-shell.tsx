@@ -24,6 +24,8 @@ export interface DetailPanelShellProps {
   /** 是否有已加载的数据（true → loading 时显示半透明遮罩而非居中 spinner，避免宽度闪烁） */
   hasData: boolean
   children: ReactNode
+  /** Header 与 Body 之间的额外内容（不随 Body 滚动），如 Tab 切换条 */
+  headerExtra?: ReactNode
 }
 
 export function DetailPanelShell({
@@ -34,6 +36,7 @@ export function DetailPanelShell({
   onRetry,
   hasData,
   children,
+  headerExtra,
 }: DetailPanelShellProps) {
   const t = useTranslations("ops")
 
@@ -46,6 +49,9 @@ export function DetailPanelShell({
           <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
         </Button>
       </div>
+
+      {/* Header 下方额外内容（如 Tab 条，不随 Body 滚动） */}
+      {headerExtra}
 
       {/* Body */}
       <DwScroll direction="vertical" className="flex-1 min-h-0 relative" innerClassName="flex flex-col gap-4 p-4">

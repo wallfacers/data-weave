@@ -5,9 +5,12 @@
  *
  * 从 useInstanceDag hook 获取数据，委托 {@link DagDialog} 渲染。
  * 与 DagViewerDialog 共享同一弹窗外壳，差异仅在于数据源和侧面板内容。
+ *
+ * 右键节点弹出上下文菜单，支持「查看详情」和「查看日志」。
  */
 
 import { useCallback, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslations } from "next-intl"
 import { type Node, type Edge } from "@xyflow/react"
 
@@ -45,6 +48,12 @@ export function InstanceDagDialog({
   const [selectedNodeName, setSelectedNodeName] = useState<string | undefined>(undefined)
   const [selectedTaskState, setSelectedTaskState] = useState<string | undefined>(undefined)
 
+  // ── 右键上下文菜单 ──────────────────────────────
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: Node } | null>(null)
+
+  // ── 侧面板内 Tab 切换（详情 / 日志）─────────────
+  const [activeTab, setActiveTab] = useState<"detail" | "log">("detail")
+
   // ── 计算高亮 nodeKey ─────────────────────────────────
   const highlightNodeKey = useMemo(() => {
     if (!dag || !highlightTaskInstanceId) return null
@@ -67,6 +76,8 @@ export function InstanceDagDialog({
       setSelectedTaskInstanceId(tiId)
       setSelectedNodeName((data?.label as string) ?? undefined)
       setSelectedTaskState((data?.state as string) ?? undefined)
+      setActiveTab("detail")
+      setContextMenu(null)
     },
     [],
   )
@@ -74,13 +85,51 @@ export function InstanceDagDialog({
   const handlePaneClick = useCallback(() => {
     setSelectedTaskInstanceId(null)
     setSelectedNodeName(undefined)
+    setContextMenu(null)
   }, [])
+
+  const handleNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault()
+      const data = node.data as Record<string, unknown> | undefined
+      if (data?.taskInstanceId) {
+        setContextMenu({ x: event.clientX, y: event.clientY, node })
+      }
+    },
+    [],
+  )
+
+  const handleContextMenuViewDetail = useCallback(() => {
+    const node = contextMenu?.node
+    if (node) {
+      const data = node.data as Record<string, unknown> | undefined
+      setSelectedTaskInstanceId((data?.taskInstanceId as string) ?? null)
+      setSelectedNodeName((data?.label as string) ?? undefined)
+      setSelectedTaskState((data?.state as string) ?? undefined)
+      setActiveTab("detail")
+    }
+    setContextMenu(null)
+  }, [contextMenu])
+
+  const handleContextMenuViewLog = useCallback(() => {
+    const node = contextMenu?.node
+    if (node) {
+      const data = node.data as Record<string, unknown> | undefined
+      setSelectedTaskInstanceId((data?.taskInstanceId as string) ?? null)
+      setSelectedNodeName((data?.label as string) ?? undefined)
+      setSelectedTaskState((data?.state as string) ?? undefined)
+      setActiveTab("log")
+    }
+    setContextMenu(null)
+  }, [contextMenu])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) {
         setSelectedTaskInstanceId(null)
         setSelectedNodeName(undefined)
+        setContextMenu(null)
+        setActiveTab("detail")
       }
       onOpenChange(next)
     },
@@ -97,6 +146,38 @@ export function InstanceDagDialog({
   const footerInfo = dag
     ? `v${dag.workflowVersionNo} · ${triggerLabel(dag.triggerType)} · ${dag.bizDate}${envLabel}`
     : " "
+
+  const renderContextMenu = useCallback(() => {
+    if (!contextMenu) return null
+    return createPortal(
+      <>
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null) }}
+        />
+        <div
+          className="fixed z-50 min-w-44 rounded-lg border bg-popover bg-clip-padding p-1 text-popover-foreground shadow-md"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={() => setContextMenu(null)}
+        >
+          <button
+            className="flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            onClick={handleContextMenuViewDetail}
+          >
+            {t("nodeDetail.viewTaskDetail")}
+          </button>
+          <button
+            className="flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+            onClick={handleContextMenuViewLog}
+          >
+            {t("nodeDetail.viewLog")}
+          </button>
+        </div>
+      </>,
+      document.body,
+    )
+  }, [contextMenu, handleContextMenuViewDetail, handleContextMenuViewLog, t])
 
   return (
     <DagDialog
@@ -118,13 +199,18 @@ export function InstanceDagDialog({
           nodeName={selectedNodeName}
           taskState={selectedTaskState}
           env={dag?.env}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
           onClose={handlePaneClick}
         />
       )}
       panelStorageKey="dw.instanceDag.panelWidth"
       rfId={`instance-dag-${workflowInstanceId}`}
       onNodeClick={handleNodeClick}
+      onNodeContextMenu={handleNodeContextMenu}
       onPaneClick={handlePaneClick}
+      renderContextMenu={renderContextMenu}
+      hasActivePanel={panelOpen}
     />
   )
 }

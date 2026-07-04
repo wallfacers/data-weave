@@ -1,13 +1,17 @@
 package com.dataweave.worker.application;
 
 import com.dataweave.master.domain.lineage.StatementMetric;
+import com.dataweave.master.i18n.Messages;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -22,10 +26,21 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WorkerExecServiceTest {
 
+    private static Messages messages;
+
+    @BeforeAll
+    static void setUpMessages() {
+        ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
+        ms.setBasename("classpath:messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        messages = new Messages(ms);
+    }
+
     private WorkerExecService createService() {
         Map<String, TaskExecutor> executors = new HashMap<>();
         executors.put("SHELL", new ShellTaskExecutor());
-        return new WorkerExecService(executors);
+        return new WorkerExecService(executors, messages);
     }
 
     private ExecutionContext ctx(String content, String bizDate, int attempt, int timeout) {
@@ -59,7 +74,7 @@ class WorkerExecServiceTest {
                         result.set("FAILED:" + reason);
                         latch.countDown();
                     }
-                });
+                }, null);
 
         assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
         assertThat(result.get()).isEqualTo("FINISHED:0");
@@ -86,11 +101,11 @@ class WorkerExecServiceTest {
         };
 
         // 第一次提交（接受），用 sleep 保证幂等键在第二次提交时仍在
-        boolean accepted1 = service.submit(instanceId, 1, ctx("sleep 5 && echo ok", null, 1, 60), null, cb);
+        boolean accepted1 = service.submit(instanceId, 1, ctx("sleep 5 && echo ok", null, 1, 60), null, cb, null);
         assertThat(accepted1).isTrue();
 
         // 立即重复提交（应被幂等拒绝）
-        boolean accepted2 = service.submit(instanceId, 1, ctx("echo ok", null, 1, 10), null, cb);
+        boolean accepted2 = service.submit(instanceId, 1, ctx("echo ok", null, 1, 10), null, cb, null);
         assertThat(accepted2).isFalse();
 
         assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
@@ -117,8 +132,8 @@ class WorkerExecServiceTest {
             }
         };
 
-        boolean a1 = service.submit(instanceId, 1, ctx("echo attempt1", null, 1, 10), null, cb);
-        boolean a2 = service.submit(instanceId, 2, ctx("echo attempt2", null, 2, 10), null, cb);
+        boolean a1 = service.submit(instanceId, 1, ctx("echo attempt1", null, 1, 10), null, cb, null);
+        boolean a2 = service.submit(instanceId, 2, ctx("echo attempt2", null, 2, 10), null, cb, null);
         assertThat(a1).isTrue();
         assertThat(a2).isTrue();
 
@@ -145,7 +160,7 @@ class WorkerExecServiceTest {
                         result.set("FAILED:" + reason);
                         latch.countDown();
                     }
-                });
+                }, null);
 
         assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
         assertThat(result.get()).startsWith("FAILED:EXIT_CODE_1");
@@ -176,7 +191,7 @@ class WorkerExecServiceTest {
                     @Override public void onStarted(UUID id) { }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) { latch.countDown(); }
                     @Override public void onFailed(UUID id, String reason, String tailLog) { latch.countDown(); }
-                });
+                }, null);
 
         // 同步执行同一幂等键 → null（幂等拒绝）
         TaskExecutor.ExecutionResult result = service.executeSync(instanceId, 1, ctx("echo x", null, 1, 10), null);
