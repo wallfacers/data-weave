@@ -1308,7 +1308,23 @@
     "retireDialogDesc": "确认下线 {name}？下线后状态变为 RETIRED，不可逆转。",
     "thisAsset": "此资产",
     "processing": "处理中",
-    "confirmRetire": "确认下线"
+    "confirmRetire": "确认下线",
+    "cardExpandHint": "点击展开详情",
+    "cardCollapseHint": "点击收起",
+    "detailDescription": "描述",
+    "detailLineage": "血缘",
+    "detailQuality": "质量",
+    "detailMetadata": "元数据",
+    "lineageSource": "来源表",
+    "qualityScore": "质量评分",
+    "qualityNull": "暂无质量数据",
+    "filterClear": "清除筛选",
+    "filterActive": "已选 {count} 项",
+    "errorRetry": "重试",
+    "emptyFiltered": "无匹配资产，试试调整筛选条件",
+    "skeletonLoading": "加载中",
+    "expandActions": "操作",
+    "cardEmptyLineage": "暂无血缘数据"
   },
   "leftNav": {
     "groups": {
