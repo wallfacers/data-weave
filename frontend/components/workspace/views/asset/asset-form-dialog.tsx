@@ -197,7 +197,7 @@ export function AssetFormDialog({ open, onOpenChange, mode, initial, datasources
             {tc("cancel")}
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {mode === "create" ? tc("create") : tc("save")}
+            {busy ? t("submitting") : mode === "create" ? tc("create") : tc("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
