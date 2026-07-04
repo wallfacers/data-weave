@@ -54,7 +54,7 @@ export function FreshnessSummaryStrip({
               type="button"
               onClick={() => onTierClick(tier.key)}
               className={`flex items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/50 ${
-                isSelected ? "ring-2 ring-primary" : ""
+                isSelected ? "ring-1 ring-muted-foreground/40" : ""
               }`}
             >
               <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${tier.color}/10`}>
