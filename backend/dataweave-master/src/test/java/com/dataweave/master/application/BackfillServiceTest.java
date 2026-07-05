@@ -119,6 +119,8 @@ class BackfillServiceTest {
         wf.setName("wf");
         wf.setTenantId(1L);
         wf.setProjectId(1L);
+        wf.setStatus("ONLINE");
+        wf.setScheduleType("CRON");
         when(workflowDefRepository.findById(20L)).thenReturn(Optional.of(wf));
         BackfillRequest req = new BackfillRequest("workflow", 20L, "2026-06-20", "2026-06-21", true, 1);
 
