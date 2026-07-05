@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: dataweave-postgres
+    command: postgres -c max_connections=200   # 045 cron 并行化：支撑 HikariCP 扩容(双 master×64=128 < 200)
     environment:
       POSTGRES_DB: dataweave
       POSTGRES_USER: dataweave
@@ -119,6 +120,12 @@ services:
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
+      # 045 cron 并行化(极限档:找极限;默认档移除这些 env 让 application.yml 32/40 生效)
+      SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"        # 测试加速(继承 044):扫描 15s→2s
+      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"            # 预读窗口 30s→3s
+      SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
+      SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
@@ -150,6 +157,12 @@ services:
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
+      # 045 cron 并行化(极限档;与 master-1 对等)
+      SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"
+      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"
+      SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
+      SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"
     restart: unless-stopped
 
   # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
