@@ -325,6 +325,9 @@ def main() -> None:
     api = HfApi()
     api.create_repo(MODEL_REPO, repo_type="model", private=False, exist_ok=True)
     api.create_repo(DATA_REPO, repo_type="dataset", private=False, exist_ok=True)
+    # create_repo(exist_ok=True) 不改已存在 repo 的可见性 → 显式强制公开。
+    for rid, rt in ((MODEL_REPO, "model"), (DATA_REPO, "dataset")):
+        api.update_repo_settings(repo_id=rid, repo_type=rt, private=False)
 
     # ① 模型权重 + 卡
     api.upload_folder(folder_path=args.model_dir, repo_id=MODEL_REPO, repo_type="model",
