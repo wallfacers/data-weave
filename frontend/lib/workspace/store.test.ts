@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { tabKey, useWorkspaceStore } from "./store"
-import { PINNED_VIEWS } from "./views"
+import { DEFAULT_VIEWS } from "./views"
 
 const store = () => useWorkspaceStore.getState()
 
@@ -9,19 +9,18 @@ beforeEach(() => {
   store().reset()
 })
 
-describe("Pinned 底座", () => {
-  it("初始即四个 Pinned tab 且激活第一个", () => {
-    expect(store().tabs.map((t) => t.view)).toEqual(PINNED_VIEWS)
-    expect(store().tabs.every((t) => t.pinned && t.base)).toBe(true)
+describe("默认视图（取代 Pinned 底座）", () => {
+  it("初始即 DEFAULT_VIEWS 且激活第一个，均可关闭", () => {
+    expect(store().tabs.map((t) => t.view)).toEqual(DEFAULT_VIEWS)
+    expect(store().tabs.every((t) => !t.pinned && !t.base)).toBe(true)
     expect(store().activeTabId).toBe(store().tabs[0].id)
   })
 
-  it("Pinned tab 不可关闭、不可 unpin", () => {
+  it("默认视图可关闭", () => {
     const id = store().tabs[0].id
+    const len = store().tabs.length
     store().close(id)
-    store().unpin(id)
-    expect(store().tabs.find((t) => t.id === id)?.pinned).toBe(true)
-    expect(store().tabs).toHaveLength(PINNED_VIEWS.length)
+    expect(store().tabs).toHaveLength(len - 1)
   })
 })
 
@@ -90,30 +89,30 @@ describe("close / pin / unpin", () => {
 })
 
 describe("snapshot / restore", () => {
-  it("快照只含 Ephemeral（含 pin 升级者）与激活态", () => {
+  it("快照含全部 tab 与激活态", () => {
     store().open("fleet")
     store().open("ops", { tab: "instances" })
     store().pin(tabKey("fleet"))
     const snap = store().snapshot()
-    expect(snap.tabs.map((t) => t.view).sort()).toEqual(["fleet", "ops"])
+    expect(snap.tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "fleet", "ops"])
     expect(snap.tabs.find((t) => t.view === "fleet")!.pinned).toBe(true)
     expect(snap.activeTabId).toBe(tabKey("ops", { tab: "instances" }))
   })
 
-  it("restore 恢复 Ephemeral 与激活态，Pinned 底座始终在位", () => {
+  it("restore 恢复全部 tab 与激活态", () => {
     store().open("fleet")
     store().open("ops", { tab: "instances" })
     const snap = JSON.stringify(store().snapshot())
     store().reset()
     store().restore(snap)
-    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet", "ops"])
+    expect(store().tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "fleet", "ops"])
     expect(store().activeTabId).toBe(tabKey("ops", { tab: "instances" }))
   })
 
-  it("损坏快照回退纯 Pinned 底座", () => {
+  it("损坏快照回退 DEFAULT_VIEWS", () => {
     store().open("fleet")
     store().restore("{not json")
-    expect(store().tabs.map((t) => t.view)).toEqual(PINNED_VIEWS)
+    expect(store().tabs.map((t) => t.view)).toEqual(DEFAULT_VIEWS)
     expect(store().activeTabId).toBe(store().tabs[0].id)
   })
 
@@ -128,13 +127,13 @@ describe("snapshot / restore", () => {
         activeTabId: "fleet",
       }),
     )
-    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet"])
+    expect(store().tabs.map((t) => t.view)).toEqual(["fleet"])
     expect(store().activeTabId).toBe("fleet")
   })
 
-  it("activeTabId 指向不存在的 tab 时回退首个 Pinned", () => {
+  it("activeTabId 指向不存在的 tab 时回退首个默认", () => {
     store().restore(JSON.stringify({ version: 1, tabs: [], activeTabId: "ghost" }))
-    expect(store().activeTabId).toBe(store().tabs[0].id)
+    expect(store().activeTabId).toBe(tabKey(DEFAULT_VIEWS[0]))
   })
 
   // 042 产品面收缩：含已移除视图（reports/marketplace 等）的旧快照降级。
@@ -151,12 +150,12 @@ describe("snapshot / restore", () => {
         activeTabId: tabKey("fleet"),
       }),
     )
-    expect(store().tabs.map((t) => t.view)).toEqual([...PINNED_VIEWS, "fleet"])
+    expect(store().tabs.map((t) => t.view)).toEqual(["fleet"])
     expect(store().tabs.some((t) => (t.view as string) === "reports")).toBe(false)
     expect(store().activeTabId).toBe(tabKey("fleet"))
   })
 
-  it("被丢弃者恰为激活标签 → 激活态回退到剩余标签（首个 Pinned）", () => {
+  it("被丢弃者恰为激活标签 → 激活态回退到剩余第一个 tab", () => {
     store().restore(
       JSON.stringify({
         version: 1,
@@ -169,11 +168,11 @@ describe("snapshot / restore", () => {
     )
     expect(store().tabs.some((t) => (t.view as string) === "reports")).toBe(false)
     expect(store().tabs.some((t) => t.view === "fleet")).toBe(true)
-    // snap.activeTabId 指向被丢弃的 reports → 不在 seen → 回退首个 Pinned
-    expect(store().activeTabId).toBe(store().tabs[0].id)
+    // snap.activeTabId 指向被丢弃的 reports → 不在 seen → 回退 restored[0]
+    expect(store().activeTabId).toBe(tabKey("fleet"))
   })
 
-  it("快照全部标签均为被删视图 → 回到纯 Pinned 底座", () => {
+  it("快照全部标签均为被删视图 → 回到 DEFAULT_VIEWS", () => {
     store().restore(
       JSON.stringify({
         version: 1,
@@ -184,7 +183,34 @@ describe("snapshot / restore", () => {
         activeTabId: tabKey("reports"),
       }),
     )
-    expect(store().tabs.map((t) => t.view)).toEqual(PINNED_VIEWS)
+    expect(store().tabs.map((t) => t.view)).toEqual(DEFAULT_VIEWS)
     expect(store().activeTabId).toBe(store().tabs[0].id)
+  })
+})
+
+describe("moveTab", () => {
+  it("将 tab 从 fromIdx 移到 toIdx", () => {
+    store().open("fleet")
+    store().open("ops")
+    // 顺序: freshness, metrics, fleet, ops
+    expect(store().tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "fleet", "ops"])
+    // 把 fleet (idx 2) 移到 ops 后面 (idx 3)
+    store().moveTab(2, 3)
+    expect(store().tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "ops", "fleet"])
+  })
+
+  it("相同 from/to 不改变顺序", () => {
+    store().open("fleet")
+    const before = store().tabs.map((t) => t.view)
+    store().moveTab(1, 1)
+    expect(store().tabs.map((t) => t.view)).toEqual(before)
+  })
+
+  it("越界索引不改变 tabs", () => {
+    store().open("fleet")
+    const before = store().tabs.map((t) => t.view)
+    store().moveTab(-1, 2)
+    store().moveTab(0, 999)
+    expect(store().tabs.map((t) => t.view)).toEqual(before)
   })
 })

@@ -5,7 +5,7 @@
  */
 import { create } from "zustand"
 
-import { isKnownView, PINNED_VIEWS, type ViewType } from "./views"
+import { isKnownView, PINNED_VIEWS, DEFAULT_VIEWS, type ViewType } from "./views"
 
 export interface WorkspaceTab {
   /** 去重键：view + 规范化 params */
@@ -81,6 +81,8 @@ interface WorkspaceState {
   activate: (id: string) => void
   pin: (id: string) => void
   unpin: (id: string) => void
+  /** 拖拽排序：将 tab 从 fromIdx 移到 toIdx */
+  moveTab: (fromIdx: number, toIdx: number) => void
   /** 设置任务的未保存改动状态 */
   setTaskDirty: (taskId: number, dirty: boolean) => void
   /** 查询任务是否有未保存改动 */
@@ -93,8 +95,13 @@ interface WorkspaceState {
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
-  tabs: baseTabs(),
-  activeTabId: baseTabs()[0]?.id ?? "",
+  tabs: DEFAULT_VIEWS.map((view) => ({
+    id: tabKey(view),
+    view,
+    pinned: false,
+    base: false,
+  })),
+  activeTabId: DEFAULT_VIEWS[0] ? tabKey(DEFAULT_VIEWS[0]) : "",
   taskDirtyState: {},
 
   open: (view, params, opts) => {
@@ -192,6 +199,16 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
     })
   },
 
+  moveTab: (fromIdx, toIdx) => {
+    const { tabs } = get()
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return
+    if (fromIdx >= tabs.length || toIdx >= tabs.length) return
+    const next = [...tabs]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    set({ tabs: next })
+  },
+
   setTaskDirty: (taskId, dirty) => {
     const { taskDirtyState } = get()
     if (taskDirtyState[taskId] === dirty) return
@@ -214,16 +231,21 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   },
 
   restore: (raw) => {
-    const base = baseTabs()
-    const fallback = { tabs: base, activeTabId: base[0]?.id ?? "" }
+    const defaults = DEFAULT_VIEWS.map((view) => ({
+      id: tabKey(view),
+      view,
+      pinned: false,
+      base: false,
+    }))
+    const fallback = { tabs: defaults, activeTabId: defaults[0]?.id ?? "" }
     try {
       const snap = typeof raw === "string" ? JSON.parse(raw) : raw
       if (!snap || typeof snap !== "object" || !Array.isArray(snap.tabs)) {
         set(fallback)
         return
       }
-      const seen = new Set(base.map((t) => t.id))
-      const restored: WorkspaceTab[] = [...base]
+      const seen = new Set<string>()
+      const restored: WorkspaceTab[] = []
       for (const t of snap.tabs) {
         if (!t || typeof t.view !== "string" || !isKnownView(t.view)) continue
         const params = normalizeParams(
@@ -234,10 +256,14 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
         seen.add(id)
         restored.push({ id, view: t.view, params, pinned: t.pinned === true, base: false })
       }
+      if (restored.length === 0) {
+        set(fallback)
+        return
+      }
       const activeTabId =
         typeof snap.activeTabId === "string" && seen.has(snap.activeTabId)
           ? snap.activeTabId
-          : (base[0]?.id ?? "")
+          : (restored[0]?.id ?? defaults[0]?.id ?? "")
       set({ tabs: restored, activeTabId })
     } catch {
       set(fallback)
@@ -245,7 +271,12 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   },
 
   reset: () => {
-    const base = baseTabs()
-    set({ tabs: base, activeTabId: base[0]?.id ?? "" })
+    const defaults = DEFAULT_VIEWS.map((view) => ({
+      id: tabKey(view),
+      view,
+      pinned: false,
+      base: false,
+    }))
+    set({ tabs: defaults, activeTabId: defaults[0]?.id ?? "" })
   },
 }))

@@ -3,7 +3,13 @@
 import { useEffect, useLayoutEffect } from "react"
 
 import { API_BASE, type ApiResponse } from "@/lib/types"
-import { useWorkspaceStore } from "./store"
+import { useWorkspaceStore, type WorkspaceTab } from "./store"
+import { DEFAULT_VIEWS } from "./views"
+
+function isDefaultState(tabs: WorkspaceTab[]): boolean {
+  if (tabs.length !== DEFAULT_VIEWS.length) return false
+  return DEFAULT_VIEWS.every((view, i) => tabs[i]?.view === view && !tabs[i]?.params)
+}
 import { handleUnauthorized } from "@/lib/auth-401"
 
 const TOKEN_KEY = "dw.auth.token"
@@ -53,7 +59,7 @@ export function useWorkspacePersistence() {
       const cached = localStorage.getItem(localSnapshotKey())
       if (!cached) return
       const state = useWorkspaceStore.getState()
-      if (state.tabs.every((t) => t.base)) state.restore(cached)
+      if (isDefaultState(state.tabs)) state.restore(cached)
     } catch {
       // localStorage 不可用（隐私模式等）→ 静默退回后端恢复
     }
@@ -81,7 +87,7 @@ export function useWorkspacePersistence() {
         const text = json.code === 0 ? json.data : null
         if (!text) return
         const state = useWorkspaceStore.getState()
-        if (state.tabs.every((t) => t.base)) state.restore(text)
+        if (isDefaultState(state.tabs)) state.restore(text)
       })
       .catch(() => {})
 

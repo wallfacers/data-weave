@@ -104,14 +104,15 @@ export function WorkspaceTabBar() {
   const closeAll = useWorkspaceStore((s) => s.closeAll)
   const pin = useWorkspaceStore((s) => s.pin)
   const unpin = useWorkspaceStore((s) => s.unpin)
+  const moveTab = useWorkspaceStore((s) => s.moveTab)
   const navCollapsed = useNavUiStore((s) => s.collapsed)
   const setNavCollapsed = useNavUiStore((s) => s.setCollapsed)
   const t = useTranslations()
 
-  // 固定/取消固定进右键菜单（底座 base tab 不可固定切换）
+  // 固定/取消固定进右键菜单
   const extraActions = (item: TabStripItem): TabContextAction[] => {
     const tab = byId.get(item.id)
-    if (!tab || tab.base) return []
+    if (!tab) return []
     return tab.pinned
       ? [{ label: t("workspace.unpinTab"), onClick: () => unpin(tab.id) }]
       : [{ label: t("workspace.pinTab"), onClick: () => pin(tab.id) }]
@@ -137,6 +138,7 @@ export function WorkspaceTabBar() {
       onCloseRight={closeRight}
       onCloseLeft={closeLeft}
       onCloseAll={closeAll}
+      onMoveTab={moveTab}
       extraActions={extraActions}
       leading={
         navCollapsed ? (

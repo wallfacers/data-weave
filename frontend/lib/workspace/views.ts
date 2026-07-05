@@ -38,8 +38,8 @@ export interface ViewMeta {
 export const VIEW_META: Record<ViewType, ViewMeta> = {
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas", requirePermission: "workflow:manage" },
-  freshness: { title: "views.freshness", defaultPinned: true },
-  metrics: { title: "views.metrics", defaultPinned: true },
+  freshness: { title: "views.freshness" },
+  metrics: { title: "views.metrics" },
   fleet: { title: "views.fleet" },
   lineage: { title: "views.lineage" },
   catalog: { title: "views.catalog", requirePermission: "task:manage" },
@@ -55,6 +55,9 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
 export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(
   (v) => VIEW_META[v].defaultPinned,
 )
+
+/** 首次启动默认打开的视图（不再有底座概念，用户可关闭后手动重开）。 */
+export const DEFAULT_VIEWS: ViewType[] = ["freshness", "metrics"]
 
 export function isKnownView(view: string): view is ViewType {
   return view in VIEW_META

@@ -1,9 +1,26 @@
 "use client"
 
-import { Fragment, useEffect, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
+
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { cn } from "@/lib/utils"
 
@@ -47,6 +64,8 @@ interface TabStripProps {
   onCloseAll?: () => void
   /** 每个 tab 额外的右键项（置于关闭项之前），如固定/取消固定 */
   extraActions?: (tab: TabStripItem) => TabContextAction[]
+  /** 拖拽排序回调：将 tab 从 fromIdx 移到 toIdx。不传则禁用拖拽（如日志面板）。 */
+  onMoveTab?: (fromIdx: number, toIdx: number) => void
   /** 首部插槽（如导航收起后的重新展开按钮） */
   leading?: ReactNode
   /** 尾部插槽（如 "+" 启动按钮） */
@@ -74,6 +93,48 @@ const SIZE = {
   sm: { pad: "px-1 pt-1", tab: "h-8 gap-1 pl-2.5 pr-1.5 text-xs", radius: "rounded-t-lg", radiusFirst: "rounded-tr-lg", flush: "-ml-1", icon: "size-3", close: "size-4", closeIcon: "size-2.5" },
 } as const
 
+/** 单个可拖拽排序的 tab 包装器。仅当父级传了 draggable 时才启用拖拽。 */
+function SortableTabItem({
+  tab,
+  active,
+  draggable,
+  renderTab,
+}: {
+  tab: TabStripItem
+  active: boolean
+  draggable: boolean
+  renderTab: (tab: TabStripItem, index: number) => ReactNode
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id, disabled: !draggable })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : active ? 1 : 0,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...(draggable ? { ...attributes, ...listeners } : {})}
+      className={cn(
+        draggable && "touch-none",
+        isDragging && "opacity-30",
+      )}
+    >
+      {renderTab(tab, 0)}
+    </div>
+  )
+}
+
 export function TabStrip({
   tabs,
   activeId,
@@ -84,6 +145,7 @@ export function TabStrip({
   onCloseLeft,
   onCloseAll,
   extraActions,
+  onMoveTab,
   leading,
   trailing,
   size = "md",
@@ -93,8 +155,33 @@ export function TabStrip({
   const t = useTranslations("tabStrip")
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const s = SIZE[size]
   const surfaceColor = SURFACE[surface]
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  )
+
+  const handleDragStart = useCallback((e: DragStartEvent) => {
+    setActiveDragId(String(e.active.id))
+  }, [])
+
+  const handleDragEnd = useCallback(
+    (e: DragEndEvent) => {
+      setActiveDragId(null)
+      const { active, over } = e
+      if (!over || active.id === over.id) return
+      const fromIdx = tabs.findIndex((t) => t.id === active.id)
+      const toIdx = tabs.findIndex((t) => t.id === over.id)
+      if (fromIdx >= 0 && toIdx >= 0) onMoveTab?.(fromIdx, toIdx)
+    },
+    [tabs, onMoveTab],
+  )
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDragId(null)
+  }, [])
 
   // 关闭右键菜单：点击空白 / Escape / 滚动
   useEffect(() => {
@@ -155,94 +242,121 @@ export function TabStrip({
     setMenu({ tab, x: e.clientX, y: e.clientY })
   }
 
-  return (
-    <div className={cn("flex items-end bg-foreground/[0.04]", className)}>
-      {leading && <div className="flex shrink-0 items-center self-center pt-1.5 pl-1.5">{leading}</div>}
-      <div className={cn("flex min-w-0 flex-1 items-end overflow-hidden", s.pad)}>
-        {tabs.map((tab, i) => {
-          const active = tab.id === activeId
-          const closable = tab.closable !== false
-          // 首个标签只有在真正贴左边缘（无 leading 插槽）时才拉直+去左下弧；
-          // 有 leading 插槽（如导航收起后的展开按钮）时当普通标签处理，保留连体弧。
-          const firstFlush = i === 0 && !leading
-          return (
-            <Fragment key={tab.id}>
-              {/* 竖分隔线 */}
-              {i > 0 && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "my-1.5 w-px shrink-0 self-stretch bg-border transition-opacity",
-                    sepHidden(i) ? "opacity-0" : "opacity-100",
-                  )}
-                />
-              )}
-              <div
-                role="tab"
-                aria-selected={active}
-                tabIndex={0}
-                onClick={() => onActivate(tab.id)}
-                onContextMenu={(e) => openMenu(e, tab)}
-                onMouseEnter={() => setHoveredId(tab.id)}
-                onMouseLeave={() => setHoveredId((h) => (h === tab.id ? null : h))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onActivate(tab.id)
-                  }
-                }}
-                style={
-                  active
-                    ? ({ flex: "0 1 220px", background: surfaceColor, "--dw-tab-surface": surfaceColor } as React.CSSProperties)
-                    : { flex: "0 1 220px" }
-                }
-                className={cn(
-                  "group/tab relative flex min-w-10 cursor-pointer select-none items-center transition-colors",
-                  s.tab,
-                  // 首个标签贴左边缘：左上拉直（仅右上圆角）+ 负边距抵消容器左内边距 + 去左下外凸弧。
-                  firstFlush ? cn(s.radiusFirst, s.flush, "dw-tab-flush-left") : s.radius,
-                  active
-                    ? "dw-tab-active font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
-                )}
-              >
-                {tab.indicator && (
-                  <span className="flex shrink-0 items-center">{tab.indicator}</span>
-                )}
-                {tab.icon && (
-                  <HugeiconsIcon icon={tab.icon} className={cn("shrink-0", s.icon)} />
-                )}
-                <span className={cn("min-w-0 flex-1 truncate", tab.monospace && "font-mono")}>
-                  {tab.label}
-                </span>
-                {tab.suffix && (
-                  <span className="flex shrink-0 items-center">{tab.suffix}</span>
-                )}
-                {closable ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onClose(tab.id)
-                    }}
-                    aria-label={t("closeAria", { label: tab.label })}
-                    className={cn(
-                      "flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground",
-                      s.close,
-                      active ? "" : "opacity-0 group-hover/tab:opacity-100",
-                    )}
-                  >
-                    <HugeiconsIcon icon={Cancel01Icon} className={s.closeIcon} />
-                  </button>
-                ) : (
-                  <span className={cn("shrink-0", s.close)} aria-hidden />
-                )}
-              </div>
-            </Fragment>
-          )
-        })}
+  const renderTab = (tab: TabStripItem, i: number) => {
+    const active = tab.id === activeId
+    const closable = tab.closable !== false
+    const firstFlush = i === 0 && !leading
+
+    return (
+      <div
+        role="tab"
+        aria-selected={active}
+        tabIndex={0}
+        onClick={() => onActivate(tab.id)}
+        onContextMenu={(e) => openMenu(e, tab)}
+        onMouseEnter={() => setHoveredId(tab.id)}
+        onMouseLeave={() => setHoveredId((h) => (h === tab.id ? null : h))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onActivate(tab.id)
+          }
+        }}
+        style={
+          active
+            ? ({ flex: "0 1 220px", background: surfaceColor, "--dw-tab-surface": surfaceColor } as React.CSSProperties)
+            : { flex: "0 1 220px" }
+        }
+        className={cn(
+          "group/tab relative flex min-w-10 cursor-pointer select-none items-center transition-colors",
+          s.tab,
+          firstFlush ? cn(s.radiusFirst, s.flush, "dw-tab-flush-left") : s.radius,
+          active
+            ? "dw-tab-active font-medium text-foreground"
+            : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground",
+        )}
+      >
+        {tab.indicator && (
+          <span className="flex shrink-0 items-center">{tab.indicator}</span>
+        )}
+        {tab.icon && (
+          <HugeiconsIcon icon={tab.icon} className={cn("shrink-0", s.icon)} />
+        )}
+        <span className={cn("min-w-0 flex-1 truncate", tab.monospace && "font-mono")}>
+          {tab.label}
+        </span>
+        {tab.suffix && (
+          <span className="flex shrink-0 items-center">{tab.suffix}</span>
+        )}
+        {closable ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose(tab.id)
+            }}
+            aria-label={t("closeAria", { label: tab.label })}
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground",
+              s.close,
+              active ? "" : "opacity-0 group-hover/tab:opacity-100",
+            )}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} className={s.closeIcon} />
+          </button>
+        ) : (
+          <span className={cn("shrink-0", s.close)} aria-hidden />
+        )}
       </div>
-      {trailing && <div className="flex shrink-0 items-center self-center pr-1.5">{trailing}</div>}
+    )
+  }
+
+  // 拖拽预览浮层中使用的 tab 克隆（不带交互事件）
+  const draggedTab = activeDragId ? tabs.find((t) => t.id === activeDragId) : null
+
+  return (
+    <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div className={cn("flex items-end bg-foreground/[0.04]", className)}>
+          {leading && <div className="flex shrink-0 items-center self-center pt-1.5 pl-1.5">{leading}</div>}
+          <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
+            <div className={cn("flex min-w-0 flex-1 items-end overflow-hidden", s.pad)}>
+              {tabs.map((tab, i) => (
+                <Fragment key={tab.id}>
+                  {/* 竖分隔线 */}
+                  {i > 0 && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "my-1.5 w-px shrink-0 self-stretch bg-border transition-opacity",
+                        sepHidden(i) ? "opacity-0" : "opacity-100",
+                      )}
+                    />
+                  )}
+                  <SortableTabItem
+                    tab={tab}
+                    active={tab.id === activeId}
+                    draggable={!!onMoveTab}
+                    renderTab={renderTab}
+                  />
+                </Fragment>
+              ))}
+            </div>
+          </SortableContext>
+          {trailing && <div className="flex shrink-0 items-center self-center pr-1.5">{trailing}</div>}
+        </div>
+        <DragOverlay dropAnimation={null}>
+          {draggedTab ? (
+            <div className="shadow-lg opacity-95">{renderTab(draggedTab, -1)}</div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* 右键上下文菜单（fixed 定位，逃离 overflow 裁切） */}
       {menu && (
@@ -273,6 +387,6 @@ export function TabStrip({
           ))}
         </div>
       )}
-    </div>
+    </>
   )
 }
