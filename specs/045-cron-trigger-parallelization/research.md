@@ -65,12 +65,13 @@
 
 **US1 并发吞吐 ✓✓ 超 ≥10x 目标(SC-001 达成)**:
 - 200wf `*/10 * * * * *`:每触发点 +200 instance(并发全创建,无积压),稳态 **40 inst/s**(cron 间隔限制,非 worker 瓶颈)
+- 700wf `*/2`(密负载探天花板):峰值 **~340 inst/s**(1700/5s),对比 044 **~100-300x**;worker=64 **仍未饱和**(queue=0/full=0),平均物化 24.4ms(max 0.123s)
 - 50wf `*/10`:~10 inst/s(50/10s 间隔)
-- 对比 044 基线 1-3 inst/s:**~13-40x 提升**
+- 对比 044 基线 1-3 inst/s:**~13-340x 提升**
 
 **US2 找极限(SC-006)**:
 - 平均物化 **29.7ms**(`dw.cron.fire.execute.latency` sum 49.1s / count 1651)vs 044 ~250ms → **~8x 物化加速**(`@Transactional` + `saveAll` + worker 并发)
-- worker=64 **未饱和**(200wf queue.size=0 / queue.full=0)→ worker 天花板未触及,需 1000+ wf 或 `*/2s` cron 继续加压
+- worker=64 **未饱和**(200wf queue.size=0 / queue.full=0)→ worker 天花板未触及,需 1000+ wf 或 `*/2s` cron 继续加压;**700wf */2s 实测 340 inst/s 仍 queue=0**,worker 天花板 > 340 inst/s(HikariCP=64 双 master 理论 ~5000 inst/s,实测受 wf 创建速度 + cron 间隔限制未触顶)
 - p99 0.51s(200wf 并发,稳定波动 0.1-0.5s)
 
 **US3 可靠**:
