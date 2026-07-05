@@ -85,6 +85,9 @@ public class SchedulerMetrics {
     private final Counter reconcileSkipped;
     private final Counter reconcileDead;
     private final AtomicLong fireQueueSize = new AtomicLong(0);
+    // 046 dispatch 并行化：claim/dispatch 解耦(队列 + 异步 executor)背压观测
+    private final Counter dispatchQueueFull;
+    private final AtomicLong dispatchQueueSize = new AtomicLong(0);
 
     public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
         this.registry = registry;
@@ -182,6 +185,10 @@ public class SchedulerMetrics {
                 .tag("outcome", "dead")
                 .description("Reconciler marked fire DEAD (timeout exceeded, gave up)")
                 .register(registry);
+        // 046 dispatch 并行化：dispatchExecutor 有界队列满 → 降级同步下发(背压信号)
+        this.dispatchQueueFull = Counter.builder("dw.dispatch.queue.full.count")
+                .description("046: Times dispatchQueue rejected and fell back to sync dispatch (backpressure)")
+                .register(registry);
 
         Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
                 .description("Current WAITING queue depth")
@@ -216,6 +223,9 @@ public class SchedulerMetrics {
                 .register(registry);
         Gauge.builder("dw.cron.fire.queue.size", fireQueueSize, AtomicLong::doubleValue)
                 .description("045: Current cron fire queue depth (pending FireTasks, backpressure signal)")
+                .register(registry);
+        Gauge.builder("dw.dispatch.queue.size", dispatchQueueSize, AtomicLong::doubleValue)
+                .description("046: Current dispatch executor queue depth (pending DispatchCommands, backpressure)")
                 .register(registry);
 
         log.info("[SchedulerMetrics] 调度指标已注册（Micrometer + actuator /prometheus）");
@@ -275,6 +285,18 @@ public class SchedulerMetrics {
     /** fireArm 同步去重+入队耗时（timer 线程）。 */
     public void recordFireArmLatency(Duration d) {
         fireArmLatency.record(d.isNegative() ? Duration.ZERO : d);
+    }
+
+    // ─── 046 dispatch 并行化 API ──────────────────────────────
+
+    /** dispatchExecutor 当前队列深度（gauge,背压信号;由 SchedulerKernel 每轮 claimRound 设置）。 */
+    public void setDispatchQueueSize(long size) {
+        dispatchQueueSize.set(size);
+    }
+
+    /** dispatchQueue 满 → 降级同步下发计数（>0 表示 dispatchExecutor 跟不上 claim,触发背压）。 */
+    public void markDispatchQueueFull() {
+        dispatchQueueFull.increment();
     }
 
     /** reconciler 补偿成功（instance 之前缺失，已创建）。 */

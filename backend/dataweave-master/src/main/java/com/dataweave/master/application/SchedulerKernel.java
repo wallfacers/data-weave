@@ -142,11 +142,13 @@ public class SchedulerKernel {
             return;
         }
         metrics.markDispatches(dispatched.size());
-        // 事务外并行下发（副作用，不持 DB 锁）；失败回退 WAITING 重派。屏障语义：全部完成才返回，保持轮次串行。
-        dispatcher.dispatchAll(dispatched, gateway::dispatch, (cmd, err) -> {
+        // 046:事务外异步下发(fire-and-forget)—— submit 到 dispatchExecutor 立即返回,claim 线程不等 dispatch,
+        // 下一轮 claim 可马上开始(解除 claim↔dispatch 串行)。失败 casRequeue 回 WAITING 重派。
+        dispatcher.dispatchAllAsync(dispatched, gateway::dispatch, (cmd, err) -> {
             log.warn("[Scheduler] 下发实例 {} 失败，回退 WAITING：{}", cmd.taskInstanceId(), err.getMessage());
             stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
         });
+        metrics.setDispatchQueueSize(dispatcher.queueSize());  // 046:背压观测
         metrics.endRound(roundSample);
     }
 

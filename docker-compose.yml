@@ -126,6 +126,9 @@ services:
       SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
       SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"
+      SCHEDULER_DISPATCH_QUEUE_CAPACITY: "2000"        # 046 dispatch 并行化:认领/下发解耦(进程内队列)
+      SCHEDULER_DISPATCH_EXECUTOR_THREADS: "64"        # dispatchExecutor fan-out 下发(去 invokeAll 屏障)
+      SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
@@ -163,6 +166,9 @@ services:
       SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
       SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"
+      SCHEDULER_DISPATCH_QUEUE_CAPACITY: "2000"        # 046 dispatch 并行化:认领/下发解耦(进程内队列)
+      SCHEDULER_DISPATCH_EXECUTOR_THREADS: "64"        # dispatchExecutor fan-out 下发(去 invokeAll 屏障)
+      SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
     restart: unless-stopped
 
   # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
