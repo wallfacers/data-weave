@@ -1,4 +1,4 @@
-"""041-R 发布：负结果研究 artifact → 用户 HF **私有** repo。
+"""041-R 发布：负结果研究 artifact → 用户 HF **公开** repo。
 
 发布物 = ①模型权重 + 诚实模型卡（负结果定位，绝不吹成生产工具）；
         ②数据集 repo：合成 train/heldout + 全部评测/泄漏/曲线报告 + findings + 裁决约定。
@@ -6,7 +6,7 @@
 真实集金标（`realeval/gold/*.jsonl`）含第三方 GitHub 脚本内容，默认**不上传**；
 需 `--include-real-gold` 显式开启，并自负 license 合规（collect.py 已做 license 过滤 + 脱敏）。
 
-前置：`hf auth login` 的 token 具备 write（HF_TOKEN 仅在 gitignored .env）；repo 一律 private。
+前置：`hf auth login` 的 token 具备 write（HF_TOKEN 仅在 gitignored .env）；repo 公开。
 用法：python publish.py [--model-dir out/run1/merged] [--version v2] [--include-real-gold]
 """
 
@@ -323,8 +323,8 @@ def main() -> None:
         return
 
     api = HfApi()
-    api.create_repo(MODEL_REPO, repo_type="model", private=True, exist_ok=True)
-    api.create_repo(DATA_REPO, repo_type="dataset", private=True, exist_ok=True)
+    api.create_repo(MODEL_REPO, repo_type="model", private=False, exist_ok=True)
+    api.create_repo(DATA_REPO, repo_type="dataset", private=False, exist_ok=True)
 
     # ① 模型权重 + 卡
     api.upload_folder(folder_path=args.model_dir, repo_id=MODEL_REPO, repo_type="model",
@@ -356,7 +356,7 @@ def main() -> None:
                               commit_message=f"041-R {args.version}: real gold (license-reviewed)")
 
     api.create_tag(DATA_REPO, tag=args.version, repo_type="dataset", exist_ok=True)
-    print(f"published (private): {MODEL_REPO}@{args.version} + {DATA_REPO}@{args.version}")
+    print(f"published (public): {MODEL_REPO}@{args.version} + {DATA_REPO}@{args.version}")
 
 
 if __name__ == "__main__":
