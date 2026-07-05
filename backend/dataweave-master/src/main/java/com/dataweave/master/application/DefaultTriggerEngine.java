@@ -21,7 +21,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,11 +32,27 @@ import java.util.concurrent.TimeUnit;
  * <ol>
  *   <li>{@link #scanAndArm} 由 {@code CronScheduler} 每 {@code cron-scan-interval-ms} 调用，捞取
  *       {@code next_trigger_time ≤ now+lookahead} 的工作流，初始化缺失的 next，按精确延迟压入定时器；</li>
- *   <li>到点 {@link #fire} 先校验仍 ONLINE 且在生效期内（FR-013），经 {@code cron_fire} 唯一键去重（FR-003），
- *       委托 {@link WorkflowTriggerService#trigger}（签名不变，FR-012/FR-015 允许并发），
+ *   <li>到点 {@link #fireArm} 先校验仍 ONLINE 且在生效期内（FR-013），经 {@code cron_fire} 唯一键同步去重（FR-003），
+ *       再把物化任务提交 {@link #fireExecutor} 异步消化；{@link #fireExecute} 委托
+ *       {@link WorkflowTriggerService#trigger}（签名不变，FR-012/FR-015 允许并发）创建实例并回填 cron_fire，
  *       再据 {@link TimingStrategy} 重算并持久化 next（misfire：fire_once 补一次跳未来 / skip 仅推进，FR-005/006）。</li>
  * </ol>
- * 去重真相仍是 {@code cron_fire}；本引擎进程内、不跨进程共享。崩溃丢失的内存点由下一轮扫描 + 逾期 delay=0 补回。
+ * 去重真相仍是 {@code cron_fire} UNIQUE；本引擎进程内、不跨进程共享。崩溃丢失的内存队列任务由
+ * {@code CronFireReconciler} 扫描 {@code cron_fire.instance_id IS NULL} 的行补偿（045）。
+ *
+ * <h3>045 cron 并行化：fireArm / fireExecute 解耦</h3>
+ * <p>原 timer 线程（池硬编码 2）同步执行整个 fire（含 ~0.25s 物化）→ 高并发到期被节流（044 实测 1-3 inst/s）。
+ * 现拆为：
+ * <ul>
+ *   <li>{@code fireArm}（timer 线程，池 {@code cron-trigger-timer-threads}）：校验 + INSERT cron_fire(PENDING) +
+ *       提交物化任务（μs 级，不阻塞 timer）；</li>
+ *   <li>{@code fireExecute}（{@code fireExecutor} 线程，池 {@code cron-fire-worker-threads}）：应用层幂等查 +
+ *       物化 + 回填 cron_fire(FIRED) + advanceNext（并发 = worker 数，吞吐 ∝ 池大小）；</li>
+ *   <li>满队列降级：{@code fireExecutor} 队列满 → 自定义拒绝策略在 timer 线程同步跑 fireExecute（不丢，
+ *       {@link SchedulerMetrics#markQueueFull()} 暴露背压）。</li>
+ * </ul>
+ * 幂等三层：① cron_fire UNIQUE（谁创建）② workflow_instance UNIQUE(wf, scheduled_fire_time)（DB 兜底）
+ * ③ 应用层 findByWorkflowIdAndScheduledFireTime 快查（避免撞键回滚开销）。
  */
 @Component
 public class DefaultTriggerEngine implements TriggerEngine {
@@ -53,15 +72,16 @@ public class DefaultTriggerEngine implements TriggerEngine {
     private final String misfirePolicy;
     private final boolean shardingEnabled;
 
-    /** 进程内精确触发器；预读窗口内的到期点按延迟入队，到点回调 fire。 */
-    private final ScheduledExecutorService timer =
-            Executors.newScheduledThreadPool(2, r -> {
-                Thread t = new Thread(r, "cron-trigger");
-                t.setDaemon(true);
-                return t;
-            });
+    /** 进程内精确触发器；预读窗口内的到期点按延迟入队，到点回调 fireArm。045：池大小可配（原硬编码 2）。 */
+    private final ScheduledExecutorService timer;
+    /** fireExecute 物化 worker 池（045 并行化核心）：有界队列 + 拒绝策略降级同步，并发创建实例。 */
+    private final ThreadPoolExecutor fireExecutor;
+
     /** 已装入定时器的触发点（wfId@due），防同点跨扫描周期重复 arm。 */
     private final ConcurrentHashMap<String, Boolean> armed = new ConcurrentHashMap<>();
+
+    /** US4 支持的全部周期类型：CRON / FIXED_RATE / FIXED_DELAY。 */
+    private static final List<String> PERIODIC_TYPES = List.of("CRON", "FIXED_RATE", "FIXED_DELAY");
 
     public DefaultTriggerEngine(WorkflowDefRepository workflowDefRepository,
                                 CronFireRepository cronFireRepository,
@@ -73,7 +93,10 @@ public class DefaultTriggerEngine implements TriggerEngine {
                                 MasterRegistry masterRegistry,
                                 @Value("${scheduler.cron-lookahead-ms:30000}") long lookaheadMs,
                                 @Value("${scheduler.cron-misfire:fire_once}") String misfirePolicy,
-                                @Value("${scheduler.cron-sharding-enabled:false}") boolean shardingEnabled) {
+                                @Value("${scheduler.cron-sharding-enabled:false}") boolean shardingEnabled,
+                                @Value("${scheduler.cron-trigger-timer-threads:8}") int timerThreads,
+                                @Value("${scheduler.cron-fire-worker-threads:32}") int workerThreads,
+                                @Value("${scheduler.cron-fire-queue-capacity:4000}") int queueCapacity) {
         this.workflowDefRepository = workflowDefRepository;
         this.cronFireRepository = cronFireRepository;
         this.triggerService = triggerService;
@@ -85,10 +108,28 @@ public class DefaultTriggerEngine implements TriggerEngine {
         this.lookaheadMs = lookaheadMs;
         this.misfirePolicy = misfirePolicy;
         this.shardingEnabled = shardingEnabled;
-    }
 
-    /** US4 支持的全部周期类型：CRON / FIXED_RATE / FIXED_DELAY。 */
-    private static final List<String> PERIODIC_TYPES = List.of("CRON", "FIXED_RATE", "FIXED_DELAY");
+        this.timer = Executors.newScheduledThreadPool(timerThreads, r -> {
+            Thread t = new Thread(r, "cron-trigger");
+            t.setDaemon(true);
+            return t;
+        });
+
+        // 045 物化 worker 池：有界队列（queueCapacity）+ 自定义拒绝策略 = 调用方（timer）同步执行（降级，不丢）
+        RejectedExecutionHandler fallbackSync = (r, exec) -> {
+            metrics.markQueueFull();
+            log.warn("[TriggerEngine] fireExecutor 队列满，降级同步执行（timer 线程直接物化，背压传导）");
+            r.run();  // 调用方同步跑（守"不丢触发"）
+        };
+        this.fireExecutor = new ThreadPoolExecutor(
+                workerThreads, workerThreads, 60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(queueCapacity),
+                r -> { Thread t = new Thread(r, "cron-fire-worker"); t.setDaemon(true); return t; },
+                fallbackSync);
+
+        log.info("[TriggerEngine] 045 并行化：timerThreads={} workerThreads={} queueCapacity={}",
+                timerThreads, workerThreads, queueCapacity);
+    }
 
     @Override
     public void scanAndArm(LocalDateTime now) {
@@ -124,7 +165,6 @@ public class DefaultTriggerEngine implements TriggerEngine {
             int shardCount = masterRegistry.activeMasterCount();
             int shardIndex = masterRegistry.myShardIndex();
             if (shardCount <= 1 || shardIndex < 0) {
-                // 分片未就绪（只有自己在线 / 未注册）→ 退化为全量扫描
                 candidates = workflowDefRepository.findScannableByTypes(PERIODIC_TYPES, "ONLINE", horizon);
             } else {
                 candidates = workflowDefRepository.findScannableSharded(
@@ -155,9 +195,11 @@ public class DefaultTriggerEngine implements TriggerEngine {
             }
         }
         metrics.setCronWindowSize(armed.size());
+        metrics.setFireQueueSize(fireExecutor.getQueue().size());  // 045 队列深度采样（背压 gauge）
         if (armedCount > 0) {
-            log.info("[TriggerEngine] scan: 候选={}, 本轮新装载={}, 分片={}",
-                    candidates.size(), armedCount, shardingEnabled ? masterRegistry.myShardIndex() : "off");
+            log.info("[TriggerEngine] scan: 候选={}, 本轮新装载={}, 分片={}, fireQueue={}",
+                    candidates.size(), armedCount, shardingEnabled ? masterRegistry.myShardIndex() : "off",
+                    fireExecutor.getQueue().size());
         }
     }
 
@@ -173,9 +215,9 @@ public class DefaultTriggerEngine implements TriggerEngine {
         }
         timer.schedule(() -> {
             try {
-                fire(wfId, due);
+                fireArm(wfId, due);  // 045：原同步 fire → fireArm（同步去重 + 入队，不阻塞）
             } catch (Exception e) {
-                log.error("[TriggerEngine] 触发 wfId={} due={} 失败：{}", wfId, due, e.getMessage(), e);
+                log.error("[TriggerEngine] fireArm wfId={} due={} 失败：{}", wfId, due, e.getMessage(), e);
             } finally {
                 armed.remove(key);
             }
@@ -183,67 +225,129 @@ public class DefaultTriggerEngine implements TriggerEngine {
         return true;
     }
 
-    /** 到点触发：失效校验 → cron_fire 去重 → 下游 trigger → 重算并持久化 next。 */
-    private void fire(Long wfId, LocalDateTime due) {
-        WorkflowDef wf = workflowDefRepository.findById(wfId).orElse(null);
-        if (wf == null || wf.getDeleted() == null || wf.getDeleted() != 0
-                || !"ONLINE".equals(wf.getStatus())) {
-            return;  // 已下线/删除（FR-013）
-        }
-        LocalDateTime fireNow = clock.now();
-        if (wf.getScheduleStart() != null && due.isBefore(wf.getScheduleStart())) {
-            return;
-        }
-        if (wf.getScheduleEnd() != null && due.isAfter(wf.getScheduleEnd())) {
-            advanceNext(wf, fireNow);
-            return;  // 超出生效期：停止排程（FR-013）
-        }
-
-        TimingStrategy strategy = strategyFor(wf.getScheduleType());
-        if (strategy == null) {
-            return;
-        }
-
-        // misfire=skip 且 due 之后还有点已过期（错过多个）→ 不补、仅推进基准（FR-006）
-        if ("skip".equalsIgnoreCase(misfirePolicy)) {
-            LocalDateTime afterDue = strategy.next(wf, due);
-            if (afterDue != null && !afterDue.isAfter(fireNow)) {
-                advanceNext(wf, fireNow);
-                metrics.markCronMisfire(false);
-                log.info("[TriggerEngine] workflow id={} 错过多点 misfire=skip 跳至未来 due={}", wfId, wf.getNextTriggerTime());
+    /**
+     * 045 到点同步触发（timer 线程）：校验 ONLINE/生效期/misfire → INSERT cron_fire(PENDING, UNIQUE 去重不变)
+     * → 提交 fireExecute 到 fireExecutor（满则拒绝策略降级同步，不丢）。timer 线程不阻塞，物化异步。
+     */
+    private void fireArm(Long wfId, LocalDateTime due) {
+        long start = System.nanoTime();
+        try {
+            WorkflowDef wf = workflowDefRepository.findById(wfId).orElse(null);
+            if (wf == null || wf.getDeleted() == null || wf.getDeleted() != 0
+                    || !"ONLINE".equals(wf.getStatus())) {
+                return;  // 已下线/删除（FR-013）
+            }
+            LocalDateTime fireNow = clock.now();
+            if (wf.getScheduleStart() != null && due.isBefore(wf.getScheduleStart())) {
                 return;
             }
-        }
+            if (wf.getScheduleEnd() != null && due.isAfter(wf.getScheduleEnd())) {
+                advanceNext(wf, fireNow);
+                return;  // 超出生效期：停止排程（FR-013）
+            }
 
-        // cron_fire 唯一键去重：插入成功者拥有本次触发，撞键安全放弃（多 master/分片零协调，FR-003）
-        CronFire guard = new CronFire(wfId, due);
-        guard.setCreatedAt(fireNow);
-        try {
-            cronFireRepository.save(guard);
-        } catch (DataIntegrityViolationException dup) {
-            return;  // 别的 master 已触发本点
-        }
+            TimingStrategy strategy = strategyFor(wf.getScheduleType());
+            if (strategy == null) {
+                return;
+            }
 
-        // 下游触发（签名不变，FR-012）；重叠不阻塞、允许并发（FR-015）
-        // triggerType 使用实际的 schedule_type，方便区分 CRON/FIXED_RATE/FIXED_DELAY 触发
-        UUID wiId = triggerService.trigger(wf, wf.getScheduleType(),
-                due.minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE,
-                "FULL", null, "NORMAL", null, 0, due);
-        guard.setWorkflowInstanceId(wiId);
-        guard.setFiredAt(LocalDateTime.now());
-        cronFireRepository.save(guard);
+            // misfire=skip 且 due 之后还有点已过期（错过多个）→ 不补、仅推进基准（FR-006）
+            if ("skip".equalsIgnoreCase(misfirePolicy)) {
+                LocalDateTime afterDue = strategy.next(wf, due);
+                if (afterDue != null && !afterDue.isAfter(fireNow)) {
+                    advanceNext(wf, fireNow);
+                    metrics.markCronMisfire(false);
+                    log.info("[TriggerEngine] workflow id={} 错过多点 misfire=skip 跳至未来 due={}", wfId, wf.getNextTriggerTime());
+                    return;
+                }
+            }
 
-        boolean overdue = fireNow.isAfter(due);
-        // 重算 next：跳到“以 fireNow 为基准的未来最近点”，逾期不逐个回放（fire_once，FR-006）
-        wf.setLastFireTime(due);
-        advanceNext(wf, fireNow);
-        if (overdue) {
-            metrics.markCronMisfire(true);
+            // cron_fire 唯一键同步去重：INSERT 成功者拥有本次触发权（多 master/分片零协调，FR-003）
+            CronFire guard = new CronFire(wfId, due);
+            guard.setCreatedAt(fireNow);
+            guard.setStatus("PENDING");  // 045 生命周期标记（fireExecute 回填 FIRED / reconciler DEAD）
+            Long cronFireId;
+            try {
+                cronFireId = cronFireRepository.save(guard).getId();
+            } catch (DataIntegrityViolationException dup) {
+                return;  // 别的 master 已触发本点
+            }
+
+            // 045 提交物化到 worker 池（异步）；满则拒绝策略在 timer 线程同步跑 fireExecute（降级，不丢）
+            final Long cfId = cronFireId;
+            fireExecutor.execute(() -> fireExecute(new FireTask(wfId, due, cfId)));
+        } finally {
+            metrics.recordFireArmLatency(Duration.ofNanos(System.nanoTime() - start));
         }
-        metrics.recordCronTriggerLatency(Duration.between(due, fireNow));
-        log.info("[TriggerEngine] 触发 workflow id={} name='{}' due={} 实例={} next={}",
-                wfId, wf.getName(), due, wiId, wf.getNextTriggerTime());
     }
+
+    /**
+     * 045 异步物化（fireExecutor worker / 降级时 timer 线程）：应用层幂等查 → trigger 创建实例 →
+     * 回填 cron_fire(FIRED) → advanceNext → metrics。幂等三层挡并发/降级/重试重复。
+     */
+    private void fireExecute(FireTask task) {
+        long start = System.nanoTime();
+        try {
+            WorkflowDef wf = workflowDefRepository.findById(task.workflowId()).orElse(null);
+            if (wf == null) {
+                return;  // 已删
+            }
+            LocalDateTime fireNow = clock.now();
+
+            // 应用层幂等快查：同 (wf, scheduled_fire_time) 已有 instance 则跳过（避免 trigger 撞键回滚开销）
+            WorkflowInstance existing = workflowInstanceRepository
+                    .findByWorkflowIdAndScheduledFireTime(task.workflowId(), task.due()).orElse(null);
+            UUID wiId;
+            if (existing != null) {
+                metrics.markReconcileSkipped();  // 幂等跳过（复用 skipped 计数）
+                wiId = existing.getId();
+                log.info("[TriggerEngine] 幂等跳过 wfId={} due={} 已有实例={}", task.workflowId(), task.due(), wiId);
+            } else {
+                wiId = triggerService.trigger(wf, wf.getScheduleType(),
+                        task.due().minusDays(1).format(BIZ_DATE_FMT), wf.getPriority(), Messages.DEFAULT_LOCALE,
+                        "FULL", null, "NORMAL", null, 0, task.due());
+            }
+
+            // 回填 cron_fire（instance_id + status=FIRED + fired_at）
+            cronFireRepository.findById(task.cronFireId()).ifPresent(guard -> {
+                guard.setWorkflowInstanceId(wiId);
+                guard.setStatus("FIRED");
+                guard.setFiredAt(LocalDateTime.now());
+                cronFireRepository.save(guard);
+            });
+
+            boolean overdue = fireNow.isAfter(task.due());
+            wf.setLastFireTime(task.due());
+            advanceNext(wf, fireNow);
+            if (overdue) {
+                metrics.markCronMisfire(true);
+            }
+            metrics.recordCronTriggerLatency(Duration.between(task.due(), fireNow));
+            log.info("[TriggerEngine] 触发 workflow id={} name='{}' due={} 实例={} next={}",
+                    task.workflowId(), wf.getName(), task.due(), wiId, wf.getNextTriggerTime());
+        } catch (DataIntegrityViolationException dup) {
+            // DB 唯一约束兜底（应用层快查 TOCTOU）：并发下已被别处创建，查已有回填（不重复 advanceNext）
+            workflowInstanceRepository.findByWorkflowIdAndScheduledFireTime(task.workflowId(), task.due())
+                    .ifPresent(wi -> {
+                        cronFireRepository.findById(task.cronFireId()).ifPresent(guard -> {
+                            guard.setWorkflowInstanceId(wi.getId());
+                            guard.setStatus("FIRED");
+                            guard.setFiredAt(LocalDateTime.now());
+                            cronFireRepository.save(guard);
+                        });
+                        metrics.markReconcileSkipped();
+                        log.info("[TriggerEngine] DB 唯一约束兜底 wfId={} due={} 已有实例={}",
+                                task.workflowId(), task.due(), wi.getId());
+                    });
+        } catch (Exception e) {
+            log.error("[TriggerEngine] fireExecute task={} 失败：{}", task, e.getMessage(), e);
+        } finally {
+            metrics.recordFireExecuteLatency(Duration.ofNanos(System.nanoTime() - start));
+        }
+    }
+
+    /** 045 物化任务（进程内，timer → worker 传递；不持久化，崩溃由 reconciler 补）。 */
+    private record FireTask(Long workflowId, LocalDateTime due, Long cronFireId) {}
 
     /** 推进 next_trigger_time 到严格大于 ref 的最近点并落库；无后续置 null（停排）。 */
     private void advanceNext(WorkflowDef wf, LocalDateTime ref) {
@@ -292,5 +396,6 @@ public class DefaultTriggerEngine implements TriggerEngine {
     @PreDestroy
     void shutdown() {
         timer.shutdownNow();
+        fireExecutor.shutdownNow();  // 045 关闭物化 worker 池
     }
 }

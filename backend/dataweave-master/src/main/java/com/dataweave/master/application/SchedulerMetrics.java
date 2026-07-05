@@ -77,6 +77,14 @@ public class SchedulerMetrics {
     private final AtomicLong sseConnections = new AtomicLong(0);
     private final AtomicLong shardWorkflows = new AtomicLong(0);
     private final AtomicLong cronWindowSize = new AtomicLong(0);
+    // 045 cron 并行化指标：fireArm/fireExecute 解耦 + 队列背压 + 补偿器
+    private final Timer fireExecuteLatency;
+    private final Timer fireArmLatency;
+    private final Counter fireQueueFull;
+    private final Counter reconcileReplayed;
+    private final Counter reconcileSkipped;
+    private final Counter reconcileDead;
+    private final AtomicLong fireQueueSize = new AtomicLong(0);
 
     public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
         this.registry = registry;
@@ -148,6 +156,33 @@ public class SchedulerMetrics {
                 .description("Overdue cron points skipped (base advanced only)")
                 .register(registry);
 
+        // 045 cron 并行化：fireArm(同步去重+入队)/fireExecute(worker 物化)解耦 + 队列背压 + 补偿器
+        this.fireExecuteLatency = Timer.builder("dw.cron.fire.execute.latency")
+                .description("fireExecute instance materialization latency (worker pool)")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .publishPercentileHistogram(true)
+                .register(registry);
+        this.fireArmLatency = Timer.builder("dw.cron.fire.arm.latency")
+                .description("fireArm sync dedup + enqueue latency (timer thread)")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .publishPercentileHistogram(true)
+                .register(registry);
+        this.fireQueueFull = Counter.builder("dw.cron.fire.queue.full.count")
+                .description("Times fireQueue.offer timed out and fell back to sync execute (backpressure)")
+                .register(registry);
+        this.reconcileReplayed = Counter.builder("dw.cron.reconcile.count")
+                .tag("outcome", "replayed")
+                .description("Reconciler replayed a lost fire (instance was missing, created)")
+                .register(registry);
+        this.reconcileSkipped = Counter.builder("dw.cron.reconcile.count")
+                .tag("outcome", "skipped")
+                .description("Reconciler skipped (instance already existed, idempotent)")
+                .register(registry);
+        this.reconcileDead = Counter.builder("dw.cron.reconcile.count")
+                .tag("outcome", "dead")
+                .description("Reconciler marked fire DEAD (timeout exceeded, gave up)")
+                .register(registry);
+
         Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
                 .description("Current WAITING queue depth")
                 .register(registry);
@@ -178,6 +213,9 @@ public class SchedulerMetrics {
 
         Gauge.builder("dw.cron.window.size", cronWindowSize, AtomicLong::doubleValue)
                 .description("Current pre-read window armed point count (this master / this shard)")
+                .register(registry);
+        Gauge.builder("dw.cron.fire.queue.size", fireQueueSize, AtomicLong::doubleValue)
+                .description("045: Current cron fire queue depth (pending FireTasks, backpressure signal)")
                 .register(registry);
 
         log.info("[SchedulerMetrics] 调度指标已注册（Micrometer + actuator /prometheus）");
@@ -215,6 +253,43 @@ public class SchedulerMetrics {
     /** 当前预读窗口内已装载的点数（FR-014）。 */
     public void setCronWindowSize(long count) {
         cronWindowSize.set(count);
+    }
+
+    // ─── 045 cron 并行化 API ──────────────────────────────
+
+    /** 触发队列当前深度（gauge，背压信号）。 */
+    public void setFireQueueSize(long size) {
+        fireQueueSize.set(size);
+    }
+
+    /** 满队列降级计数（>0 表示 worker 跟不上，触发背压传导）。 */
+    public void markQueueFull() {
+        fireQueueFull.increment();
+    }
+
+    /** fireExecute 物化耗时（worker 池）。 */
+    public void recordFireExecuteLatency(Duration d) {
+        fireExecuteLatency.record(d.isNegative() ? Duration.ZERO : d);
+    }
+
+    /** fireArm 同步去重+入队耗时（timer 线程）。 */
+    public void recordFireArmLatency(Duration d) {
+        fireArmLatency.record(d.isNegative() ? Duration.ZERO : d);
+    }
+
+    /** reconciler 补偿成功（instance 之前缺失，已创建）。 */
+    public void markReconcileReplayed() {
+        reconcileReplayed.increment();
+    }
+
+    /** reconciler 幂等跳过（instance 已存在）。 */
+    public void markReconcileSkipped() {
+        reconcileSkipped.increment();
+    }
+
+    /** reconciler 标 DEAD（超时放弃）。 */
+    public void markReconcileDead() {
+        reconcileDead.increment();
     }
 
     public Timer.Sample startRound() {
