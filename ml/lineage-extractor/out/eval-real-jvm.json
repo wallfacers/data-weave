@@ -2,81 +2,81 @@
   {
     "name": "sft-1.5b",
     "full": {
-      "precision": 0.1864406779661017,
-      "recall": 0.5641025641025641,
-      "f1": 0.2802547770700637,
+      "precision": 0.1652542372881356,
+      "recall": 0.5131578947368421,
+      "f1": 0.25,
       "hallucination": 0.3474576271186441,
-      "direction_acc": 0.38235294117647056,
+      "direction_acc": 0.41818181818181815,
       "invalid": 1
     },
     "nonempty": {
-      "precision": 0.5057471264367817,
-      "recall": 0.5641025641025641,
-      "f1": 0.5333333333333334,
-      "hallucination": 0.05747126436781609,
-      "direction_acc": 0.38235294117647056,
+      "precision": 0.65,
+      "recall": 0.5131578947368421,
+      "f1": 0.573529411764706,
+      "hallucination": 0.06666666666666667,
+      "direction_acc": 0.41818181818181815,
       "invalid": 1
     },
-    "nonempty_n": 32
+    "nonempty_n": 28
   },
   {
     "name": "m1-qwen",
     "full": {
-      "precision": 0.3119266055045872,
-      "recall": 0.8717948717948718,
-      "f1": 0.45945945945945954,
-      "hallucination": 0.05045871559633028,
-      "direction_acc": 0.75,
-      "invalid": 3
+      "precision": 0.27510917030567683,
+      "recall": 0.8289473684210527,
+      "f1": 0.4131147540983607,
+      "hallucination": 0.048034934497816595,
+      "direction_acc": 0.8,
+      "invalid": 4
     },
     "nonempty": {
-      "precision": 0.48026315789473684,
-      "recall": 0.9358974358974359,
-      "f1": 0.6347826086956522,
-      "hallucination": 0.013157894736842105,
-      "direction_acc": 0.8235294117647058,
-      "invalid": 0
+      "precision": 0.4959349593495935,
+      "recall": 0.8026315789473685,
+      "f1": 0.6130653266331658,
+      "hallucination": 0.008130081300813009,
+      "direction_acc": 0.7272727272727273,
+      "invalid": 1
     },
-    "nonempty_n": 32
+    "nonempty_n": 28
   },
   {
     "name": "m2-anthropic",
     "full": {
-      "precision": 0.5280898876404494,
-      "recall": 0.6025641025641025,
-      "f1": 0.562874251497006,
-      "hallucination": 0.0,
-      "direction_acc": 0.5441176470588235,
+      "precision": 0.5,
+      "recall": 0.5657894736842105,
+      "f1": 0.5308641975308641,
+      "hallucination": 0.011627906976744186,
+      "direction_acc": 0.509090909090909,
       "invalid": 0
     },
     "nonempty": {
-      "precision": 0.7407407407407407,
-      "recall": 0.5128205128205128,
-      "f1": 0.6060606060606061,
+      "precision": 0.7924528301886793,
+      "recall": 0.5526315789473685,
+      "f1": 0.6511627906976745,
       "hallucination": 0.0,
-      "direction_acc": 0.47058823529411764,
+      "direction_acc": 0.4727272727272727,
       "invalid": 0
     },
-    "nonempty_n": 32
+    "nonempty_n": 28
   },
   {
     "name": "regex",
     "full": {
-      "precision": 0.10491803278688525,
-      "recall": 0.41025641025641024,
-      "f1": 0.1671018276762402,
+      "precision": 0.13114754098360656,
+      "recall": 0.5263157894736842,
+      "f1": 0.2099737532808399,
       "hallucination": 0.0,
-      "direction_acc": 0.4264705882352941,
+      "direction_acc": 0.509090909090909,
       "invalid": 0
     },
     "nonempty": {
-      "precision": 0.367816091954023,
-      "recall": 0.41025641025641024,
-      "f1": 0.3878787878787879,
+      "precision": 0.449438202247191,
+      "recall": 0.5263157894736842,
+      "f1": 0.48484848484848486,
       "hallucination": 0.0,
-      "direction_acc": 0.4264705882352941,
+      "direction_acc": 0.509090909090909,
       "invalid": 0
     },
-    "nonempty_n": 32
+    "nonempty_n": 28
   }
 ]

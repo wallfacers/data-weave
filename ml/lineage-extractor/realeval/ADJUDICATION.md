@@ -133,4 +133,48 @@ Flink DDL `'table-name'='x'` 与 `CREATE TABLE x (...) WITH (...)` + `INSERT INT
   如 `AstBuilder.scala` density=37、`DeltaSQLConf.scala` density=28），正确判 ∅。
 - 非空 32：含 Iceberg（demo.nyc.taxis*）、Flink DDL（print_sink/sink_table/redis_sink_demo）、
   Hudi（hudi_table_test）、Spark saveAsTable（sparkdatalake.*/department/employee）、TPC-H 生成（8 表）等。
-- 局限：JVM 裁决基于预标 3 行语句片段（非逐文件全读），比 py/sh 轻——见 findings §披露 7。
+- ~~局限：JVM 裁决基于预标 3 行语句片段（非逐文件全读）~~ → **已升级为逐文件全读重裁**，见下节。
+
+## JVM 全文重裁轮（片段级 → 全文级 parity，2026-07-05）
+
+**方法**：把 141 条 JVM 金标从「预标 3 行片段裁决」升级为**逐文件全读**——15 路并行子裁决按约定 A
+读整份源码（含最长 29.7 万字符文件），我对每一处与旧片段裁决**不一致的变更逐条核验决定性 token**。
+净结果 **非空 32→28**（4 处片段级假阳被剔）。这与 py/sh gold（逐文件裁决）同级，消解 findings 披露 #7。
+
+**片段级为何会错**：3 行片段看不到 ①字面串其实在 `/* */` 块注释或 `// MAGIC` 注释内（BucketJoinDemo、
+testv1-dataset）；②`saveAsTable(变量)`/`dbtable=变量`/`" FROM "+CONST` 的字面名不在可执行语句内联
+（TpchDataGen、SaveModeIntegrationSuite、EmergentSchemaLoader、SparkSourceService）；③Flink `datagen`/
+`print` 连接器非持久表（RegularRightJoinDemo）；④反向：片段误当类名剔的其实是 JDBC 字面 SQL
+（ProductDataDaoImpl/CustomerDaoImpl 的 `select * from ProductData`）、误当包名剔的其实是 `FROM demo`
+（Demo.scala）——全文才看得清。
+
+**24 处变更 provenance（旧片段 → 新全文，R/W；· = ∅）**：
+
+| 文件 | 旧(片段) R/W | 新(全文) R/W | 依据 |
+|---|---|---|---|
+| BucketJoinDemo.scala | R[my_db.flight_data1,2] W[两表] | R[my_db.flight_data1,2] W· | saveAsTable 在 `/* */` 块注释内 |
+| CassandraSinkRelation.scala | R· W[feast_schema_reference] | R· W· | schemaTableName 插值变量 |
+| Chapter11.scala | R· W[customers,goods,orders] | R+W[customers,goods,orders,t1,t2] | CREATE/insertInto/FROM 全表 |
+| CompiledPlanRecipe.java | R[transactions] W[print_sink] | R[transactions] W[print_sink,transactions] | CREATE TABLE Transactions 漏写 |
+| CustomerDaoImpl.java | R· W· | R+W[customerdata] | JDBC 字面 insert/select from customerData |
+| Demo.scala | R· W[demo_output,stu] | R[demo] W[demo_output,stu] | `sqlQuery("… from demo")` 真 FROM（非包名） |
+| EmergentSchemaLoader.java | R[wide_property_table] W· | R· W· | `" FROM "+WPT_NAME` 拼接常量剔 |
+| FlinkHudiTest.scala | R[kafka_source_table] W[hudi_table_test] | R[…] W[hudi_table_test,kafka_source_table] | CREATE TABLE 两表均写 |
+| HbaseApp.scala | R+W[dangerous_driving] | R· W· | HBase catalog 变量非内联 |
+| IcebergExample.scala | R· W[demo.nyc.taxis×4] | R[taxis×3] W[taxis×4] | 补 SELECT FROM/MERGE USING 读 |
+| Insert.scala | R· W[dsl_test,query_test] | R· W[ldbc_wrapper_dsl_test] | 仅 dsl_test 有字面 INSERT INTO |
+| JavaSQLDataSourceExample.java ×2 | R[schema.tablename] W[people_bucketed,…] | +W[people_partitioned_bucketed] | saveAsTable 漏抽 |
+| JavaSQLDataSourceExample.java（第三仓） | 同上 | +W[users_partitioned_bucketed] | 该版 saveAsTable 不同名 |
+| MapBuilder.java | R[occurrence] W[tim] | R[occurrence] W· | `.hiveDB/.hbaseTable("tim")` 为 builder 配置非 DML |
+| ProductDataDaoImpl.java | R· W· | R+W[productdata] | JDBC 字面 `insert into/select from ProductData`（非类名） |
+| QuizManager.java ×2 | R· W[quiz_items,quizzes] | R+W[quiz_items,quizzes] | 补 `.from` 读 |
+| RegularRightJoinDemo.java | R[click_log,show_log] W[sink_table] | R· W· | 全 `'connector'='datagen'/'print'` 非持久表 |
+| SaveModeIntegrationSuite.scala | R[3] W[6] | R· W· | `dbtable=tableName` 变量、测试临时表 |
+| SparkSourceService.java | R[ssb.lineorder] W· | R· W· | 常量仅用于 tableExists + CREATE VIEW |
+| SqlTemplateConverter.java | R· W· | R· W[qualitis_application_task_result, qualitis_imsmetric_fields_analyse] | built SQL 里 INSERT INTO 的字面表名 |
+| TpchDataGen.scala | R· W[8 TPC-H 表] | R· W· | `saveAsTable(tableName)` 变量驱动 |
+| testv1-dataset.scala | R· W[calcs] | R+W[calcs] | 补 calcs 读；staples 仅 `// MAGIC` 注释+tempview 剔（人工核验） |
+
+**结论稳健性**：对照片段级旧金标，sft 幻觉率 **0.347 逐字不变**、逐字泄漏 **40.4%→40.8%**、四方排序全不变
+（`out/eval-real-jvm.md`/`out/leak-report-jvm.md` 已按新金标重生成）。招牌指标本就 gold-无关，此轮把
+「轻裁决翻不了盘」由**实证**坐实。
