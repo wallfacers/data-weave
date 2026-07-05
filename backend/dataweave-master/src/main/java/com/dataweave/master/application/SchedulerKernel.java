@@ -21,7 +21,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -175,8 +181,10 @@ public class SchedulerKernel {
         assign(tests, nodes, true, now, out);
 
         // NORMAL 次之（仅非预留空槽）；CRON 实例还需满足跨周期依赖（手动/测试忽略跨周期）
-        List<Row> normals = selectRunnable(false).stream()
-                .filter(this::crossCycleReady)
+        List<Row> normalCandidates = selectRunnable(false);
+        Set<UUID> readyIds = batchCrossCycleReady(normalCandidates);  // 048:批量跨周期判定(消 N+1 ①②)
+        List<Row> normals = normalCandidates.stream()
+                .filter(r -> readyIds.contains(r.id))
                 .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
                 .toList();
         assign(normals, nodes, false, now, out);
@@ -184,16 +192,23 @@ public class SchedulerKernel {
         return out;
     }
 
+    /**
+     * 048 重构:三阶段批量 assign(place → 批量 cas → 后处理),消除逐行 casDispatch N+1(③)。
+     * 阶段1 place 所有行收集 placements(ns.used++ 乐观占槽)→ 阶段2 单 SQL casDispatchBatch
+     * (FOR UPDATE 行锁保护必全成功)→ 阶段3 逐个 resolveContent + out.add(content 失败内部 casFailed)。
+     */
     private void assign(List<Row> rows, List<NodeSlot> nodes, boolean test, LocalDateTime now,
                         List<DispatchCommand> out) {
+        if (rows.isEmpty()) return;
+        // 阶段1: place 所有行,收集 placements + 记录 id→Row(后处理需要)
+        List<InstanceStateMachine.DispatchPlacement> placements = new ArrayList<>();
+        Map<UUID, Row> placementRows = new LinkedHashMap<>();
         for (Row r : rows) {
             List<NodeLoad> avail = new ArrayList<>();
             for (NodeSlot ns : nodes) {
                 int free = test ? ns.free() : ns.normalFree();
                 if (free > 0) {
                     // NodeLoad.free()==capacity-used，须等于本模式可用槽 free；故 used 取 capacity-free。
-                    // （原写法误传 capacity-used 作 used，使空闲节点 free()=0 永不入选，busy 节点反被选——
-                    //  all-in-one 因种子节点有负载 + 进程内网关无视节点码而被掩盖，distributed 下暴露。）
                     avail.add(new NodeLoad(stub(ns), ns.capacity - free, ns.capacity));
                 }
             }
@@ -202,30 +217,41 @@ public class SchedulerKernel {
                 NodeSlot ns = find(nodes, code);
                 int attempt = (r.attempt == null ? 0 : r.attempt) + 1;
                 LocalDateTime lease = now.plusSeconds(leaseSeconds);
-                if (stateMachine.casDispatch(r.id, InstanceStates.WAITING, code, lease, attempt)) {
-                    // 派单延迟：WAITING 入队时刻（updated_at）→ 派单成功此刻（now）；与 lease 同口径。
-                    if (r.waitingSince != null) {
-                        metrics.recordDispatchLatency(Duration.between(r.waitingSince, now));
-                    }
-                    ns.used++;
-                    String content = resolveContentSafely(r, now);
-                    if (content == null) {
-                        return;  // 占位符解析失败：已 CAS 置 FAILED，不下发
-                    }
-                    int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
-                    // SPARK 任务：从 params_json 提取 _sparkMode/_jarRef/_mainClass 带入下发链（端到端 sparkMode 注入）
-                    String sparkMode = null, jarRef = null, mainClass = null;
-                    if ("SPARK".equalsIgnoreCase(r.taskType)) {
-                        String pj = paramsJsonOf(r);
-                        sparkMode = jsonStr(pj, "_sparkMode");
-                        jarRef = jsonStr(pj, "_jarRef");
-                        mainClass = jsonStr(pj, "_mainClass");
-                    }
-                    out.add(new DispatchCommand(r.id, attempt, code, r.taskId, r.taskVersionNo,
-                            r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
-                            sparkMode, jarRef, mainClass));
+                placements.add(new InstanceStateMachine.DispatchPlacement(r.id, code, lease, attempt));
+                placementRows.put(r.id, r);
+                ns.used++;  // 乐观占槽(批量 cas 必成功,行锁保护)
+                // 派单延迟：WAITING 入队时刻（updated_at）→ 派单成功此刻（now）；批量 cas 必成功故在 place 阶段记。
+                if (r.waitingSince != null) {
+                    metrics.recordDispatchLatency(Duration.between(r.waitingSince, now));
                 }
             });
+        }
+        if (placements.isEmpty()) return;
+        // 阶段2: 批量 casDispatch(单 SQL UPDATE FROM VALUES,事务内行锁保护必全成功)
+        int updateCount = stateMachine.casDispatchBatch(placements, now);
+        if (updateCount < placements.size()) {
+            log.warn("[Scheduler] 批量 casDispatch updateCount={} < placements.size()={}(理论不应发生,FOR UPDATE 行锁保护)",
+                    updateCount, placements.size());
+        }
+        // 阶段3: 后处理(逐个 resolveContent + out.add;content 失败内部已 casFailed,不下发)
+        for (InstanceStateMachine.DispatchPlacement p : placements) {
+            Row r = placementRows.get(p.id());
+            String content = resolveContentSafely(r, now);
+            if (content == null) {
+                continue;  // 占位符解析失败：已 CAS 置 FAILED，不下发
+            }
+            int timeout = r.timeoutSec != null ? r.timeoutSec : 0;
+            // SPARK 任务：从 params_json 提取 _sparkMode/_jarRef/_mainClass 带入下发链（端到端 sparkMode 注入）
+            String sparkMode = null, jarRef = null, mainClass = null;
+            if ("SPARK".equalsIgnoreCase(r.taskType)) {
+                String pj = paramsJsonOf(r);
+                sparkMode = jsonStr(pj, "_sparkMode");
+                jarRef = jsonStr(pj, "_jarRef");
+                mainClass = jsonStr(pj, "_mainClass");
+            }
+            out.add(new DispatchCommand(r.id, p.attempt(), p.workerNodeCode(), r.taskId, r.taskVersionNo,
+                    r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
+                    sparkMode, jarRef, mainClass));
         }
     }
 
@@ -263,7 +289,8 @@ public class SchedulerKernel {
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
                     + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
                     + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
-                    + "ti.locale "
+                    + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
+                + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
                     + "ORDER BY ti.updated_at ASC "
@@ -277,7 +304,8 @@ public class SchedulerKernel {
                     + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
                     + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
                     + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
-                    + "ti.locale "
+                    + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
+                + "ti.locale "
                     + "FROM task_instance ti "
                     + "WHERE ti.state='WAITING' AND ti.run_mode IN ('NORMAL','BACKFILL') AND ti.deleted=0 "
                     // 任务级 frozen 门已退役（ops-center-publish-boundary）：冻结改为节点级 overlay，
@@ -318,6 +346,7 @@ public class SchedulerKernel {
             r.datasourceId = (Long) rs.getObject("datasource_id");
             r.locale = rs.getString("locale");
             r.workflowTrigger = rs.getString("wtrigger");
+            r.workflowId = (Long) rs.getObject("wfid");
             return r;
         });
     }
@@ -358,6 +387,111 @@ public class SchedulerKernel {
             }
         }
         return true;
+    }
+
+    /**
+     * 048:批量跨周期就绪判定(消 N+1 ①②)。CRON 实例一次性查依赖 + 一次性 COUNT,Java 层组装就绪集合。
+     * 非 CRON / 缺字段直通就绪(同单行 {@link #crossCycleReady} 语义)。保留首周期豁免。
+     */
+    private Set<UUID> batchCrossCycleReady(List<Row> normals) {
+        Set<UUID> ready = new HashSet<>();
+        List<Row> cronRows = new ArrayList<>();
+        for (Row r : normals) {
+            if (!"CRON".equals(r.workflowTrigger)
+                    || r.workflowInstanceId == null || r.workflowNodeId == null
+                    || r.bizDate == null || r.workflowId == null) {
+                ready.add(r.id);  // 非 CRON / 缺字段 → 直通就绪
+            } else {
+                cronRows.add(r);
+            }
+        }
+        if (cronRows.isEmpty()) return ready;
+
+        // ① (workflow_id, node_id) 去重 → 批量查依赖
+        LinkedHashMap<String, long[]> wfNode = new LinkedHashMap<>();  // key → [workflowId, nodeId]
+        for (Row r : cronRows) {
+            wfNode.putIfAbsent(r.workflowId + ":" + r.workflowNodeId,
+                    new long[]{r.workflowId, r.workflowNodeId});
+        }
+        StringBuilder depIn = new StringBuilder();
+        List<Object> depArgs = new ArrayList<>();
+        int i = 0;
+        for (String key : wfNode.keySet()) {
+            if (i++ > 0) depIn.append(',');
+            depIn.append("(?,?)");
+            depArgs.add(wfNode.get(key)[0]);
+            depArgs.add(wfNode.get(key)[1]);
+        }
+        Map<String, List<DepRow>> depsByKey = jdbc.query(
+                "SELECT workflow_id, node_id, depend_node_id, date_offset, earliest_biz_date "
+                        + "FROM workflow_dependency WHERE enabled=1 AND deleted=0 AND earliest_biz_date IS NOT NULL "
+                        + "AND (workflow_id, node_id) IN (" + depIn + ")",
+                (rs) -> {
+                    Map<String, List<DepRow>> m = new HashMap<>();
+                    while (rs.next()) {
+                        String key = rs.getLong("workflow_id") + ":" + rs.getLong("node_id");
+                        m.computeIfAbsent(key, k -> new ArrayList<>()).add(new DepRow(
+                                (Long) rs.getObject("depend_node_id"),
+                                rs.getString("date_offset"),
+                                rs.getString("earliest_biz_date")));
+                    }
+                    return m;
+                }, depArgs.toArray());
+
+        // ② 收集所有 (depend_node_id, prev_biz_date) → 批量 COUNT;无依赖的 cron row 直通就绪
+        LinkedHashSet<String> countKeys = new LinkedHashSet<>();
+        for (Row r : cronRows) {
+            List<DepRow> deps = depsByKey.get(r.workflowId + ":" + r.workflowNodeId);
+            if (deps == null) {
+                ready.add(r.id);  // 无依赖 → 就绪
+                continue;
+            }
+            for (DepRow d : deps) {
+                if (d.earliestBizDate() != null && r.bizDate.compareTo(d.earliestBizDate()) < 0) continue;  // 首周期豁免
+                countKeys.add(d.dependNodeId() + ":" + offsetBizDate(r.bizDate, d.dateOffset()));
+            }
+        }
+        Map<String, Integer> successCounts = new HashMap<>();
+        if (!countKeys.isEmpty()) {
+            StringBuilder cntIn = new StringBuilder();
+            List<Object> cntArgs = new ArrayList<>();
+            int j = 0;
+            for (String ck : countKeys) {
+                String[] parts = ck.split(":", 2);
+                if (j++ > 0) cntIn.append(',');
+                cntIn.append("(?,?)");
+                cntArgs.add(Long.parseLong(parts[0]));
+                cntArgs.add(parts[1]);
+            }
+            successCounts = jdbc.query(
+                    "SELECT workflow_node_id, biz_date, COUNT(*) FROM task_instance "
+                            + "WHERE state='SUCCESS' AND deleted=0 AND (workflow_node_id, biz_date) IN (" + cntIn + ") "
+                            + "GROUP BY workflow_node_id, biz_date",
+                    (rs) -> {
+                        Map<String, Integer> m = new HashMap<>();
+                        while (rs.next()) {
+                            m.put(rs.getLong("workflow_node_id") + ":" + rs.getString("biz_date"), rs.getInt(3));
+                        }
+                        return m;
+                    }, cntArgs.toArray());
+        }
+
+        // ③ 校验每个 CRON row 的所有 dep 就绪(首周期豁免 + prevBizDate COUNT>0)
+        for (Row r : cronRows) {
+            List<DepRow> deps = depsByKey.get(r.workflowId + ":" + r.workflowNodeId);
+            if (deps == null) continue;  // 无依赖已加入 ready
+            boolean allReady = true;
+            for (DepRow d : deps) {
+                if (d.earliestBizDate() != null && r.bizDate.compareTo(d.earliestBizDate()) < 0) continue;  // 首周期豁免
+                Integer cnt = successCounts.get(d.dependNodeId() + ":" + offsetBizDate(r.bizDate, d.dateOffset()));
+                if (cnt == null || cnt == 0) {
+                    allReady = false;
+                    break;
+                }
+            }
+            if (allReady) ready.add(r.id);
+        }
+        return ready;
     }
 
     /** date_offset → bizDate 偏移：LAST_DAY=上一日(-1)，CURRENT_DAY/空=同日。 */
@@ -493,6 +627,7 @@ public class SchedulerKernel {
         Long datasourceId;
         String locale;
         String workflowTrigger;
+        Long workflowId;  // 048:批量跨周期判定用(workflow_instance→workflow_id)
 
         boolean test() {
             return "TEST".equals(runMode);

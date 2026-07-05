@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -67,6 +68,42 @@ public class InstanceStateMachine {
         if (n == 1) publishTaskState(id, "DISPATCHED");
         return n == 1;
     }
+
+    /**
+     * 048 批量写前置下发:单 SQL {@code UPDATE FROM VALUES} 把一批 WAITING 实例 CAS 推到 DISPATCHED
+     * 并落 worker/租约/attempt(design D7 第一层,batch 化)。{@code SELECT … FOR UPDATE SKIP LOCKED} 已在
+     * 事务内锁住这些行 → state 必为 WAITING → 批量 UPDATE 必全成功,返回 updateCount(应 == placements.size(),
+     * 不符仅由调用方 log 核对,理论不发生)。UPDATE FROM VALUES 无 RETURNING —— H2 兼容(见 research R1/R2:T1 FAIL,
+     * T5 OK)。每行成功后逐个 publishTaskState(同单行 casDispatch 语义)。
+     */
+    public int casDispatchBatch(List<DispatchPlacement> placements, LocalDateTime now) {
+        if (placements.isEmpty()) return 0;
+        int n = placements.size();
+        StringBuilder sql = new StringBuilder(
+                "UPDATE task_instance SET state='DISPATCHED', worker_node_code=v.nc, lease_expire_at=v.ls, "
+                        + "attempt=v.at, updated_at=? FROM (VALUES ");
+        for (int i = 0; i < n; i++) {
+            if (i > 0) sql.append(',');
+            sql.append("(CAST(? AS UUID),CAST(? AS VARCHAR),CAST(? AS TIMESTAMP),CAST(? AS INT))");
+        }
+        sql.append(") AS v(id,nc,ls,at) WHERE task_instance.id=v.id AND task_instance.state='WAITING' "
+                + "AND task_instance.deleted=0");
+        Object[] args = new Object[1 + n * 4];
+        args[0] = now;
+        int idx = 1;
+        for (DispatchPlacement p : placements) {
+            args[idx++] = p.id();
+            args[idx++] = p.workerNodeCode();
+            args[idx++] = p.leaseExpireAt();
+            args[idx++] = p.attempt();
+        }
+        int updateCount = jdbc.update(sql.toString(), args);
+        for (DispatchPlacement p : placements) publishTaskState(p.id(), "DISPATCHED");
+        return updateCount;
+    }
+
+    /** 048:批量下发的单个 placement(id + worker + 租约 + attempt)。 */
+    public record DispatchPlacement(UUID id, String workerNodeCode, LocalDateTime leaseExpireAt, int attempt) {}
 
     /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。 */
     public boolean casTaskTerminal(UUID id, String from, String to, String failureReason) {
