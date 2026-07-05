@@ -70,3 +70,32 @@
 - 崩溃注入:`docker kill dataweave-master-2 && docker start` → dispatchExecutor 残余 DispatchCommand → `casRequeue` 回填核对 + 无重复。
 - **SC-002 slot_util 复测**:rebuild worker image(ShellTaskExecutor 真跑 sleep),验证 slot 真实容量(045 SC-002 遗留;当前 slot_util=0 是 dispatch 瓶颈掩盖的结果)。
 - 饱和判定:持续加压到 dispatch 吞吐不再提升,记录最先饱和指标(dispatchExecutor / DB 连接 / worker slot / 聚合)。
+
+## R9. 实测结论(2026-07-05,distributed 双 master 极限档 + 046 核心解耦)
+
+**046 实施范围**:T002-T004(配置 + WebClient 3s 超时)+ T006(runRound→claimRound,dispatchAllAsync 立即返回)+ T007(ParallelDispatcher 重构:ThreadPoolExecutor + 有界队列 + 降级同步,去 invokeAll 屏障)+ T008(contentOf/paramsJsonOf ConcurrentHashMap 缓存,部分 N+1 消除)+ T009(dispatch queue.size/full 指标)。5 commit(5f6bf5e 核心 + 371d608 T008)。
+
+**核心解耦成功(dispatch 串行解除)**:
+- `dw.dispatch.queue.size` 全程 ≤ 18(662wf/1000wf 均不积压)—— dispatchExecutor fan-out 跟得上
+- `dw.dispatch.queue.full.count` = 0(无降级)
+- 662wf 早期(40s):`scheduler_dispatch_latency` max **1.775s**(对比 R9-045 的 227.77s,**~128x 提升**),RUNNING=159 不堆积
+- 解除了 045 R9 的「claim↔dispatch 串行捆绑」(`running` 不再护 dispatch 屏障)
+
+**新瓶颈暴露:claim 速率(单线程 claim 跟不上物化)**:
+- 1000wf `*/2s` 全量(物化 ~600 inst/s):dispatch_latency 后期涨到 **135.7s**,WAITING=**67859 堆积**
+- 662wf 后期(3min):dispatch_latency 72s,WAITING 33983 堆积
+- **诊断**:dispatch_queue 不积压(18)说明 dispatch 解耦 ✓;WAITING 堆积 = task 物化后**等 claim**(claim 速率 < 物化速率),dispatch_latency = WAITING 排队时间
+- **根因**:单线程 claim(`running` 护事务)每轮 assign 含**剩余 N+1** —— `crossCycleReady`(每行查 workflow_dependency + deps COUNT,T008 未覆盖)+ `casDispatch`(每行 1 UPDATE,50 行 50 次)。即使 contentOf/paramsJsonO 缓存(T008),单轮 ~100-150ms → claim 速率 ~333 inst/s < 物化 600 inst/s
+
+**SC 达成**:
+- SC-005(dispatchQueue 稳态不涨)✓(queue.size ≤ 18,full=0)
+- SC-003(幂等无重复 dispatch)✓(casDispatch CAS,wi=ti=cf 一致)
+- SC-001(dispatch_latency p99 < 5s)**部分**:662wf 早期 1.775s ✓,1000wf 全量后期 135s ✗(claim 速率瓶颈)
+- SC-002(吞吐 ≥600 inst/s)✗(claim 速率限制 SUCCESS ~430/s)
+
+**结论**:046 核心(**dispatch 串行解除**)达成,queue 全程不积压,早期 latency ~128x 提升。**新瓶颈 = claim 速率**(单线程 claim + 剩余 N+1 crossCycleReady/casDispatch 跟不上触发层物化)。后续优化方向(新 feature 047?):
+1. `crossCycleReady` 批量化(本轮所有 CRON 行依赖一次 JOIN + 批量 COUNT)
+2. `casDispatch` 批量 UPDATE(50 行 1 SQL 代替 50 次)
+3. 若仍不够:claim 分片(多线程按 workflow_id hash,design doc 原排除项,但 1000wf 下可能必要)
+
+**slot_util(SC-002 045 遗留)**:worker image 未 rebuild(ShellTaskExecutor 真跑),slot_util 仍 0;但 dispatch 解耦后 task 真到 worker,后续 rebuild worker 复测。

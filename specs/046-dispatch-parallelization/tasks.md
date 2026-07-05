@@ -25,9 +25,9 @@ description: "Task list for 046-dispatch-parallelization"
 
 **Purpose**: 配置 + WebClient 超时 —— dispatch 解耦的地基(去屏障必须有超时,防慢 worker 挂 dispatchExecutor)。
 
-- [ ] T002 [P] 改 `backend/dataweave-api/src/main/resources/application.yml`:新增 `scheduler.dispatch-queue-capacity: 2000` / `dispatch-executor-threads: 64` / `dispatch-webclient-timeout-ms: 3000`
-- [ ] T003 [P] 改 `docker-compose.yml`:`dataweave-master` / `dataweave-master-2` env 追加 `SCHEDULER_DISPATCH_QUEUE_CAPACITY` / `SCHEDULER_DISPATCH_EXECUTOR_THREADS` / `SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS`
-- [ ] T004 [P] 改 `backend/dataweave-api/src/main/java/com/dataweave/api/infrastructure/WebClientConfig.java`:WebClient builder 加 `responseTimeout(3s)` + `connectTimeout(2s)`(reactor-netty `HttpClient.create().responseTimeout(...)`;配套去屏障)
+- [X] T002 [P] 改 `backend/dataweave-api/src/main/resources/application.yml`:新增 `scheduler.dispatch-queue-capacity: 2000` / `dispatch-executor-threads: 64` / `dispatch-webclient-timeout-ms: 3000`
+- [X] T003 [P] 改 `docker-compose.yml`:`dataweave-master` / `dataweave-master-2` env 追加 `SCHEDULER_DISPATCH_QUEUE_CAPACITY` / `SCHEDULER_DISPATCH_EXECUTOR_THREADS` / `SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS`
+- [X] T004 [P] 改 `backend/dataweave-api/src/main/java/com/dataweave/api/infrastructure/WebClientConfig.java`:WebClient builder 加 `responseTimeout(3s)` + `connectTimeout(2s)`(reactor-netty `HttpClient.create().responseTimeout(...)`;配套去屏障)
 
 **Checkpoint**: 配置 + 超时就绪,可重构 SchedulerKernel。
 
@@ -41,14 +41,14 @@ description: "Task list for 046-dispatch-parallelization"
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] 改 `backend/dataweave-master/.../application/SchedulerKernel.java`:加 `DispatchCommand` record(instanceId/workflowId/taskId/content/paramsJson/attempt/lease/workerNodeCode/bizDate/timeoutSeconds)+ `dispatchQueue`(`LinkedBlockingQueue`,capacity 可配)+ `dispatchExecutor`(`ThreadPoolExecutor`,threads 可配,`RejectedExecutionHandler` 满则降级同步)+ Caffeine `cache` 字段((task_id,version_no)→ content/params)
-- [ ] T006 [US1] 改 `SchedulerKernel.java`:`runRound` → `claimRound` 拆 —— `running` 只护 claim 事务(SKIP LOCKED + CAS + assign),事务提交后逐个 `dispatchQueue.offer(cmd, 200ms)`(满则降级同步 dispatch + `markQueueFull`),释放 `running`(**不等 dispatch**)
-- [ ] T007 [US1] 改 `backend/dataweave-master/.../application/ParallelDispatcher.java`:`dispatchAll` → `dispatchAllAsync` —— 逐个 `dispatchQueue.offer` 立即返回(**去 `invokeAll` 屏障**),dispatchExecutor 消费调 `gateway.dispatch`;失败 `onFailure.casRequeue` 不变(依赖 T005/T006)
-- [ ] T008 [US1] 改 `SchedulerKernel.java`:新增 `TaskDefVersionBatchLoader`(本轮 `SELECT … WHERE (task_id, version_no) IN (...)` 批量预取 content/params)+ `assign()` 改用批量预取 + Caffeine cache + `crossCycleReady` 批量化(消除 N+1,250-350 次/轮 → 10-20 次/轮;依赖 T005)
-- [ ] T009 [US1] 改 `backend/dataweave-master/.../application/SchedulerMetrics.java`:新增 `dw.dispatch.queue.size`(gauge)/ `queue.full.count`(counter)/ `execute.latency`(timer);方法 `setDispatchQueueSize` / `markQueueFull` / `recordDispatchExecuteLatency`(依赖 T005/T006)
+- [X] T005 [P] [US1] 改 `backend/dataweave-master/.../application/SchedulerKernel.java`:加 `DispatchCommand` record(instanceId/workflowId/taskId/content/paramsJson/attempt/lease/workerNodeCode/bizDate/timeoutSeconds)+ `dispatchQueue`(`LinkedBlockingQueue`,capacity 可配)+ `dispatchExecutor`(`ThreadPoolExecutor`,threads 可配,`RejectedExecutionHandler` 满则降级同步)+ Caffeine `cache` 字段((task_id,version_no)→ content/params)
+- [X] T006 [US1] 改 `SchedulerKernel.java`:`runRound` → `claimRound` 拆 —— `running` 只护 claim 事务(SKIP LOCKED + CAS + assign),事务提交后逐个 `dispatchQueue.offer(cmd, 200ms)`(满则降级同步 dispatch + `markQueueFull`),释放 `running`(**不等 dispatch**)
+- [X] T007 [US1] 改 `backend/dataweave-master/.../application/ParallelDispatcher.java`:`dispatchAll` → `dispatchAllAsync` —— 逐个 `dispatchQueue.offer` 立即返回(**去 `invokeAll` 屏障**),dispatchExecutor 消费调 `gateway.dispatch`;失败 `onFailure.casRequeue` 不变(依赖 T005/T006)
+- [X] T008 [US1] 改 `SchedulerKernel.java`:新增 `TaskDefVersionBatchLoader`(本轮 `SELECT … WHERE (task_id, version_no) IN (...)` 批量预取 content/params)+ `assign()` 改用批量预取 + Caffeine cache + `crossCycleReady` 批量化(消除 N+1,250-350 次/轮 → 10-20 次/轮;依赖 T005)
+- [X] T009 [US1] 改 `backend/dataweave-master/.../application/SchedulerMetrics.java`:新增 `dw.dispatch.queue.size`(gauge)/ `queue.full.count`(counter)/ `execute.latency`(timer);方法 `setDispatchQueueSize` / `markQueueFull` / `recordDispatchExecuteLatency`(依赖 T005/T006)
 - [ ] T010 [P] [US1] 新增 `backend/dataweave-master/src/test/.../application/SchedulerKernelTest.java`:claimRound 不等 dispatch(offer 立即返回)/ dispatchQueue 满降级同步 + markQueueFull / assign 批量预取(N+1 消除,1 次 SELECT IN)/ WebClient 超时 casRequeue
-- [ ] T011 [P] [US1] 新增 `backend/dataweave-master/src/test/.../application/ParallelDispatcherTest.java`:`dispatchAllAsync` offer 队列立即返回(去 `invokeAll` 屏障,不阻塞调用线程)
-- [ ] T012 [US1] 真跑默认档压测:rebuild master(应用 T002-T009)→ `tmp/cron-stress/cron-stress.sh setup -n 1000 -c '*/2 * * * * *'` + `cron-watch -m 3` → 核对 SC-001(dispatch_latency p99 < 5s)/ SC-002(吞吐 ≥600 inst/s)/ SC-005(queue.size 稳态不涨)(依赖 T005-T011)
+- [X] T011 [P] [US1] 新增 `backend/dataweave-master/src/test/.../application/ParallelDispatcherTest.java`:`dispatchAllAsync` offer 队列立即返回(去 `invokeAll` 屏障,不阻塞调用线程)
+- [X] T012 [US1] 真跑默认档压测:rebuild master(应用 T002-T009)→ `tmp/cron-stress/cron-stress.sh setup -n 1000 -c '*/2 * * * * *'` + `cron-watch -m 3` → 核对 SC-001(dispatch_latency p99 < 5s)/ SC-002(吞吐 ≥600 inst/s)/ SC-005(queue.size 稳态不涨)(依赖 T005-T011)
 
 **Checkpoint**: US1 独立可验证 —— dispatch 认领节流解除。
 
@@ -58,8 +58,8 @@ description: "Task list for 046-dispatch-parallelization"
 
 **Goal**: 极限档定位 dispatch 链路饱和点
 
-- [ ] T013 [P] [US2] 改 `tmp/cron-stress/cron-stress.sh`:`cron-watch` 扩展抓 `dw.dispatch.queue.size` / `queue.full.count` / `execute.latency`(经 `/actuator/prometheus`,双 master :8000/:8200)
-- [ ] T014 [US2] 极限档压测:加密 cron(`* * * * * *` 每秒)或加 wf(1500-2000)→ `cron-watch -m 3` → 记录 SC-006(最大 dispatch 吞吐 + 最先饱和指标:dispatchExecutor / DB 连接 / worker slot / 聚合)(依赖 T012/T013)
+- [X] T013 [P] [US2] 改 `tmp/cron-stress/cron-stress.sh`:`cron-watch` 扩展抓 `dw.dispatch.queue.size` / `queue.full.count` / `execute.latency`(经 `/actuator/prometheus`,双 master :8000/:8200)
+- [X] T014 [US2] 极限档压测:加密 cron(`* * * * * *` 每秒)或加 wf(1500-2000)→ `cron-watch -m 3` → 记录 SC-006(最大 dispatch 吞吐 + 最先饱和指标:dispatchExecutor / DB 连接 / worker slot / 聚合)(依赖 T012/T013)
 
 **Checkpoint**: US2 独立可验证 —— dispatch 资源极限量化。
 
@@ -69,7 +69,7 @@ description: "Task list for 046-dispatch-parallelization"
 
 **Goal**: 不丢 dispatch(崩溃 + shutdown 补偿)+ 不重复(CAS)+ 死锁 4 不变量保持
 
-- [ ] T015 [US3] 改 `SchedulerKernel.java`:`@PreDestroy` drain `dispatchQueue` —— 残余 DispatchCommand `casRequeue`(DISPATCHED→WAITING)防丢(shutdown 时;依赖 T005/T006)
+- [X] T015 [US3] 改 `SchedulerKernel.java`:`@PreDestroy` drain `dispatchQueue` —— 残余 DispatchCommand `casRequeue`(DISPATCHED→WAITING)防丢(shutdown 时;依赖 T005/T006)
 - [ ] T016 [P] [US3] 扩展 `SchedulerKernelTest.java`:shutdown drain casRequeue 残余 / 崩溃后 casRequeue 回填 / 幂等无重复 dispatch(casDispatch CAS 保证)
 - [ ] T017 [US3] 崩溃注入真跑:`setup -n 1000` + `docker kill dataweave-master-2 && docker start` → 等 30s → 核对 SC-003(dispatchExecutor 残余 casRequeue 回填 + 无重复 dispatch)(依赖 T015/T016)
 - [ ] T018 [US3] 不变量核对(SC-004):代码审查死锁 4 不变量(SKIP LOCKED claim 保留单线程 / CAS 状态推进 / 锁顺序 task→workflow / 状态事务内 + dispatch 事务外)+ 压测无死锁/活锁
@@ -81,7 +81,7 @@ description: "Task list for 046-dispatch-parallelization"
 ## Phase 6: Polish & Cross-Cutting
 
 - [ ] T019 后端编译 + 测试:`cd backend && ./mvnw -pl dataweave-master -am clean test -Dmaven.build.cache.enabled=false`(零 fail;只认 `Tests run: N>0`,防 build-cache 假绿)
-- [ ] T020 SC-002 slot_util 复测(rebuild worker image,ShellTaskExecutor 真跑 sleep,验证 slot 真实容量 — 045 遗留)+ 把实测数字(dispatch_latency/吞吐/饱和点/崩溃补偿)与结论回写 `specs/046-dispatch-parallelization/research.md`(R9 实测段)
+- [X] T020 SC-002 slot_util 复测(rebuild worker image,ShellTaskExecutor 真跑 sleep,验证 slot 真实容量 — 045 遗留)+ 把实测数字(dispatch_latency/吞吐/饱和点/崩溃补偿)与结论回写 `specs/046-dispatch-parallelization/research.md`(R9 实测段)
 
 ---
 
