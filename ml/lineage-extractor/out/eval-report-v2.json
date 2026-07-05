@@ -1,0 +1,110 @@
+{
+  "overall": {
+    "precision": 0.9953574744661096,
+    "recall": 0.9953574744661096,
+    "f1": 0.9953574744661096,
+    "hallucination": 0.0009285051067780873,
+    "direction_acc": 0.9953574744661096,
+    "invalid": 0
+  },
+  "n": 600,
+  "by_family": {
+    "h": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "py": {
+      "precision": 0.9943181818181818,
+      "recall": 0.9943181818181818,
+      "f1": 0.9943181818181818,
+      "hallucination": 0.005681818181818182,
+      "direction_acc": 0.9943181818181818,
+      "invalid": 0
+    },
+    "sh": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "orm": {
+      "precision": 0.9615384615384616,
+      "recall": 0.9615384615384616,
+      "f1": 0.9615384615384616,
+      "hallucination": 0.0,
+      "direction_acc": 0.9615384615384616,
+      "invalid": 0
+    },
+    "cli": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "config": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9953574744661096,
+      "recall": 0.9953574744661096,
+      "f1": 0.9953574744661096,
+      "hallucination": 0.0009285051067780873,
+      "direction_acc": 0.9953574744661096,
+      "invalid": 0
+    }
+  },
+  "uncovered": {
+    "precision": 0.9943100995732574,
+    "recall": 0.9943100995732574,
+    "f1": 0.9943100995732574,
+    "hallucination": 0.0,
+    "direction_acc": 0.9943100995732574,
+    "invalid": 0
+  },
+  "failures": [
+    "[h-py-orm-chain-dsl#107] R gold=['unique_donors'] got=['repo']",
+    "[h-py-orm-chain-dsl#167] R gold=['mart.mart_risk_score_di'] got=['repo']",
+    "[py-cursor-execute#255] W gold=['furniture_manufacte'] got=['furniture_manufacture']",
+    "[h-py-orm-chain-dsl#379] R gold=['dw.payments_full'] got=['repo']",
+    "[h-py-orm-chain-dsl#415] R gold=['regionwildlifehabitats'] got=['repo']"
+  ]
+}

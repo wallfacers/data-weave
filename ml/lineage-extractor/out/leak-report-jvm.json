@@ -1,0 +1,111 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 99,
+    "verbatim_train_names": 40,
+    "synthetic_shaped": 49,
+    "verbatim_rate": 0.404,
+    "shaped_rate": 0.495,
+    "examples": [
+      {
+        "table": "dwd.dwd_coupon_use_di",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "SparkMongoSink.scala"
+      },
+      {
+        "table": "dwd.dwd_campaigns_delta",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "VastWriteFactory.java"
+      },
+      {
+        "table": "dws.dws_coupon_use_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "InsertOperation.java"
+      },
+      {
+        "table": "ads.ads_payments_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "SaveAdaptor.scala"
+      },
+      {
+        "table": "ods.ods_users_daily",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "FileMessageSet.scala"
+      },
+      {
+        "table": "flatv3_events",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "DatasetUtils.java"
+      },
+      {
+        "table": "ods.ods_risk_score_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "RssColumnType.scala"
+      },
+      {
+        "table": "dws.dws_member_point_df",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "RssColumnType.scala"
+      },
+      {
+        "table": "ods.ods_risk_score_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "CelebornColumnType.scala"
+      },
+      {
+        "table": "dws.dws_member_point_df",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "CelebornColumnType.scala"
+      },
+      {
+        "table": "mart.mart_users_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "adapter.scala"
+      },
+      {
+        "table": "dwd.dwd_campaigns",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "adapter.scala"
+      },
+      {
+        "table": "ods.ods_risk_score_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "PipelineUtil.scala"
+      },
+      {
+        "table": "ads.ads_payments_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "PipelineUtil.scala"
+      },
+      {
+        "table": "ods.clicks_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "FeatureGroupEngine.java"
+      }
+    ]
+  },
+  {
+    "name": "m2-anthropic",
+    "hallucinations": 7,
+    "verbatim_train_names": 0,
+    "synthetic_shaped": 0,
+    "verbatim_rate": 0.0,
+    "shaped_rate": 0.0,
+    "examples": []
+  }
+]

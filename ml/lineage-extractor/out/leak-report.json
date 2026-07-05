@@ -1,0 +1,111 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 76,
+    "verbatim_train_names": 17,
+    "synthetic_shaped": 19,
+    "verbatim_rate": 0.224,
+    "shaped_rate": 0.25,
+    "examples": [
+      {
+        "table": "dws.dws_member_point_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "etl.sh"
+      },
+      {
+        "table": "dws.dws_member_point_df",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.sh"
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.sh"
+      },
+      {
+        "table": "dwd.dwd_risk_score_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "hiveTest.sh"
+      },
+      {
+        "table": "user_clicks",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "mysql2hive_spark.py"
+      },
+      {
+        "table": "dws.dws_inventory_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "impala_foreach_table.sh"
+      },
+      {
+        "table": "dws.dws_member_point_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.distro"
+      },
+      {
+        "table": "bi.bi_events_delta",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "conf.py"
+      },
+      {
+        "table": "ads.ads_payments",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "conf.py"
+      },
+      {
+        "table": "dwd.dwd_risk_score_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "db2ls.py"
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "bq_load.sh"
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "s3tohive.py"
+      },
+      {
+        "table": "dws.dws_coupon_use_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "s3tohive.py"
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "s3tohive.py"
+      },
+      {
+        "table": "dw.dw_member_point_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "create_pipe.sql"
+      }
+    ]
+  },
+  {
+    "name": "m2-anthropic",
+    "hallucinations": 34,
+    "verbatim_train_names": 0,
+    "synthetic_shaped": 0,
+    "verbatim_rate": 0.0,
+    "shaped_rate": 0.0,
+    "examples": []
+  }
+]

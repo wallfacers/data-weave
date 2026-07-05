@@ -10,7 +10,7 @@ split 隔离：heldout = HELDOUT_TEMPLATES（形态隔离）+ 训练模板的未
 训练/heldout 名池不相交（防名字记忆泄漏）。
 
 用法：
-  python data/synth_pipeline.py --out data/out --train-size 10000 --heldout-size 240
+  python data/synth_pipeline.py --out data/out --train-size 10000 --heldout-size 600
 """
 
 from __future__ import annotations
@@ -21,7 +21,10 @@ import random
 import re
 from pathlib import Path
 
-from templates import TRAIN_TEMPLATES, HELDOUT_TEMPLATES, Ctx, Template
+try:
+    from data.templates import TRAIN_TEMPLATES, HELDOUT_TEMPLATES, Ctx, Template
+except ImportError:  # 直接以脚本形式运行时（python data/synth_pipeline.py），`data` 非包路径
+    from templates import TRAIN_TEMPLATES, HELDOUT_TEMPLATES, Ctx, Template
 
 SEED = 20260703
 
@@ -106,6 +109,7 @@ def render(rng: random.Random, tpl: Template, tables: list[str], columns: list[s
         "labels": {"reads": s.reads, "writes": s.writes},
         "meta": {"template_id": tpl.template_id,
                  "rule_covered": tpl.rule_covered,
+                 "form_family": tpl.form_family or tpl.template_id.split("-")[0],
                  "source_dataset": "synth+gretelai/synthetic_text_to_sql+b-mc2/sql-create-context",
                  "split_group": split_group},
     }
@@ -115,7 +119,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/out")
     ap.add_argument("--train-size", type=int, default=10000)
-    ap.add_argument("--heldout-size", type=int, default=240)
+    ap.add_argument("--heldout-size", type=int, default=600)
     args = ap.parse_args()
 
     rng = random.Random(SEED)

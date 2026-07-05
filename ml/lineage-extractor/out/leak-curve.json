@@ -1,0 +1,80 @@
+[
+  {
+    "label": "0.5B",
+    "model": "out/run-0.5b/merged",
+    "syn": {
+      "precision": 0.9943449575871819,
+      "direction_acc": 0.9795728876508821,
+      "hallucination": 0.005655042412818096
+    },
+    "real_full": {
+      "precision": 0.24260355029585798,
+      "hallucination": 0.3047337278106509
+    },
+    "real_nonempty": {
+      "recall": 0.49696969696969695,
+      "direction_acc": 0.36879432624113473,
+      "f1": 0.4924924924924925
+    },
+    "real_nonempty_n": 59,
+    "leak": {
+      "hallucinations": 107,
+      "verbatim_train_names": 40,
+      "verbatim_rate": 0.374,
+      "synthetic_shaped": 64,
+      "shaped_rate": 0.598
+    }
+  },
+  {
+    "label": "1.5B",
+    "model": "out/run3/merged",
+    "syn": {
+      "precision": 0.9953574744661096,
+      "direction_acc": 0.9953574744661096,
+      "hallucination": 0.0009285051067780873
+    },
+    "real_full": {
+      "precision": 0.2698412698412698,
+      "hallucination": 0.15343915343915343
+    },
+    "real_nonempty": {
+      "recall": 0.6181818181818182,
+      "direction_acc": 0.49645390070921985,
+      "f1": 0.5714285714285714
+    },
+    "real_nonempty_n": 59,
+    "leak": {
+      "hallucinations": 76,
+      "verbatim_train_names": 17,
+      "verbatim_rate": 0.224,
+      "synthetic_shaped": 19,
+      "shaped_rate": 0.25
+    }
+  },
+  {
+    "label": "3B",
+    "model": "out/run-3b/merged",
+    "syn": {
+      "precision": 0.9878957169459963,
+      "direction_acc": 0.9795728876508821,
+      "hallucination": 0.0
+    },
+    "real_full": {
+      "precision": 0.32515337423312884,
+      "hallucination": 0.10736196319018405
+    },
+    "real_nonempty": {
+      "recall": 0.6424242424242425,
+      "direction_acc": 0.46808510638297873,
+      "f1": 0.5955056179775281
+    },
+    "real_nonempty_n": 59,
+    "leak": {
+      "hallucinations": 55,
+      "verbatim_train_names": 6,
+      "verbatim_rate": 0.109,
+      "synthetic_shaped": 6,
+      "shaped_rate": 0.109
+    }
+  }
+]

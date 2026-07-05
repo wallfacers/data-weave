@@ -23,8 +23,9 @@ SEED = 20260703
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 
 SYSTEM_PROMPT = (
-    "You are a data lineage extractor for ETL scripts. Given a PYTHON or SHELL task "
-    "script, output ONLY a JSON object {\"reads\": [...], \"writes\": [...]} where each "
+    "You are a data lineage extractor for ETL scripts. Given a PYTHON, SHELL, SCALA or "
+    "JAVA task script (Spark/Flink jobs included), output ONLY a JSON object "
+    "{\"reads\": [...], \"writes\": [...]} where each "
     "item is {\"table\": str, \"columns\": [str] or null}. Rules: include a table only if "
     "its literal name appears in the script text; ignore dynamically-built table names, "
     "commented-out SQL, and SQL that is merely printed or logged; if nothing is read or "
@@ -52,7 +53,12 @@ def main() -> None:
     ap.add_argument("--out", default="out/run1")
     ap.add_argument("--epochs", type=float, default=2.0)
     ap.add_argument("--max-len", type=int, default=2048)
+    # 041-R 加强实验 C：逐规模泄漏曲线。仅换 base、其余配方(SEED/LoRA/epochs/max-len)不动，
+    # 保证 0.5B/1.5B/3B 是干净对比。默认保持 1.5B 向后兼容。
+    ap.add_argument("--base-model", default=BASE_MODEL,
+                    help="HF base 模型 id，如 Qwen/Qwen2.5-Coder-0.5B-Instruct / -3B-Instruct")
     args = ap.parse_args()
+    base_model = args.base_model
 
     rows = [json.loads(l) for l in Path(args.data).read_text(encoding="utf-8").splitlines() if l.strip()]
     ds = Dataset.from_list([to_messages(r) for r in rows])
@@ -83,7 +89,7 @@ def main() -> None:
     )
 
     trainer = SFTTrainer(
-        model=BASE_MODEL,
+        model=base_model,
         args=cfg,
         train_dataset=ds,
         peft_config=peft_config,
@@ -94,7 +100,7 @@ def main() -> None:
     # 合并 LoRA → 独立可部署权重（serve 与发布用）
     merged = trainer.model.merge_and_unload()
     merged.save_pretrained(args.out + "/merged", safe_serialization=True)
-    AutoTokenizer.from_pretrained(BASE_MODEL).save_pretrained(args.out + "/merged")
+    AutoTokenizer.from_pretrained(base_model).save_pretrained(args.out + "/merged")
     print("saved:", args.out + "/merged")
 
 

@@ -1,0 +1,135 @@
+{
+  "overall": {
+    "precision": 0.9669902912621359,
+    "recall": 0.9273743016759777,
+    "f1": 0.9467680608365018,
+    "hallucination": 0.007766990291262136,
+    "direction_acc": 0.9264432029795159,
+    "invalid": 0
+  },
+  "n": 600,
+  "by_family": {
+    "py": {
+      "precision": 0.9886363636363636,
+      "recall": 0.9886363636363636,
+      "f1": 0.9886363636363636,
+      "hallucination": 0.011363636363636364,
+      "direction_acc": 0.9886363636363636,
+      "invalid": 0
+    },
+    "h": {
+      "precision": 0.9950617283950617,
+      "recall": 0.9950617283950617,
+      "f1": 0.9950617283950617,
+      "hallucination": 0.0049382716049382715,
+      "direction_acc": 0.9950617283950617,
+      "invalid": 0
+    },
+    "sh": {
+      "precision": 0.984375,
+      "recall": 0.9921259842519685,
+      "f1": 0.988235294117647,
+      "hallucination": 0.0078125,
+      "direction_acc": 0.984251968503937,
+      "invalid": 0
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "orm": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "cli": {
+      "precision": 0.96875,
+      "recall": 0.96875,
+      "f1": 0.96875,
+      "hallucination": 0.03125,
+      "direction_acc": 0.96875,
+      "invalid": 0
+    },
+    "config": {
+      "precision": 0.4,
+      "recall": 0.2,
+      "f1": 0.26666666666666666,
+      "hallucination": 0.044444444444444446,
+      "direction_acc": 0.2,
+      "invalid": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9669902912621359,
+      "recall": 0.9273743016759777,
+      "f1": 0.9467680608365018,
+      "hallucination": 0.007766990291262136,
+      "direction_acc": 0.9264432029795159,
+      "invalid": 0
+    }
+  },
+  "uncovered": {
+    "precision": 0.955108359133127,
+    "recall": 0.8929088277858177,
+    "f1": 0.9229618548990276,
+    "hallucination": 0.006191950464396285,
+    "direction_acc": 0.8929088277858177,
+    "invalid": 0
+  },
+  "failures": [
+    "[h-sh-dbt-run#30] W gold=['room'] got=[]",
+    "[h-sh-dbt-run#36] W gold=['financial_wellbeing'] got=[]",
+    "[h-sh-dbt-run#41] W gold=['worker_salaries'] got=[]",
+    "[h-sh-dbt-run#46] W gold=['violation'] got=[]",
+    "[h-sh-dbt-run#53] W gold=['social_impact_scores'] got=[]",
+    "[h-sh-dbt-run#79] R gold=['intangible_heritage'] got=['esports_participants']",
+    "[h-sh-dbt-run#79] W gold=['esports_participants'] got=[]",
+    "[h-sh-dbt-run#91] R gold=['union_members_demographics'] got=['skills_required_to_fix']",
+    "[h-sh-dbt-run#91] W gold=['skills_required_to_fix'] got=[]",
+    "[h-sh-dbt-run#96] R gold=['lending_initiatives'] got=['personfriend']",
+    "[h-sh-dbt-run#96] W gold=['personfriend'] got=[]",
+    "[h-sh-dbt-run#98] R gold=['age_groups'] got=['bi.products_hourly']",
+    "[h-sh-dbt-run#98] W gold=['bi.products_hourly'] got=[]",
+    "[h-sh-dbt-run#109] W gold=['elements'] got=[]",
+    "[h-py-sqlalchemy-text#111] W gold=['animaleducation'] got=['animatededuction']",
+    "[h-sh-dbt-run#117] R gold=['production_quebec'] got=['london.lines']",
+    "[h-sh-dbt-run#117] W gold=['london.lines'] got=[]",
+    "[h-sh-dbt-run#131] W gold=['marketing'] got=[]",
+    "[py-insert-into#136] W gold=['furniture_manufacte'] got=['furniture_manufacture']",
+    "[h-sh-dbt-run#164] W gold=['peacekeeping_operations'] got=[]",
+    "[h-sh-impala#166] W gold=['animaleducation'] got=['animatedeserts']",
+    "[h-sh-dbt-run#190] R gold=['threat_intelligence_data'] got=['volunteer_programs']",
+    "[h-sh-dbt-run#190] W gold=['volunteer_programs'] got=[]",
+    "[h-sh-dbt-run#194] R gold=['donors'] got=['model_transactions']",
+    "[h-sh-dbt-run#194] W gold=['transactions'] got=[]",
+    "[h-sh-dbt-run#201] W gold=['treatment_type'] got=[]",
+    "[h-sh-dbt-run#213] R gold=['project_staff'] got=['education_aid']",
+    "[h-sh-dbt-run#213] W gold=['education_aid'] got=[]",
+    "[h-sh-dbt-run#220] R gold=['mental_health_providers'] got=['dw.dw_refunds_delta']",
+    "[h-sh-dbt-run#220] W gold=['dw.dw_refunds_delta'] got=[]"
+  ]
+}

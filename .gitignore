@@ -45,6 +45,27 @@ deploy/workhorse/bin/
 **/data/chat-files/
 data/chat-files/
 
-# 041 训练产物(多GB，不入库；模型不发布 HF)
-ml/lineage-extractor/out/
-**/__pycache__/
+# 041-R 大模型凭据（明文，绝不入库）
+ml/lineage-extractor/.env
+
+# 041-R v2 训练产物（GB 级权重，经 publish.py 上 HF，本地不入 git）
+ml/lineage-extractor/out/run2/
+ml/lineage-extractor/data/out/*.v1.jsonl
+
+# Python 编译产物（误提交过，统一忽略）
+__pycache__/
+*.pyc
+ml/lineage-extractor/out/run3/
+
+# 真实集采集/预标/金标数据（第三方脚本，经 HF 数据集发布而非入代码仓）
+ml/lineage-extractor/realeval/pool/
+ml/lineage-extractor/realeval/tolabel/
+ml/lineage-extractor/realeval/gold/
+ml/lineage-extractor/realeval/_pilot/
+# 041-R 加强实验 D：JVM(Scala/Java)真实集采集/预标（第三方脚本，同上经 HF 发布）
+ml/lineage-extractor/realeval/pool-jvm/
+ml/lineage-extractor/realeval/tolabel-jvm/
+# publish.py 下载/合并的模型工作目录（GB 级 + HF 生成的 README）
+ml/lineage-extractor/out/run1/
+# 041-R 加强实验 C 逐规模训练产物（0.5B/3B… GB 级权重，本地不入 git）
+ml/lineage-extractor/out/run-*/

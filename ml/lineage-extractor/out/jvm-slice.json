@@ -1,0 +1,306 @@
+[
+  {
+    "label": "run3(before)",
+    "model": "out/run3/merged",
+    "overall": {
+      "precision": 0.9917808219178083,
+      "recall": 0.9926873857404022,
+      "f1": 0.9922338967565099,
+      "hallucination": 0.0027397260273972603,
+      "direction_acc": 0.9926873857404022,
+      "invalid": 0
+    },
+    "by_family": {
+      "h": {
+        "precision": 0.9938271604938271,
+        "recall": 0.9938271604938271,
+        "f1": 0.9938271604938271,
+        "hallucination": 0.006172839506172839,
+        "direction_acc": 0.9938271604938271,
+        "invalid": 0
+      },
+      "py": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "sh": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "decorator": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "jvm": {
+        "precision": 0.9876543209876543,
+        "recall": 0.9917355371900827,
+        "f1": 0.9896907216494846,
+        "hallucination": 0.00411522633744856,
+        "direction_acc": 0.9917355371900827,
+        "invalid": 0
+      },
+      "chain": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "cli": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "orm": {
+        "precision": 0.9523809523809523,
+        "recall": 0.9523809523809523,
+        "f1": 0.9523809523809523,
+        "hallucination": 0.0,
+        "direction_acc": 0.9523809523809523,
+        "invalid": 0
+      },
+      "config": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "wrapper": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      }
+    },
+    "by_task_type": {
+      "PYTHON": {
+        "precision": 0.9920634920634921,
+        "recall": 0.9920634920634921,
+        "f1": 0.9920634920634921,
+        "hallucination": 0.0,
+        "direction_acc": 0.9920634920634921,
+        "invalid": 0
+      },
+      "existing(py+sh)": {
+        "precision": 0.9929577464788732,
+        "recall": 0.9929577464788732,
+        "f1": 0.9929577464788732,
+        "hallucination": 0.002347417840375587,
+        "direction_acc": 0.9929577464788732,
+        "invalid": 0
+      },
+      "SHELL": {
+        "precision": 0.9942528735632183,
+        "recall": 0.9942528735632183,
+        "f1": 0.9942528735632183,
+        "hallucination": 0.005747126436781609,
+        "direction_acc": 0.9942528735632183,
+        "invalid": 0
+      },
+      "SCALA": {
+        "precision": 0.9779411764705882,
+        "recall": 0.9851851851851852,
+        "f1": 0.981549815498155,
+        "hallucination": 0.007352941176470588,
+        "direction_acc": 0.9851851851851852,
+        "invalid": 0
+      },
+      "JVM(scala+java)": {
+        "precision": 0.9876543209876543,
+        "recall": 0.9917355371900827,
+        "f1": 0.9896907216494846,
+        "hallucination": 0.00411522633744856,
+        "direction_acc": 0.9917355371900827,
+        "invalid": 0
+      },
+      "JAVA": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      }
+    },
+    "jvm_family": {
+      "precision": 0.9876543209876543,
+      "recall": 0.9917355371900827,
+      "f1": 0.9896907216494846,
+      "hallucination": 0.00411522633744856,
+      "direction_acc": 0.9917355371900827,
+      "invalid": 0
+    }
+  },
+  {
+    "label": "run-jvm(after)",
+    "model": "out/run-jvm/merged",
+    "overall": {
+      "precision": 0.9899451553930531,
+      "recall": 0.9899451553930531,
+      "f1": 0.9899451553930531,
+      "hallucination": 0.002742230347349177,
+      "direction_acc": 0.9899451553930531,
+      "invalid": 0
+    },
+    "by_family": {
+      "h": {
+        "precision": 0.9938271604938271,
+        "recall": 0.9938271604938271,
+        "f1": 0.9938271604938271,
+        "hallucination": 0.006172839506172839,
+        "direction_acc": 0.9938271604938271,
+        "invalid": 0
+      },
+      "py": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "sh": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "decorator": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "jvm": {
+        "precision": 0.9958677685950413,
+        "recall": 0.9958677685950413,
+        "f1": 0.9958677685950413,
+        "hallucination": 0.004132231404958678,
+        "direction_acc": 0.9958677685950413,
+        "invalid": 0
+      },
+      "chain": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "cli": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "orm": {
+        "precision": 0.9047619047619048,
+        "recall": 0.9047619047619048,
+        "f1": 0.9047619047619048,
+        "hallucination": 0.0,
+        "direction_acc": 0.9047619047619048,
+        "invalid": 0
+      },
+      "config": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      },
+      "wrapper": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      }
+    },
+    "by_task_type": {
+      "PYTHON": {
+        "precision": 0.9841269841269841,
+        "recall": 0.9841269841269841,
+        "f1": 0.9841269841269841,
+        "hallucination": 0.0,
+        "direction_acc": 0.9841269841269841,
+        "invalid": 0
+      },
+      "existing(py+sh)": {
+        "precision": 0.9882629107981221,
+        "recall": 0.9882629107981221,
+        "f1": 0.9882629107981221,
+        "hallucination": 0.002347417840375587,
+        "direction_acc": 0.9882629107981221,
+        "invalid": 0
+      },
+      "SHELL": {
+        "precision": 0.9942528735632183,
+        "recall": 0.9942528735632183,
+        "f1": 0.9942528735632183,
+        "hallucination": 0.005747126436781609,
+        "direction_acc": 0.9942528735632183,
+        "invalid": 0
+      },
+      "SCALA": {
+        "precision": 0.9925925925925926,
+        "recall": 0.9925925925925926,
+        "f1": 0.9925925925925926,
+        "hallucination": 0.007407407407407408,
+        "direction_acc": 0.9925925925925926,
+        "invalid": 0
+      },
+      "JVM(scala+java)": {
+        "precision": 0.9958677685950413,
+        "recall": 0.9958677685950413,
+        "f1": 0.9958677685950413,
+        "hallucination": 0.004132231404958678,
+        "direction_acc": 0.9958677685950413,
+        "invalid": 0
+      },
+      "JAVA": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "hallucination": 0.0,
+        "direction_acc": 1.0,
+        "invalid": 0
+      }
+    },
+    "jvm_family": {
+      "precision": 0.9958677685950413,
+      "recall": 0.9958677685950413,
+      "f1": 0.9958677685950413,
+      "hallucination": 0.004132231404958678,
+      "direction_acc": 0.9958677685950413,
+      "invalid": 0
+    }
+  }
+]
