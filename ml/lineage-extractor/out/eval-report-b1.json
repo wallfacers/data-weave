@@ -1,0 +1,114 @@
+{
+  "overall": {
+    "precision": 0.9916434540389972,
+    "recall": 0.9916434540389972,
+    "f1": 0.9916434540389972,
+    "hallucination": 0.0018570102135561746,
+    "direction_acc": 0.9916434540389972,
+    "invalid": 0
+  },
+  "n": 600,
+  "by_family": {
+    "h": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "py": {
+      "precision": 0.9943181818181818,
+      "recall": 0.9943181818181818,
+      "f1": 0.9943181818181818,
+      "hallucination": 0.005681818181818182,
+      "direction_acc": 0.9943181818181818,
+      "invalid": 0
+    },
+    "sh": {
+      "precision": 0.9921875,
+      "recall": 0.9921875,
+      "f1": 0.9921875,
+      "hallucination": 0.0078125,
+      "direction_acc": 0.9921875,
+      "invalid": 0
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "orm": {
+      "precision": 0.9326923076923077,
+      "recall": 0.9326923076923077,
+      "f1": 0.9326923076923077,
+      "hallucination": 0.0,
+      "direction_acc": 0.9326923076923077,
+      "invalid": 0
+    },
+    "cli": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "config": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9916434540389972,
+      "recall": 0.9916434540389972,
+      "f1": 0.9916434540389972,
+      "hallucination": 0.0018570102135561746,
+      "direction_acc": 0.9916434540389972,
+      "invalid": 0
+    }
+  },
+  "uncovered": {
+    "precision": 0.9900426742532006,
+    "recall": 0.9900426742532006,
+    "f1": 0.9900426742532006,
+    "hallucination": 0.0,
+    "direction_acc": 0.9900426742532006,
+    "invalid": 0
+  },
+  "failures": [
+    "[h-py-orm-chain-dsl#81] R gold=['dw_clicks_hourly'] got=['repo']",
+    "[h-py-orm-chain-dsl#102] R gold=['resourcemanagement'] got=['repo']",
+    "[h-py-orm-chain-dsl#107] R gold=['unique_donors'] got=['repo']",
+    "[h-py-orm-chain-dsl#126] R gold=['taxi_occupancy'] got=['repo']",
+    "[h-py-orm-chain-dsl#220] R gold=['dws.dws_sessions_df'] got=['repo']",
+    "[py-cursor-execute#255] W gold=['furniture_manufacte'] got=['furniture_manufacture']",
+    "[h-py-orm-chain-dsl#379] R gold=['dw.payments_full'] got=['repo']",
+    "[sh-heredoc#381] R gold=['ods.ods_member_point', 'tourism_impact'] got=['odds.member_point', 'tourism_impact']",
+    "[h-py-orm-chain-dsl#555] R gold=['dws.dws_exposure_df'] got=['repo']"
+  ]
+}

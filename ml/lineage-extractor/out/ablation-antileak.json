@@ -1,0 +1,54 @@
+{
+  "variants": [
+    {
+      "label": "baseline-1.5b",
+      "real_prec": 0.27,
+      "real_hall": 0.153,
+      "real_recall": 0.618,
+      "real_dir": 0.496,
+      "leak": 0.224,
+      "shaped": 0.25,
+      "synth_prec": 0.9954
+    },
+    {
+      "label": "b1",
+      "real_prec": 0.30368098159509205,
+      "real_hall": 0.17177914110429449,
+      "real_recall": 0.6,
+      "real_dir": 0.425531914893617,
+      "leak": 0.1,
+      "shaped": 0.014,
+      "synth_prec": 0.9916434540389972
+    },
+    {
+      "label": "b2",
+      "real_prec": 0.34310850439882695,
+      "real_hall": 0.12609970674486803,
+      "real_recall": 0.7090909090909091,
+      "real_dir": 0.5531914893617021,
+      "leak": 0.139,
+      "shaped": 0.153,
+      "synth_prec": 0.9907149489322191
+    },
+    {
+      "label": "3b",
+      "real_prec": 0.325,
+      "real_hall": 0.107,
+      "real_recall": 0.642,
+      "real_dir": 0.468,
+      "leak": 0.109,
+      "shaped": 0.109,
+      "synth_prec": null
+    }
+  ],
+  "warnings": [],
+  "columns": [
+    "real_prec",
+    "real_hall",
+    "real_recall",
+    "real_dir",
+    "leak",
+    "shaped",
+    "synth_prec"
+  ]
+}

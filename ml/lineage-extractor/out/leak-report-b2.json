@@ -1,0 +1,91 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 72,
+    "verbatim_train_names": 10,
+    "synthetic_shaped": 11,
+    "verbatim_rate": 0.139,
+    "shaped_rate": 0.153,
+    "examples": [
+      {
+        "table": "dws.dws_coupon_use_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_exposure_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "hiveTest.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "impala_foreach_table.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "bi.bi_inventory_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "conf.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "conf.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "mart.mart_users_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "gdal_merge.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_payments_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "bq_load.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "ods.ods_risk_score_df",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "initialize_table.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_payments_delta",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "initialize_table.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "dwd.dwd_campaigns",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sh_63.sql",
+        "verbatim_own": true
+      },
+      {
+        "table": "failure_events",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "run.sh",
+        "verbatim_own": false
+      }
+    ],
+    "verbatim_own_names": 10,
+    "verbatim_own_rate": 0.139
+  }
+]

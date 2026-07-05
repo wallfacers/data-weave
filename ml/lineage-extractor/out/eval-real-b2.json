@@ -1,0 +1,42 @@
+[
+  {
+    "name": "sft-1.5b",
+    "full": {
+      "precision": 0.34310850439882695,
+      "recall": 0.7090909090909091,
+      "f1": 0.46245059288537543,
+      "hallucination": 0.12609970674486803,
+      "direction_acc": 0.5531914893617021,
+      "invalid": 3
+    },
+    "nonempty": {
+      "precision": 0.5598086124401914,
+      "recall": 0.7090909090909091,
+      "f1": 0.625668449197861,
+      "hallucination": 0.03349282296650718,
+      "direction_acc": 0.5531914893617021,
+      "invalid": 0
+    },
+    "nonempty_n": 59
+  },
+  {
+    "name": "regex",
+    "full": {
+      "precision": 0.16560509554140126,
+      "recall": 0.4727272727272727,
+      "f1": 0.2452830188679245,
+      "hallucination": 0.0,
+      "direction_acc": 0.3971631205673759,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.41711229946524064,
+      "recall": 0.4727272727272727,
+      "f1": 0.4431818181818181,
+      "hallucination": 0.0,
+      "direction_acc": 0.3971631205673759,
+      "invalid": 0
+    },
+    "nonempty_n": 59
+  }
+]
