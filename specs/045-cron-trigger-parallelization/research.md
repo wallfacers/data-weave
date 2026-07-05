@@ -1,0 +1,62 @@
+# Research: cron 触发并发吞吐优化
+
+> Phase 0 产出。技术决策详情见 [design doc](../../docs/superpowers/specs/2026-07-05-cron-trigger-parallelization-design.md);本文件提炼关键决策与证据,无未解决项。
+
+## R1. 多级瓶颈根因(explore 实测 + 代码定位)
+
+044 结论"单线程串行 fire"经 explore 精化为**多级瓶颈**:
+
+| 层 | 现状(代码证据) | 影响 |
+|---|---|---|
+| `DefaultTriggerEngine.timer` | `Executors.newScheduledThreadPool(2)` 硬编码(`DefaultTriggerEngine.java:58`) | 50 点同到期仅 2 线程并发 fire |
+| `fire()` 同步阻塞 | 调 `triggerService.trigger(...)` 串行等物化(`:229`) | timer 线程被占满 |
+| `WorkflowTriggerService.trigger` | 无 `@Transactional`;`taskInstanceRepository.save(ti)` 循环逐条 INSERT(`WorkflowTriggerService.java:282`) | N 节点 = N 次 DB 往返 + N 次 commit |
+| HikariCP | 无 `maximum-pool-size` 配置 → Spring Boot 默认 10 | 044 入口已打满 |
+
+实测每 fire ~0.25s ≈ 3-4 SELECT + 1 INSERT(wi)+ N INSERT(ti)+ 1 UPDATE(cron_fire)+ 1 UPDATE(wf)。**真正节流的是"池=2 × 每 fire 同步 N 次往返"**,非单线程。
+
+## R2. 方案选型(A vs B vs C)
+
+- **Decision**:**方案 A**(进程内队列 + reconciler + 三层幂等)。
+- **Rationale**:① 最快(无 DB 锁)贴合"找极限";② 复用 `cron_fire` 真相源(无新介质);③ 崩溃 ≤30s 补偿可接受;④ 完全符合死锁 4 不变量。
+- **Alternatives rejected**:
+  - B(DB 持久队列 `FOR UPDATE SKIP LOCKED`):trigger 物化在 SKIP LOCKED 事务内持锁久 → 阻塞认领 → 重新节流,违性能目标;且 `cron_fire` 读放大 + 锁竞争。
+  - C(Redis Stream):ACK/PEL 处理复杂 + Redis 强依赖(all-in-one 模式风险),收益不抵复杂度。
+
+## R3. fire 拆 arm/execute 的时序(不变量保持)
+
+- **fireArm(timer 线程)**:校验 ONLINE/生效期/misfire → `INSERT cron_fire (status=PENDING)`(UNIQUE 去重,与现状语义一致)→ `fireQueue.offer(FireTask, 200ms)`;超时 → fallback 同步 `fireExecute`(不丢)+ `markQueueFull`。
+- **fireExecute(worker / 降级 timer)**:应用层幂等查 → `triggerService.trigger`(物化)→ 回填 `cron_fire(instance_id, status=FIRED, fired_at)`→ `advanceNext` → metrics。
+- **关键**:去重真相仍是 `cron_fire` UNIQUE(同步,不变);异步化的是"物化",不改变"谁创建"的语义。多 master 仍各自 arm,到点 INSERT 撞键放弃(零协调)。
+
+## R4. 幂等三层(防重复 instance)
+
+1. `cron_fire UNIQUE (workflow_id, scheduled_fire_time)` — 谁创建(已有,不变)。
+2. `workflow_instance UNIQUE (workflow_id, scheduled_fire_time) WHERE scheduled_fire_time IS NOT NULL` — DB 兜底并发/崩溃重试/TOCTOU(新增)。
+   - 手动/补数据 `scheduled_fire_time=NULL` 不受约束(零误伤);`triggerBackfillTaskRun` 走独立路径不传 scheduled_fire_time。
+3. 应用层快查 — `fireExecute`/reconciler 入口 SELECT 已存在则跳过(新增,避免撞键异常开销)。
+- **多 master 并发扫同 NULL 行**:DB 唯一约束撞键 → `DataIntegrityViolationException` → 查已有回填(安全,无需 advisory lock)。
+
+## R5. 资源池两档 + PG 约束(实测)
+
+- **约束链**:worker(物化占 1 连接)≤ HikariCP;双 master × HikariCP ≤ PG `max_connections`。
+- **实测**:PG `max_connections=100`(默认),当前 26 连接(双 master + 双 worker)。双 master × HikariCP ≤ 90 → 默认档 HikariCP=40 安全(双×40=80,留 20 余量)。
+- **极限档**:worker=64/HikariCP=64,双×64=128 → 需 `docker-compose` postgres `command: postgres -c max_connections=200`。
+- **两档均 application.yml 可配**;045 验证:默认档量化基线 → 极限档找天花板。
+
+## R6. 死锁防御 4 不变量核对(CLAUDE.md 硬规则)
+
+| 不变量 | 本方案 | 证据 |
+|---|---|---|
+| ① SKIP LOCKED claim | 不依赖(进程内队列 + `cron_fire` UNIQUE) | reconciler 普通 SELECT,多 master 并发由 workflow_instance 唯一约束兜底 |
+| ② CAS 状态推进 | trigger 物化 = INSERT 新行;`advanceNext` 沿用现有 `workflow_def` save | 不引入新竞态(现有行为) |
+| ③ 锁顺序 task→workflow | 不持有跨表行锁 | trigger `@Transactional` 内仅 INSERT,无显式锁 |
+| ④ 状态事务内 + dispatch 事务外 | trigger `@Transactional`;`wake()` 移 `@TransactionalEventListener(AFTER_COMMIT)` | redis publish 在事务提交后 |
+
+## R7. 测试方法(找极限)
+
+- 复用 044 cron-stress(50/100/200 wf `*/10 * * * * *`,distributed 双 master)。
+- **两档对比**:默认档(8/32/40/4000,PG=100)量化基线 → 极限档(8/64/64/8000,PG=200)找饱和点。
+- **新断言**:队列深度不持续涨、`queue.full.count`=0(默认档)/可观测(极限档)、`reconcile.replayed`=0(无崩溃不应触发)、**幂等**(无重复 scheduled_fire_time 实例)。
+- **崩溃注入**:kill master → 队列 FireTask 丢 → reconciler 30s 补 → 核对 instance 最终创建。
+- **饱和判定**:持续加压到吞吐不再提升,记录最先饱和指标(CPU/DB 连接/锁/worker 池)。
