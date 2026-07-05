@@ -119,6 +119,8 @@ services:
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
+      SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"    # 044-cron-concurrency-perf: cron 扫描 15s→2s(测试加速)
+      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"        # 预读窗口 30s→3s
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
@@ -150,6 +152,8 @@ services:
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
+      SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"    # 044-cron-concurrency-perf: cron 扫描 15s→2s(测试加速)
+      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"        # 预读窗口 30s→3s
     restart: unless-stopped
 
   # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
