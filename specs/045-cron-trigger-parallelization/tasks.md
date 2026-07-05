@@ -82,7 +82,7 @@ description: "Task list for 045-cron-trigger-parallelization"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T019 [P] 后端编译 + 测试:`cd backend && ./mvnw -pl dataweave-master -am clean test -Dmaven.build.cache.enabled=false`(零 fail;只认 `Tests run: N>0`,防 build-cache 假绿)—— **mvn test 已 detach 跑,等 `tmp/build.exit`**
+- [X] T019 [P] 后端编译 + 测试:`cd backend && ./mvnw -pl dataweave-master -am clean test -Dmaven.build.cache.enabled=false` —— **422 tests / 421 pass**:045 新增 3 类 7 测试全绿(DefaultTriggerEngineTest 3 / CronFireReconcilerTest 3 / WorkflowTriggerServiceTest 1);唯一 error `BackfillServiceTest.workflowBackfillTriggersDagPerDate` 系 **pre-existing red**(045 未动 BackfillService,最后改动 `96d46a0`),非本特性引入
 - [X] T020 把实测数字(默认档吞吐/延迟 + 极限档饱和点 + 崩溃补偿延迟 + 撞键率)与结论回写 `specs/045-cron-trigger-parallelization/research.md`(R7 实测段)
 
 ---
