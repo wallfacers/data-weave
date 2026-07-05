@@ -66,6 +66,10 @@ scheduler:
   cron-reconcile-interval-ms: 10000  # 补偿器扫描间隔（崩溃丢失的触发点重试）
   cron-reconcile-grace-ms: 30000   # 补偿阈值（fire 后此时间内未回填 instance 视为丢失）
   cron-reconcile-timeout-ms: 180000  # DEAD 阈值（超此仍失败则放弃 + 告警，避免无限重试）
+  # 046 dispatch 并行化：认领与下发解耦（进程内队列 + 异步 executor，同 045 fireQueue 模式）
+  dispatch-queue-capacity: 2000        # dispatchQueue 有界容量（满则降级同步下发，不丢）
+  dispatch-executor-threads: 64        # dispatchExecutor 池（异步消费队列，fan-out 下发，解除 claim↔dispatch 串行）
+  dispatch-webclient-timeout-ms: 3000  # distributed WebClient 响应超时（防慢 worker 挂 dispatchExecutor 线程）
 
 cluster:
   auth:
