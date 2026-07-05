@@ -41,8 +41,11 @@ class SchedulerPreemptionTest {
 
     @Test
     void highPriorityWaiting_preemptsLowerPriorityPreemptible() {
-        // 1) 仅留一个单槽 worker 在线
+        // 1) 场景封闭:仅留一个单槽 worker 在线;并清掉 data.sql 预置的 WAITING 素材实例——
+        //    ec7868e 移除 worker_nodes seed 后,启动期无节点消化它们,它们(updated_at 更老)会与
+        //    demand 争唯一槽并占住 RUNNING,使 demand 永远认领不到。
         jdbc.update("UPDATE worker_nodes SET status='OFFLINE'");
+        jdbc.update("UPDATE task_instance SET deleted=1 WHERE state='WAITING' AND deleted=0");
         jdbc.update("INSERT INTO worker_nodes (node_code, status, max_concurrent_tasks, reserved_test_slots, "
                 + "created_at, updated_at, deleted, version) VALUES ('node-pre','ONLINE',1,0,?,?,0,0)",
                 LocalDateTime.now(), LocalDateTime.now());

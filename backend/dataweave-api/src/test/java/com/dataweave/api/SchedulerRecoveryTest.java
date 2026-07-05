@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.Duration;
@@ -27,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("h2")
 @TestPropertySource(properties = {"scheduler.test-isolation=recovery"})  // 独立 context，隔离其它测试遗留实例
+// ec7868e 移除 worker_nodes 产品 seed 后,MOCK 环境无 HTTP 心跳注册,调度 E2E 须自备 ONLINE worker。
+@Sql(scripts = "/test-worker-seed.sql")
 class SchedulerRecoveryTest {
 
     @Autowired

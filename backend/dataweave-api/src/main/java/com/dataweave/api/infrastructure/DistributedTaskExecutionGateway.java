@@ -7,6 +7,7 @@ import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
@@ -47,7 +48,7 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
     private final WorkerNodeRepository nodeRepository;
     private final DatasourceResolver datasourceResolver;
 
-    public DistributedTaskExecutionGateway(WebClient.Builder webClientBuilder,
+    public DistributedTaskExecutionGateway(@Qualifier("dispatchWebClientBuilder") WebClient.Builder webClientBuilder,
                                            @Value("${cluster.auth.token:}") String clusterToken,
                                            @Value("${cluster.worker.scheme:http}") String workerScheme,
                                            WorkerNodeRepository nodeRepository,

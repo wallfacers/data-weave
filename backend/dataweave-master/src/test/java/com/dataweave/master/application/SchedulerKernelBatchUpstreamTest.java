@@ -41,7 +41,7 @@ class SchedulerKernelBatchUpstreamTest {
                 mock(EventBus.class), mock(PreemptionService.class),
                 mock(SchedulerMetrics.class), mock(ParallelDispatcher.class),
                 mock(ScheduleParamResolver.class), mock(Messages.class),
-                mock(PlatformTransactionManager.class), 50, 120, 200);
+                mock(PlatformTransactionManager.class), 50, 120, 200, 5);
     }
 
     private SchedulerKernel.Row row(UUID id, UUID wi, long nodeId) {

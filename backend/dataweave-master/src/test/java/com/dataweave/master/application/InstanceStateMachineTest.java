@@ -14,6 +14,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * 048 {@link InstanceStateMachine#casDispatchBatch} 批量下发 CAS:单 SQL {@code UPDATE FROM VALUES}
@@ -102,6 +104,36 @@ class InstanceStateMachineTest {
         assertThat(stateOf(u)).isEqualTo("DISPATCHED");
         assertThat(workerOf(u)).isEqualTo("wx");
         assertThat(attemptOf(u)).isEqualTo(7);
+    }
+
+    // ─── 收尾:滞留下发守卫 + 事务后事件发布 ─────────────────
+
+    @Test
+    void isCurrentDispatch_matchesStateAndAttempt() {
+        UUID u = insertWaiting();
+        sm.casDispatchBatch(List.of(
+                new InstanceStateMachine.DispatchPlacement(u, "w1", NOW.plusSeconds(60), 2)), NOW);
+        assertThat(sm.isCurrentDispatch(u, 2)).isTrue();
+        assertThat(sm.isCurrentDispatch(u, 1)).isFalse();  // 旧 attempt 滞留命令 → 拒发
+    }
+
+    @Test
+    void isCurrentDispatch_nonDispatchedOrMissing_false() {
+        UUID waiting = insertWaiting();  // 仍 WAITING(未派单/已被回收)
+        assertThat(sm.isCurrentDispatch(waiting, 1)).isFalse();
+        assertThat(sm.isCurrentDispatch(UUID.randomUUID(), 1)).isFalse();  // 不存在
+    }
+
+    @Test
+    void publishDispatchedEvents_publishesPerWorkflowChannel_skipsNullWf() {
+        EventBus bus = mock(EventBus.class);
+        InstanceStateMachine sm2 = new InstanceStateMachine(jdbc, bus, mock(ApplicationEventPublisher.class));
+        UUID t1 = UUID.randomUUID(), wf1 = UUID.randomUUID(), t2 = UUID.randomUUID();
+        sm2.publishDispatchedEvents(List.of(
+                new InstanceStateMachine.DispatchedEvent(t1, wf1),
+                new InstanceStateMachine.DispatchedEvent(t2, null)));  // 单跑实例无通道,跳过
+        verify(bus).publish("dw:evt:" + wf1, "{\"taskId\":\"" + t1 + "\",\"taskState\":\"DISPATCHED\"}");
+        verifyNoMoreInteractions(bus);
     }
 
     private String stateOf(UUID id) {
