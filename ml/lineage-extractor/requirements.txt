@@ -9,6 +9,9 @@ huggingface_hub>=0.30
 fastapi>=0.115
 uvicorn>=0.34
 
+# 050 Tier 1 通道分工：SQL AST 抽血缘（把含 SQL 的脚本路由给解析器而非模型）
+sqlglot>=25,<31
+
 # 041-R LLM 双端点封装（M1 DashScope / M2 阿里云 Anthropic 兼容端点）
 openai>=1.40,<2
 anthropic>=0.40,<1

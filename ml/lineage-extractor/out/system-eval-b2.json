@@ -1,0 +1,42 @@
+{
+  "n": 139,
+  "nonempty_n": 59,
+  "routed_sql": 58,
+  "routed_model": 81,
+  "model": {
+    "full": {
+      "precision": 0.3519061583577713,
+      "recall": 0.7272727272727273,
+      "f1": 0.474308300395257,
+      "hallucination": 0.12609970674486803,
+      "direction_acc": 0.5602836879432624,
+      "invalid": 3
+    },
+    "nonempty": {
+      "precision": 0.5741626794258373,
+      "recall": 0.7272727272727273,
+      "f1": 0.6417112299465241,
+      "hallucination": 0.03349282296650718,
+      "direction_acc": 0.5602836879432624,
+      "invalid": 0
+    }
+  },
+  "hybrid": {
+    "full": {
+      "precision": 0.32857142857142857,
+      "recall": 0.5575757575757576,
+      "f1": 0.4134831460674157,
+      "hallucination": 0.175,
+      "direction_acc": 0.49645390070921985,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.5644171779141104,
+      "recall": 0.5575757575757576,
+      "f1": 0.5609756097560976,
+      "hallucination": 0.09202453987730061,
+      "direction_acc": 0.49645390070921985,
+      "invalid": 0
+    }
+  }
+}

@@ -1,0 +1,91 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 42,
+    "verbatim_train_names": 6,
+    "synthetic_shaped": 9,
+    "verbatim_rate": 0.143,
+    "shaped_rate": 0.214,
+    "examples": [
+      {
+        "table": "dwd.dwd_users_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "mart.mart_campaigns_di",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "sqoop-import.sh",
+        "verbatim_own": false
+      },
+      {
+        "table": "user_clicks",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "mysql2hive_spark.py",
+        "verbatim_own": false
+      },
+      {
+        "table": "bi.bi_events",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "conf.py",
+        "verbatim_own": false
+      },
+      {
+        "table": "bi.bi_events_daily",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "snowflake-bq.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "stg.stg_users_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "snowflake-bq.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "ads.ads_payments_hourly",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "bq_load.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "dws.dws_coupon_use_di",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "install.sql",
+        "verbatim_own": true
+      },
+      {
+        "table": "bi.bi_events_daily",
+        "verbatim_train": true,
+        "synthetic_shaped": true,
+        "script": "initialize_table.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "public.police_calls",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "initialize_table.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "assets",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "run.sh",
+        "verbatim_own": true
+      }
+    ],
+    "verbatim_own_names": 8,
+    "verbatim_own_rate": 0.19
+  }
+]
