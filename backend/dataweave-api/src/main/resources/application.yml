@@ -52,6 +52,7 @@ scheduler:
   mode: all-in-one                 # all-in-one（默认，单 JVM + 内存总线 + 文件归档）| distributed
   poll-interval-ms: 5000           # 兜底轮询间隔（事件全丢时最坏延迟）
   claim-batch-size: 50             # 单轮 SKIP LOCKED 认领批量
+  claim-candidate-size: 200        # 049:候选放大(去 NOT EXISTS 后 Java filter 余量,NORMAL 用)
   cron-misfire: fire_once          # fire_once（默认，恢复后补一次）| skip
   cron-scan-interval-ms: 15000     # cron 短周期扫描间隔（替代旧 60s 粗轮询）
   cron-lookahead-ms: 30000         # 预读窗口：捞 next_trigger_time ≤ now+此值 的触发点压入精确触发器（建议 ≥ 2×扫描间隔）
