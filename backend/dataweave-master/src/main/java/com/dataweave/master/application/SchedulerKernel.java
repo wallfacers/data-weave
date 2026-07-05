@@ -62,6 +62,7 @@ public class SchedulerKernel {
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
+    private final int claimCandidateSize;  // 049:放大候选(去 NOT EXISTS 后 Java filter 的余量)
 
     // 串行化一轮调度（CAS 已保正确，串行仅去重避免空抢）；运行中再来唤醒则置 rerun，结束后补跑。
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -84,7 +85,8 @@ public class SchedulerKernel {
                            Messages messages,
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
-                           @Value("${scheduler.lease-seconds:120}") long leaseSeconds) {
+                           @Value("${scheduler.lease-seconds:120}") long leaseSeconds,
+                           @Value("${scheduler.claim-candidate-size:200}") int claimCandidateSize) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.slotManager = slotManager;
@@ -99,6 +101,7 @@ public class SchedulerKernel {
         this.txTemplate = new TransactionTemplate(txManager);
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
+        this.claimCandidateSize = claimCandidateSize;
     }
 
     @PostConstruct
@@ -177,17 +180,24 @@ public class SchedulerKernel {
         LocalDateTime now = LocalDateTime.now();
 
         // TEST 先行（高优 + 可用全部空槽，含预留）
-        List<Row> tests = selectRunnable(true);
+        List<Row> tests = selectRunnable(RunMode.TEST);
         assign(tests, nodes, true, now, out);
 
-        // NORMAL 次之（仅非预留空槽）；CRON 实例还需满足跨周期依赖（手动/测试忽略跨周期）
-        List<Row> normalCandidates = selectRunnable(false);
-        Set<UUID> readyIds = batchCrossCycleReady(normalCandidates);  // 048:批量跨周期判定(消 N+1 ①②)
-        List<Row> normals = normalCandidates.stream()
-                .filter(r -> readyIds.contains(r.id))
-                .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
-                .toList();
-        assign(normals, nodes, false, now, out);
+        // 049:NORMAL + BACKFILL 候选(各等值 Index Scan,去 NOT EXISTS);上游门 + 跨周期门批量 Java 判定
+        List<Row> normalCandidates = selectRunnable(RunMode.NORMAL);
+        List<Row> backfillCandidates = selectRunnable(RunMode.BACKFILL);
+        List<Row> runnable = new ArrayList<>(normalCandidates.size() + backfillCandidates.size());
+        runnable.addAll(normalCandidates);
+        runnable.addAll(backfillCandidates);
+        if (!runnable.isEmpty()) {
+            Set<UUID> upstreamReady = batchUpstreamReady(runnable);        // 049:批量上游就绪(替 NOT EXISTS)
+            Set<UUID> crossCycleReady = batchCrossCycleReady(runnable);   // 048:批量跨周期判定
+            List<Row> normals = runnable.stream()
+                    .filter(r -> upstreamReady.contains(r.id) && crossCycleReady.contains(r.id))
+                    .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
+                    .toList();
+            assign(normals, nodes, false, now, out);
+        }
 
         return out;
     }
@@ -277,56 +287,38 @@ public class SchedulerKernel {
         return new Candidate(r.id, declared, r.waitingSince, r.test());
     }
 
-    /** 认领可运行候选（FOR UPDATE SKIP LOCKED 锁取，事务内）。test=true 取 TEST，false 取 NORMAL（带上游就绪门）。 */
-    private List<Row> selectRunnable(boolean test) {
-        String sql;
-        if (test) {
-            sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
-                    + "ti.content_override, ti.params_override, "
-                    + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
-                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
-                    + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
-                    + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
-                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
-                    + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
-                    + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
-                + "ti.locale "
-                    + "FROM task_instance ti "
-                    + "WHERE ti.state='WAITING' AND ti.run_mode='TEST' AND ti.deleted=0 "
-                    + "ORDER BY ti.updated_at ASC "
-                    + "LIMIT " + claimBatchSize + " FOR UPDATE SKIP LOCKED";
-        } else {
-            sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
-                    + "ti.content_override, ti.params_override, "
-                    + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
-                    + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
-                    + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
-                    + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
-                    + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
-                    + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
-                    + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
-                + "ti.locale "
-                    + "FROM task_instance ti "
-                    + "WHERE ti.state='WAITING' AND ti.run_mode IN ('NORMAL','BACKFILL') AND ti.deleted=0 "
-                    // 任务级 frozen 门已退役（ops-center-publish-boundary）：冻结改为节点级 overlay，
-                    // 在实例物化阶段标 SKIPPED（见 NodeFreezeService），不再于认领期按 task_def.frozen 过滤。
-                    // 节流门（backfill-parallelism-throttle）：被持有的补数据实例不可认领；旁路标志，
-                    // 由 BackfillPromoter 完成即晋升（held 1→0）。NORMAL 实例 held 默认 0 不受影响。
-                    + "AND COALESCE(ti.backfill_held,0)=0 "
+    /** 049:认领候选运行模式(TEST 高优先行 / NORMAL 主流 / BACKFILL 补数据)。等值用索引,避 IN 打破索引。 */
+    private enum RunMode { TEST, NORMAL, BACKFILL }
+
+    /**
+     * 049:认领可运行候选(FOR UPDATE SKIP LOCKED 锁取,事务内)。runMode 等值用 idx_task_instance_claim 索引
+     * (避 IN 打破索引:048 R10 EXPLAIN 实测 IN→Seq Scan 244ms vs 等值 Index Scan 0.43ms,566x)。
+     * NORMAL/BACKFILL 含 backfill_held + workflow_instance state 门;NOT EXISTS 上游门移出(Java batchUpstreamReady,
+     * 避大表 NOT EXISTS 退化 327-493ms)。NORMAL LIMIT 放大 claimCandidateSize(去 NOT EXISTS 后 Java filter 余量)。
+     */
+    private List<Row> selectRunnable(RunMode runMode) {
+        boolean isTest = runMode == RunMode.TEST;
+        int limit = runMode == RunMode.NORMAL ? claimCandidateSize : claimBatchSize;
+        String sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
+                + "ti.content_override, ti.params_override, "
+                + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
+                + "(SELECT wi.priority FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wpriority, "
+                + "(SELECT td.timeout_sec FROM task_def td WHERE td.id=ti.task_id) AS timeout_sec, "
+                + "COALESCE(ti.type_override, (SELECT td.type FROM task_def td WHERE td.id=ti.task_id)) AS task_type, "
+                + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
+                + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
+                + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
+                + "ti.locale FROM task_instance ti "
+                + "WHERE ti.state='WAITING' AND ti.run_mode='" + runMode.name() + "' AND ti.deleted=0 ";
+        if (!isTest) {
+            // 节流门(backfill-parallelism-throttle):被持有的补数据实例不可认领;由 BackfillPromoter 晋升(held 1→0)。
+            // NORMAL 实例 backfill_held 默认 0 不受影响;任务级 frozen 门已退役(ops-center-publish-boundary,改节点级 overlay)。
+            sql += "AND COALESCE(ti.backfill_held,0)=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
-                    + "     WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) "
-                    + "AND NOT EXISTS (SELECT 1 FROM workflow_edge e "
-                    + "   JOIN task_instance pred ON pred.workflow_instance_id=ti.workflow_instance_id "
-                    + "        AND pred.workflow_node_id=e.from_node_id AND pred.deleted=0 "
-                    + "   WHERE e.to_node_id=ti.workflow_node_id AND e.deleted=0 "
-                    // 弱依赖就绪：仅上游「自然跑完」(SUCCESS含手动置成功 / FAILED)放行下游；
-                    // 手动停止(STOPPED/MANUAL_STOP)是中止而非跑完，不放行弱依赖下游（ops-center-publish-boundary）。
-                    + "        AND ( (COALESCE(e.strength,'STRONG')='WEAK' "
-                    + "               AND pred.state NOT IN ('SUCCESS','FAILED')) "
-                    + "              OR (COALESCE(e.strength,'STRONG')<>'WEAK' AND pred.state<>'SUCCESS') ) ) "
-                    + "ORDER BY ti.updated_at ASC "
-                    + "LIMIT " + claimBatchSize + " FOR UPDATE SKIP LOCKED";
+                    + "WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) ";
+            // 049:NOT EXISTS 上游门移出 → Java batchUpstreamReady(避大表 NOT EXISTS 退化)
         }
+        sql += "ORDER BY ti.updated_at ASC LIMIT " + limit + " FOR UPDATE SKIP LOCKED";
         return jdbc.query(sql, (rs, n) -> {
             Row r = new Row();
             r.id = rs.getObject("id", UUID.class);
@@ -493,6 +485,104 @@ public class SchedulerKernel {
         }
         return ready;
     }
+
+    /**
+     * 049:批量上游就绪判定(替 selectRunnable NOT EXISTS,避大表 NOT EXISTS 退化 327-493ms)。一次性查
+     * workflow_edge(to_node_id IN)+ pred task_instance state(SUCCESS/FAILED),Java 层组装就绪集合。
+     * 强依赖(strength=STRONG/默认):pred 须 SUCCESS;弱依赖(WEAK):pred 须 SUCCESS 或 FAILED(自然跑完)。
+     * 无 edge / 缺 workflowInstanceId 的节点直通就绪(单节点 wf / 单跑实例)。语义同原 NOT EXISTS。
+     */
+    private Set<UUID> batchUpstreamReady(List<Row> candidates) {
+        Set<UUID> ready = new HashSet<>();
+        List<Row> checked = new ArrayList<>();
+        for (Row r : candidates) {
+            if (r.workflowInstanceId == null || r.workflowNodeId == null) {
+                ready.add(r.id);  // 单跑实例/缺字段 → 无上游门,直通
+            } else {
+                checked.add(r);
+            }
+        }
+        if (checked.isEmpty()) return ready;
+
+        // ① 批量查 workflow_edge:to_node_id IN (候选 workflowNodeId)
+        Set<Long> toNodeIds = new LinkedHashSet<>();
+        for (Row r : checked) toNodeIds.add(r.workflowNodeId);
+        StringBuilder edgeIn = new StringBuilder();
+        for (int i = 0; i < toNodeIds.size(); i++) edgeIn.append(i == 0 ? "?" : ",?");
+        Map<Long, List<Edge>> edgesByTo = jdbc.query(
+                "SELECT to_node_id, from_node_id, strength FROM workflow_edge WHERE deleted=0 AND to_node_id IN ("
+                        + edgeIn + ")",
+                (rs) -> {
+                    Map<Long, List<Edge>> m = new HashMap<>();
+                    while (rs.next()) {
+                        m.computeIfAbsent(rs.getLong("to_node_id"), k -> new ArrayList<>())
+                                .add(new Edge(rs.getLong("from_node_id"), rs.getString("strength")));
+                    }
+                    return m;
+                }, toNodeIds.toArray());
+
+        // ② 收集所有 (workflowInstanceId, fromNodeId) → 批量查 pred state;无 edge 的候选直通就绪
+        LinkedHashSet<String> predKeys = new LinkedHashSet<>();
+        Map<String, UUID> predKeyToWi = new HashMap<>();
+        Map<String, Long> predKeyToNode = new HashMap<>();
+        for (Row r : checked) {
+            List<Edge> edges = edgesByTo.get(r.workflowNodeId);
+            if (edges == null) {
+                ready.add(r.id);  // 无上游 edge → 直通就绪(单节点 wf)
+                continue;
+            }
+            for (Edge e : edges) {
+                String key = r.workflowInstanceId + ":" + e.fromNodeId();
+                predKeys.add(key);
+                predKeyToWi.putIfAbsent(key, r.workflowInstanceId);
+                predKeyToNode.putIfAbsent(key, e.fromNodeId());
+            }
+        }
+        Map<String, Set<String>> predStates = new HashMap<>();
+        if (!predKeys.isEmpty()) {
+            StringBuilder predIn = new StringBuilder();
+            List<Object> predArgs = new ArrayList<>();
+            int i = 0;
+            for (String key : predKeys) {
+                if (i++ > 0) predIn.append(',');
+                predIn.append("(?,?)");
+                predArgs.add(predKeyToWi.get(key));
+                predArgs.add(predKeyToNode.get(key));
+            }
+            predStates = jdbc.query(
+                    "SELECT workflow_instance_id, workflow_node_id, state FROM task_instance "
+                            + "WHERE deleted=0 AND state IN ('SUCCESS','FAILED') "
+                            + "AND (workflow_instance_id, workflow_node_id) IN (" + predIn + ")",
+                    (rs) -> {
+                        Map<String, Set<String>> m = new HashMap<>();
+                        while (rs.next()) {
+                            m.computeIfAbsent(rs.getObject("workflow_instance_id") + ":" + rs.getLong("workflow_node_id"),
+                                            k -> new HashSet<>()).add(rs.getString("state"));
+                        }
+                        return m;
+                    }, predArgs.toArray());
+        }
+
+        // ③ 校验每个 checked 行的所有上游就绪(强 SUCCESS / 弱 SUCCESS|FAILED)
+        for (Row r : checked) {
+            List<Edge> edges = edgesByTo.get(r.workflowNodeId);
+            if (edges == null) continue;  // 无 edge 已加入 ready
+            boolean allReady = true;
+            for (Edge e : edges) {
+                Set<String> states = predStates.get(r.workflowInstanceId + ":" + e.fromNodeId());
+                boolean weak = "WEAK".equals(e.strength());
+                // 强依赖:pred 须 SUCCESS;弱依赖:pred 须 SUCCESS 或 FAILED(自然跑完;STOPPED 中止不算)
+                boolean satisfied = states != null && (states.contains("SUCCESS")
+                        || (weak && states.contains("FAILED")));
+                if (!satisfied) { allReady = false; break; }
+            }
+            if (allReady) ready.add(r.id);
+        }
+        return ready;
+    }
+
+    /** 049:上游 edge(from_node_id + strength,strength 默认 STRONG)。 */
+    private record Edge(Long fromNodeId, String strength) {}
 
     /** date_offset → bizDate 偏移：LAST_DAY=上一日(-1)，CURRENT_DAY/空=同日。 */
     private String offsetBizDate(String bizDate, String offset) {
