@@ -63,6 +63,10 @@ public class SchedulerKernel {
     private final int claimBatchSize;
     private final long leaseSeconds;
     private final int claimCandidateSize;  // 049:放大候选(去 NOT EXISTS 后 Java filter 的余量)
+    private final int claimMaxWindows;     // 049-收尾:防饿死游标翻窗上限(有界护栏)
+
+    // 版本键缓存上限:满则整体清空重热(条目随发布版本数缓慢增长,防长期运行无界;不引缓存库)
+    private static final int VERSION_CACHE_MAX = 10_000;
 
     // 串行化一轮调度（CAS 已保正确，串行仅去重避免空抢）；运行中再来唤醒则置 rerun，结束后补跑。
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -86,7 +90,8 @@ public class SchedulerKernel {
                            PlatformTransactionManager txManager,
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds,
-                           @Value("${scheduler.claim-candidate-size:200}") int claimCandidateSize) {
+                           @Value("${scheduler.claim-candidate-size:200}") int claimCandidateSize,
+                           @Value("${scheduler.claim-max-windows:5}") int claimMaxWindows) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.slotManager = slotManager;
@@ -102,6 +107,7 @@ public class SchedulerKernel {
         this.claimBatchSize = claimBatchSize;
         this.leaseSeconds = leaseSeconds;
         this.claimCandidateSize = claimCandidateSize;
+        this.claimMaxWindows = Math.max(1, claimMaxWindows);
     }
 
     @PostConstruct
@@ -138,13 +144,17 @@ public class SchedulerKernel {
     private void runRound() {
         Timer.Sample roundSample = metrics.startRound();
         List<DispatchCommand> dispatched;
+        // DISPATCHED 事件收集:事务提交后才发布(Row 已带 workflowInstanceId,免逐条回查;
+        // 事务内先发会把未提交状态推给 SSE,回滚则成假事件)。
+        List<InstanceStateMachine.DispatchedEvent> events = new ArrayList<>();
         try {
-            dispatched = txTemplate.execute(status -> claimAndMark());
+            dispatched = txTemplate.execute(status -> claimAndMark(events));
         } catch (Exception e) {
             log.warn("[Scheduler] 认领事务失败：{}", e.getMessage());
             metrics.endRound(roundSample);
             return;
         }
+        stateMachine.publishDispatchedEvents(events);
         if (dispatched == null || dispatched.isEmpty()) {
             metrics.markEmptyClaim();
             metrics.endRound(roundSample);
@@ -157,7 +167,17 @@ public class SchedulerKernel {
         metrics.markDispatches(dispatched.size());
         // 046:事务外异步下发(fire-and-forget)—— submit 到 dispatchExecutor 立即返回,claim 线程不等 dispatch,
         // 下一轮 claim 可马上开始(解除 claim↔dispatch 串行)。失败 casRequeue 回 WAITING 重派。
-        dispatcher.dispatchAllAsync(dispatched, gateway::dispatch, (cmd, err) -> {
+        // 出队守卫:租约自 claim 时刻起算,命令在队列滞留超租约会被 LeaseReaper 回收重派(attempt+1);
+        // worker 幂等键含 attempt 拦不住旧命令 → 发 HTTP 前核对仍是当前派单,否则丢弃防同实例双跑。
+        dispatcher.dispatchAllAsync(dispatched, cmd -> {
+            if (!stateMachine.isCurrentDispatch(cmd.taskInstanceId(), cmd.attempt())) {
+                metrics.markStaleDispatchSkip();
+                log.info("[Scheduler] 实例 {} attempt={} 已非当前派单(滞留期间被回收/重派)，跳过下发",
+                        cmd.taskInstanceId(), cmd.attempt());
+                return;
+            }
+            gateway.dispatch(cmd);
+        }, (cmd, err) -> {
             log.warn("[Scheduler] 下发实例 {} 失败，回退 WAITING：{}", cmd.taskInstanceId(), err.getMessage());
             stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
         });
@@ -166,7 +186,7 @@ public class SchedulerKernel {
     }
 
     /** 在事务内认领可运行实例、分配节点、CAS 置 DISPATCHED，返回待下发指令。 */
-    private List<DispatchCommand> claimAndMark() {
+    private List<DispatchCommand> claimAndMark(List<InstanceStateMachine.DispatchedEvent> events) {
         List<NodeSlot> nodes = new ArrayList<>();
         for (NodeLoad nl : slotManager.snapshotOnline()) {
             int reserved = nl.node().getReservedTestSlots() == null ? 0 : nl.node().getReservedTestSlots();
@@ -179,27 +199,55 @@ public class SchedulerKernel {
         List<DispatchCommand> out = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
-        // TEST 先行（高优 + 可用全部空槽，含预留）
-        List<Row> tests = selectRunnable(RunMode.TEST);
-        assign(tests, nodes, true, now, out);
+        // TEST 先行（高优 + 可用全部空槽，含预留；无 Java 就绪门 → 无饿死问题，单窗即可）
+        List<Row> tests = selectRunnable(RunMode.TEST, null);
+        assign(tests, nodes, true, now, out, events);
 
-        // 049:NORMAL + BACKFILL 候选(各等值 Index Scan,去 NOT EXISTS);上游门 + 跨周期门批量 Java 判定
-        List<Row> normalCandidates = selectRunnable(RunMode.NORMAL);
-        List<Row> backfillCandidates = selectRunnable(RunMode.BACKFILL);
-        List<Row> runnable = new ArrayList<>(normalCandidates.size() + backfillCandidates.size());
-        runnable.addAll(normalCandidates);
-        runnable.addAll(backfillCandidates);
-        if (!runnable.isEmpty()) {
-            Set<UUID> upstreamReady = batchUpstreamReady(runnable);        // 049:批量上游就绪(替 NOT EXISTS)
-            Set<UUID> crossCycleReady = batchCrossCycleReady(runnable);   // 048:批量跨周期判定
-            List<Row> normals = runnable.stream()
-                    .filter(r -> upstreamReady.contains(r.id) && crossCycleReady.contains(r.id))
+        // 049:NORMAL + BACKFILL 候选(各等值 Index Scan,去 NOT EXISTS);上游门 + 跨周期门批量 Java 判定。
+        // 049-收尾:游标翻窗收集就绪行——就绪门移到 Java 后,窗口可能被未就绪老实例占满(慢任务+宽 DAG),
+        // 窗口外的就绪行会饿死;整窗无够量就绪时按 (updated_at,id) 游标继续向后扫,claimMaxWindows 有界。
+        List<Row> ready = new ArrayList<>();
+        collectReady(RunMode.NORMAL, ready);
+        collectReady(RunMode.BACKFILL, ready);
+        if (!ready.isEmpty()) {
+            List<Row> normals = ready.stream()
                     .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
                     .toList();
-            assign(normals, nodes, false, now, out);
+            assign(normals, nodes, false, now, out, events);
         }
 
         return out;
+    }
+
+    /**
+     * 049-收尾:按运行模式收集经上游门+跨周期门过滤的就绪候选。首窗无游标(热路径与 049 原形态一致);
+     * 就绪量不足 claimBatchSize 且窗口打满(前缀全被未就绪实例占住)时,取窗尾 (updated_at,id) 为游标
+     * 续扫下一窗,至多 {@link #claimMaxWindows} 窗——修复窗口饿死,同时护栏 round 时长
+     * (最坏 claimMaxWindows × 窗口成本,R9 实测单窗 ~5ms)。彻底解需就绪态物化(unmet 计数),留结构演进。
+     */
+    private void collectReady(RunMode mode, List<Row> ready) {
+        int limit = mode == RunMode.NORMAL ? claimCandidateSize : claimBatchSize;
+        Row cursor = null;
+        for (int w = 0; w < claimMaxWindows; w++) {
+            if (w > 0) {
+                metrics.markClaimExtraWindow();  // 饿死缓解触发信号(前缀被未就绪实例占满)
+            }
+            List<Row> cand = selectRunnable(mode, cursor);
+            if (cand.isEmpty()) {
+                return;
+            }
+            Set<UUID> upstreamReady = batchUpstreamReady(cand);   // 049:批量上游就绪(替 NOT EXISTS)
+            Set<UUID> crossCycleReady = batchCrossCycleReady(cand);  // 048:批量跨周期判定
+            for (Row r : cand) {
+                if (upstreamReady.contains(r.id) && crossCycleReady.contains(r.id)) {
+                    ready.add(r);
+                }
+            }
+            if (ready.size() >= claimBatchSize || cand.size() < limit) {
+                return;  // 就绪够一批 / 已扫到队尾
+            }
+            cursor = cand.get(cand.size() - 1);
+        }
     }
 
     /**
@@ -208,7 +256,7 @@ public class SchedulerKernel {
      * (FOR UPDATE 行锁保护必全成功)→ 阶段3 逐个 resolveContent + out.add(content 失败内部 casFailed)。
      */
     private void assign(List<Row> rows, List<NodeSlot> nodes, boolean test, LocalDateTime now,
-                        List<DispatchCommand> out) {
+                        List<DispatchCommand> out, List<InstanceStateMachine.DispatchedEvent> events) {
         if (rows.isEmpty()) return;
         // 阶段1: place 所有行,收集 placements + 记录 id→Row(后处理需要)
         List<InstanceStateMachine.DispatchPlacement> placements = new ArrayList<>();
@@ -262,6 +310,8 @@ public class SchedulerKernel {
             out.add(new DispatchCommand(r.id, p.attempt(), p.workerNodeCode(), r.taskId, r.taskVersionNo,
                     r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
                     sparkMode, jarRef, mainClass));
+            // DISPATCHED 事件延迟到事务提交后发布(runRound);content 失败实例已被 casFailed 发 FAILED,不再发 DISPATCHED。
+            events.add(new InstanceStateMachine.DispatchedEvent(r.id, r.workflowInstanceId));
         }
     }
 
@@ -287,18 +337,24 @@ public class SchedulerKernel {
         return new Candidate(r.id, declared, r.waitingSince, r.test());
     }
 
-    /** 049:认领候选运行模式(TEST 高优先行 / NORMAL 主流 / BACKFILL 补数据)。等值用索引,避 IN 打破索引。 */
-    private enum RunMode { TEST, NORMAL, BACKFILL }
+    /** 049:认领候选运行模式(TEST 高优先行 / NORMAL 主流 / BACKFILL 补数据)。等值用索引,避 IN 打破索引。
+     *  package-private 供测试(collectReady 游标翻窗,同 Row 先例)。 */
+    enum RunMode { TEST, NORMAL, BACKFILL }
 
     /**
      * 049:认领可运行候选(FOR UPDATE SKIP LOCKED 锁取,事务内)。runMode 等值用 idx_task_instance_claim 索引
      * (避 IN 打破索引:048 R10 EXPLAIN 实测 IN→Seq Scan 244ms vs 等值 Index Scan 0.43ms,566x)。
      * NORMAL/BACKFILL 含 backfill_held + workflow_instance state 门;NOT EXISTS 上游门移出(Java batchUpstreamReady,
      * 避大表 NOT EXISTS 退化 327-493ms)。NORMAL LIMIT 放大 claimCandidateSize(去 NOT EXISTS 后 Java filter 余量)。
+     *
+     * <p>049-收尾:{@code after} 非空时按 (updated_at,id) 元组游标取下一窗(OR 展开式,H2/PG 双兼容;
+     * 排序补 id 决胜键保证游标全序——批量物化的实例常共享同一 updated_at)。同事务内自己已锁的行
+     * SKIP LOCKED 不会跳过(自锁可重入),必须靠游标推进。
      */
-    private List<Row> selectRunnable(RunMode runMode) {
+    private List<Row> selectRunnable(RunMode runMode, Row after) {
         boolean isTest = runMode == RunMode.TEST;
         int limit = runMode == RunMode.NORMAL ? claimCandidateSize : claimBatchSize;
+        List<Object> args = new ArrayList<>();
         String sql = "SELECT ti.id, ti.workflow_instance_id, ti.workflow_node_id, ti.task_id, ti.task_version_no, "
                 + "ti.content_override, ti.params_override, "
                 + "ti.attempt, ti.run_mode, ti.biz_date, ti.updated_at, "
@@ -318,7 +374,13 @@ public class SchedulerKernel {
                     + "WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) ";
             // 049:NOT EXISTS 上游门移出 → Java batchUpstreamReady(避大表 NOT EXISTS 退化)
         }
-        sql += "ORDER BY ti.updated_at ASC LIMIT " + limit + " FOR UPDATE SKIP LOCKED";
+        if (after != null) {
+            sql += "AND (ti.updated_at > ? OR (ti.updated_at = ? AND ti.id > ?)) ";
+            args.add(after.waitingSince);
+            args.add(after.waitingSince);
+            args.add(after.id);
+        }
+        sql += "ORDER BY ti.updated_at ASC, ti.id ASC LIMIT " + limit + " FOR UPDATE SKIP LOCKED";
         return jdbc.query(sql, (rs, n) -> {
             Row r = new Row();
             r.id = rs.getObject("id", UUID.class);
@@ -340,7 +402,7 @@ public class SchedulerKernel {
             r.workflowTrigger = rs.getString("wtrigger");
             r.workflowId = (Long) rs.getObject("wfid");
             return r;
-        });
+        }, args.toArray());
     }
 
     /**
@@ -607,9 +669,15 @@ public class SchedulerKernel {
         if (r.taskId == null) {
             return null;
         }
+        // 草稿(无版本号)内容可变——TEST 跑草稿(D9)/未发布版本的 NORMAL 节点,编辑或 push 后须立即生效,不缓存。
+        if (r.taskVersionNo == null) {
+            return loadContent(r);
+        }
         // 046:content 静态(版本冻结),按 taskId+version 跨轮缓存(computeIfAbsent 原子)。
-        String key = r.taskVersionNo != null ? r.taskId + ":v" + r.taskVersionNo : r.taskId + ":draft";
-        return contentCache.computeIfAbsent(key, k -> loadContent(r));
+        if (contentCache.size() >= VERSION_CACHE_MAX) {
+            contentCache.clear();  // 简单泄压:整体清空重热(下一轮回填,避免逐条 LRU 开销)
+        }
+        return contentCache.computeIfAbsent(r.taskId + ":v" + r.taskVersionNo, k -> loadContent(r));
     }
 
     /** 046:contentOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */
@@ -635,8 +703,14 @@ public class SchedulerKernel {
         if (r.taskId == null) {
             return null;
         }
-        String key = r.taskVersionNo != null ? r.taskId + ":v" + r.taskVersionNo : r.taskId + ":draft";
-        return paramsCache.computeIfAbsent(key, k -> loadParams(r));
+        // 草稿可变,不缓存(同 contentOf)
+        if (r.taskVersionNo == null) {
+            return loadParams(r);
+        }
+        if (paramsCache.size() >= VERSION_CACHE_MAX) {
+            paramsCache.clear();
+        }
+        return paramsCache.computeIfAbsent(r.taskId + ":v" + r.taskVersionNo, k -> loadParams(r));
     }
 
     /** 046:paramsJsonOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */

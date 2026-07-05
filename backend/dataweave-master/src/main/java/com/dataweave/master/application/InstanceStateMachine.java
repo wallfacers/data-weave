@@ -74,7 +74,9 @@ public class InstanceStateMachine {
      * 并落 worker/租约/attempt(design D7 第一层,batch 化)。{@code SELECT … FOR UPDATE SKIP LOCKED} 已在
      * 事务内锁住这些行 → state 必为 WAITING → 批量 UPDATE 必全成功,返回 updateCount(应 == placements.size(),
      * 不符仅由调用方 log 核对,理论不发生)。UPDATE FROM VALUES 无 RETURNING —— H2 兼容(见 research R1/R2:T1 FAIL,
-     * T5 OK)。每行成功后逐个 publishTaskState(同单行 casDispatch 语义)。
+     * T5 OK)。DISPATCHED 事件不在此发布——调用方收集 {@link DispatchedEvent} 于认领事务提交后
+     * {@link #publishDispatchedEvents} 批量发(事务内逐条发布 = 每条 1 次回查 SELECT + 1 次 Redis RTT
+     * 拉长持锁,且未提交先发、回滚成假事件)。
      */
     public int casDispatchBatch(List<DispatchPlacement> placements, LocalDateTime now) {
         if (placements.isEmpty()) return 0;
@@ -98,12 +100,42 @@ public class InstanceStateMachine {
             args[idx++] = p.attempt();
         }
         int updateCount = jdbc.update(sql.toString(), args);
-        for (DispatchPlacement p : placements) publishTaskState(p.id(), "DISPATCHED");
         return updateCount;
     }
 
     /** 048:批量下发的单个 placement(id + worker + 租约 + attempt)。 */
     public record DispatchPlacement(UUID id, String workerNodeCode, LocalDateTime leaseExpireAt, int attempt) {}
+
+    /** 收尾:待发布的 DISPATCHED 事件(workflowInstanceId 由认领 SQL 带回,发布时免逐条回查)。 */
+    public record DispatchedEvent(UUID taskInstanceId, UUID workflowInstanceId) {}
+
+    /**
+     * 收尾:认领事务提交后批量发布 DISPATCHED 事件(语义同 {@link #publishTaskState},但 wfId 已知不回查)。
+     * 单跑实例(wfId=null)无订阅通道,跳过——与 publishTaskState 一致。
+     */
+    public void publishDispatchedEvents(List<DispatchedEvent> events) {
+        for (DispatchedEvent e : events) {
+            if (e.workflowInstanceId() == null) continue;
+            try {
+                eventBus.publish("dw:evt:" + e.workflowInstanceId(),
+                        "{\"taskId\":\"" + e.taskInstanceId() + "\",\"taskState\":\"DISPATCHED\"}");
+            } catch (Exception ex) {
+                // 事件仅作 UI 辅助，发布失败不影响状态推进。
+            }
+        }
+    }
+
+    /**
+     * 收尾:滞留下发守卫——实例仍处 DISPATCHED 且 attempt 匹配才允许发出。租约自 claim 时刻起算,
+     * 命令在 dispatch 队列滞留超租约会被 LeaseReaper 回收重派(attempt+1),旧命令若照发则同实例双跑
+     * (worker 幂等键含 attempt 拦不住)。守卫后残余竞态窗口收窄到毫秒级(彻底闭合需 worker 侧 fencing)。
+     */
+    public boolean isCurrentDispatch(UUID id, int attempt) {
+        Integer current = jdbc.query(
+                "SELECT attempt FROM task_instance WHERE id=? AND state='DISPATCHED' AND deleted=0",
+                rs -> rs.next() ? (Integer) rs.getObject(1) : null, id);
+        return current != null && current == attempt;
+    }
 
     /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。 */
     public boolean casTaskTerminal(UUID id, String from, String to, String failureReason) {

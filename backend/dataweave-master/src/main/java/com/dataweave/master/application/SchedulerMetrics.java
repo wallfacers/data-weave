@@ -88,6 +88,9 @@ public class SchedulerMetrics {
     // 046 dispatch 并行化：claim/dispatch 解耦(队列 + 异步 executor)背压观测
     private final Counter dispatchQueueFull;
     private final AtomicLong dispatchQueueSize = new AtomicLong(0);
+    // 049-收尾：claim 防饿死游标续窗触发数(前缀被未就绪实例占满的信号) + 滞留下发丢弃数(双跑防护命中)
+    private final Counter claimExtraWindow;
+    private final Counter staleDispatchSkip;
 
     public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
         this.registry = registry;
@@ -188,6 +191,12 @@ public class SchedulerMetrics {
         // 046 dispatch 并行化：dispatchExecutor 有界队列满 → 降级同步下发(背压信号)
         this.dispatchQueueFull = Counter.builder("dw.dispatch.queue.full.count")
                 .description("046: Times dispatchQueue rejected and fell back to sync dispatch (backpressure)")
+                .register(registry);
+        this.claimExtraWindow = Counter.builder("dw.claim.window.extra.count")
+                .description("049-closure: Extra claim windows scanned past a blocked prefix (starvation mitigation triggered)")
+                .register(registry);
+        this.staleDispatchSkip = Counter.builder("dw.dispatch.stale.skip.count")
+                .description("049-closure: Queued dispatch commands dropped because instance was reaped/redispatched (double-run guard)")
                 .register(registry);
 
         Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
@@ -297,6 +306,14 @@ public class SchedulerMetrics {
     /** dispatchQueue 满 → 降级同步下发计数（>0 表示 dispatchExecutor 跟不上 claim,触发背压）。 */
     public void markDispatchQueueFull() {
         dispatchQueueFull.increment();
+    }
+
+    public void markClaimExtraWindow() {
+        claimExtraWindow.increment();
+    }
+
+    public void markStaleDispatchSkip() {
+        staleDispatchSkip.increment();
     }
 
     /** reconciler 补偿成功（instance 之前缺失，已创建）。 */

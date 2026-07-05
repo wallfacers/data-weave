@@ -53,6 +53,7 @@ scheduler:
   poll-interval-ms: 5000           # 兜底轮询间隔（事件全丢时最坏延迟）
   claim-batch-size: 50             # 单轮 SKIP LOCKED 认领批量
   claim-candidate-size: 200        # 049:候选放大(去 NOT EXISTS 后 Java filter 余量,NORMAL 用)
+  claim-max-windows: 5             # 049-收尾:防饿死游标翻窗上限(整窗被未就绪实例占满时继续向后扫的护栏)
   cron-misfire: fire_once          # fire_once（默认，恢复后补一次）| skip
   cron-scan-interval-ms: 15000     # cron 短周期扫描间隔（替代旧 60s 粗轮询）
   cron-lookahead-ms: 30000         # 预读窗口：捞 next_trigger_time ≤ now+此值 的触发点压入精确触发器（建议 ≥ 2×扫描间隔）
@@ -70,7 +71,10 @@ scheduler:
   # 046 dispatch 并行化：认领与下发解耦（进程内队列 + 异步 executor，同 045 fireQueue 模式）
   dispatch-queue-capacity: 2000        # dispatchQueue 有界容量（满则降级同步下发，不丢）
   dispatch-executor-threads: 64        # dispatchExecutor 池（异步消费队列，fan-out 下发，解除 claim↔dispatch 串行）
-  dispatch-webclient-timeout-ms: 3000  # distributed WebClient 响应超时（防慢 worker 挂 dispatchExecutor 线程）
+  dispatch-webclient-timeout-ms: 3000  # dispatch 专用 WebClient 响应超时（防慢 worker 挂 dispatchExecutor 线程）
+
+webclient:
+  default-response-timeout-ms: 30000   # 默认 WebClient.Builder 响应超时（通用消费方：alert webhook 等，防 block() 永挂）
 
 cluster:
   auth:
