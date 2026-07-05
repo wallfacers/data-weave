@@ -285,7 +285,7 @@ public class DefaultTriggerEngine implements TriggerEngine {
      * 045 异步物化（fireExecutor worker / 降级时 timer 线程）：应用层幂等查 → trigger 创建实例 →
      * 回填 cron_fire(FIRED) → advanceNext → metrics。幂等三层挡并发/降级/重试重复。
      */
-    private void fireExecute(FireTask task) {
+    void fireExecute(FireTask task) {  // package-private for test
         long start = System.nanoTime();
         try {
             WorkflowDef wf = workflowDefRepository.findById(task.workflowId()).orElse(null);
@@ -347,7 +347,7 @@ public class DefaultTriggerEngine implements TriggerEngine {
     }
 
     /** 045 物化任务（进程内，timer → worker 传递；不持久化，崩溃由 reconciler 补）。 */
-    private record FireTask(Long workflowId, LocalDateTime due, Long cronFireId) {}
+    record FireTask(Long workflowId, LocalDateTime due, Long cronFireId) {}  // package-private for test
 
     /** 推进 next_trigger_time 到严格大于 ref 的最近点并落库；无后续置 null（停排）。 */
     private void advanceNext(WorkflowDef wf, LocalDateTime ref) {
