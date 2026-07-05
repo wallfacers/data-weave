@@ -59,7 +59,7 @@ class SchedulerKernelBatchCrossCycleTest {
                 mock(EventBus.class), mock(PreemptionService.class),
                 mock(SchedulerMetrics.class), mock(ParallelDispatcher.class),
                 mock(ScheduleParamResolver.class), mock(Messages.class),
-                mock(PlatformTransactionManager.class), 50, 120);
+                mock(PlatformTransactionManager.class), 50, 120, 200);
     }
 
     private SchedulerKernel.Row row(UUID id, String trigger, long wfId, long nodeId, String bizDate) {
