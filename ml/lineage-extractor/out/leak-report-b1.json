@@ -1,0 +1,70 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 70,
+    "verbatim_train_names": 0,
+    "synthetic_shaped": 1,
+    "verbatim_rate": 0.0,
+    "shaped_rate": 0.014,
+    "examples": [
+      {
+        "table": "agricultural_innovation",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "etl.sh",
+        "verbatim_own": true
+      },
+      {
+        "table": "adoption",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "conf.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "sustainable_properties",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "yt.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "inspections",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "gdal_merge.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "safety_incidents",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "s3tohive.py",
+        "verbatim_own": true
+      },
+      {
+        "table": "safety_incidents",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "create_pipe.sql",
+        "verbatim_own": true
+      },
+      {
+        "table": "failure_events",
+        "verbatim_train": false,
+        "synthetic_shaped": true,
+        "script": "run.sh",
+        "verbatim_own": false
+      },
+      {
+        "table": "sensor_readings",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "run.sh",
+        "verbatim_own": true
+      }
+    ],
+    "verbatim_own_names": 7,
+    "verbatim_own_rate": 0.1
+  }
+]

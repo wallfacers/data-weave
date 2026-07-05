@@ -1,0 +1,115 @@
+{
+  "overall": {
+    "precision": 0.9907149489322191,
+    "recall": 0.9907149489322191,
+    "f1": 0.9907149489322191,
+    "hallucination": 0.002785515320334262,
+    "direction_acc": 0.9907149489322191,
+    "invalid": 0
+  },
+  "n": 600,
+  "by_family": {
+    "h": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "py": {
+      "precision": 0.9943181818181818,
+      "recall": 0.9943181818181818,
+      "f1": 0.9943181818181818,
+      "hallucination": 0.005681818181818182,
+      "direction_acc": 0.9943181818181818,
+      "invalid": 0
+    },
+    "sh": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "orm": {
+      "precision": 0.9134615384615384,
+      "recall": 0.9134615384615384,
+      "f1": 0.9134615384615384,
+      "hallucination": 0.019230769230769232,
+      "direction_acc": 0.9134615384615384,
+      "invalid": 0
+    },
+    "cli": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "config": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9907149489322191,
+      "recall": 0.9907149489322191,
+      "f1": 0.9907149489322191,
+      "hallucination": 0.002785515320334262,
+      "direction_acc": 0.9907149489322191,
+      "invalid": 0
+    }
+  },
+  "uncovered": {
+    "precision": 0.9871977240398293,
+    "recall": 0.9871977240398293,
+    "f1": 0.9871977240398293,
+    "hallucination": 0.002844950213371266,
+    "direction_acc": 0.9871977240398293,
+    "invalid": 0
+  },
+  "failures": [
+    "[h-py-orm-chain-dsl#66] R gold=['contractors'] got=['repo']",
+    "[h-py-orm-chain-dsl#102] R gold=['resourcemanagement'] got=['repo_of']",
+    "[h-py-orm-chain-dsl#107] R gold=['unique_donors'] got=['repo']",
+    "[h-py-orm-chain-dsl#167] R gold=['mart.mart_risk_score_di'] got=['repo']",
+    "[h-py-orm-chain-dsl#214] R gold=['sleep'] got=['repo']",
+    "[h-py-orm-chain-dsl#229] R gold=['virtual_tours_usa'] got=['repo']",
+    "[py-cursor-execute#255] W gold=['furniture_manufacte'] got=['furniture_manufacture']",
+    "[h-py-orm-chain-dsl#307] R gold=['mill'] got=['repo']",
+    "[h-py-orm-chain-dsl#313] R gold=['studentsmentalhealth'] got=['repo_of_studentsmentalhealth']",
+    "[h-py-orm-chain-dsl#415] R gold=['regionwildlifehabitats'] got=['repo']"
+  ]
+}
