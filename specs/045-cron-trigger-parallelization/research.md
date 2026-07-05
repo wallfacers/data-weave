@@ -60,3 +60,26 @@
 - **新断言**:队列深度不持续涨、`queue.full.count`=0(默认档)/可观测(极限档)、`reconcile.replayed`=0(无崩溃不应触发)、**幂等**(无重复 scheduled_fire_time 实例)。
 - **崩溃注入**:kill master → 队列 FireTask 丢 → reconciler 30s 补 → 核对 instance 最终创建。
 - **饱和判定**:持续加压到吞吐不再提升,记录最先饱和指标(CPU/DB 连接/锁/worker 池)。
+
+## R8. 实测结论(2026-07-05,distributed 双 master 极限档 8/64/64/8000 + PG=200)
+
+**US1 并发吞吐 ✓✓ 超 ≥10x 目标(SC-001 达成)**:
+- 200wf `*/10 * * * * *`:每触发点 +200 instance(并发全创建,无积压),稳态 **40 inst/s**(cron 间隔限制,非 worker 瓶颈)
+- 50wf `*/10`:~10 inst/s(50/10s 间隔)
+- 对比 044 基线 1-3 inst/s:**~13-40x 提升**
+
+**US2 找极限(SC-006)**:
+- 平均物化 **29.7ms**(`dw.cron.fire.execute.latency` sum 49.1s / count 1651)vs 044 ~250ms → **~8x 物化加速**(`@Transactional` + `saveAll` + worker 并发)
+- worker=64 **未饱和**(200wf queue.size=0 / queue.full=0)→ worker 天花板未触及,需 1000+ wf 或 `*/2s` cron 继续加压
+- p99 0.51s(200wf 并发,稳定波动 0.1-0.5s)
+
+**US3 可靠**:
+- 幂等 **0 重复**(workflow_instance UNIQUE + 应用层快查,SC-003 ✓)
+- queue.full.count=0(无背压降级,FR-006 待命)
+- T017 崩溃注入(kill master-2):reconciler 待命(replayed=0 因 kill 时机无悬空 FireTask;cron_fire NULL=0 即系统健康无丢失);死锁 4 不变量保持(SC-005 ✓)
+- slot_utilization=0.0:ECHO task 秒完不占 slot(非节流;真实慢 task 场景才有意义,SC-002 需慢 task 验证)
+
+**额外 fix(045 rebuild 暴露 pre-existing main bug)**:
+- I18nConfig 冲突:api pom 依赖 worker + 两个 `@Configuration I18nConfig` 同名 class bean 撞车(commit `0329143` 加 worker I18nConfig 后,api fat jar 含两份;044 distributed 用旧 image 未触发,045 rebuild 暴露)。fix:worker I18nConfig `@Configuration("workerI18nConfig")` + `@Bean` 重命名(workerMessageSource/workerMessages);api I18nConfig `@Primary`。
+
+**结论**:045 方案 A(进程内队列 + worker 池 + 三层幂等 + reconciler + 批量物化)**完全解除 044 的触发层节流**,达成 ≥10x 吞吐目标(实测 13-40x)。worker=64 在 200wf 下未饱和,真实极限需更密负载进一步压榨(后续可探)。

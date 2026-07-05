@@ -4,6 +4,7 @@ import com.dataweave.master.i18n.Messages;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 
 /**
@@ -18,6 +19,7 @@ import org.springframework.context.support.ReloadableResourceBundleMessageSource
 public class I18nConfig {
 
     @Bean
+    @Primary  // 045:api 进程(fat jar 含 worker)与 worker I18nConfig 并存,primary 让 by-type 注入用 api 的
     public MessageSource messageSource() {
         ReloadableResourceBundleMessageSource ms = new ReloadableResourceBundleMessageSource();
         ms.setBasename("classpath:messages");
@@ -27,6 +29,7 @@ public class I18nConfig {
     }
 
     @Bean
+    @Primary  // 045:同上,by-type Messages 注入用 api 的
     public Messages messages(MessageSource messageSource) {
         return new Messages(messageSource);
     }
