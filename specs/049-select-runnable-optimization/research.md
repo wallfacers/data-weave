@@ -93,4 +93,24 @@ BACKFILL 分支:selectRunnable 加 runMode 参数(BACKFILL 走 Index Scan,LIMIT 
 | `dispatch_latency` p99(1000wf) | 端到端未达成(WAITING 堆积) | < 5s(目标) |
 | WAITING(1000wf) | 53 万堆积 | 不堆积 |
 
+## R9. 实测结论(2026-07-06,distributed 双 master 1000wf `*/2s` + 049 selectRunnable 优化)
+
+**049 实施范围**:T003(claimCandidateSize 配置)+ T005/T006(selectRunnable 去 NOT EXISTS + run_mode 等值 Index Scan + RunMode TEST/NORMAL/BACKFILL)+ T007(batchUpstreamReady Java 批量)+ T008(claimAndMark 串联 batchUpstreamReady ∩ batchCrossCycleReady)。单测 25/25(049 batchUpstream 11 + 048 batchCrossCycle 10 + InstanceStateMachine 4,048 不退化)。commit e2729a6 核心 + 5f5a59a 单测。
+
+**SC-001/002 真机达成**(048 R10 瓶颈解除):
+- `scheduler_round_duration` 稳态 **10.9ms** avg(vs 048 R10 128ms/1.58s 近期,**~12-145x**)< SC-001 30ms ✓
+- WAITING 稳态 **490**(不堆积!vs 048 R10 53 万)→ SC-002 ✓
+- dispatch 速率 **321 inst/s**(vs 048 R10 13 inst/s,**~25x**)
+- `dw.dispatch.queue.size` 4(不积压,046+048 成果不退化)✓
+- T009 EXPLAIN 回归:selectRunnable NORMAL **Index Scan 14.7ms**(LIMIT 200,vs 048 R10 含 NOT EXISTS 327-493ms,~22-33x)✓
+
+**启动期消化**:049 master force-recreate 后,048 R10 残留的 53 万 WAITING 在 ~25s 内被消化(WAITING baseline=0)——049 claim 速率骤升后旧积压快速清空。
+
+**SC 达成**:
+- SC-001(round_duration < 30ms 稳态)**10.9ms ✓**
+- SC-002(WAITING 不堆积)**490 稳态 ✓**(claim 跟上物化 ~321 inst/s)
+- SC-003(不变量)代码层核对 ✓(batchUpstreamReady 是 SELECT 无锁,FOR UPDATE SKIP LOCKED 保留;崩溃注入待后续)
+
+**结论**:049 selectRunnable 优化成功解除 048 R10 瓶颈。run_mode 等值 Index Scan(566x)+ NOT EXISTS 上游门移 Java batchUpstreamReady(避大表退化)双管齐下,round_duration 稳定 10.9ms,claim 跟上物化,WAITING 不堆积。046→048→049 三级优化链路闭环(dispatch 解耦 → claim 批量化 → selectRunnable 索引化)。
+
 round ~7-10ms = selectRunnable 1ms + batchUpstreamReady 2ms + batchCrossCycleReady 2ms(048) + casDispatchBatch 2ms(048) + place/other 1ms。rounds/s ~100-140,batch 50 → claim ~5000-7000 inst/s ≫ 物化 1000。
