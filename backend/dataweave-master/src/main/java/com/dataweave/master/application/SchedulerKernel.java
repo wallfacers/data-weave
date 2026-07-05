@@ -609,7 +609,7 @@ public class SchedulerKernel {
 
     // ─── 内部数据结构 ─────────────────────────────────────
 
-    private static final class Row {
+    static final class Row {  // 048:package-private 供批量化测试(batchCrossCycleReady)
         UUID id;
         UUID workflowInstanceId;
         Long workflowNodeId;
