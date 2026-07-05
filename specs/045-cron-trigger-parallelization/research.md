@@ -84,3 +84,27 @@
 - I18nConfig 冲突:api pom 依赖 worker + 两个 `@Configuration I18nConfig` 同名 class bean 撞车(commit `0329143` 加 worker I18nConfig 后,api fat jar 含两份;044 distributed 用旧 image 未触发,045 rebuild 暴露)。fix:worker I18nConfig `@Configuration("workerI18nConfig")` + `@Bean` 重命名(workerMessageSource/workerMessages);api I18nConfig `@Primary`。
 
 **结论**:045 方案 A(进程内队列 + worker 池 + 三层幂等 + reconciler + 批量物化)**完全解除 044 的触发层节流**,达成 ≥10x 吞吐目标(实测 13-40x)。worker=64 在 200wf 下未饱和,真实极限需更密负载进一步压榨(后续可探)。
+
+## R9. 探天花板(2026-07-05,1000wf */2s 极限档)— 瓶颈转移到 dispatch 端
+
+**目标**:探触发层 worker(fireExecutor=64)天花板,逼近 HikariCP=64 双 master 理论 ~5000 inst/s。truncate 14.9万 残留后干净基线。
+
+**实测(1000wf `*/2 * * * * *`,3min cron-watch 稳态)**:
+- 触发层物化:**稳态 600 inst/s**(每 5s +3000),双 master fire count=303517,**queue_size=0 / queue_full=0 全程** → **触发层未饱和**
+- 触发延迟 p99=**0.561s**(物化→started_at,稳定波动 0.54-0.56s)
+- 幂等:**0 重复**(202260 CRON instance,cron_fire 1:1 零丢失)→ SC-003 在 20万规模保持
+
+**瓶颈转移到 dispatch 端(核心发现)**:
+- `scheduler_dispatch_latency` max=**227.77s**(!)→ task 物化后排队等 dispatch
+- workflow_instance RUNNING 持续堆积:85505(30s)→ **159347**(180s),~410 inst/s 进 RUNNING 未消化
+- SUCCESS 仅 42913(3min +3158,~17/s 聚合)→ dispatch + 状态聚合跟不上触发层
+- ECHO task 秒完,堆积非执行慢,是 **SchedulerKernel claim / ParallelDispatcher 速率限制**
+
+**天花板判定**:
+- **触发层 worker(fireExecutor=64)天花板未触顶**:理论 64/24ms × 2 master ≈ 5333 inst/s,实测需求 600 远低;queue 全程 0
+- **HikariCP/PG 不是瓶颈**:active=**1**/64,PG 138/200,连接池远未用
+- **系统真实天花板 = dispatch 端**:600 inst/s 物化已让 dispatch 堆积;要测触发层真实极限(5333)需更密 cron(如 2000wf `* * * * * *`),但 dispatch 会先爆
+
+**结论**:045 触发层并行化**成功解除触发层节流**,瓶颈明确**转移到 dispatch/执行端**。触发层 worker 天花板(理论 ~5333 inst/s)**无法在本配置独立触顶**——dispatch 端先饱和(600 inst/s 即堆积)。后续优化方向 = dispatch 端(ParallelDispatcher 并发 / SchedulerKernel claim 速率 / 状态聚合),属新 feature 范畴。
+
+**slot_util(SC-002)**:RUNNING 堆积 159347 体现执行端 backlog,但 ECHO 秒完非真占 slot;真实 slot_util 需慢 task(SHELL sleep / HTTP)验证,defer。
