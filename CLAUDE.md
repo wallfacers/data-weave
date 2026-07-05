@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [042-product-surface-shrink](specs/042-product-surface-shrink/spec.md)
-Implementation plan: [plan.md](specs/042-product-surface-shrink/plan.md)
-Research: [research.md](specs/042-product-surface-shrink/research.md)
-Data model: [data-model.md](specs/042-product-surface-shrink/data-model.md)
-API contracts: [contracts/](specs/042-product-surface-shrink/contracts/)
+Current feature: [047-lineage-antileak-ablation](specs/047-lineage-antileak-ablation/spec.md)
+Implementation plan: [plan.md](specs/047-lineage-antileak-ablation/plan.md)
+Research: [research.md](specs/047-lineage-antileak-ablation/research.md)
+Data model: [data-model.md](specs/047-lineage-antileak-ablation/data-model.md)
+API contracts: [contracts/](specs/047-lineage-antileak-ablation/contracts/)
 <!-- SPECKIT END -->

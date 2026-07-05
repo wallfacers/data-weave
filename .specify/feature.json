@@ -1,1 +1,3 @@
-{"feature_directory":"specs/045-cron-trigger-parallelization"}
+{
+  "feature_directory": "specs/047-lineage-antileak-ablation"
+}

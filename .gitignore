@@ -69,3 +69,7 @@ ml/lineage-extractor/realeval/tolabel-jvm/
 ml/lineage-extractor/out/run1/
 # 041-R 加强实验 C 逐规模训练产物（0.5B/3B… GB 级权重，本地不入 git）
 ml/lineage-extractor/out/run-*/
+# 047 抗泄漏消融 B1/B2 训练集变体（MB 级 jsonl，可由 data/antileak.py 固定 SEED 复现，不入 git）
+# 注：pool.json 亦在此目录，复现即得；out/*-b*.{md,json} 评测报告是小体积论文证据，照常入库
+ml/lineage-extractor/data/out-b1/
+ml/lineage-extractor/data/out-b2/
