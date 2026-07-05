@@ -23,6 +23,9 @@ import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
@@ -124,6 +127,7 @@ public class WorkflowTriggerService {
      *                     {@code backfill_held=1}（INSERT 时即定，根除「插入后→置 held 前」被抢认领的竞态），
      *                     由 BackfillPromoter 完成即晋升 1→0；非补数据路径恒传 0。
      */
+    @Transactional
     public UUID trigger(WorkflowDef wf, String triggerType, String bizDate, Integer priorityOverride,
                         Locale locale, String scope, String targetNodeKey,
                         String runMode, UUID backfillRunId, int backfillHeld,
@@ -245,6 +249,7 @@ public class WorkflowTriggerService {
         }
 
         boolean anyPending = false;  // 是否存在会真正进调度队列的 WAITING 节点
+        List<TaskInstance> taskInstances = new ArrayList<>(subNodes.size());  // 045 批量物化(替代循环逐条 save)
         for (MatNode m : subNodes) {
             TaskInstance ti = newTaskInstance(wf.getTenantId(), wf.getProjectId(), now, locale);
             ti.setWorkflowInstanceId(savedWi.getId());
@@ -279,8 +284,9 @@ public class WorkflowTriggerService {
                     anyPending = true;
                 }
             }
-            taskInstanceRepository.save(ti);
+            taskInstances.add(ti);  // 045 收集(循环外批量 saveAll)
         }
+        taskInstanceRepository.saveAll(taskInstances);  // 045 批量 INSERT(N 次往返→1 次,减 commit)
 
         // 物化落库的 RUNNING 是乐观初值（设计意图：触发即视为运行中，不给用户看"等待中"的中间态；
         // 正常场景很快会被调度认领的节点事件自然推进/校正）。仅当整批节点里**没有任何 WAITING 节点**
@@ -290,7 +296,7 @@ public class WorkflowTriggerService {
             workflowStateService.computeAndUpdate(savedWi.getId());
         }
 
-        wake();
+        wakeAfterCommit();  // 045 推迟到事务提交后(dispatch 事务外,守不变量④)
         return savedWi.getId();
     }
 
@@ -495,5 +501,23 @@ public class WorkflowTriggerService {
 
     private void wake() {
         eventBus.publish(InstanceStates.WAKE_CHANNEL, "trigger");
+    }
+
+    /**
+     * 045：wake 推迟到当前事务提交后（守死锁不变量④：状态事务内持久化、dispatch/事件发布事务外）。
+     * 主 trigger 已 @Transactional，事务提交前 publish 会让调度认领看到未提交实例（READ COMMITTED 下不可见，
+     * 导致认领空轮）；afterCommit 回调保证 publish 时实例已落库。无事务上下文（非 trigger 主方法调用）直接 publish。
+     */
+    private void wakeAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    wake();
+                }
+            });
+        } else {
+            wake();
+        }
     }
 }

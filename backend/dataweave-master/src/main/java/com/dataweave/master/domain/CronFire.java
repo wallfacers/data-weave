@@ -22,6 +22,7 @@ public class CronFire {
     private UUID workflowInstanceId;
     private LocalDateTime firedAt;
     private LocalDateTime createdAt;
+    private String status = "PENDING";  // 045 触发点生命周期：PENDING(fireArm INSERT)/FIRED(fireExecute 回填)/DEAD(reconciler 超时放弃)
 
     public CronFire() {
     }
@@ -93,5 +94,13 @@ public class CronFire {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

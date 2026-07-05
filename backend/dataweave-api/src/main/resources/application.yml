@@ -14,6 +14,8 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: dataweave
     password: dataweave
+    hikari:
+      maximum-pool-size: 40        # 045 cron 并行化：默认 10 入口已打满;扩容支撑并发 fireExecute 物化(双 master×40=80 < PG 100)
   sql:
     init:
       mode: always          # 启动加载 schema.sql / data.sql（脚本含 DROP IF EXISTS，幂等重建）
@@ -57,6 +59,13 @@ scheduler:
   master-heartbeat-ms: 10000       # master 成员心跳间隔（分片模式）
   master-offline-threshold-sec: 30 # master 心跳超时判离线阈值（分片模式）
   cron-fire-retention-days: 30     # cron_fire 归档保留天数（0=不清理）
+  # 045 cron 并行化：触发去重与实例创建物化解耦（进程内队列 + worker 池 + 补偿器）
+  cron-trigger-timer-threads: 8    # fireArm 线程池（到点同步去重 + 入队，μs 级，非瓶颈）
+  cron-fire-worker-threads: 32     # fireExecute 物化 worker 池（吞吐主力，须 ≤ hikari.maximum-pool-size）
+  cron-fire-queue-capacity: 4000   # 进程内有界队列容量（满则降级同步执行，不丢）
+  cron-reconcile-interval-ms: 10000  # 补偿器扫描间隔（崩溃丢失的触发点重试）
+  cron-reconcile-grace-ms: 30000   # 补偿阈值（fire 后此时间内未回填 instance 视为丢失）
+  cron-reconcile-timeout-ms: 180000  # DEAD 阈值（超此仍失败则放弃 + 告警，避免无限重试）
 
 cluster:
   auth:

@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.7.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.7.1（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
@@ -8,6 +8,7 @@
 --     → 事件中心可读化=0.6.2（health_event +ref_name：任务/工作流等关联对象的可读名称，供 UI 拼装人性化标题）。
 --     → 041 新鲜度重设计=0.6.3（+freshness_daily_snapshot/freshness_task_daily 2 表，支撑日环比和7天趋势火花图）。
 --     → 041 脚本血缘=0.7.0（+lineage_edge_correction 人工修正裁决 / +lineage_unresolved_hint 未解析提示 2 表）。
+--     → 045 cron 并行化=0.7.1（cron_fire +status PENDING/FIRED/DEAD +reconciler 补偿扫描索引; workflow_instance +UNIQUE(workflow_id,scheduled_fire_time) 幂等防重）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -101,6 +102,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.6.3', CURRENT_TIMESTAMP, '041 新鲜度重设计：+freshness_daily_snapshot/freshness_task_daily 2 表（日环比+7天趋势火花图）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.7.0', CURRENT_TIMESTAMP, '041 脚本血缘：+lineage_edge_correction（人工修正裁决）/ +lineage_unresolved_hint（未解析提示）');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.7.1', CURRENT_TIMESTAMP, '045 cron 并行化：cron_fire +status(PENDING/FIRED/DEAD)+idx_cron_fire_instance_created(补偿扫描); workflow_instance +uq_workflow_instance_wf_fire 幂等防重');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -526,6 +529,9 @@ CREATE TABLE workflow_instance (
     deleted      SMALLINT DEFAULT 0,
     version      INTEGER DEFAULT 0
 );
+-- 045 幂等防重：同 (workflow_id, scheduled_fire_time) 至多一个实例。SQL NULL 语义下
+-- scheduled_fire_time=NULL（手动/补数据）互不冲突（NULL != NULL），普通 UNIQUE 即覆盖周期触发点，H2/PG 均兼容，无需 partial index。
+CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instance_wf_fire ON workflow_instance (workflow_id, scheduled_fire_time);
 
 CREATE TABLE task_instance (
     id                   UUID PRIMARY KEY,       -- UUIDv7（时间有序，由应用层 Uuid7 生成）
@@ -629,11 +635,14 @@ CREATE TABLE cron_fire (
     workflow_id         BIGINT NOT NULL,
     scheduled_fire_time TIMESTAMP NOT NULL,
     workflow_instance_id UUID,                 -- 触发产生的实例（便于回溯）
+    status              VARCHAR(32) DEFAULT 'PENDING' NOT NULL,  -- 045 触发点生命周期：PENDING(fireArm INSERT)/FIRED(fireExecute 回填 instance)/DEAD(reconciler 超时放弃)
     fired_at            TIMESTAMP,
     created_at          TIMESTAMP,
     CONSTRAINT uq_cron_fire UNIQUE (workflow_id, scheduled_fire_time)
 );
 CREATE INDEX IF NOT EXISTS idx_cron_fire_tenant_project ON cron_fire (tenant_id, project_id);
+-- 045 reconciler 补偿扫描：定位 instance 未回填且超 grace 期的触发点（崩溃丢失补偿）
+CREATE INDEX IF NOT EXISTS idx_cron_fire_instance_created ON cron_fire (workflow_instance_id, created_at);
 
 -- SLA 基线：按 workflow + biz_date 记录数据就绪时刻，维护历史基线。
 -- 统计排除 TEST 实例（design D14，task 5.3）。
