@@ -60,6 +60,10 @@ public class SchedulerKernel {
     // 串行化一轮调度（CAS 已保正确，串行仅去重避免空抢）；运行中再来唤醒则置 rerun，结束后补跑。
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean rerun = new AtomicBoolean(false);
+    // 046 N+1 消除：content/params 按版本缓存（静态，版本冻结可跨轮复用；cron 重复触发命中率高）。
+    // 消除 assign() 每行查 task_def_version / task_def 的 N+1（50 行 × 2-4 查询 → 首轮后全命中）。
+    private final java.util.concurrent.ConcurrentHashMap<String, String> contentCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<String, String> paramsCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SchedulerKernel(JdbcTemplate jdbc,
                            InstanceStateMachine stateMachine,
@@ -370,7 +374,7 @@ public class SchedulerKernel {
 
     private record DepRow(Long dependNodeId, String dateOffset, String earliestBizDate) {}
 
-    /** 取下发内容：NORMAL 用已发布版本快照；TEST/无版本用任务草稿内容。 */
+    /** 取下发内容：NORMAL 用已发布版本快照；TEST/无版本用任务草稿内容。046:按版本缓存消除 N+1。 */
     private String contentOf(Row r) {
         // 最高优先：TEST 携带的编辑器临时内容（实例级 override），不读 task_def——「跑编辑器最新内容」。
         if (r.contentOverride != null && !r.contentOverride.isBlank()) {
@@ -379,6 +383,13 @@ public class SchedulerKernel {
         if (r.taskId == null) {
             return null;
         }
+        // 046:content 静态(版本冻结),按 taskId+version 跨轮缓存(computeIfAbsent 原子)。
+        String key = r.taskVersionNo != null ? r.taskId + ":v" + r.taskVersionNo : r.taskId + ":draft";
+        return contentCache.computeIfAbsent(key, k -> loadContent(r));
+    }
+
+    /** 046:contentOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */
+    private String loadContent(Row r) {
         if (r.taskVersionNo != null) {
             List<String> c = jdbc.query(
                     "SELECT content FROM task_def_version WHERE task_id=? AND version_no=?",
@@ -392,15 +403,20 @@ public class SchedulerKernel {
         return c.isEmpty() ? null : c.get(0);
     }
 
-    /** 取自定义参数 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。 */
+    /** 取自定义参数 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。046:按版本缓存。 */
     private String paramsJsonOf(Row r) {
-        // 与 contentOf 同源：TEST 携带的临时参数优先，保证 ${自定义} 占位符按编辑器解析。
         if (r.paramsOverride != null && !r.paramsOverride.isBlank()) {
             return r.paramsOverride;
         }
         if (r.taskId == null) {
             return null;
         }
+        String key = r.taskVersionNo != null ? r.taskId + ":v" + r.taskVersionNo : r.taskId + ":draft";
+        return paramsCache.computeIfAbsent(key, k -> loadParams(r));
+    }
+
+    /** 046:paramsJsonOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */
+    private String loadParams(Row r) {
         if (r.taskVersionNo != null) {
             List<String> p = jdbc.query(
                     "SELECT params_json FROM task_def_version WHERE task_id=? AND version_no=?",
