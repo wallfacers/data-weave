@@ -137,7 +137,7 @@
 
 > **修复复核（2026-07-06，dw-051 快照）**：方案 B 已落地——`WorkerReportService` 注入 `TransactionTemplate`（字段 50 / 构造器 65/79），`reportFinished`（103-109）与 `reportFailed`（197-201）用 `txTemplate.execute{ casTaskTerminal + writeTerminalSignal }` 同事务，`writeLog/recordSyncedRows/recomputeWorkflow/wake` 均事务外（未退化成长事务），`writeTerminalSignal`（264-278）已去 try-catch、异常传播触发回滚。**fix-f1.md 4 处改动全部到位，no-loss 构造保证恢复**。runbook §0 切严格 no-loss 口径。
 >
-> **残留副作用（非阻塞，独立优化项）**：`casTaskTerminal` 内部 UPDATE 后立即发 UI/alert/quality 事件（`InstanceStateMachine.java:147/150/159` 的 `publishTaskState`/`publishAlertSignalForTask`/`TaskSucceededEvent`）——这些事件在事务提交前发出。修复前 `casTaskTerminal` 是独立 auto-commit（发事件时状态已提交，非假事件）；**修复后并入外层事务，若信号 INSERT 失败回滚，已发事件成"假事件"**（task 实际未到终态，但 AlertSignal/TaskSucceededEvent 已发）。这是 InstanceStateMachine 既有"事务内发副作用"纪律（注释 24 行）的窗口放大，非 F1 引入的新违规。彻底解法：把事件发布挪到 `TransactionSynchronization.afterCommit`（独立重构，不在 F1 范围）。alert 假信号可能误报，建议 T026 长跑时观测 `readiness_drift_corrected` 与 alert 计数是否出现"终态回滚导致的假 alert"模式。
+> **残留副作用【✅ 已修复 2026-07-06】**：`casTaskTerminal` 内部 UPDATE 后原**同步**发 UI/alert/quality 事件（`publishTaskState`/`publishAlertSignalForTask`/`TaskSucceededEvent`）——F1 并入外层事务后，若信号 INSERT 失败回滚，已发事件成"假事件"（task 实际未到终态，但 AlertSignal/TaskSucceededEvent 已发）。**修复**：`casTaskTerminal` 三处副作用经新增 `runAfterCommitOrNow()` 挪到 `TransactionSynchronization.afterCommit`——有活动事务时仅真提交后发（回滚不发→无假事件），无事务（auto-commit 调用方）则立即发（语义等价旧行为）。回归 `InstanceStateMachineTerminalEventTest`（回滚不发假事件+状态回退 / 提交才发 / 无事务立即发）+ WorkerReportServiceTest/OpsServiceDataCenterTest 不回退。彻底消除"终态回滚假 alert/假质量门禁"窗口，符合本类"事务内禁副作用、副作用在提交后发"纪律（注释 24 行）。T026 真跑亦未观测到假 alert 模式（audit §4）。
 
 ### F2【✅ 已修复 2026-07-06 · T027 收口】Maintainer 的 unmet UPDATE 顺带改了非 WAITING 实例的 updated_at
 

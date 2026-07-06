@@ -6,6 +6,8 @@ import com.dataweave.master.quality.application.TaskSucceededEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -144,26 +146,49 @@ public class InstanceStateMachine {
                         + "WHERE id=? AND state=? AND deleted=0",
                 to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
         if (n == 1) {
-            publishTaskState(id, to);
-            if ("FAILED".equals(to)) {
-                // 021-alert: 终态 FAILED → 发 AlertSignal
-                publishAlertSignalForTask(id, failureReason);
-            } else if ("SUCCESS".equals(to)) {
-                // 022-data-quality: post-task 门禁钩子（D2.1）—— 任务 SUCCESS 后触发质量断言
-                try {
-                    Long taskId = jdbc.queryForObject(
-                            "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
-                    Long tenantId = jdbc.queryForObject(
-                            "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
-                    if (taskId != null && tenantId != null) {
-                        eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
+            // F1 收口（audit §3-F1 残留副作用）：终态副作用（UI 事件 / FAILED alert / SUCCESS 质量门禁）
+            // 挪到事务提交后发。此 CAS 现被 WorkerReportService 与 writeTerminalSignal 包在同一事务里，
+            // 若信号 INSERT 失败回滚，同步发出的 alert/质量事件会成"假事件"（task 实际未到终态）。
+            // afterCommit 保证仅在真提交后发；无活动事务（auto-commit 调用方）则立即发——语义等价旧行为。
+            runAfterCommitOrNow(() -> {
+                publishTaskState(id, to);
+                if ("FAILED".equals(to)) {
+                    // 021-alert: 终态 FAILED → 发 AlertSignal
+                    publishAlertSignalForTask(id, failureReason);
+                } else if ("SUCCESS".equals(to)) {
+                    // 022-data-quality: post-task 门禁钩子（D2.1）—— 任务 SUCCESS 后触发质量断言
+                    try {
+                        Long taskId = jdbc.queryForObject(
+                                "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
+                        Long tenantId = jdbc.queryForObject(
+                                "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
+                        if (taskId != null && tenantId != null) {
+                            eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
+                        }
+                    } catch (Exception e) {
+                        // 事件仅作门禁辅助，发布失败不影响状态推进（同 publishTaskState 纪律）
                     }
-                } catch (Exception e) {
-                    // 事件仅作门禁辅助，发布失败不影响状态推进（同 publishTaskState 纪律）
                 }
-            }
+            });
         }
         return n == 1;
+    }
+
+    /**
+     * F1 收口：有活动事务时把副作用注册到 {@code afterCommit}（仅真提交后触发，回滚则不发→无假事件）；
+     * 无活动事务（auto-commit 调用方）则立即执行——与并入事务前的旧行为等价。
+     */
+    private void runAfterCommitOrNow(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 
     /** 软抢占：CAS {@code RUNNING/DISPATCHED → PREEMPTED}（不耗 attempt）。 */
