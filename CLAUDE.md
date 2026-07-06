@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [043-incident-queue](specs/043-incident-queue/spec.md)
-Implementation plan: [plan.md](specs/043-incident-queue/plan.md)
-Research: [research.md](specs/043-incident-queue/research.md)
-Data model: [data-model.md](specs/043-incident-queue/data-model.md)
-API contracts: [contracts/](specs/043-incident-queue/contracts/)
+Current feature: [051-claim-readiness-closure](specs/051-claim-readiness-closure/spec.md)
+Implementation plan: [plan.md](specs/051-claim-readiness-closure/plan.md)
+Research: [research.md](specs/051-claim-readiness-closure/research.md)
+Data model: [data-model.md](specs/051-claim-readiness-closure/data-model.md)
+API contracts: [contracts/](specs/051-claim-readiness-closure/contracts/)
 <!-- SPECKIT END -->
