@@ -46,7 +46,9 @@ class WorkerReportServiceTest {
                 mock(SchedulerMetrics.class), mock(SlaService.class),
                 mock(EventBus.class), mock(org.springframework.context.ApplicationEventPublisher.class),
                 mock(JdbcTemplate.class),
-                lineageStore, extractor, assembler);
+                lineageStore, extractor, assembler,
+                mock(com.dataweave.master.application.readiness.ReadinessSignalWriter.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
     }
 
     private TaskInstance successInstance(UUID id) {

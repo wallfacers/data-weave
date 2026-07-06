@@ -92,6 +92,14 @@ public class SchedulerMetrics {
     private final Counter claimExtraWindow;
     private final Counter staleDispatchSkip;
 
+    // 051 就绪态物化指标
+    private final Timer readinessSignalLag;
+    private final Counter readinessMaintainBatch;
+    private final AtomicLong readinessSignalPending = new AtomicLong(0);
+    private final Counter readinessDriftCorrected;
+    private final Timer readinessRecomputeScope;
+    private final AtomicLong unmetReadyCandidates = new AtomicLong(0);
+
     public SchedulerMetrics(MeterRegistry registry, JdbcTemplate jdbc) {
         this.registry = registry;
         this.jdbc = jdbc;
@@ -197,6 +205,30 @@ public class SchedulerMetrics {
                 .register(registry);
         this.staleDispatchSkip = Counter.builder("dw.dispatch.stale.skip.count")
                 .description("049-closure: Queued dispatch commands dropped because instance was reaped/redispatched (double-run guard)")
+                .register(registry);
+
+        // 051 就绪态物化指标（只增不改，不可变约定）
+        this.readinessSignalLag = Timer.builder("dw.readiness.signal.lag")
+                .description("051: Signal created -> downstream unmet_deps=0 latency (p99<3s target)")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .publishPercentileHistogram(true)
+                .sla(Duration.ofSeconds(1), Duration.ofSeconds(3), Duration.ofSeconds(10))
+                .register(registry);
+        this.readinessMaintainBatch = Counter.builder("dw.readiness.maintain.batch")
+                .description("051: Maintainer per-round signal + downstream count")
+                .register(registry);
+        Gauge.builder("dw.readiness.signal.pending", readinessSignalPending, AtomicLong::doubleValue)
+                .description("051: Unprocessed readiness_signal backlog depth")
+                .register(registry);
+        this.readinessDriftCorrected = Counter.builder("dw.readiness.drift.corrected")
+                .description("051: Reconciler detected and healed unmet_deps drift count")
+                .register(registry);
+        this.readinessRecomputeScope = Timer.builder("dw.readiness.recompute.scope")
+                .description("051: Single recompute downstream D size (fan-out width)")
+                .publishPercentileHistogram(true)
+                .register(registry);
+        Gauge.builder("dw.readiness.unmet.ready.candidates", unmetReadyCandidates, AtomicLong::doubleValue)
+                .description("051: Claim candidates with unmet_deps=0 per round")
                 .register(registry);
 
         Gauge.builder("scheduler.queue.depth", queueDepth, AtomicLong::doubleValue)
@@ -314,6 +346,38 @@ public class SchedulerMetrics {
 
     public void markStaleDispatchSkip() {
         staleDispatchSkip.increment();
+    }
+
+    // ─── 051 就绪态物化 API ──────────────────────────────
+
+    /** 满足方终态→下游变就绪的滞后。 */
+    public void recordReadinessSignalLag(Duration d) {
+        readinessSignalLag.record(d.isNegative() ? Duration.ZERO : d);
+    }
+
+    /** Maintainer 每轮处理下游数。 */
+    public void markReadinessMaintainBatch(long count) {
+        readinessMaintainBatch.increment(count);
+    }
+
+    /** 未处理信号积压深度（gauge）。 */
+    public void setReadinessSignalPending(long count) {
+        readinessSignalPending.set(count);
+    }
+
+    /** Reconciler 检出自愈漂移数。 */
+    public void markReadinessDriftCorrected(long count) {
+        readinessDriftCorrected.increment(count);
+    }
+
+    /** 单次重算的下游 D 规模。 */
+    public void recordReadinessRecomputeScope(int size) {
+        readinessRecomputeScope.record(Duration.ofMillis(size));
+    }
+
+    /** 认领时 unmet_deps=0 候选量。 */
+    public void setUnmetReadyCandidates(long count) {
+        unmetReadyCandidates.set(count);
     }
 
     /** reconciler 补偿成功（instance 之前缺失，已创建）。 */
@@ -508,6 +572,20 @@ public class SchedulerMetrics {
         s.logStreamBacklog = logStreamBacklog.get();
         s.sseConnections = sseConnections.get();
 
+        // 051 就绪态物化
+        s.readinessSignalLagMean = readinessSignalLag.count() > 0
+                ? readinessSignalLag.totalTime(TimeUnit.MILLISECONDS) / (double) readinessSignalLag.count() : 0;
+        s.readinessSignalLagCount = readinessSignalLag.count();
+        s.readinessSignalLagP50 = timerPercentile("dw.readiness.signal.lag", 0.5);
+        s.readinessSignalLagP99 = timerPercentile("dw.readiness.signal.lag", 0.99);
+        s.readinessSignalPending = readinessSignalPending.get();
+        s.readinessDriftCorrected = (long) readinessDriftCorrected.count();
+        s.readinessRecomputeScopeMean = readinessRecomputeScope.count() > 0
+                ? readinessRecomputeScope.totalTime(TimeUnit.MILLISECONDS) / (double) readinessRecomputeScope.count() : 0;
+        s.unmetReadyCandidates = unmetReadyCandidates.get();
+        s.claimExtraWindow = (long) claimExtraWindow.count();
+        s.staleDispatchSkip = (long) staleDispatchSkip.count();
+
         return s;
     }
 
@@ -575,5 +653,17 @@ public class SchedulerMetrics {
         // 第 3 层：管道健康
         public long logStreamBacklog;
         public long sseConnections;
+
+        // 051 就绪态物化
+        public double readinessSignalLagMean;
+        public long readinessSignalLagCount;
+        public double readinessSignalLagP50;
+        public double readinessSignalLagP99;
+        public long readinessSignalPending;
+        public long readinessDriftCorrected;
+        public double readinessRecomputeScopeMean;
+        public long unmetReadyCandidates;
+        public long claimExtraWindow;
+        public long staleDispatchSkip;
     }
 }

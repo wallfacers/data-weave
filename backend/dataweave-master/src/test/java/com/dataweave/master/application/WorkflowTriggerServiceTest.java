@@ -56,7 +56,9 @@ class WorkflowTriggerServiceTest {
         service = new WorkflowTriggerService(nodeRepository, edgeRepository,
                 workflowInstanceRepository, taskInstanceRepository, taskDefRepository,
                 workflowDefVersionRepository, nodeFreezeRepository, workflowStateService,
-                eventBus, objectMapper);
+                eventBus, objectMapper,
+                mock(com.dataweave.master.application.readiness.ReadinessInitializer.class),
+                mock(org.springframework.jdbc.core.JdbcTemplate.class));
     }
 
     @Test

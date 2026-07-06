@@ -72,6 +72,15 @@ scheduler:
   dispatch-queue-capacity: 2000        # dispatchQueue 有界容量（满则降级同步下发，不丢）
   dispatch-executor-threads: 64        # dispatchExecutor 池（异步消费队列，fan-out 下发，解除 claim↔dispatch 串行）
   dispatch-webclient-timeout-ms: 3000  # dispatch 专用 WebClient 响应超时（防慢 worker 挂 dispatchExecutor 线程）
+  # 051 就绪态物化
+  readiness:
+    materialized: false                # 门控认领 unmet_deps=0 过滤（Reconciler 全量初始化完成后置 true）
+    maintainer:
+      interval-ms: 1000                # Maintainer sweeper 轮询间隔
+      batch: 100                       # 每轮领取信号上限
+    reconciler:
+      interval-ms: 60000               # Reconciler 低频对账间隔
+      window: 500                      # 单轮审计滚动窗实例数上限
 
 webclient:
   default-response-timeout-ms: 30000   # 默认 WebClient.Builder 响应超时（通用消费方：alert webhook 等，防 block() 永挂）

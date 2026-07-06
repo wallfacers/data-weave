@@ -62,8 +62,9 @@ public class SchedulerKernel {
     private final TransactionTemplate txTemplate;
     private final int claimBatchSize;
     private final long leaseSeconds;
-    private final int claimCandidateSize;  // 049:放大候选(去 NOT EXISTS 后 Java filter 的余量)
-    private final int claimMaxWindows;     // 049-收尾:防饿死游标翻窗上限(有界护栏)
+    private final int claimCandidateSize;  // 049:放大候选(去 NOT EXISTS 后 Java filter 的余量)；051 物化后缩小
+    private final int claimMaxWindows;     // 049-收尾:防饿死游标翻窗上限(有界护栏)；051 物化后废弃
+    private final boolean readinessMaterialized;  // 051:门控 unmet_deps=0 过滤
 
     // 版本键缓存上限:满则整体清空重热(条目随发布版本数缓慢增长,防长期运行无界;不引缓存库)
     private static final int VERSION_CACHE_MAX = 10_000;
@@ -91,7 +92,8 @@ public class SchedulerKernel {
                            @Value("${scheduler.claim-batch-size:50}") int claimBatchSize,
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds,
                            @Value("${scheduler.claim-candidate-size:200}") int claimCandidateSize,
-                           @Value("${scheduler.claim-max-windows:5}") int claimMaxWindows) {
+                           @Value("${scheduler.claim-max-windows:5}") int claimMaxWindows,
+                           @Value("${scheduler.readiness.materialized:false}") boolean readinessMaterialized) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.slotManager = slotManager;
@@ -108,6 +110,7 @@ public class SchedulerKernel {
         this.leaseSeconds = leaseSeconds;
         this.claimCandidateSize = claimCandidateSize;
         this.claimMaxWindows = Math.max(1, claimMaxWindows);
+        this.readinessMaterialized = readinessMaterialized;
     }
 
     @PostConstruct
@@ -203,17 +206,29 @@ public class SchedulerKernel {
         List<Row> tests = selectRunnable(RunMode.TEST, null);
         assign(tests, nodes, true, now, out, events);
 
-        // 049:NORMAL + BACKFILL 候选(各等值 Index Scan,去 NOT EXISTS);上游门 + 跨周期门批量 Java 判定。
-        // 049-收尾:游标翻窗收集就绪行——就绪门移到 Java 后,窗口可能被未就绪老实例占满(慢任务+宽 DAG),
-        // 窗口外的就绪行会饿死;整窗无够量就绪时按 (updated_at,id) 游标继续向后扫,claimMaxWindows 有界。
-        List<Row> ready = new ArrayList<>();
-        collectReady(RunMode.NORMAL, ready);
-        collectReady(RunMode.BACKFILL, ready);
-        if (!ready.isEmpty()) {
-            List<Row> normals = ready.stream()
-                    .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
-                    .toList();
-            assign(normals, nodes, false, now, out, events);
+        // 051:就绪态物化——候选即就绪(unmet_deps=0 已入 SQL),无需 Java 就绪门 + 窗口游标。
+        // materialized=false 时仍走原 collectReady 路径(灰度兼容)。
+        if (readinessMaterialized) {
+            List<Row> normals = selectRunnable(RunMode.NORMAL, null);
+            normals.addAll(selectRunnable(RunMode.BACKFILL, null));
+            if (!normals.isEmpty()) {
+                metrics.setUnmetReadyCandidates(normals.size());
+                List<Row> sorted = normals.stream()
+                        .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
+                        .toList();
+                assign(sorted, nodes, false, now, out, events);
+            }
+        } else {
+            // 灰度路径：物化未完成时走原 collectReady（Java 就绪门 + 窗口游标）
+            List<Row> ready = new ArrayList<>();
+            collectReady(RunMode.NORMAL, ready);
+            collectReady(RunMode.BACKFILL, ready);
+            if (!ready.isEmpty()) {
+                List<Row> normals = ready.stream()
+                        .sorted(Comparator.comparingInt(r -> policy.effectivePriority(toCandidate(r), now)))
+                        .toList();
+                assign(normals, nodes, false, now, out, events);
+            }
         }
 
         return out;
@@ -372,7 +387,10 @@ public class SchedulerKernel {
             sql += "AND COALESCE(ti.backfill_held,0)=0 "
                     + "AND (ti.workflow_instance_id IS NULL OR (SELECT wi.state FROM workflow_instance wi "
                     + "WHERE wi.id=ti.workflow_instance_id) NOT IN ('PAUSED','STOPPED')) ";
-            // 049:NOT EXISTS 上游门移出 → Java batchUpstreamReady(避大表 NOT EXISTS 退化)
+            // 051:就绪态物化——unmet_deps=0 直接判定就绪,替代 049 的 Java batchUpstreamReady + batchCrossCycleReady
+            if (readinessMaterialized) {
+                sql += "AND ti.unmet_deps = 0 ";
+            }
         }
         if (after != null) {
             sql += "AND (ti.updated_at > ? OR (ti.updated_at = ? AND ti.id > ?)) ";

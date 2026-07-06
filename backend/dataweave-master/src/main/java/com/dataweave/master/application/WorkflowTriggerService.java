@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.application.readiness.ReadinessInitializer;
 import com.dataweave.master.domain.Envs;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
@@ -22,6 +23,7 @@ import com.dataweave.master.domain.WorkflowNodeRepository;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -68,6 +70,8 @@ public class WorkflowTriggerService {
     private final WorkflowStateService workflowStateService;
     private final EventBus eventBus;
     private final ObjectMapper objectMapper;
+    private final ReadinessInitializer readinessInitializer;
+    private final JdbcTemplate jdbc;
 
     public WorkflowTriggerService(WorkflowNodeRepository nodeRepository,
                                   WorkflowEdgeRepository edgeRepository,
@@ -78,7 +82,9 @@ public class WorkflowTriggerService {
                                   WorkflowNodeFreezeRepository nodeFreezeRepository,
                                   WorkflowStateService workflowStateService,
                                   EventBus eventBus,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  ReadinessInitializer readinessInitializer,
+                                  JdbcTemplate jdbc) {
         this.nodeRepository = nodeRepository;
         this.edgeRepository = edgeRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
@@ -89,6 +95,8 @@ public class WorkflowTriggerService {
         this.workflowStateService = workflowStateService;
         this.eventBus = eventBus;
         this.objectMapper = objectMapper;
+        this.readinessInitializer = readinessInitializer;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -287,6 +295,29 @@ public class WorkflowTriggerService {
             taskInstances.add(ti);  // 045 收集(循环外批量 saveAll)
         }
         taskInstanceRepository.saveAll(taskInstances);  // 045 批量 INSERT(N 次往返→1 次,减 commit)
+
+        // 051: 对 WAITING 实例初始化 unmet_deps 初值（权威重算，只计未满足依赖）
+        List<UUID> waitingIds = new ArrayList<>();
+        for (TaskInstance ti : taskInstances) {
+            if (InstanceStates.WAITING.equals(ti.getState()) && ti.getId() != null) {
+                waitingIds.add(ti.getId());
+            }
+        }
+        if (!waitingIds.isEmpty()) {
+            try {
+                java.util.Map<UUID, Integer> unmetMap = readinessInitializer.initialize(waitingIds);
+                for (var entry : unmetMap.entrySet()) {
+                    jdbc.update("UPDATE task_instance SET unmet_deps = ? WHERE id = ?",
+                            entry.getValue(), entry.getKey());
+                }
+            } catch (Exception e) {
+                // fail-closed：整体失败时把本批 WAITING 全部置未就绪哨兵，绝不留默认 0 被提前认领；Reconciler 权威纠正。
+                log.warn("[Trigger] 就绪态初值计算整体失败，fail-closed 置未就绪待对账：{}", e.getMessage());
+                for (UUID id : waitingIds) {
+                    jdbc.update("UPDATE task_instance SET unmet_deps = ? WHERE id = ?", Integer.MAX_VALUE, id);
+                }
+            }
+        }
 
         // 物化落库的 RUNNING 是乐观初值（设计意图：触发即视为运行中，不给用户看"等待中"的中间态；
         // 正常场景很快会被调度认领的节点事件自然推进/校正）。仅当整批节点里**没有任何 WAITING 节点**
