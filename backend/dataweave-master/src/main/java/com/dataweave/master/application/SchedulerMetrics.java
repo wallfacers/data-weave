@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -493,6 +494,22 @@ public class SchedulerMetrics {
         } catch (Exception e) {
             // 静默吞错
         }
+    }
+
+    /**
+     * 周期采样第 2 层 gauge（queue.depth / slot.utilization / slot.fragmentation），使
+     * Prometheus 抓取路径（{@code /actuator/prometheus}）也读到活值。
+     *
+     * <p>此前这三个 gauge 仅在 {@code /api/ops/metrics} 被调用时由 {@code OpsController} 按需刷新，
+     * 纯 Prometheus 观测者（未打 ops/metrics）恒见陈旧初值 0——051 US3 slot_util 压测经 Prometheus
+     * 抓取正踩此坑（{@code scheduler_slot_utilization} 恒 0.0）。补此采样器修复该既有 observability 缺口，
+     * 使 slot 利用率在两条通道一致可测。各 refresh 内部吞异常，采样失败不影响调度。
+     */
+    @Scheduled(fixedRateString = "${scheduler.metrics.gauge-sample-ms:5000}")
+    public void sampleGauges() {
+        refreshQueueDepth();
+        refreshSlotUtilization();
+        refreshFragmentation();
     }
 
     public void refreshFragmentation() {
