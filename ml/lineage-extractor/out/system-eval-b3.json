@@ -1,0 +1,42 @@
+{
+  "n": 139,
+  "nonempty_n": 59,
+  "routed_sql": 58,
+  "routed_model": 81,
+  "model": {
+    "full": {
+      "precision": 0.3729508196721312,
+      "recall": 0.5515151515151515,
+      "f1": 0.4449877750611247,
+      "hallucination": 0.14754098360655737,
+      "direction_acc": 0.475177304964539,
+      "invalid": 4
+    },
+    "nonempty": {
+      "precision": 0.6066666666666667,
+      "recall": 0.5515151515151515,
+      "f1": 0.5777777777777778,
+      "hallucination": 0.06666666666666667,
+      "direction_acc": 0.475177304964539,
+      "invalid": 2
+    }
+  },
+  "hybrid": {
+    "full": {
+      "precision": 0.3745019920318725,
+      "recall": 0.5696969696969697,
+      "f1": 0.4519230769230769,
+      "hallucination": 0.1394422310756972,
+      "direction_acc": 0.524822695035461,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.6025641025641025,
+      "recall": 0.5696969696969697,
+      "f1": 0.5856697819314641,
+      "hallucination": 0.10256410256410256,
+      "direction_acc": 0.524822695035461,
+      "invalid": 0
+    }
+  }
+}

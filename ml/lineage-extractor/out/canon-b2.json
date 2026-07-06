@@ -1,0 +1,43 @@
+{
+  "name": "sft-b2",
+  "gold_n": 139,
+  "nonempty_n": 59,
+  "plain": {
+    "full": {
+      "precision": 0.34310850439882695,
+      "recall": 0.7090909090909091,
+      "f1": 0.46245059288537543,
+      "hallucination": 0.12609970674486803,
+      "direction_acc": 0.5531914893617021,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.5598086124401914,
+      "recall": 0.7090909090909091,
+      "f1": 0.625668449197861,
+      "hallucination": 0.03349282296650718,
+      "direction_acc": 0.5531914893617021,
+      "invalid": 0
+    },
+    "nonempty_n": 59
+  },
+  "canon": {
+    "full": {
+      "precision": 0.3519061583577713,
+      "recall": 0.7272727272727273,
+      "f1": 0.474308300395257,
+      "hallucination": 0.12609970674486803,
+      "direction_acc": 0.5602836879432624,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.5741626794258373,
+      "recall": 0.7272727272727273,
+      "f1": 0.6417112299465241,
+      "hallucination": 0.03349282296650718,
+      "direction_acc": 0.5602836879432624,
+      "invalid": 0
+    },
+    "nonempty_n": 59
+  }
+}
