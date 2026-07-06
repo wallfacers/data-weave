@@ -39,8 +39,12 @@ def _row(r: dict) -> str:
             f"| {ne['recall']:.3f} | {ne['direction_acc']:.3f} | {ne['f1']:.3f} |")
 
 
-def build_predictors(model_dir: str):
-    """小模型(SFT) + m1/m2 大模型 + regex。缺失 client 优雅跳过。"""
+def build_predictors(model_dir: str, dir_fix: bool = False, sft_label: str = "sft"):
+    """小模型(SFT) + m1/m2 大模型 + regex。缺失 client 优雅跳过。
+
+    dir_fix=True（052）：额外加一列「{sft_label} (dir_fix)」= 模型表集 + AST 方向修正，
+    与「{sft_label} (model)」模型独跑列并列，一次报告同出系统数与模型独跑数（FR-017）。
+    """
     preds = {}
     # 小模型（惰性加载 transformers）
     try:
@@ -51,7 +55,11 @@ def build_predictors(model_dir: str):
             model_dir, dtype=torch.bfloat16,
             device_map="cuda" if torch.cuda.is_available() else "cpu")
         model.eval()
-        preds["sft-1.5b"] = lambda row: sft_predict(model, tok, row)
+        base = lambda row: sft_predict(model, tok, row)  # noqa: E731
+        preds[f"{sft_label} (model)"] = base
+        if dir_fix:
+            from realeval.dir_fix import apply_dir_fix
+            preds[f"{sft_label} (dir_fix)"] = lambda row: apply_dir_fix(base(row), row["content"])
     except Exception as e:  # noqa
         print(f"[warn] 小模型加载失败，跳过 sft 列：{e}")
 
@@ -73,13 +81,15 @@ def main(argv=None) -> int:
     ap.add_argument("--gold", default="realeval/gold/real.jsonl")
     ap.add_argument("--model", default="out/run3/merged")
     ap.add_argument("--report", default="out/eval-real.md")
+    ap.add_argument("--dir-fix", action="store_true", help="额外加 sft+dir_fix 系统列（052）")
+    ap.add_argument("--sft-label", default="sft", help="sft 列显示名（如 distill-3b）")
     args = ap.parse_args(argv)
 
     rows = [json.loads(l) for l in Path(args.gold).read_text(encoding="utf-8").splitlines() if l.strip()]
     n_ne = sum(1 for r in rows if tables(r["labels"]["reads"]) or tables(r["labels"]["writes"]))
     print(f"真实集 gold：{len(rows)} 条（非空 {n_ne} / ∅ {len(rows) - n_ne}）")
 
-    preds = build_predictors(args.model)
+    preds = build_predictors(args.model, dir_fix=args.dir_fix, sft_label=args.sft_label)
     results = [evaluate_predictor(name, fn, rows) for name, fn in preds.items()]
 
     lines = [
