@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.application.readiness.ReadinessSignalWriter;
 import com.dataweave.master.application.lineage.LineageEdgeAssembler;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
@@ -14,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +46,8 @@ public class WorkerReportService {
     private final LineageStore lineageStore;
     private final SqlTableExtractor sqlTableExtractor;
     private final LineageEdgeAssembler lineageEdgeAssembler;
+    private final ReadinessSignalWriter readinessSignalWriter;
+    private final TransactionTemplate txTemplate;
 
     public WorkerReportService(InstanceStateMachine stateMachine,
                                TaskInstanceRepository taskInstanceRepository,
@@ -55,7 +60,9 @@ public class WorkerReportService {
                                JdbcTemplate jdbc,
                                LineageStore lineageStore,
                                SqlTableExtractor sqlTableExtractor,
-                               LineageEdgeAssembler lineageEdgeAssembler) {
+                               LineageEdgeAssembler lineageEdgeAssembler,
+                               ReadinessSignalWriter readinessSignalWriter,
+                               PlatformTransactionManager txManager) {
         this.stateMachine = stateMachine;
         this.taskInstanceRepository = taskInstanceRepository;
         this.workflowStateService = workflowStateService;
@@ -68,6 +75,8 @@ public class WorkerReportService {
         this.lineageStore = lineageStore;
         this.sqlTableExtractor = sqlTableExtractor;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
+        this.readinessSignalWriter = readinessSignalWriter;
+        this.txTemplate = new TransactionTemplate(txManager);
     }
 
     /** worker 开始执行：DISPATCHED → RUNNING。 */
@@ -88,16 +97,25 @@ public class WorkerReportService {
         if (ti == null) {
             return;
         }
-        boolean ok = stateMachine.casTaskTerminal(taskInstanceId, ti.getState(), InstanceStates.SUCCESS, null);
+
+        // 终态推进 + 信号 append 同事务（R4 no-loss：信号与完成同提交，崩溃不丢）
+        final String fromState = ti.getState();
+        boolean ok = Boolean.TRUE.equals(txTemplate.execute(status -> {
+            if (!stateMachine.casTaskTerminal(taskInstanceId, fromState, InstanceStates.SUCCESS, null)) {
+                return false;
+            }
+            writeTerminalSignal(ti);   // 同事务 INSERT readiness_signal；异常 → 回滚 casTaskTerminal → no-loss
+            return true;
+        }));
         if (!ok) {
-            // 竞态（如已被抢占/终止）：让步。
             wake();
             return;
         }
-        writeLog(taskInstanceId, exitCode, tailLog);
-        recordTaskCompletion(taskInstanceId, "SUCCESS");
-        recordSyncedRows(ti, statementMetrics);   // feature 025: 运行态同步行数（降级零阻断，仅 SUCCESS）
-        recomputeWorkflow(ti.getWorkflowInstanceId());
+
+        writeLog(taskInstanceId, exitCode, tailLog);          // 事务外（辅助）
+        recordTaskCompletion(taskInstanceId, "SUCCESS");      // 事务外（指标）
+        recordSyncedRows(ti, statementMetrics);               // 事务外（neo4j 降级零阻断，不应进正确性事务）
+        recomputeWorkflow(ti.getWorkflowInstanceId());        // 事务外（级联 STOPPED + 聚合，长路径）
         wake();
     }
 
@@ -173,7 +191,15 @@ public class WorkerReportService {
             wake();
             return;
         }
-        stateMachine.casTaskTerminal(taskInstanceId, ti.getState(), InstanceStates.FAILED, failureReason);
+
+        // 终态推进 + 信号 append 同事务（FAILED 也是 WEAK 依赖放行终态，同样 no-loss）
+        final String fromState = ti.getState();
+        txTemplate.executeWithoutResult(status -> {
+            if (stateMachine.casTaskTerminal(taskInstanceId, fromState, InstanceStates.FAILED, failureReason)) {
+                writeTerminalSignal(ti);
+            }
+        });
+
         recordTaskCompletion(taskInstanceId, "FAILED");
         recomputeWorkflow(ti.getWorkflowInstanceId());
         wake();
@@ -231,6 +257,24 @@ public class WorkerReportService {
 
     private void wake() {
         eventBus.publish(InstanceStates.WAKE_CHANNEL, "report");
+    }
+
+    /** 051: 写 TERMINAL 信号。由 reportFinished/reportFailed 在终态事务内调用；
+     *  异常向上传播触发事务回滚（no-loss：完成与信号原子）。 */
+    private void writeTerminalSignal(TaskInstance ti) {
+        Long wfId = null;
+        if (ti.getWorkflowInstanceId() != null) {
+            var rows = jdbc.query(
+                    "SELECT workflow_id FROM workflow_instance WHERE id = ?",
+                    (rs, n) -> (Long) rs.getObject("workflow_id"),
+                    ti.getWorkflowInstanceId());
+            if (!rows.isEmpty()) wfId = rows.get(0);
+        }
+        readinessSignalWriter.writeTerminal(
+                ti.getTenantId(), ti.getProjectId(), ti.getId(),
+                wfId, ti.getWorkflowInstanceId(),
+                ti.getWorkflowNodeId(), ti.getBizDate());
+        // 不再 try-catch：INSERT 失败 → 异常传播 → 外层 txTemplate 回滚 casTaskTerminal → no-loss
     }
 
     /** 记录下发延迟（DISPATCHED→RUNNING 时间差）与任务执行计时启动。 */

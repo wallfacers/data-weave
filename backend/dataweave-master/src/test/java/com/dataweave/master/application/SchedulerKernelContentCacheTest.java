@@ -37,7 +37,7 @@ class SchedulerKernelContentCacheTest {
                 mock(EventBus.class), mock(PreemptionService.class),
                 mock(SchedulerMetrics.class), mock(ParallelDispatcher.class),
                 mock(ScheduleParamResolver.class), mock(Messages.class),
-                mock(PlatformTransactionManager.class), 50, 120, 200, 5);
+                mock(PlatformTransactionManager.class), 50, 120, 200, 5, false);
     }
 
     private String contentOf(Long taskId, Integer versionNo, String override) throws Exception {
