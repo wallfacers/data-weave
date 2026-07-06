@@ -43,8 +43,6 @@ public class AlertSignal {
         NODE_OFFLINE,
         METRIC_BREACH,
         /** 预留：022 数据质量断言 FAIL 时发射 */
-        QUALITY_FAILED,
-        /** 预留：023 资产/指标变更时发射 */
-        ASSET_CHANGED
+        QUALITY_FAILED
     }
 }

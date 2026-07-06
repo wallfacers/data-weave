@@ -70,7 +70,6 @@ public class AlertSignalListener {
             case NODE_OFFLINE -> "NODE_OFFLINE";
             case METRIC_BREACH -> "METRIC";
             case QUALITY_FAILED -> "QUALITY_FAILED";
-            case ASSET_CHANGED -> "ASSET_CHANGED";
         };
     }
 

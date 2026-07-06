@@ -1,7 +1,6 @@
 package com.dataweave.api;
 
 import com.dataweave.api.infrastructure.JwtUtil;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 036-D2 治理面写端点项目角色授权（FR-042）：
- * 指标市场写 = metric:manage（EDITOR+）、审批 = project:manage（OWNER only）、push = task:manage（EDITOR+）。
+ * 审批 = project:manage（OWNER only）、push = task:manage（EDITOR+）。
  *
  * <p>seed：project 1、user1=ADMIN（5 权含 project:manage）、user2=DEVELOPER（4 权无 project:manage）；
  * user3=VIEWER 由 setUp 造（无权限）。复用已冻结的 {@code ProjectAuthz} 门面。
@@ -67,12 +66,6 @@ class GovernanceRoleAuthzTest {
         viewerClient = clientFor(3L, "viewer");
     }
 
-    @AfterEach
-    void tearDown() {
-        // 清理 developer_can_list_metric 可能新建的 DERIVED 上架单，避免共享 H2 库跨类污染。
-        jdbc.update("DELETE FROM metric_listing WHERE metric_type = 'DERIVED' AND metric_id = 1");
-    }
-
     private WebTestClient clientFor(long userId, String name) {
         String bearer = "Bearer " + jwtUtil.generate(userId, TENANT, name, List.of("ADMIN"));
         // X-Project-Id 让 JwtAuthFilter 解析 projectId 置入 TenantContext（approval requireCurrent 依赖）。
@@ -80,35 +73,6 @@ class GovernanceRoleAuthzTest {
                 .defaultHeader("Authorization", bearer)
                 .defaultHeader("X-Project-Id", String.valueOf(PROJECT))
                 .build();
-    }
-
-    // ===== 指标市场写：metric:manage（EDITOR+）=====
-
-    @Test
-    void viewer_cannot_list_metric_role_forbidden() {
-        viewerClient.post().uri("/api/marketplace/metrics?projectId=1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("metricCode", "m1"))
-                .exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.errorCode").isEqualTo("project.role.forbidden");
-    }
-
-    @Test
-    void developer_can_list_metric_gate_still_applies() {
-        // DEVELOPER 有 metric:manage → 授权放行；随后进入闸门（ASSET_WRITE L1 直执行）。
-        // body 用 seed 存在的 DERIVED 指标(id=1, AOV)——seed 无 DERIVED 上架单 → 新建 → EXECUTED。
-        devClient.post().uri("/api/marketplace/metrics?projectId=1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("metricType", "DERIVED", "metricId", 1, "metricCode", "AOV"))
-                .exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.code").isEqualTo(0);
-    }
-
-    @Test
-    void viewer_cannot_certify_role_forbidden() {
-        viewerClient.post().uri("/api/marketplace/metrics/1/certify?projectId=1")
-                .exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.errorCode").isEqualTo("project.role.forbidden");
     }
 
     // ===== 审批：project:manage（OWNER only）=====

@@ -13,7 +13,6 @@ export type EventType =
   | "WORKFLOW_STATE"
   | "NODE_OFFLINE"
   | "METRIC_BREACH"
-  | "ASSET_CHANGED"
 
 export type RefKind = "TASK" | "METRIC" | "TABLE" | "WORKFLOW"
 

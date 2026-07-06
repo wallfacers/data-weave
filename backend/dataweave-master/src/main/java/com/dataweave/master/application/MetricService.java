@@ -46,9 +46,8 @@ public class MetricService {
     /**
      * 按 code 取最高版本的原子指标（无项目作用域）。
      *
-     * <p>遗留入口：alert 轮询（{@code MetricPollEvaluator}）、资产上架装配
-     * （{@code MetricListingService}）、MCP 指标求值等跨模块调用沿用。其项目隔离由各自
-     * 所属域负责（alert→C 路、asset→023 已隔离 listing 维度）。指标看板请用
+     * <p>遗留入口：alert 轮询（{@code MetricPollEvaluator}）、MCP 指标求值等跨模块调用
+     * 沿用。其项目隔离由各自所属域负责（alert→C 路）。指标看板请用
      * {@link #findLatestByCode(Long, String)}。
      */
     public Optional<AtomicMetric> findLatestByCode(String code) {

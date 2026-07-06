@@ -13,7 +13,6 @@ export type ViewType =
   | "metrics"
   | "fleet"
   | "lineage"
-  | "catalog"
   | "quality"
   | "datasources"
   | "alerts"
@@ -42,7 +41,6 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   metrics: { title: "views.metrics" },
   fleet: { title: "views.fleet" },
   lineage: { title: "views.lineage" },
-  catalog: { title: "views.catalog", requirePermission: "task:manage" },
   quality: { title: "views.quality" },
   datasources: { title: "views.datasources", requirePermission: "datasource:manage" },
   alerts: { title: "views.alerts" },

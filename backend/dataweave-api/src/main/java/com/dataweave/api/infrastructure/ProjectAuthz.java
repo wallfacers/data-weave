@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
  * 036-D 控制器层项目角色授权门面（FR-042）。
  *
  * <p>封装「TenantContext 身份 + 目标 projectId + {@link ProjectRoleService#requirePermission}」，
- * 供 Task/Workflow/MetricMarketplace/Approval/ProjectSync 写端点复用。语义（与 ProjectScope 对齐）：
+ * 供 Task/Workflow/Approval/ProjectSync 写端点复用。语义（与 ProjectScope 对齐）：
  * 身份/项目缺失 → {@code project.required}；非成员 → {@code project.forbidden}(403)；
  * 角色权限不足 → {@code project.role.forbidden}(403)。
  *

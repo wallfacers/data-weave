@@ -35,7 +35,6 @@ const EVENT_TYPES = [
   "WORKFLOW_STATE",
   "NODE_OFFLINE",
   "METRIC_BREACH",
-  "ASSET_CHANGED",
 ]
 const SEVERITIES = ["INFO", "LOW", "MEDIUM", "WARNING", "HIGH", "CRITICAL"]
 
@@ -99,11 +98,6 @@ function buildEventSummary(e: HealthEvent, t: ReturnType<typeof useTranslations>
       return t("summary.QUALITY_FAILED", {
         dataset: ctxStr(ctx, "datasetRef") || fallbackName,
         message: ctxStr(ctx, "message") || "",
-      })
-    case "ASSET_CHANGED":
-      return t("summary.ASSET_CHANGED", {
-        name: fallbackName,
-        changeType: ctxStr(ctx, "changeType") || "",
       })
     case "METRIC_BREACH":
       return t("summary.METRIC_BREACH", { name: fallbackName })

@@ -12,7 +12,6 @@ import {
   Alert02Icon,
   BellIcon,
   BugIcon,
-  CatalogueIcon,
   DashboardSquare01Icon,
   Database01Icon,
   DocumentCodeIcon,
@@ -37,7 +36,6 @@ import { LineageView } from "@/components/workspace/views/lineage-view"
 import { AlertsView } from "@/components/workspace/views/alerts-view"
 import { EventCenterView } from "@/components/workspace/views/event-center-view"
 import { QualityView } from "@/components/workspace/views/quality-view"
-import { AssetCatalogView } from "@/components/workspace/views/asset-catalog-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { type ViewType } from "./views"
@@ -70,10 +68,6 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   "event-center": {
     icon: Alert02Icon,
     component: EventCenterView,
-  },
-  catalog: {
-    icon: CatalogueIcon,
-    component: AssetCatalogView,
   },
   quality: {
     icon: Shield01Icon,

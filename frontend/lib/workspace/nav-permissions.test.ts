@@ -38,7 +38,6 @@ function visibleEntries(perms: ReadonlySet<string>): Set<ViewType> {
 describe("036-D viewRequiredPermission", () => {
   it("写视图挂对应权限码，只读视图无门槛", () => {
     expect(viewRequiredPermission("workflow-canvas")).toBe("workflow:manage")
-    expect(viewRequiredPermission("catalog")).toBe("task:manage")
     expect(viewRequiredPermission("datasources")).toBe("datasource:manage")
     expect(viewRequiredPermission("settings")).toBe("project:manage")
     // 只读视图
@@ -61,7 +60,6 @@ describe("036-D 菜单权限过滤（三角色矩阵）", () => {
   it("DEVELOPER 看到开发写视图，但不见 settings（无 project:manage）", () => {
     const v = visibleEntries(DEVELOPER)
     expect(v.has("workflow-canvas")).toBe(true)
-    expect(v.has("catalog")).toBe(true)
     expect(v.has("datasources")).toBe(true)
     expect(v.has("settings")).toBe(false)
   })
@@ -83,7 +81,6 @@ describe("036-D 菜单权限过滤（三角色矩阵）", () => {
     }
     // 写视图不可见
     expect(v.has("workflow-canvas")).toBe(false)
-    expect(v.has("catalog")).toBe(false)
     expect(v.has("datasources")).toBe(false)
     expect(v.has("settings")).toBe(false)
   })
