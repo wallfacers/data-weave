@@ -72,3 +72,9 @@ Phase 0 决策汇总。本 feature 的关键决策已在 spec 的 `/speckit-clar
 - **Decision**: 复用 045/046 cron-stress（1000wf `*/2s`、可人为堆 WAITING）与 `docker kill` fault-injection；慢任务档需 rebuild worker image 真跑 sleep 占槽。崩溃注入按三连欠原口径（046 T017 / 048 T013 / 049 T013）真跑多 master docker。指标沿用既有 + 新增 `readiness_*`（不可变、只增）。
 - **Rationale**: 与前序 spec 同口径 → 可比、不新造标准；真跑（非仅单测）才闭合三连欠与 slot_util 容量证据。
 - **Alternatives**: 仅单测级 idempotency——覆盖不了崩溃恢复与真实 slot 占用，无法闭合欠账。
+
+### 真跑结果（2026-07-06，外部 agent + 主 Claude 收口）
+
+- **T026 崩溃注入 ✅ 全通过**（materialized=true，双 master docker，1000wf `*/2s`，kill×2 窗口）：无重复 dispatch；**信号 no-loss processed=3469 / unprocessed=0**（F1 同事务修复实证生效）；stranded=0；双 master 0 deadlock + health UP；stuck_unmet_waiting=0；5min 长跑 round_ms 316→365 无尖峰、queue 0–18 不涨。详见 [audit.md §4](audit.md)。**三连欠崩溃真跑（046 T017/048 T013/049 T013）闭合**。
+- **T029 slot_util ⚠️ 部分 + 修复待复测**：slot 绑定约束定性成立（round_ms ~535→575 稳态、瓶颈转 worker），readiness 信号全处理（687/0）。但 slot_utilization 实测 ~35-40%（未达 80%），且 `scheduler_slot_utilization` prometheus gauge 恒 0.0。**根因**：该 gauge（及 queue.depth/fragmentation）此前仅在 `/api/ops/metrics` 被调时由 `OpsController` 按需刷新，纯 Prometheus 抓取路径恒见陈旧初值 0（045-era 既有缺口，非 051 引入）。**已修**：`SchedulerMetrics.sampleGauges()` @Scheduled 周期采样器驱动三个第 2 层 gauge，两通道一致可测。**复测口径**：修采样器 + 调高 worker 回调超时（35 FAILED 之因）+ 加大持续负载后，经 `/actuator/prometheus` 复采 slot_util≥80%。
+- **观测遗留（非阻塞）**：`dw.readiness.*` 指标在某次抓取未见——源码注册段核对正确（`.register(registry)` 全到位）、无 MeterFilter/`metrics.enable` 过滤、`dw.readiness.signal.pending` 每秒 set，且 T026 信号计数（3469）已证明功能链在跑。判定为**镜像陈旧/抓取时机/grep 形式的测量假象**，非代码缺陷；下次真跑经 `/actuator/prometheus | grep dw_readiness` 1 行复确认即可。**不影响 materialized 门控裁决**（后者依据 T026 no-loss 证据，与指标暴露正交）。

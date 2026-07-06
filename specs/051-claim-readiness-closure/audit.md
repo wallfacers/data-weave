@@ -153,10 +153,27 @@
 
 ---
 
-## 4. 长跑压测无 deadlock/活锁佐证 —— 状态：待 T026
+## 4. 长跑压测无 deadlock/活锁佐证 —— ✅ T026 真跑通过（2026-07-06）
 
 - **代码层论证**（本审计 §2）：四不变量 + SKIP LOCKED → 构造性无环形等待 → 无死锁/活锁。理论成立。
-- **长跑实证**：依赖 T026 崩溃注入真跑（多 master docker，`docker kill dataweave-master-2 && sleep 2 && docker start` + 等 30s）核对 ③ actuator/日志无 deadlock。**当前阻塞**：US1 未合并 main、未进 docker 镜像、无测试。待 US1 落地后补证据回填本节。
+- **长跑实证**（外部 agent 真跑，多 master docker，`SCHEDULER_READINESS_MATERIALIZED=true`；镜像经 `-Dmaven.build.cache.enabled=false` 干净编译，`javap -p SchedulerMetrics.class | grep -c readiness=5` 确认 readiness 代码入镜像）：
+
+  **崩溃时序**：窗口1 kill `16:58:23` → start `16:58:26`；窗口2 kill `16:58:38` → start `16:58:41`；收敛等至 `16:59:13`（30s）。集群：`dataweave-master`(8000)+`dataweave-master-2`(8200)+worker-1/2+PG，1000wf `*/2s` 极限档。
+
+  **四项核对全通过**：
+
+  | 核对项 | 结果 | 证据 |
+  |---|---|---|
+  | ① 无重复 dispatch | ✅ | worker-1/2 日志 grep `duplicate\|already running` 均空 |
+  | ② 不丢（stranded） | ✅ | `stranded_dispatched=0`（DISPATCHED 滞留经 casRequeue 回落） |
+  | ② 不丢（信号 no-loss） | ✅ | `unprocessed=0, processed=3469`——崩溃前已提交的 TERMINAL 信号全部续处理，**无"完成已落库但信号缺行"→ F1 同事务 no-loss 修复实证生效** |
+  | ③ 无 deadlock | ✅ | 双 master 日志 0 条 `deadlock/lock wait timeout`；actuator/health 双 UP |
+  | ④ unmet 收敛 | ✅ | `stuck_unmet_waiting=0`（无永久卡 WAITING+unmet>0 超 5min 实例） |
+
+  **5 分钟长跑趋势**：`round_ms` 稳态 316→365ms 缓升（持续负载正常，无尖峰）；`queue.size` 0–18 波动不持续涨（背压有效）；长跑后再 grep 双 master `deadlock`=0；health 始终 UP。
+
+- **结论**：§2 的"构造性无死锁"理论得长跑实证。三连欠崩溃真跑口径（046 T017 / 048 T013 / 049 T013）**闭合**；F1 no-loss 修复在真崩溃窗口下验证生效（processed=3469/unprocessed=0）。
+- **残留副作用观测**（audit §3-F1）：本次未报"终态回滚假 alert"模式；假事件窗口理论存在但未在此负载触发，仍建议后续 afterCommit 重构彻底消除。
 
 ---
 

@@ -81,7 +81,7 @@ description: "Task list for 051 认领就绪态物化 + 性能链收口"
 **Independent Test**: 高负载中 `docker kill` master（认领事务提交后、下发前）→ 重启核对无重复/不丢/无死锁 + unmet_deps 收敛权威值。
 
 - [x] T025 [US2] idempotency 回归单测（`SchedulerKernelReadinessTest.java` 扩展）：同实例并发可见恰好认领一次（casDispatchBatch WHERE state=WAITING CAS）——回归核 046/048/049 语义未被 unmet 过滤破坏 ✅ `casDispatchExactlyOnce`/`casDispatchNoDoubleDispatch` 随 US1 `f9a4acc` 合并、跑绿
-- [ ] T026 [US2] 崩溃注入真跑（复用 fault-injection，多 master docker）：`setup -n 1000` 起负载 → `docker kill dataweave-master-2 && sleep 2 && docker start` → 等 30s 核对 ① 无重复 dispatch ② 不丢（readiness_signal 崩溃前已提交→重启续处理；已认领未下发 casRequeue 重派）③ 无 deadlock ④ `unmet_deps` 收敛权威值（`readiness_drift_corrected` 可>0 但自愈） ⏳ **阻塞**：需分布式多 master docker 集群 + cron-stress harness（仓库仅 PG+Redis 单机 compose，无 `dataweave-master-2`、`tmp/cron-stress` 不存在）；runbook + harness/crash-inject.sh 已就绪
+- [x] T026 [US2] 崩溃注入真跑（多 master docker，materialized=true）：1000wf `*/2s` → `docker kill dataweave-master-2`×2 窗口 → 30s 收敛核对 ✅ **全通过**（2026-07-06 真跑，证据见 audit.md §4）：① 无重复 dispatch（worker 日志 grep 空）② 不丢（stranded=0；**信号 no-loss：unprocessed=0/processed=3469，F1 修复实证生效**）③ 无 deadlock（双 master 日志 0 条 + health UP）④ unmet 收敛（stuck_unmet_waiting=0）；5min 长跑 round_ms 316→365 无尖峰、queue 0–18 不涨。**收口三连欠真跑 046 T017/048 T013/049 T013**
 - [x] T027 [US2] 死锁四不变量代码审计（对照 contracts/components.contract.md §四不变量 + research R8）：① 认领仅 SKIP LOCKED ② CAS 状态推进 + unmet 落权威重算值 ③ 完成事务只 append 信号不锁下游行、Maintainer 按 PK 改 task_instance 无反向/跨表锁 ④ 状态事务内/下发+unmet维护事务外——出审计结论文档段，长跑压测无 deadlock/活锁佐证 ✅ `audit.md` 逐条论证 + F1/F2 已修 + F3 定性；对照合并后 main 复核 file:line；**长跑佐证 §4 待 T026**
 
 **Checkpoint**: US2 通过——三连欠崩溃注入+四不变量收口，物化未引入正确性退化。
@@ -93,8 +93,8 @@ description: "Task list for 051 认领就绪态物化 + 性能链收口"
 **Goal**: 真跑慢任务证明 slot_util 真实占用 + 慢任务不饿死。
 **Independent Test**: worker 真跑 sleep 占槽压测，slot 成绑定约束 + slot_util≥80% + 慢任务认领延迟无长尾。
 
-- [ ] T028 [US3] 准备慢任务压测档：rebuild worker image 使 ShellTaskExecutor 真跑 sleep（占槽数十秒）；构造慢+快混合负载脚本
-- [ ] T029 [US3] SC-003/007 压测：持续加压核对 ① slot 成绑定约束（claim 吞吐不再随负载升、瓶颈转 worker）② 稳态 `slot_utilization`≥80% ③ 慢任务认领延迟分布无长尾饿死 ④ 就绪滞后 p99<3s；记录 slot 饱和点 + 瓶颈是否转 worker，回写 research.md
+- [x] T028 [US3] 准备慢任务压测档：worker 镜像 ShellTaskExecutor 真跑 sleep 占槽；50 慢任务(sleep30 `*/30`)+100 快任务(`*/10`)混合负载脚本 ✅ 真跑就位（2026-07-06）
+- [~] T029 [US3] SC-003/007 压测：⚠️ **部分通过 + 修复后待复测**——① slot 绑定约束：round_ms ~535→575ms 稳态、瓶颈转 worker ✅ 观察到 ④ readiness 信号全处理(687/0 unprocessed) ✅；但 ② `slot_utilization`≥80% **未达（实测 ~35-40%，7-8 RUNNING/20 slots）**，且 prometheus `scheduler_slot_utilization` 恒 0.0——**根因已定位并修复**：该 gauge 此前仅 `/api/ops/metrics` 按需刷新，Prometheus 抓取恒见陈旧 0（既有缺口，非 051 引入）→ 已加周期采样器 `SchedulerMetrics.sampleGauges()`（`SchedulerMetricsTest.sampleGauges_驱动slot利用率gauge` 覆盖）。③ 35 FAILED 因 worker→master 回调超时（既有 env 配置项，非 051）。**待复测**：修复采样器 + 调高 worker 回调超时 + 加大持续负载后，经 `/actuator/prometheus` 复采 slot_util≥80% + 慢任务无长尾。数字回写 research.md R10
 
 **Checkpoint**: US3 通过——容量证据补齐，性能链收敛闭合。
 
