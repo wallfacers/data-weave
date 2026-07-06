@@ -122,6 +122,75 @@ class ReadinessMaintainerTest {
         assertThat(first).isEqualTo(second).as("同信号重复处理应幂等");
     }
 
+    // ─── F2 / T027：Maintainer 的 unmet UPDATE 守卫 state='WAITING' ───
+    // recomputeFromTerminal 的 D 解析只取 WAITING，正常不会返回非 WAITING 实例；
+    // 用 mock recompute 返回一个已 RUNNING 的实例，直接验守卫在"解析后被并发认领"的
+    // torn 竞态下跳过它——不覆写其 unmet_deps、不污染 updated_at、不误 wake。
+
+    @Test
+    @DisplayName("F2: 非 WAITING 实例被 Maintainer 跳过（守卫不覆写 unmet/不误 wake）")
+    void maintainerSkipsNonWaiting() {
+        seedDagAtoB("STRONG");
+        UUID aId = seedInstance("A", "SUCCESS");
+        UUID running = seedInstance("B", "RUNNING");
+        // RUNNING 实例预置 unmet=7（历史脏值），并记录旧 updated_at
+        jdbc.update("UPDATE task_instance SET unmet_deps=7, updated_at=TIMESTAMP '2020-01-01 00:00:00' WHERE id=?", running);
+        String oldUpdatedAt = jdbc.queryForObject(
+                "SELECT updated_at FROM task_instance WHERE id=?", String.class, running);
+
+        // 写一条信号触发 Maintainer 领取；mock recompute 强制把 RUNNING 实例塞进 D 且算得 0
+        signalRepo.insert(ReadinessSignalRow.terminal(1L, 1L, aId, null, null, null, null));
+        ReadinessRecompute mockRecompute = mock(ReadinessRecompute.class);
+        org.mockito.Mockito.when(mockRecompute.recomputeFromTerminal(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Map.of(running, 0));
+
+        ReadinessMaintainer maintainer = new ReadinessMaintainer(
+                signalRepo, mockRecompute, metrics, eventBus, jdbc,
+                new org.springframework.jdbc.datasource.DataSourceTransactionManager(
+                        jdbc.getDataSource()),
+                1000, 100);
+        maintainer.maintain();
+
+        // 守卫命中：RUNNING 实例的 unmet 与 updated_at 均未被改
+        Integer unmet = jdbc.queryForObject(
+                "SELECT unmet_deps FROM task_instance WHERE id=?", Integer.class, running);
+        String newUpdatedAt = jdbc.queryForObject(
+                "SELECT updated_at FROM task_instance WHERE id=?", String.class, running);
+        assertThat(unmet).as("非 WAITING 实例 unmet 不被 Maintainer 覆写").isEqualTo(7);
+        assertThat(newUpdatedAt).as("非 WAITING 实例 updated_at 不被污染").isEqualTo(oldUpdatedAt);
+        // 未真正更新任何行 → 不发 wake（prevUnmet>0 但 updated=0）
+        org.mockito.Mockito.verifyNoInteractions(eventBus);
+    }
+
+    @Test
+    @DisplayName("F2: WAITING 实例仍被正常维护（守卫不误伤就绪路径）")
+    void maintainerStillUpdatesWaiting() {
+        seedDagAtoB("STRONG");
+        UUID aId = seedInstance("A", "SUCCESS");
+        UUID waiting = seedInstance("B", "WAITING");
+        jdbc.update("UPDATE task_instance SET unmet_deps=1 WHERE id=?", waiting);
+
+        signalRepo.insert(ReadinessSignalRow.terminal(1L, 1L, aId, null, null, null, null));
+        ReadinessRecompute mockRecompute = mock(ReadinessRecompute.class);
+        org.mockito.Mockito.when(mockRecompute.recomputeFromTerminal(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(Map.of(waiting, 0));
+
+        ReadinessMaintainer maintainer = new ReadinessMaintainer(
+                signalRepo, mockRecompute, metrics, eventBus, jdbc,
+                new org.springframework.jdbc.datasource.DataSourceTransactionManager(
+                        jdbc.getDataSource()),
+                1000, 100);
+        maintainer.maintain();
+
+        Integer unmet = jdbc.queryForObject(
+                "SELECT unmet_deps FROM task_instance WHERE id=?", Integer.class, waiting);
+        assertThat(unmet).as("WAITING 实例 unmet 正常重算落库").isEqualTo(0);
+        // unmet 1→0 → 新就绪 → wake 一次
+        org.mockito.Mockito.verify(eventBus).publish(
+                org.mockito.ArgumentMatchers.eq(com.dataweave.master.domain.InstanceStates.WAKE_CHANNEL),
+                org.mockito.ArgumentMatchers.any());
+    }
+
     // ─── 辅助 ────────────────────────────────────────────────
 
     private void seedDagAtoB(String strength) {

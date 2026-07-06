@@ -112,14 +112,19 @@ public class ReadinessMaintainer {
                 metrics.recordReadinessRecomputeScope(newUnmets.size());
                 totalDownstream += newUnmets.size();
 
-                // CAS UPDATE task_instance SET unmet_deps = ? WHERE id = ?
+                // CAS UPDATE task_instance SET unmet_deps = ? WHERE id = ? AND state = 'WAITING'
+                // 守卫 state='WAITING'（F2/T027 审计）：只维护仍在等待的实例——unmet_deps 仅对 WAITING 有意义，
+                // 已认领/运行/终态实例的 unmet 不再被读，故跳过它们，避免污染其 updated_at（认领 FIFO 排序键 +
+                // dispatch_latency 基准）。与 recomputeFromTerminal 的 D 解析（只取 WAITING）一致，兼护"解析后被并发
+                // 认领"的 torn 竞态：此时 UPDATE 0 行、不误 wake。
                 for (var entry : newUnmets.entrySet()) {
                     UUID instanceId = entry.getKey();
                     int newUnmet = entry.getValue();
                     int prevUnmet = getCurrentUnmet(instanceId);
-                    jdbc.update("UPDATE task_instance SET unmet_deps = ?, updated_at = ? WHERE id = ?",
+                    int updated = jdbc.update(
+                            "UPDATE task_instance SET unmet_deps = ?, updated_at = ? WHERE id = ? AND state = 'WAITING'",
                             newUnmet, LocalDateTime.now(), instanceId);
-                    if (prevUnmet > 0 && newUnmet == 0) {
+                    if (updated > 0 && prevUnmet > 0 && newUnmet == 0) {
                         anyNewReady = true;
                         log.debug("[Maintainer] 实例 {} 变为就绪 (unmet {}→0)", instanceId, prevUnmet);
                     }

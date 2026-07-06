@@ -1,9 +1,9 @@
 # Audit: 死锁防御四不变量 + 崩溃恢复正确性（051 US2 / T027）
 
 > 审计对象：051「认领就绪态物化」US1 的 readiness 实现 + SchedulerKernel 认领/dispatch 改动。
-> 审计基线：`dw-051` worktree 未提交工作区快照（HEAD `a7adf92`，`051-claim-readiness-closure` 分支，US1 代码全部未提交、无测试）。
+> 审计基线：**US1 已合并 main**（commit `f9a4acc`，merge `4475aef`）。原审计写于 `dw-051` 未提交快照（HEAD `a7adf92`），2026-07-06 已对照合并后 main 逐条复核 file:line。
 > 对照标准：[contracts/components.contract.md](contracts/components.contract.md) §四不变量 + [research.md](research.md) R8。
-> **重要声明**：本审计基于 US1 **未提交快照**（git log 无 051 提交、Readiness*Test 全无）。US1 定型/提交/合并后须复核；若 US1 agent 调整了被引文件行号或实现，结论需重新核对。
+> **复核结论（2026-07-06，对照 `f9a4acc`）**：28 条引用 25 一致、3 漂移（均在 `WorkerReportService.java`，因 F1 修复插入 `TransactionTemplate` 使后续方法整体下移 ~15-19 行），已在下表修正。F1 修复复核通过；F2 仍成立——本轮已修复（加 `state='WAITING'` 守卫 + 回归测试，见 §3-F2）。四不变量结论不变。
 
 ---
 
@@ -25,7 +25,7 @@
 | 信号维护 | `application/readiness/ReadinessMaintainer.java` | maintainInTx 86-146 |
 | 信号写入 | `application/readiness/ReadinessSignalWriter.java` | writeTerminal 39-47、writeReset 52-60 |
 | 信号仓储 | `infrastructure/JdbcReadinessSignalRepository.java` | pollPending 70-96、markProcessed 99-113 |
-| 完成回调 | `application/WorkerReportService.java` | reportFinished 89-108、writeTerminalSignal 245-262 |
+| 完成回调 | `application/WorkerReportService.java` | reportFinished 94-120、writeTerminalSignal 264-278（F1 修复后行号） |
 | 重算核心 | `application/readiness/ReadinessRecompute.java` | recomputeFromTerminal 46-77、recompute 85-109 |
 
 ---
@@ -50,7 +50,7 @@
 - 所有 state 推进都是 `UPDATE … WHERE id=? AND state=?`，0 行即让步，无先读后写锁窗口。✅
 
 **unmet_deps 的并发模型（非 CAS，但 R8② 设计如此）**：
-- `ReadinessMaintainer` 更新 unmet 用 `UPDATE task_instance SET unmet_deps=?, updated_at=? WHERE id=?`（ReadinessMaintainer.java:120-121）—— **无 `WHERE state`/`WHERE unmet_deps` 守卫，非 CAS**。
+- `ReadinessMaintainer` 更新 unmet 用 `UPDATE task_instance SET unmet_deps=?, updated_at=? WHERE id=? AND state='WAITING'`（ReadinessMaintainer.java:120-124，`state='WAITING'` 守卫系 F2 修复加入）—— 无 `WHERE unmet_deps` 值守卫，落**权威重算值**非递减，故非严格 CAS。
 - 但 R8② 的设计本意即此："状态 CAS 不变；unmet_deps 落**权威重算值**（并发两 master 算同值 → 收敛一致；信号 SKIP LOCKED 领取避重复处理）"。并发安全靠两支柱：
   1. **信号领取 SKIP LOCKED**：每条 readiness_signal 至多被一个 master 事务领取（pollPending SKIP LOCKED），杜绝两个 master 并发处理同一条信号 → 同一下游不会被并发写。
   2. **重算幂等**：`ReadinessRecompute` 是纯读权威态的确定性函数（ReadinessRecompute.java:85-109，`Math.max(0, unmet)` 兜底防负），重复处理同信号 → 同值，安全重放（contracts R2/R8②）。
@@ -104,7 +104,7 @@
 **批量 UPDATE 的锁顺序一致性**：
 - T_maint 单事务内处理一批信号：先 SKIP LOCKED 锁 readiness_signal 行 → recompute 纯读 → UPDATE 多个 task_instance（按 id）。锁顺序固定为 `readiness_signal → task_instance`，且 task_instance 按 PK 离散锁，不与认领的范围锁交叉。
 - `casDispatchBatch` 批量 UPDATE 作用于本事务 SELECT 已锁行，不引入跨事务锁等待。
-- 级联 STOPPED（WorkerReportService.java:207-210 `UPDATE task_instance SET state='STOPPED' WHERE workflow_instance_id=? AND state IN ('WAITING',...)`）是范围 UPDATE，可能锁住若干 WAITING 行；若某行正被 T_claim 持有，级联会等 T_claim 提交——但 T_claim 不回头等级联，仍无环。
+- 级联 STOPPED（WorkerReportService.java:225-228，块 217-233；F1 修复后行号 `UPDATE task_instance SET state='STOPPED' WHERE workflow_instance_id=? AND state IN ('WAITING',...)`）是范围 UPDATE，可能锁住若干 WAITING 行；若某行正被 T_claim 持有，级联会等 T_claim 提交——但 T_claim 不回头等级联，仍无环。
 
 **活锁**：T_maint 维护失败会重试（信号未标 processed，下轮 SKIP LOCKED 再领，ReadinessMaintainer.java:131 注释"不标记 processed，下轮重试"）；重算幂等保证重试收敛。认领侧 SKIP LOCKED 不会因反复被跳过而饿死（049 的窗口游标已处理；051 物化后候选即就绪，无饿死路径）。**理论无活锁**。
 
@@ -139,13 +139,12 @@
 >
 > **残留副作用（非阻塞，独立优化项）**：`casTaskTerminal` 内部 UPDATE 后立即发 UI/alert/quality 事件（`InstanceStateMachine.java:147/150/159` 的 `publishTaskState`/`publishAlertSignalForTask`/`TaskSucceededEvent`）——这些事件在事务提交前发出。修复前 `casTaskTerminal` 是独立 auto-commit（发事件时状态已提交，非假事件）；**修复后并入外层事务，若信号 INSERT 失败回滚，已发事件成"假事件"**（task 实际未到终态，但 AlertSignal/TaskSucceededEvent 已发）。这是 InstanceStateMachine 既有"事务内发副作用"纪律（注释 24 行）的窗口放大，非 F1 引入的新违规。彻底解法：把事件发布挪到 `TransactionSynchronization.afterCommit`（独立重构，不在 F1 范围）。alert 假信号可能误报，建议 T026 长跑时观测 `readiness_drift_corrected` 与 alert 计数是否出现"终态回滚导致的假 alert"模式。
 
-### F2【指标基准潜在污染，次要】Maintainer 的 unmet UPDATE 顺带改了 updated_at
+### F2【✅ 已修复 2026-07-06 · T027 收口】Maintainer 的 unmet UPDATE 顺带改了非 WAITING 实例的 updated_at
 
-- `ReadinessMaintainer.java:120` `UPDATE task_instance SET unmet_deps=?, updated_at=? WHERE id=?`——对**任何状态**的实例（含已 DISPATCHED/RUNNING）都会改 `updated_at`。
-- `updated_at` 是认领候选排序键（`ORDER BY updated_at`）与 dispatch_latency 基准（SchedulerKernel.java:298 `recordDispatchLatency(Duration.between(r.waitingSince, now))`，waitingSince=updated_at）。
-- 缓解：`casRequeue`（InstanceStateMachine.java:183）回 WAITING 时重置 `updated_at=now`，故"下发失败重派"路径的 latency 基准不受污染。
-- 残留副作用：一直 WAITING 未被认领的实例，若被 Maintainer 改了 updated_at（因上游信号到达重算 unmet），其在候选窗的排序位置会被前移到"重算时刻"——可能影响认领 FIFO 顺序（非致命，但偏离原始入队顺序语义）。
-- **建议**：Maintainer 的 UPDATE 宜加 `WHERE state='WAITING'`（只维护仍在等的实例，跳过已认领/运行/终态），或不更新 updated_at（仅 `SET unmet_deps=?`）。交主 Claude 裁决。
+- **原偏离**：`ReadinessMaintainer.java:120` `UPDATE task_instance SET unmet_deps=?, updated_at=? WHERE id=?`——对**任何状态**的实例（含已 DISPATCHED/RUNNING）都会改 `updated_at`。而 `updated_at` 是认领候选排序键（`ORDER BY updated_at`）与 dispatch_latency 基准（SchedulerKernel.java:298 `recordDispatchLatency(Duration.between(r.waitingSince, now))`，waitingSince=updated_at）。残留副作用：非 WAITING 实例被无谓改 updated_at 污染 latency 基准；WAITING 实例的候选窗排序位置可能被前移到"重算时刻"，偏离原始入队 FIFO。
+- **修复**（主 Claude 裁决采纳建议一）：Maintainer 的 UPDATE 加 `AND state = 'WAITING'` 守卫（ReadinessMaintainer.java:120-124）——只维护仍在等的实例，跳过已认领/运行/终态（其 unmet_deps 不再被读，无意义）。并把 wake 条件改为 `updated>0 && prevUnmet>0 && newUnmet==0`（仅实际命中的 WAITING→就绪才 wake，torn 竞态下 UPDATE 0 行不误 wake）。
+- **一致性论证**：`recomputeFromTerminal` 的 D 解析本就只取 `state=WAITING`（ReadinessRecompute resolveDownstream），守卫与之对齐；额外覆盖"D 解析后、UPDATE 前被并发认领"的 torn 竞态——此时守卫使 UPDATE 空跑、unmet 保持（对非 WAITING 无害，其 unmet 不被读；若日后 requeue 回 WAITING，RESET 信号/Reconciler 会重算）。不改任何不变量。
+- **回归测试**：`ReadinessMaintainerTest.maintainerSkipsNonWaiting`（mock recompute 强塞 RUNNING 实例→守卫跳过，unmet/updated_at 均不动、不误 wake）+ `maintainerStillUpdatesWaiting`（WAITING 实例正常重算落库 1→0 + wake 一次，护就绪路径不被误伤）。
 
 ### F3【事务粒度，性能而非正确性】Maintainer 单事务处理整批信号
 
@@ -165,22 +164,22 @@
 
 | 三连欠任务 | 原口径 | 051 收口载体 | 状态 |
 |---|---|---|---|
-| 046 T016 | idempotency 单测（casDispatchBatch WHERE state=WAITING 恰好一次） | T025（扩展 SchedulerKernelReadinessTest） | 待 US1 T023 基座 |
-| 046 T017 | 崩溃注入真跑（kill master） | T026 | 待 US1 进镜像 |
-| 046 T018 | 四不变量代码审计 | T027（本审计） | **代码层已完成**（§1-§3），长跑佐证待 T026 |
-| 048 T013 | 崩溃注入真跑 | T026 | 同 046 T017 |
-| 048 T014 | 四不变量审计 | T027（本审计） | 同 046 T018 |
-| 049 T013 | 崩溃注入真跑 | T026 | 同 046 T017 |
-| 049 T014 | 四不变量审计 | T027（本审计） | 同 046 T018 |
+| 046 T016 | idempotency 单测（casDispatchBatch WHERE state=WAITING 恰好一次） | T025（扩展 SchedulerKernelReadinessTest） | ✅ **已收口**（`casDispatchExactlyOnce`/`casDispatchNoDoubleDispatch` 随 US1 `f9a4acc` 合并、跑绿） |
+| 046 T017 | 崩溃注入真跑（kill master） | T026 | ⏳ 待真跑（需分布式 docker 集群，runbook 就绪） |
+| 046 T018 | 四不变量代码审计 | T027（本审计） | ✅ **代码审计已收口**（§1-§3 + F1/F2 已修 + F3 定性），长跑佐证待 T026 |
+| 048 T013 | 崩溃注入真跑 | T026 | ⏳ 同 046 T017 |
+| 048 T014 | 四不变量审计 | T027（本审计） | ✅ 同 046 T018 |
+| 049 T013 | 崩溃注入真跑 | T026 | ⏳ 同 046 T017 |
+| 049 T014 | 四不变量审计 | T027（本审计） | ✅ 同 046 T018 |
 
-**当前可收口**：046 T018 / 048 T014 / 049 T014 的**代码审计部分**（本文档 §1-§3 已逐条论证 + 发现 F1-F3）。三连欠的**真跑部分**（046 T017、048 T013、049 T013 = T026）与**单测部分**（046 T016 = T025）阻塞于 US1，待落地后补齐方可正式勾选。
+**已收口**：046 T016（T025 单测双库绿）+ 046 T018 / 048 T014 / 049 T014（T027 代码审计 §1-§3，F1/F2 已修、F3 定性为调参项）。**仍待**：三连欠的**真跑部分**（046 T017、048 T013、049 T013 = T026）阻塞于分布式多 master docker 集群 + cron-stress harness（仓库当前只有 PG+Redis 单机 compose，无 `dataweave-master-2` 配置、`tmp/cron-stress` 不存在）——runbook/harness 脚本已就绪，需实起集群方可正式勾选。
 
 ---
 
 ## 6. 复核清单（US1 定型后）
 
-- [ ] US1 提交后重新核对所有 file:line 引用；
+- [x] US1 提交后重新核对所有 file:line 引用（2026-07-06 对照 `f9a4acc`：25/28 一致，3 处 WorkerReportService 漂移已修正）；
 - [x] F1 已修（writeTerminalSignal 并入同事务，2026-07-06 复核通过）→ §3-F1 已标注修复、③ 已重审为完全满足；
-- [ ] T026 长跑无 deadlock 证据回填 §4；
-- [ ] T025 双库绿后回填 §5 单测行；
-- [ ] 若 Maintainer UPDATE 加了 WHERE state（F2）→ 更新 §1②/③论述。
+- [ ] T026 长跑无 deadlock 证据回填 §4（**阻塞**：需分布式多 master docker 集群，见 crash-injection-runbook.md）；
+- [x] T025 双库绿：`SchedulerKernelReadinessTest.casDispatchExactlyOnce`/`casDispatchNoDoubleDispatch` 已随 US1 合并并跑绿（§5 单测行已可勾）；
+- [x] Maintainer UPDATE 加了 `WHERE state='WAITING'`（F2 已修）→ §1② unmet 并发模型论述不变（守卫是 CAS 精神的加强，非 CAS 替代），§3-F2 已记修复。
