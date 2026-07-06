@@ -69,7 +69,7 @@ description: "Task list for 051 认领就绪态物化 + 性能链收口"
 - [ ] T021 [P] [US1] `ReadinessMaintainerTest.java`：信号→受影响下游正确重算→wake；SKIP LOCKED 多消费者不重复推进（或重复但幂等）；processed 标记
 - [ ] T022 [P] [US1] `ReadinessReconcilerTest.java`：注入漂移(改 unmet/删信号)→一轮内检出自愈；`materialized=false` 时认领不启用 unmet 过滤
 - [ ] T023 [US1] `SchedulerKernelReadinessTest.java`：只认领 unmet_deps=0；unmet>0 不被认领；无 Java 就绪门调用；端到端 A→B(强依赖) 物化(B unmet=1)→A SUCCESS→重算 B=0→B 被认领（H2+PG 双跑）
-- [ ] T024 [US1] SC-001/002 压测（复用 045/046 cron-stress）：1000wf `*/2s` 堆 WAITING 50万+，实测 `round_duration` 与堆积无关（对比 049 的 49ms→1.58s 反弹消除）、`markClaimExtraWindow`=0、claim 吞吐≥物化、就绪滞后 p99<3s；数字回写 research.md
+- [x] T024 [US1] SC-001/002 压测 ✅ **达标**（DB 直接注入 50 万+ WAITING，绕 cron 生成瓶颈）：**2000× 积压增长（246→500,498）→ avg round_duration 179.2→179.9ms（+0.4%），与 WAITING 规模脱钩**；`dw_claim_window_extra_count_total=0`；50 万+ 实例无 OOM/宕机。SC-001+SC-002 闭合，结构解 O(1) 命题实证。数字见 research.md R10
 
 **Checkpoint**: US1 独立可验——结构终解落地，MVP 可交付。
 

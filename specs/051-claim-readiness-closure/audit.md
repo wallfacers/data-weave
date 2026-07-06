@@ -146,15 +146,17 @@
 - **一致性论证**：`recomputeFromTerminal` 的 D 解析本就只取 `state=WAITING`（ReadinessRecompute resolveDownstream），守卫与之对齐；额外覆盖"D 解析后、UPDATE 前被并发认领"的 torn 竞态——此时守卫使 UPDATE 空跑、unmet 保持（对非 WAITING 无害，其 unmet 不被读；若日后 requeue 回 WAITING，RESET 信号/Reconciler 会重算）。不改任何不变量。
 - **回归测试**：`ReadinessMaintainerTest.maintainerSkipsNonWaiting`（mock recompute 强塞 RUNNING 实例→守卫跳过，unmet/updated_at 均不动、不误 wake）+ `maintainerStillUpdatesWaiting`（WAITING 实例正常重算落库 1→0 + wake 一次，护就绪路径不被误伤）。
 
-### F4【观测缺陷，非正确性 · 待活集群定位】`dw_readiness_*` 六指标未在 `/actuator/prometheus` 暴露
+### F4【观测层 · 非代码缺陷（已证）· 残余在活体 actuator 装配/测量口径】`dw_readiness_*` 真跑未在 `/actuator/prometheus` 出现
 
-- **现象**：T029 两轮真跑均 `curl /actuator/prometheus | grep dw_readiness` 空输出——六个 051 指标（`dw.readiness.signal.lag`/`.maintain.batch`/`.signal.pending`/`.drift.corrected`/`.recompute.scope`/`.unmet.ready.candidates`）在活体 Prometheus 抓取中不出现（含 Gauge，本应恒可见于任意值）。
-- **已排除**：① 注册代码正确——probe 单测 `SchedulerMetricsTest.readiness六指标全部注册到registry_对照dispatch` 证明六指标连同 dispatch/claim 全部 `.register(registry)` 进 MeterRegistry（SchedulerMetrics.java:211-232，`.register(registry)` 逐一到位）。② 无 MeterFilter/`management.metrics.enable`/distributed 专属 yml 过滤（全仓 grep 空）。③ 非构造器中途抛异常——注册块（211-232）之后的 `scheduler.slot.utilization`（242）真跑中正常暴露。
-- **定性**：缺陷隔离在 **Prometheus 导出/scrape 层**（注册成功但 `/actuator/prometheus` 未渲染 `dw_readiness_*`），非 SchedulerMetrics 业务代码；不影响正确性、不影响 materialized 门控（后者依 T026 no-loss SQL 证据，与指标暴露正交）。就绪滞后 p99 功能上由 T026 信号计数（processed=3469/unprocessed=0）间接佐证。
-- **下次活集群决定性诊断**（区分两假设）：`curl /actuator/metrics | grep readiness`（**LIST 端点，点名 `dw.readiness.*`**）——
-  1. 若 LIST 出现、prometheus 无 → Prometheus 渲染器层问题（疑 histogram/`publishPercentileHistogram`+`sla` 或命名冲突）；
-  2. 若 LIST 亦无 → SchedulerMetrics 注入的 `MeterRegistry` ≠ actuator 的 Prometheus registry（bean 装配/时序，distributed 特有）。
-  并在同一 scrape 里核 `dw_dispatch_*` 是否在——区分"仅 readiness 缺"还是"全 `dw.*` 缺"。定位后按结论修（渲染器配置 或 registry 装配），补一条真跑复确认。
+- **现象**：T029 两轮真跑 `curl /actuator/prometheus | grep dw_readiness` 空输出——六个 051 指标（`dw.readiness.signal.lag`/`.maintain.batch`/`.signal.pending`/`.drift.corrected`/`.recompute.scope`/`.unmet.ready.candidates`）活体抓取中不出现。
+- **两级证据证明 SchedulerMetrics 代码正确、非本缺陷根因**：
+  1. **注册**：probe 单测 `SchedulerMetricsTest.readiness六指标全部注册到registry_对照dispatch`——六指标连同 dispatch/claim 全部 `.register(registry)` 进 MeterRegistry（SchedulerMetrics.java:211-232）。
+  2. **导出（决定性）**：`ReadinessMetricsPrometheusExportTest`（dataweave-api，用**真 `io.micrometer.prometheusmetrics.PrometheusMeterRegistry`**，精确镜像 actuator `/actuator/prometheus` 导出路径）——`reg.scrape()` 输出中 `dw_readiness_signal_lag`/`_maintain_batch`/`_signal_pending`/`_drift_corrected`/`_recompute_scope`/`_unmet_ready_candidates` **六个全部出现**（连同对照 `dw_dispatch`/`dw_claim`）。`Tests run: 1, Failures: 0`。
+- **定性**：**导出代码正确并已加回归守卫**；F4 残余隔离在**活体 actuator/Spring 装配层或测量口径**（非 SchedulerMetrics 代码，非 materialized 门控，与正确性正交——后者依 T026 no-loss SQL 证据）。就绪滞后 p99 功能上由 T026 信号计数（processed=3469/unprocessed=0）间接佐证。
+- **剩余定位（需活集群，1-2 行 curl）**：`curl -s localhost:8000/actuator/prometheus | grep -E 'dw_dispatch|dw_claim|dw_readiness'` + `curl -s localhost:8000/actuator/metrics | grep -E 'dw\.'`——
+  1. 若连 `dw_dispatch_*` 也缺（只 `scheduler.*` 在）→ 活体**全 `dw.*` 前缀未导出**，查 actuator MeterRegistry 装配/是否有运行时 MeterFilter（前两轮 agent 把 `dw_claim` 数取自 `/api/ops/metrics` JSON 而非 prometheus，"dispatch 正常"未在 prometheus 复核，此假设未排除）；
+  2. 若 `dw_dispatch_*` 在、仅 `dw_readiness_*` 缺 → 与隔离测试矛盾，查该 master 实例镜像是否真含最新类 / 是否 ReadinessMaintainer 未在该 JVM 触发（多 master 下信号被另一 master 领取则本机计数恒 0，但 Gauge 仍应显 0——故仍指向装配而非代码）。
+  两者定位后都非改 SchedulerMetrics（导出代码已证 + 回归守卫），而是 actuator 装配/部署核对。
 
 ### F3【事务粒度，性能而非正确性】Maintainer 单事务处理整批信号
 
