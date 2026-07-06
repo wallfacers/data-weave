@@ -66,6 +66,22 @@ class SchedulerMetricsTest {
     //     Prometheus 抓取恒见陈旧 0，US3 slot_util 压测正踩此坑）───
 
     @Test
+    void readiness六指标全部注册到registry_对照dispatch() {
+        SimpleMeterRegistry reg = new SimpleMeterRegistry();
+        new SchedulerMetrics(reg, mock(JdbcTemplate.class));
+        // 对照组：dispatch/claim（真跑中确认暴露的）
+        assertThat(reg.find("dw.dispatch.queue.full.count").counter()).as("dispatch 对照").isNotNull();
+        assertThat(reg.find("dw.claim.window.extra.count").counter()).as("claim 对照").isNotNull();
+        // 待查组：readiness 六指标
+        assertThat(reg.find("dw.readiness.signal.lag").timer()).as("readiness.signal.lag").isNotNull();
+        assertThat(reg.find("dw.readiness.maintain.batch").counter()).as("readiness.maintain.batch").isNotNull();
+        assertThat(reg.find("dw.readiness.signal.pending").gauge()).as("readiness.signal.pending").isNotNull();
+        assertThat(reg.find("dw.readiness.drift.corrected").counter()).as("readiness.drift.corrected").isNotNull();
+        assertThat(reg.find("dw.readiness.recompute.scope").timer()).as("readiness.recompute.scope").isNotNull();
+        assertThat(reg.find("dw.readiness.unmet.ready.candidates").gauge()).as("readiness.unmet.ready.candidates").isNotNull();
+    }
+
+    @Test
     void sampleGauges_驱动slot利用率gauge在prometheus路径可读() {
         var ds = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
