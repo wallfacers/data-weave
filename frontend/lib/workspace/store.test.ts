@@ -192,10 +192,11 @@ describe("moveTab", () => {
   it("将 tab 从 fromIdx 移到 toIdx", () => {
     store().open("fleet")
     store().open("ops")
-    // 顺序: freshness, metrics, fleet, ops
+    // 顺序: ...DEFAULT_VIEWS, fleet, ops
     expect(store().tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "fleet", "ops"])
-    // 把 fleet (idx 2) 移到 ops 后面 (idx 3)
-    store().moveTab(2, 3)
+    // 把 fleet 移到 ops 后面
+    const fleetIdx = DEFAULT_VIEWS.length
+    store().moveTab(fleetIdx, fleetIdx + 1)
     expect(store().tabs.map((t) => t.view)).toEqual([...DEFAULT_VIEWS, "ops", "fleet"])
   })
 
