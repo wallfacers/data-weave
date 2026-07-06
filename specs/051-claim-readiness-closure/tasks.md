@@ -80,9 +80,9 @@ description: "Task list for 051 认领就绪态物化 + 性能链收口"
 **Goal**: 对含 US1 物化的物化→认领→下发全链真崩溃注入 + 四不变量审计；恰好一次/不丢/无死锁 + 就绪态不漂移。
 **Independent Test**: 高负载中 `docker kill` master（认领事务提交后、下发前）→ 重启核对无重复/不丢/无死锁 + unmet_deps 收敛权威值。
 
-- [ ] T025 [US2] idempotency 回归单测（`SchedulerKernelReadinessTest.java` 扩展）：同实例并发可见恰好认领一次（casDispatchBatch WHERE state=WAITING CAS）——回归核 046/048/049 语义未被 unmet 过滤破坏
-- [ ] T026 [US2] 崩溃注入真跑（复用 fault-injection，多 master docker）：`setup -n 1000` 起负载 → `docker kill dataweave-master-2 && sleep 2 && docker start` → 等 30s 核对 ① 无重复 dispatch ② 不丢（readiness_signal 崩溃前已提交→重启续处理；已认领未下发 casRequeue 重派）③ 无 deadlock ④ `unmet_deps` 收敛权威值（`readiness_drift_corrected` 可>0 但自愈）
-- [ ] T027 [US2] 死锁四不变量代码审计（对照 contracts/components.contract.md §四不变量 + research R8）：① 认领仅 SKIP LOCKED ② CAS 状态推进 + unmet 落权威重算值 ③ 完成事务只 append 信号不锁下游行、Maintainer 按 PK 改 task_instance 无反向/跨表锁 ④ 状态事务内/下发+unmet维护事务外——出审计结论文档段，长跑压测无 deadlock/活锁佐证
+- [x] T025 [US2] idempotency 回归单测（`SchedulerKernelReadinessTest.java` 扩展）：同实例并发可见恰好认领一次（casDispatchBatch WHERE state=WAITING CAS）——回归核 046/048/049 语义未被 unmet 过滤破坏 ✅ `casDispatchExactlyOnce`/`casDispatchNoDoubleDispatch` 随 US1 `f9a4acc` 合并、跑绿
+- [ ] T026 [US2] 崩溃注入真跑（复用 fault-injection，多 master docker）：`setup -n 1000` 起负载 → `docker kill dataweave-master-2 && sleep 2 && docker start` → 等 30s 核对 ① 无重复 dispatch ② 不丢（readiness_signal 崩溃前已提交→重启续处理；已认领未下发 casRequeue 重派）③ 无 deadlock ④ `unmet_deps` 收敛权威值（`readiness_drift_corrected` 可>0 但自愈） ⏳ **阻塞**：需分布式多 master docker 集群 + cron-stress harness（仓库仅 PG+Redis 单机 compose，无 `dataweave-master-2`、`tmp/cron-stress` 不存在）；runbook + harness/crash-inject.sh 已就绪
+- [x] T027 [US2] 死锁四不变量代码审计（对照 contracts/components.contract.md §四不变量 + research R8）：① 认领仅 SKIP LOCKED ② CAS 状态推进 + unmet 落权威重算值 ③ 完成事务只 append 信号不锁下游行、Maintainer 按 PK 改 task_instance 无反向/跨表锁 ④ 状态事务内/下发+unmet维护事务外——出审计结论文档段，长跑压测无 deadlock/活锁佐证 ✅ `audit.md` 逐条论证 + F1/F2 已修 + F3 定性；对照合并后 main 复核 file:line；**长跑佐证 §4 待 T026**
 
 **Checkpoint**: US2 通过——三连欠崩溃注入+四不变量收口，物化未引入正确性退化。
 
