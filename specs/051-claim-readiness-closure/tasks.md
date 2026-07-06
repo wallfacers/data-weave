@@ -94,7 +94,7 @@ description: "Task list for 051 认领就绪态物化 + 性能链收口"
 **Independent Test**: worker 真跑 sleep 占槽压测，slot 成绑定约束 + slot_util≥80% + 慢任务认领延迟无长尾。
 
 - [x] T028 [US3] 准备慢任务压测档：worker 镜像 ShellTaskExecutor 真跑 sleep 占槽；50 慢任务(sleep30 `*/30`)+100 快任务(`*/10`)混合负载脚本 ✅ 真跑就位（2026-07-06）
-- [~] T029 [US3] SC-003/007 压测：⚠️ **部分通过 + 修复后待复测**——① slot 绑定约束：round_ms ~535→575ms 稳态、瓶颈转 worker ✅ 观察到 ④ readiness 信号全处理(687/0 unprocessed) ✅；但 ② `slot_utilization`≥80% **未达（实测 ~35-40%，7-8 RUNNING/20 slots）**，且 prometheus `scheduler_slot_utilization` 恒 0.0——**根因已定位并修复**：该 gauge 此前仅 `/api/ops/metrics` 按需刷新，Prometheus 抓取恒见陈旧 0（既有缺口，非 051 引入）→ 已加周期采样器 `SchedulerMetrics.sampleGauges()`（`SchedulerMetricsTest.sampleGauges_驱动slot利用率gauge` 覆盖）。③ 35 FAILED 因 worker→master 回调超时（既有 env 配置项，非 051）。**待复测**：修复采样器 + 调高 worker 回调超时 + 加大持续负载后，经 `/actuator/prometheus` 复采 slot_util≥80% + 慢任务无长尾。数字回写 research.md R10
+- [x] T029 [US3] SC-003/007 压测 ✅ **达标**（2026-07-06 复测，含 gauge 采样器修复镜像）：② 稳态 `slot_utilization`≥80% **达成**——三通道一致 Prometheus 1.0 + API 1.0 + DB 16~23/20（20 slot 满载）；① slot 成绑定约束（453~889 WAITING 积压、RUNNING 顶 20、瓶颈转 worker）；③ FAILED 归零（28 全 WORKER_RESTART/OOM，0 request timed out，上轮 35 超时经调高回调超时消除）。**SC-003/007 闭合**。数字见 research.md R10。**遗留（非阻塞，另立）**：④ `dw_readiness_*` 指标未在 prometheus 暴露——见 audit.md §3-F4
 
 **Checkpoint**: US3 通过——容量证据补齐，性能链收敛闭合。
 
