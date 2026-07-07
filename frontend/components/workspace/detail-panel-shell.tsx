@@ -26,6 +26,12 @@ export interface DetailPanelShellProps {
   children: ReactNode
   /** Header 与 Body 之间的额外内容（不随 Body 滚动），如 Tab 切换条 */
   headerExtra?: ReactNode
+  /**
+   * Body 是否套 DwScroll 滚动容器（默认 true）。
+   * 传 false → children 直接进 flex-1 撑满容器（供自带滚动的内容用，如内嵌日志视图，
+   * 避免 OverlayScrollbars 嵌套导致内层 h-full 塌成内容高度）。
+   */
+  scrollBody?: boolean
 }
 
 export function DetailPanelShell({
@@ -37,8 +43,22 @@ export function DetailPanelShell({
   hasData,
   children,
   headerExtra,
+  scrollBody = true,
 }: DetailPanelShellProps) {
   const t = useTranslations("ops")
+
+  const body = (
+    <>
+      {/* 加载中：有旧数据时覆盖半透明遮罩；无旧数据时居中 spinner */}
+      {loading && hasData && <LoadingState variant="overlay" active={loading} />}
+
+      {loading && !hasData && <LoadingState active={loading} />}
+
+      {error && <ErrorState message={error} onRetry={onRetry} />}
+
+      {!loading && !error && children}
+    </>
+  )
 
   return (
     <div className="flex flex-col h-full min-w-[280px] rounded-[var(--radius-md)] border border-border overflow-hidden bg-card">
@@ -54,16 +74,13 @@ export function DetailPanelShell({
       {headerExtra}
 
       {/* Body */}
-      <DwScroll direction="vertical" className="flex-1 min-h-0 relative" innerClassName="flex flex-col gap-4 p-4">
-        {/* 加载中：有旧数据时覆盖半透明遮罩；无旧数据时居中 spinner */}
-        {loading && hasData && <LoadingState variant="overlay" active={loading} />}
-
-        {loading && !hasData && <LoadingState active={loading} />}
-
-        {error && <ErrorState message={error} onRetry={onRetry} />}
-
-        {!loading && !error && children}
-      </DwScroll>
+      {scrollBody ? (
+        <DwScroll direction="vertical" className="flex-1 min-h-0 relative" innerClassName="flex flex-col gap-4 p-4">
+          {body}
+        </DwScroll>
+      ) : (
+        <div className="relative flex min-h-0 flex-1 flex-col">{body}</div>
+      )}
     </div>
   )
 }

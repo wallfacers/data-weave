@@ -639,6 +639,17 @@ public class OpsController {
             return streamEndedLogs(id, inst);
         }
 
+        // 加固：仅「正在跑 / 即将下发」的实例才有资格开实时流。NOT_RUN/WAITING/PREEMPTED/PAUSED
+        // 这些非运行非终态并不产生实时日志——不开每 200ms 的无限空轮询流（对 PAUSED/NOT_RUN 可能永不结束），
+        // 仅回放当前缓冲快照（通常为空）后即完成；不发 end（非终态，后续可能进入 RUNNING）。
+        // 前端据 taskState 决定何时（重）连实时流，见 InstanceLogView 的 shouldConnect 门。
+        if (inst != null && !InstanceStates.RUNNING.equals(inst.getState())
+                && !InstanceStates.DISPATCHED.equals(inst.getState())) {
+            return Flux.fromIterable(logBus.read(id, null, 5000))
+                    .map(e -> ServerSentEvent.<String>builder()
+                            .id(e.id()).event("log").data(e.line()).build());
+        }
+
         // 实时流：每 200ms 轮询 LogBus 推日志；每 ~2s 顺带查实例状态，终态则 emit 带 outcome 的 end 并关流。
         // 终态检出当 tick 会先读日志再查状态，故无尾日志丢失；end 事件由外层 takeUntil 触发流完成，避免悬挂。
         final String[] afterId = {lastEventId};

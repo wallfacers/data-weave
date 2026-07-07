@@ -19,6 +19,7 @@ import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { deriveRunDotState, parseEndState, runDotColor, type RunDotState } from "@/lib/workspace/run-dot-state"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { cn } from "@/lib/utils"
 
 const LOG_HEIGHT_DEFAULT = 224
@@ -263,8 +264,12 @@ function LogTab({ instanceId, onDot }: { instanceId: string; onDot: (s: RunDotSt
 
   if (lines.length === 0) {
     return (
-      <div className="h-full bg-muted/20 flex items-center justify-center">
-        <span className="text-muted-foreground text-xs">{emptyText}</span>
+      <div className="flex h-full items-center justify-center bg-muted/20">
+        {ended || error ? (
+          <span className="text-muted-foreground text-xs">{emptyText}</span>
+        ) : (
+          <LoadingState text={emptyText} />
+        )}
       </div>
     )
   }

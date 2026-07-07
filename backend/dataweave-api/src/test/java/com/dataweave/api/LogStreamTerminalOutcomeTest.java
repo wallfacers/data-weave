@@ -136,6 +136,37 @@ class LogStreamTerminalOutcomeTest {
         assertThat(events).anyMatch(s -> isEnd(s) && s.data() != null && s.data().contains("\"state\":\"SUCCESS\""));
     }
 
+    // ─── 非运行非终态门（only-running-streams-live）─────────────────────────
+
+    @Test
+    void 非运行态_waiting_不开实时流_快照即完成不发end() {
+        UUID id = insertInstance("WAITING");
+        // 无日志：应立即完成（空），不悬挂、不发 end。有界 block 兜底防悬挂。
+        List<ServerSentEvent<String>> events = opsController.logStream(id, null).collectList().block(BOUND);
+        assertThat(events).isNotNull().isEmpty();
+    }
+
+    @Test
+    void 非运行态_paused_回放缓冲快照不发end() {
+        UUID id = insertInstance("PAUSED");
+        logBus.append(id, "buffered-1");
+        logBus.append(id, "buffered-2");
+        List<ServerSentEvent<String>> events = opsController.logStream(id, null).collectList().block(BOUND);
+        assertThat(events).isNotNull();
+        assertThat(events).extracting(ServerSentEvent::data).containsExactly("buffered-1", "buffered-2");
+        assertThat(events).noneMatch(LogStreamTerminalOutcomeTest::isEnd);
+    }
+
+    @Test
+    void 非运行态_notRun_不挂实时连接计数() throws Exception {
+        UUID id = insertInstance("NOT_RUN");
+        long before = metrics.snapshot().sseConnections;
+        // 快照路径无 doOnSubscribe/doFinally，订阅即完成，连接计数不应变化。
+        opsController.logStream(id, null).collectList().block(BOUND);
+        Thread.sleep(100);
+        assertThat(metrics.snapshot().sseConnections).isEqualTo(before);
+    }
+
     // ─── SSE 活跃连接计数（scheduler.sse.connections）──────────────────────
 
     @Test

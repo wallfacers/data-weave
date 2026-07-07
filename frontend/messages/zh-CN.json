@@ -468,6 +468,8 @@
     "logNoRecords": "暂无日志",
     "logError": "连接异常",
     "logConnectingShort": "连接中",
+    "logNotStarted": "任务尚未运行，暂无日志",
+    "logPausedNoLog": "任务已暂停，暂无日志",
     "pendingSave": "● 待保存",
     "runTest": "测试运行",
     "logTabEmpty": "点击「运行」查看运行日志",

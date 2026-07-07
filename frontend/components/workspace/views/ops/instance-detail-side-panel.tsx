@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { DetailPanelShell } from "@/components/workspace/detail-panel-shell"
 import { CodeBlock } from "@/components/workspace/shared/code-block"
 import { ParamsTable, InfoRow, taskTypeToLang } from "@/components/workspace/shared/params-table"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { authFetch, API_BASE, type ApiResponse, type ResolvedCodeView, type ResolvedConfigView } from "@/lib/types"
@@ -70,6 +71,10 @@ const ACTION_META: Record<string, { icon: typeof PlayIcon; label: string; varian
 
 type PanelTab = "detail" | "log"
 
+// 非运行非终态：这些态实例并未执行、不产生实时日志，日志 Tab 不建连、直接静态提示。
+// 与后端 OpsController.logStream 的加固门一致（后端亦不为这些态开无限空轮询流）。
+const NOT_RUNNING_STATES = new Set(["NOT_RUN", "WAITING", "PREEMPTED", "PAUSED"])
+
 // ─── 内联日志查看器 ──────────────────────────────────
 
 /**
@@ -79,18 +84,22 @@ type PanelTab = "detail" | "log"
  * - 自动滚底（用户上滚暂停）
  * - banner 行（=== 开头）弱化着色
  */
-function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
+function InstanceLogView({ taskInstanceId, taskState }: { taskInstanceId: string; taskState?: string }) {
   const t = useTranslations("ops")
   const te = useTranslations("taskEditor")
   const osRef = useRef<OverlayScrollbarsComponentRef>(null)
   const autoScroll = useRef(true)
+  // 只有「正在跑 / 即将下发 / 已终态（回放历史）」才连日志流；NOT_RUN/WAITING/PREEMPTED/PAUSED
+  // 并不产生实时日志——不建连，直接静态告知「尚未运行」，避免无限转圈（与后端加固对齐）。
+  const notRunning = taskState ? NOT_RUNNING_STATES.has(taskState) : false
   const { events, connected, error } = useEventSource(
-    `${API_BASE}/api/ops/instances/${taskInstanceId}/logs/stream`,
+    notRunning ? "" : `${API_BASE}/api/ops/instances/${taskInstanceId}/logs/stream`,
   )
   const lines = events.filter((e) => e.type === "log").map((e) => e.data)
   const endEvent = events.find((e) => e.type === "end")
   const ended = Boolean(endEvent)
   const emptyText = connected ? te("logWaiting") : ended ? te("logNoRecords") : error ? te("logError") : te("logConnectingShort")
+  const notRunningText = taskState === "PAUSED" ? te("logPausedNoLog") : te("logNotStarted")
 
   // 自动滚动到底部（用户上滚则暂停）
   useEffect(() => {
@@ -106,10 +115,16 @@ function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
   }
 
   return (
-    <div className="flex-1 min-h-0 -m-4">
+    <div className="flex min-h-0 flex-1 flex-col">
       {lines.length === 0 ? (
-        <div className="h-full bg-muted/20 flex items-center justify-center">
-          <span className="text-muted-foreground text-xs">{emptyText}</span>
+        <div className="flex h-full items-center justify-center bg-muted/20">
+          {notRunning ? (
+            <span className="text-muted-foreground text-xs">{notRunningText}</span>
+          ) : ended || error ? (
+            <span className="text-muted-foreground text-xs">{emptyText}</span>
+          ) : (
+            <LoadingState text={emptyText} />
+          )}
         </div>
       ) : (
         <OverlayScrollbarsComponent
@@ -262,8 +277,9 @@ export function InstanceDetailSidePanel({
         onRetry={load}
         hasData
         headerExtra={tabBar}
+        scrollBody={false}
       >
-        <InstanceLogView taskInstanceId={taskInstanceId} />
+        <InstanceLogView taskInstanceId={taskInstanceId} taskState={taskState} />
       </DetailPanelShell>
     )
   }

@@ -468,6 +468,8 @@
     "logNoRecords": "No logs",
     "logError": "Connection error",
     "logConnectingShort": "Connecting",
+    "logNotStarted": "Task has not run yet, no logs",
+    "logPausedNoLog": "Task paused, no logs",
     "pendingSave": "● Unsaved",
     "runTest": "Test run",
     "logTabEmpty": "Click Run to view run logs",
