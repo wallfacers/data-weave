@@ -232,12 +232,13 @@ function LogTab({ instanceId, onDot }: { instanceId: string; onDot: (s: RunDotSt
   const t = useTranslations("taskEditor")
   const osRef = useRef<OverlayScrollbarsComponentRef>(null)
   const autoScroll = useRef(true)
-  const { events, connected } = useEventSource(
+  const { events, connected, error } = useEventSource(
     `${API_BASE}/api/ops/instances/${instanceId}/logs/stream`,
   )
   const lines = events.filter((e) => e.type === "log").map((e) => e.data)
   const endEvent = events.find((e) => e.type === "end")
   const ended = Boolean(endEvent)
+  const emptyText = connected ? t("logWaiting") : ended ? t("logNoRecords") : error ? t("logError") : t("logConnectingShort")
   // 圆点状态：解析 end 事件终态 outcome 后合成（终态覆盖连接态、不再回退）；纯逻辑见 run-dot-state.ts。
   const dotState: RunDotState = deriveRunDotState(parseEndState(endEvent?.data), ended, connected)
   // onDot 每次渲染都是新内联函数；用 ref 持有，effect 只依赖 dotState，避免「effect→setState→重渲染→新 onDot→effect」死循环。
@@ -260,6 +261,14 @@ function LogTab({ instanceId, onDot }: { instanceId: string; onDot: (s: RunDotSt
     autoScroll.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 50
   }
 
+  if (lines.length === 0) {
+    return (
+      <div className="h-full bg-muted/20 flex items-center justify-center">
+        <span className="text-muted-foreground text-xs">{emptyText}</span>
+      </div>
+    )
+  }
+
   return (
     <OverlayScrollbarsComponent
       ref={osRef}
@@ -272,25 +281,19 @@ function LogTab({ instanceId, onDot }: { instanceId: string; onDot: (s: RunDotSt
       events={{ scroll: handleScroll }}
     >
       <div className="px-3 py-2 font-mono text-xs leading-relaxed">
-        {lines.length === 0 ? (
-          <div className="text-muted-foreground">
-            {connected ? t("logWaiting") : ended ? t("logNoRecords") : t("logConnectingShort")}
-          </div>
-        ) : (
-          <div className="space-y-px">
-            {lines.map((line, i) => {
-              const banner = line.startsWith("===")
-              return (
-                <div
-                  key={i}
-                  className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
-                >
-                  {line}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <div className="space-y-px">
+          {lines.map((line, i) => {
+            const banner = line.startsWith("===")
+            return (
+              <div
+                key={i}
+                className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
+              >
+                {line}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </OverlayScrollbarsComponent>
   )

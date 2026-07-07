@@ -81,14 +81,16 @@ type PanelTab = "detail" | "log"
  */
 function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
   const t = useTranslations("ops")
+  const te = useTranslations("taskEditor")
   const osRef = useRef<OverlayScrollbarsComponentRef>(null)
   const autoScroll = useRef(true)
-  const { events, connected } = useEventSource(
+  const { events, connected, error } = useEventSource(
     `${API_BASE}/api/ops/instances/${taskInstanceId}/logs/stream`,
   )
   const lines = events.filter((e) => e.type === "log").map((e) => e.data)
   const endEvent = events.find((e) => e.type === "end")
   const ended = Boolean(endEvent)
+  const emptyText = connected ? te("logWaiting") : ended ? te("logNoRecords") : error ? te("logError") : te("logConnectingShort")
 
   // 自动滚动到底部（用户上滚则暂停）
   useEffect(() => {
@@ -105,22 +107,22 @@ function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
 
   return (
     <div className="flex-1 min-h-0 -m-4">
-      <OverlayScrollbarsComponent
-        ref={osRef}
-        element="div"
-        className="h-full bg-muted/20"
-        options={{
-          scrollbars: { theme: "os-theme-dark", autoHide: "never" },
-          overflow: { x: "hidden", y: "scroll" },
-        }}
-        events={{ scroll: handleScroll }}
-      >
-        <div className="px-3 py-2 font-mono text-xs leading-relaxed">
-          {lines.length === 0 ? (
-            <div className="text-muted-foreground">
-              {connected ? t("logWaiting") : ended ? t("logNoRecords") : t("logConnectingShort")}
-            </div>
-          ) : (
+      {lines.length === 0 ? (
+        <div className="h-full bg-muted/20 flex items-center justify-center">
+          <span className="text-muted-foreground text-xs">{emptyText}</span>
+        </div>
+      ) : (
+        <OverlayScrollbarsComponent
+          ref={osRef}
+          element="div"
+          className="h-full bg-muted/20"
+          options={{
+            scrollbars: { theme: "os-theme-dark", autoHide: "never" },
+            overflow: { x: "hidden", y: "scroll" },
+          }}
+          events={{ scroll: handleScroll }}
+        >
+          <div className="px-3 py-2 font-mono text-xs leading-relaxed">
             <div className="space-y-px">
               {lines.map((line, i) => {
                 const banner = line.startsWith("===")
@@ -134,9 +136,9 @@ function InstanceLogView({ taskInstanceId }: { taskInstanceId: string }) {
                 )
               })}
             </div>
-          )}
-        </div>
-      </OverlayScrollbarsComponent>
+          </div>
+        </OverlayScrollbarsComponent>
+      )}
     </div>
   )
 }
