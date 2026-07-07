@@ -223,6 +223,28 @@ public class OpsService {
         return " ORDER BY wd.id";
     }
 
+    /** 实例排序子句（白名单防注入）：sortField 映射为对应 DB 列，NULLS LAST，次级键 id 保证稳定。 */
+    private String instanceOrderByClause(String alias, String sortField, String sortDir) {
+        if (sortField == null || sortField.isBlank()) return null;
+        String col = switch (sortField) {
+            case "scheduledFireTime" -> alias + ".scheduled_fire_time";
+            case "bizDate" -> alias + ".biz_date";
+            case "startedAt" -> alias + ".started_at";
+            case "finishedAt" -> alias + ".finished_at";
+            case "durationMs" -> alias + ".duration_ms";
+            default -> null;
+        };
+        if (col == null) return null;
+        String dir = "asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
+        return " ORDER BY " + col + " " + dir + " NULLS LAST, " + alias + ".id " + dir;
+    }
+
+    /** 有 sort 参数时用白名单排序，否则回退到默认优先级排序。 */
+    private String orderByOrDefault(String alias, String sortField, String sortDir, String defaultOrderBy) {
+        String dynamic = instanceOrderByClause(alias, sortField, sortDir);
+        return dynamic != null ? dynamic : "ORDER BY CASE " + defaultOrderBy;
+    }
+
     /**
      * 按 id 查单个任务实例（含 TEST 试跑）——日志流判定是否已结束用，不能用 {@link #instances()}（其排除 TEST）。
      */
@@ -648,11 +670,11 @@ public class OpsService {
                         + "wi.scheduled_fire_time, wi.trigger_type "
                         + "FROM task_instance ti "
                         + "LEFT JOIN workflow_instance wi ON ti.workflow_instance_id = wi.id" + where
-                        // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
-                        + "ORDER BY CASE "
-                        + "  WHEN ti.state IN ('FAILED','KILLED','STOPPED','PREEMPTED') THEN 0 "
-                        + "  WHEN ti.state IN ('RUNNING','DISPATCHED','WAITING','WAIT_RETRY') THEN 1 "
-                        + "  ELSE 2 END, ti.id DESC LIMIT ? OFFSET ?",
+                        + orderByOrDefault("ti", q.sortField(), q.sortDir(),
+                                "  WHEN ti.state IN ('FAILED','KILLED','STOPPED','PREEMPTED') THEN 0 "
+                                + "  WHEN ti.state IN ('RUNNING','DISPATCHED','WAITING','WAIT_RETRY') THEN 1 "
+                                + "  ELSE 2 END, ti.id DESC")
+                        + " LIMIT ? OFFSET ?",
                 (rs, n) -> {
                     UUID id = rs.getObject("id", UUID.class);
                     UUID wiId = rs.getObject("workflow_instance_id", UUID.class);
@@ -765,10 +787,11 @@ public class OpsService {
                         + "wi.workflow_def_name, wi.cron_expression, "
                         + "wi.workflow_version_no, wi.scheduled_fire_time "
                         + "FROM workflow_instance wi" + where
-                        + "ORDER BY CASE "
-                        + "  WHEN wi.state IN ('FAILED','STOPPED','PREEMPTED') THEN 0 "
-                        + "  WHEN wi.state IN ('RUNNING') THEN 1 "
-                        + "  ELSE 2 END, wi.id DESC LIMIT ? OFFSET ?",
+                        + orderByOrDefault("wi", q.sortField(), q.sortDir(),
+                                "  WHEN wi.state IN ('FAILED','STOPPED','PREEMPTED') THEN 0 "
+                                + "  WHEN wi.state IN ('RUNNING') THEN 1 "
+                                + "  ELSE 2 END, wi.id DESC")
+                        + " LIMIT ? OFFSET ?",
                 (rs, n) -> {
                     UUID id = rs.getObject("id", UUID.class);
                     Long wfId = rs.getLong("workflow_id");

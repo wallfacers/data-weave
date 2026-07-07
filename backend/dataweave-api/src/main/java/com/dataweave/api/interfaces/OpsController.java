@@ -105,6 +105,14 @@ public class OpsController {
         return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
     }
 
+    /** 解析 sort=field:dir 参数为 [sortField, sortDir]；null 或无效 → [null, null]。 */
+    private static String[] parseSort(String sort) {
+        if (sort == null || sort.isBlank()) return new String[]{null, null};
+        String[] parts = sort.split(":", 2);
+        if (parts.length != 2 || parts[0].isBlank()) return new String[]{null, null};
+        return new String[]{parts[0].strip(), parts[1].strip()};
+    }
+
     /** 驾驶舱全局态势：计数 + 失败实例清单。036 项目隔离，040 支持 bizDate 按业务日期过滤。 */
     @GetMapping("/summary")
     public ApiResponse<OpsService.DashboardSummary> summary(
@@ -217,18 +225,18 @@ public class OpsController {
             @RequestParam(required = false) String workflowInstanceId,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 统一走 dataOpsBridge，返回 Page<InstanceRow> 格式保证前端解析一致
-        // 前端 1-indexed，后端 0-indexed，做转换；响应用原始 page 保持一致性
+        String[] sf = parseSort(sort);
         int page0 = Math.max(0, page - 1);
         Long pid = resolveProjectId(projectId);
         UUID wiId = workflowInstanceId != null && !workflowInstanceId.isBlank()
                 ? UUID.fromString(workflowInstanceId) : null;
         InstanceQuery q = new InstanceQuery(runMode, state, taskId, bizDate,
                 stateIn, bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
-                workerNodeCode, failureReason, pid, wiId, keyword, page0, size);
+                workerNodeCode, failureReason, pid, wiId, keyword, sf[0], sf[1], page0, size);
         Page<InstanceRow> result = dataOpsBridge.queryInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }
@@ -251,17 +259,18 @@ public class OpsController {
             @RequestParam(required = false) String scheduledFireTimeFrom,
             @RequestParam(required = false) String scheduledFireTimeTo,
             @RequestParam(required = false) Long projectId,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        // 前端 1-indexed → 后端 0-indexed；响应用原始 page
         int page0 = Math.max(0, page - 1);
         Long pid = resolveProjectId(projectId);
+        String[] sf = parseSort(sort);
         com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery q =
                 new com.dataweave.master.application.OpsContracts.WorkflowInstanceQuery(
                         state, stateIn, triggerType, workflowId, bizDate,
                         bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
                         scheduledFireTimeFrom, scheduledFireTimeTo,
-                        pid, page0, size);
+                        pid, sf[0], sf[1], page0, size);
         var result = dataOpsBridge.queryWorkflowInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }

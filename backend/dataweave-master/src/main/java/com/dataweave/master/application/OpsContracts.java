@@ -34,19 +34,20 @@ public final class OpsContracts {
                                 String startedAtFrom, String startedAtTo,
                                 String workerNodeCode, String failureReason,
                                 Long projectId, UUID workflowInstanceId, String keyword,
+                                String sortField, String sortDir,
                                 int page, int size) {
-        /** 兼容旧 6 参构造（runMode/state/taskId/bizDate + 分页），扩展维度置空。 */
+        /** 兼容旧构造（不含 sort），sort 置 null。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate, int page, int size) {
-            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, null, page, size);
+            this(runMode, state, taskId, bizDate, null, null, null, null, null, null, null, null, null, null, null, null, page, size);
         }
-        /** 036 项目隔离：不含 projectId 的构造（向后兼容），projectId 置 null。 */
+        /** 036 项目隔离：不含 projectId 的构造，sort 置 null。 */
         public InstanceQuery(String runMode, String state, Long taskId, String bizDate,
                             String stateIn, String bizDateFrom, String bizDateTo,
                             String startedAtFrom, String startedAtTo,
                             String workerNodeCode, String failureReason,
                             int page, int size) {
             this(runMode, state, taskId, bizDate, stateIn, bizDateFrom, bizDateTo,
-                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, null, null, page, size);
+                 startedAtFrom, startedAtTo, workerNodeCode, failureReason, null, null, null, null, null, page, size);
         }
     }
 
@@ -137,7 +138,8 @@ public final class OpsContracts {
                                          String bizDateFrom, String bizDateTo,
                                          String startedAtFrom, String startedAtTo,
                                          String scheduledFireTimeFrom, String scheduledFireTimeTo,
-                                         Long projectId, int page, int size) {}
+                                         Long projectId, String sortField, String sortDir,
+                                         int page, int size) {}
 
     /** 实例 DAG 节点：DAG 拓扑位置 + 运行时状态叠加。 */
     public record InstanceDagNode(String nodeKey, String taskName, Long taskId, UUID taskInstanceId,

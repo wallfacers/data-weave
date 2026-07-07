@@ -147,9 +147,7 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [053-lineage-llm-agent-schema](specs/053-lineage-llm-agent-schema/spec.md)
-Implementation plan: [plan.md](specs/053-lineage-llm-agent-schema/plan.md)
-Research: [research.md](specs/053-lineage-llm-agent-schema/research.md)
-Data model: [data-model.md](specs/053-lineage-llm-agent-schema/data-model.md)
-API contracts: [contracts/](specs/053-lineage-llm-agent-schema/contracts/)
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at /home/wallfacers/project/data-weave/specs/056-instance-list-sort-actions/plan.md
 <!-- SPECKIT END -->

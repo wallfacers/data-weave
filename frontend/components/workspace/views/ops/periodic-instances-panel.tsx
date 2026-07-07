@@ -15,6 +15,7 @@
 
 import { useMemo, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
+import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { BoxIcon, PlayIcon, StopIcon, CheckmarkCircle01Icon, Copy01Icon, FileViewIcon } from "@hugeicons/core-free-icons"
@@ -31,6 +32,7 @@ import {
   type FilterPreset,
   type FetchQuery,
   type PageResult,
+  type SortState,
   toQueryParams,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse } from "@/lib/types"
@@ -39,6 +41,7 @@ import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { humanizeCron as renderCron } from "@/lib/cron-format"
 import { useProjectContext } from "@/lib/project-context"
+import { isActionEnabled, isBulkActionEnabled } from "@/lib/instance-actions"
 import { ViewRefreshControl } from "../view-refresh-control"
 
 /** 契约① InstanceRow */
@@ -138,11 +141,20 @@ export function PeriodicInstancesPanel({
   const t = useTranslations("ops")
   const formatDateTime = useFormatDateTime()
   const open = useWorkspaceStore((s) => s.open)
+  const searchParams = useSearchParams()
 
   const [reloadSignal, setReloadSignal] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
   const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const initialSort: SortState | undefined = useMemo(() => {
+    const raw = searchParams.get("sort")
+    if (!raw) return { field: "scheduledFireTime", dir: "desc" }
+    const parts = raw.split(":", 2)
+    if (parts.length === 2) return { field: parts[0], dir: parts[1] as "asc" | "desc" }
+    return { field: "scheduledFireTime", dir: "desc" }
+  }, [searchParams])
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
   const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
@@ -348,6 +360,8 @@ export function PeriodicInstancesPanel({
         key: "scheduledFireTime",
         header: t("colScheduledFireTime"),
         widthPct: 11,
+        sortable: true,
+        sortKey: "scheduledFireTime",
         cell: (r) =>
           r.scheduledFireTime ? (
             <span className="font-mono text-sm tabular-nums">{formatDateTime(r.scheduledFireTime)}</span>
@@ -355,11 +369,13 @@ export function PeriodicInstancesPanel({
             <span className="text-muted-foreground">—</span>
           ),
       },
-      { key: "bizDate", header: t("colBizDate"), widthPct: 10, cellClassName: "tabular-nums text-xs" },
+      { key: "bizDate", header: t("colBizDate"), widthPct: 10, sortable: true, sortKey: "bizDate", cellClassName: "tabular-nums text-xs" },
       {
         key: "startedAt",
         header: t("colStartedAt"),
         widthPct: 11,
+        sortable: true,
+        sortKey: "startedAt",
         cellClassName: "tabular-nums text-xs",
         cell: (r) => formatDateTime(r.startedAt ?? null),
       },
@@ -367,6 +383,8 @@ export function PeriodicInstancesPanel({
         key: "finishedAt",
         header: t("colFinishedAt"),
         widthPct: 13,
+        sortable: true,
+        sortKey: "finishedAt",
         cellClassName: "tabular-nums text-xs",
         cell: (r) => formatDateTime(r.finishedAt ?? null),
       },
@@ -374,6 +392,8 @@ export function PeriodicInstancesPanel({
         key: "durationMs",
         header: t("colDuration"),
         widthPct: 5,
+        sortable: true,
+        sortKey: "durationMs",
         align: "right",
         cellClassName: "tabular-nums text-xs",
         cell: (r) => formatDuration(r.durationMs),
@@ -391,6 +411,7 @@ export function PeriodicInstancesPanel({
                     size="icon"
                     variant="ghost"
                     className="size-7"
+                    disabled={!isActionEnabled(r.state, "rerun")}
                     onClick={() => {
                       setConfirmState({
                         title: t("batchConfirm", { label: t("batchRerun") }),
@@ -437,6 +458,7 @@ export function PeriodicInstancesPanel({
                     size="icon"
                     variant="ghost"
                     className="size-7 text-destructive hover:text-destructive"
+                    disabled={!isActionEnabled(r.state, "stop")}
                     onClick={() => {
                       setConfirmState({
                         title: t("batchConfirm", { label: t("batchKill") }),
@@ -545,6 +567,7 @@ export function PeriodicInstancesPanel({
         presets={presets}
         defaultFilters={defaultFilters}
         selectable
+        initialSort={initialSort}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
         onLoaded={onLoaded}

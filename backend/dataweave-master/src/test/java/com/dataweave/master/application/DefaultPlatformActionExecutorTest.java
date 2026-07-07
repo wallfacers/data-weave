@@ -57,6 +57,8 @@ class DefaultPlatformActionExecutorTest {
     private ObjectProvider<com.dataweave.master.quality.application.QualityCheckRunner> qualityCheckRunnerProvider;
     @Mock
     private ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionServiceProvider;
+    @Mock
+    private ObjectProvider<BackfillService> backfillServiceProvider;
 
     private DefaultPlatformActionExecutor executor;
 
@@ -75,7 +77,7 @@ class DefaultPlatformActionExecutorTest {
                 fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
                 opsServiceProvider, projectSyncServiceProvider, java.util.List.of(),
                 qualityRuleServiceProvider, qualityCheckRunnerProvider,
-                lineageCorrectionServiceProvider, realMessages());
+                lineageCorrectionServiceProvider, backfillServiceProvider, realMessages());
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));

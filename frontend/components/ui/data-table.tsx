@@ -74,6 +74,8 @@ interface DataTableProps<T> {
   onLoadingChange?: (loading: boolean) => void
   /** 一次取数成功完成回调（驱动 lastUpdatedAt） */
   onLoaded?: () => void
+  /** Server-mode 初始排序 */
+  initialSort?: SortState
 }
 
 const DEFAULT_SIZE = 20
@@ -101,13 +103,14 @@ export function DataTable<T>({
   reloadSignal,
   onLoadingChange,
   onLoaded,
+  initialSort,
 }: DataTableProps<T>) {
   const t = useTranslations("dataTable")
 
   const [values, setValues] = useState<FilterValues>(() => initialFilterValues(filters, defaultFilters))
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(pageSize)
-  const [sort, setSort] = useState<SortState | undefined>(undefined)
+  const [sort, setSort] = useState<SortState | undefined>(initialSort)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   // server 模式状态

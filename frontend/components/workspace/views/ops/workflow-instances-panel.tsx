@@ -14,6 +14,7 @@
 
 import { useMemo, useRef, useEffect, useCallback, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useSearchParams } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   PlayIcon,
@@ -35,6 +36,7 @@ import {
   type FilterPreset,
   type FetchQuery,
   type PageResult,
+  type SortState,
   toQueryParams,
 } from "@/lib/data-table"
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
@@ -42,6 +44,7 @@ import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { humanizeCron } from "@/lib/cron-format"
 import { useProjectContext } from "@/lib/project-context"
+import { isActionEnabled, isBulkActionEnabled } from "@/lib/instance-actions"
 import { ViewRefreshControl } from "../view-refresh-control"
 
 const STATE_BADGE_VARIANT: Record<string, "success" | "info" | "warning" | "destructive" | "outline"> = {
@@ -101,11 +104,20 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
   const formatDateTime = useFormatDateTime()
   const abortRef = useRef<AbortController | null>(null)
   const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
+  const searchParams = useSearchParams()
 
   const [reloadSignal, setReloadSignal] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
   const [autoEnabled, setAutoEnabled] = useState(true)
+
+  const initialSort: SortState | undefined = useMemo(() => {
+    const raw = searchParams.get("sort")
+    if (!raw) return { field: "scheduledFireTime", dir: "desc" }
+    const parts = raw.split(":", 2)
+    if (parts.length === 2) return { field: parts[0], dir: parts[1] as "asc" | "desc" }
+    return { field: "scheduledFireTime", dir: "desc" }
+  }, [searchParams])
 
   // ── 确认对话框状态 ──
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -272,6 +284,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         key: "bizDate",
         header: t("colBizDate"),
         widthPct: 9,
+        sortable: true,
+        sortKey: "bizDate",
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{row.bizDate}</span>
         ),
@@ -290,6 +304,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         key: "scheduledFireTime",
         header: t("colScheduledFireTime"),
         widthPct: 16,
+        sortable: true,
+        sortKey: "scheduledFireTime",
         cell: (row: WorkflowInstanceRow) =>
           row.scheduledFireTime ? (
             <span className="font-mono text-sm tabular-nums">{formatDateTime(row.scheduledFireTime)}</span>
@@ -346,6 +362,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         key: "startedAt",
         header: t("colStartedAt"),
         widthPct: 13,
+        sortable: true,
+        sortKey: "startedAt",
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{formatDateTime(row.startedAt)}</span>
         ),
@@ -354,6 +372,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         key: "finishedAt",
         header: t("colFinishedAt"),
         widthPct: 11,
+        sortable: true,
+        sortKey: "finishedAt",
         cell: (row: WorkflowInstanceRow) =>
           row.finishedAt ? (
             <span className="font-mono text-sm tabular-nums">{formatDateTime(row.finishedAt)}</span>
@@ -365,6 +385,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         key: "durationMs",
         header: t("colDuration"),
         widthPct: 4,
+        sortable: true,
+        sortKey: "durationMs",
         cell: (row: WorkflowInstanceRow) => {
           const ms = row.durationMs
           if (ms == null) return <span className="text-muted-foreground">—</span>
@@ -391,6 +413,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7"
+                    disabled={!isActionEnabled(row.state, "rerun")}
                     onClick={() => {
                       setConfirmState({
                         title: t("batchConfirm", { label: t("rerunAll") }),
@@ -414,6 +437,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7"
+                    disabled={!isActionEnabled(row.state, "recover")}
                     onClick={() => {
                       setConfirmState({
                         title: t("batchConfirm", { label: t("recover") }),
@@ -437,6 +461,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
                     size="icon"
                     variant="ghost"
                     className="size-7 text-destructive hover:text-destructive"
+                    disabled={!isActionEnabled(row.state, "stop")}
                     onClick={() => {
                       setConfirmState({
                         title: t("batchConfirm", { label: t("killTask") }),
@@ -505,6 +530,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         filters={filters}
         presets={presets}
         selectable
+        initialSort={initialSort}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
         onLoaded={onLoaded}
