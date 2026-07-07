@@ -127,7 +127,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
         } else {
           res = await fetchNeighborhood(nodeId, dep, gran, filters)
         }
-        if (res.code === "lineage.store_unavailable") {
+        if (res.code !== 0) {
           setError(t("unavailable"))
           return
         }
@@ -170,7 +170,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
       }
       try {
         const res = await fetchTableColumnLineage(tableId)
-        if (res.code === "lineage.store_unavailable") {
+        if (res.code !== 0) {
           setError(t("unavailable"))
           return
         }
@@ -209,7 +209,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
       const gran = granularity === "TABLE" ? "TABLE" : "COLUMN"
       try {
         const res = await fetchNeighborhood(nodeId, EXPAND_DEPTH, gran as "TABLE" | "COLUMN")
-        if (res.code === "lineage.store_unavailable") {
+        if (res.code !== 0) {
           setError(t("unavailable"))
           return
         }

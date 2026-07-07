@@ -9,7 +9,7 @@
  * - gap-* / size-* 间距
  * - 无分割线
  */
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
@@ -52,12 +52,12 @@ export function LineageTree({
 
   // 加载数据源
   const loadRoots = useCallback(async () => {
-    if (roots.length > 0) return
     setLoading(true)
     setError(null)
     try {
       const res = await fetchDatasources(0, 200)
-      if (res.code === "lineage.store_unavailable") {
+      if (res.code !== 0) {
+        // 后端返回错误码（包含 lineage.store_unavailable 等），统一降级显示
         setError(t("unavailable"))
         return
       }
@@ -77,7 +77,12 @@ export function LineageTree({
     } finally {
       setLoading(false)
     }
-  }, [roots.length, t])
+  }, [t])
+
+  // 首次加载数据源（副作用在 useEffect 中执行，不在 render 体内）
+  useEffect(() => {
+    loadRoots()
+  }, [loadRoots])
 
   // 懒加载子节点（展开数据源 → 表；展开表 → 列）
   const toggleExpand = useCallback(async (path: number[]) => {
@@ -101,7 +106,7 @@ export function LineageTree({
         // 数据源 → 加载表       实际从 datasources 接口返回后需扩展：这里简化——点击 datasource 加载 columns（临时）
         // 正式实现需 018/019 提供 tables-by-datasource 端点。当前用占位逻辑。
         const res = await fetchColumns(node.id, 0, 200)
-        if (res.code !== "lineage.store_unavailable" && res.data) {
+        if (res.code === 0 && res.data) {
           node.children = res.data.map((col: GraphNodeView) => ({
             id: col.id,
             type: col.type,
@@ -124,11 +129,6 @@ export function LineageTree({
     onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
     setRoots([...rootsCopy])
   }, [roots, onSelect])
-
-  // 首次渲染加载
-  if (roots.length === 0 && !loading && !error) {
-    loadRoots()
-  }
 
   if (loading) return <LoadingState active={loading} />
   if (error) return <div className="text-sm text-muted-foreground px-4 py-2">{error}</div>

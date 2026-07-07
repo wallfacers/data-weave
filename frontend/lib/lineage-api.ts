@@ -198,9 +198,10 @@ export interface CorrectionOutcome {
 }
 
 interface ApiResponse<T> {
-  code: string;
+  code: number;
   message: string;
   data: T;
+  errorCode?: string;
 }
 
 // ─── fetch 封装 ───────────────────────────────────────────────
