@@ -1,0 +1,688 @@
+{
+  "cv5": {
+    "n_scripts": 59,
+    "k": 5,
+    "thr": 0.95,
+    "pooled_precision": 0.9302325581395349,
+    "pooled_recall": 0.2907801418439716,
+    "fold_precision_min": 0.875,
+    "fold_precision_max": 1.0,
+    "fold_recall_min": 0.0,
+    "fold_recall_max": 0.5294117647058824,
+    "modal_accept": [
+      "agree"
+    ],
+    "modal_accept_folds": 3,
+    "per_fold": [
+      {
+        "fold": 0,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 12,
+        "precision": 0.875,
+        "recall": 0.3684210526315789
+      },
+      {
+        "fold": 1,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 12,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 2,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 12,
+        "precision": 1.0,
+        "recall": 0.12
+      },
+      {
+        "fold": 3,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 12,
+        "precision": 0.9473684210526315,
+        "recall": 0.5294117647058824
+      },
+      {
+        "fold": 4,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 11,
+        "precision": 1.0,
+        "recall": 0.24
+      }
+    ]
+  },
+  "loo": {
+    "n_scripts": 59,
+    "k": 59,
+    "thr": 0.95,
+    "pooled_precision": 0.9166666666666666,
+    "pooled_recall": 0.24113475177304963,
+    "fold_precision_min": 0.0,
+    "fold_precision_max": 1.0,
+    "fold_recall_min": 0.0,
+    "fold_recall_max": 1.0,
+    "modal_accept": [
+      "agree",
+      "model_qual"
+    ],
+    "modal_accept_folds": 34,
+    "per_fold": [
+      {
+        "fold": 0,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 1,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 2,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 3,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 4,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 5,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 6,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 7,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 8,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 9,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 10,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 11,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 12,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 13,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.6666666666666666
+      },
+      {
+        "fold": 14,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 15,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 16,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 17,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 18,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 19,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 20,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 21,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 22,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 23,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 24,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 25,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 26,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 27,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 28,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 29,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 30,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 31,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 32,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 33,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 34,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 35,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 36,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 37,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 38,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 39,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 40,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 41,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 42,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 43,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 44,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 45,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 46,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 47,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 48,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      {
+        "fold": 49,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 50,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 51,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 52,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 53,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 54,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 55,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 0.8333333333333334,
+        "recall": 1.0
+      },
+      {
+        "fold": 56,
+        "accept": [
+          "agree",
+          "model_qual"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 57,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 0.0
+      },
+      {
+        "fold": 58,
+        "accept": [
+          "agree"
+        ],
+        "n_test": 1,
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    ]
+  },
+  "insample": {
+    "precision": 0.95,
+    "recall": 0.41134751773049644
+  },
+  "sweep": [
+    {
+      "fit_thr": 0.9,
+      "precision": 0.95,
+      "recall": 0.41134751773049644,
+      "modal_accept": [
+        "agree",
+        "model_qual"
+      ]
+    },
+    {
+      "fit_thr": 0.95,
+      "precision": 0.9302325581395349,
+      "recall": 0.2907801418439716,
+      "modal_accept": [
+        "agree"
+      ]
+    },
+    {
+      "fit_thr": 0.97,
+      "precision": 0.9459459459459459,
+      "recall": 0.2553191489361702,
+      "modal_accept": [
+        "agree"
+      ]
+    },
+    {
+      "fit_thr": 1.0,
+      "precision": 1.0,
+      "recall": 0.1702127659574468,
+      "modal_accept": [
+        "agree"
+      ]
+    }
+  ]
+}
