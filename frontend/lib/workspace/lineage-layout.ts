@@ -59,6 +59,8 @@ export interface LineageLayoutOptions {
   expandedNodeIds?: Set<string>
   /** 展开态内联列清单：tableId → 列项（FR-015）。 */
   columnsByTable?: Record<string, LineageColumnItem[]>
+  /** 054：展开表的列级派生边（tableId → FlowEdgeView[]，granularity=COLUMN），驱动列→列连线（FR-012/013）。 */
+  columnEdgesByTable?: Record<string, FlowEdgeView[]>
   /** 影响/路径高亮集内的节点 id。 */
   impactedNodeIds?: Set<string>
   /** 当前选中节点（高亮其直接连边）。 */
@@ -83,6 +85,7 @@ export function lineageToFlow(
     anchorId,
     expandedNodeIds,
     columnsByTable,
+    columnEdgesByTable,
     impactedNodeIds,
     selectedNodeId,
     highlightEdgeKeys,
@@ -91,6 +94,13 @@ export function lineageToFlow(
 
   const nodeById = new Map<string, GraphNodeView>()
   graph.nodes.forEach((n) => nodeById.set(n.id, n))
+
+  // 054：节点 → 所属数据源 id（跨源边判定 + 列级连线跨源复用，FR-008/013）
+  const tableToDs = new Map<string, string>()
+  nodeById.forEach((n) => {
+    const ds = readNodeAttrs(n).datasourceId
+    if (ds) tableToDs.set(n.id, ds)
+  })
 
   // 相关节点集：锚点 + 影响/路径节点 + 选中节点（dimUnrelated 时据此置暗其余）
   const relevantNodeIds = new Set<string>()
@@ -136,6 +146,8 @@ export function lineageToFlow(
       lastSyncDate: attrs.lastSyncDate,
       syncedRowsToday: attrs.syncedRowsToday,
       producers: attrs.producers,
+      datasourceId: attrs.datasourceId,
+      datasourceName: attrs.datasourceName,
       columnCount: typeof n.attrs?.columnCount === "number" ? (n.attrs.columnCount as number) : undefined,
       isAnchor: n.id === anchorId,
       isImpacted: impactedNodeIds?.has(n.id) ?? false,
@@ -170,13 +182,22 @@ export function lineageToFlow(
 
     const inferred = isInferredEdge(e)
     const confirmed = e.humanState === "CONFIRMED" || e.confidence === "CONFIRMED"
+    // 054 跨源判定（FR-008）：两端数据源不同 → cross（warning 色），与 confidence 的 dash 正交。
+    const dsFrom = tableToDs.get(e.from)
+    const dsTo = tableToDs.get(e.to)
+    const isCross = !!dsFrom && !!dsTo && dsFrom !== dsTo
+    const isUnknown = !dsFrom || !dsTo // 任一端无数据源（metric/孤儿）→ 中性弱化，不误判跨源
 
     const stroke = highlighted
       ? "var(--color-primary)"
-      : confirmed
-        ? "var(--color-success)"
-        : "var(--color-border)"
-    const strokeWidth = highlighted ? 2.5 : confirmed ? 1.75 : 1.25
+      : isCross
+        ? "var(--color-warning)"
+        : confirmed
+          ? "var(--color-success)"
+          : isUnknown
+            ? "var(--color-muted-foreground)"
+            : "var(--color-border)"
+    const strokeWidth = highlighted ? 2.5 : isCross || confirmed ? 1.75 : 1.25
     const strokeDasharray = inferred ? "5 3" : undefined
     const opacity = dimUnrelated && !highlighted ? 0.25 : highlighted ? 1 : 0.7
 
@@ -189,6 +210,48 @@ export function lineageToFlow(
       data: e as unknown as Record<string, unknown>,
     })
   })
+
+  // ── 054 列级连线（FR-012/013）：从展开表的列级边产出连到具体列行的 handle-specific 边 ──
+  // 仅当两端列都可见（其所属表均已展开且列在清单中）才画，避免悬挂连线。与表→表边视觉区分
+  // （更细 + 短虚线 + 中性色；跨库映射复用 warning 跨源色）。
+  const colToTable = new Map<string, string>()
+  for (const [tid, cols] of Object.entries(columnsByTable ?? {})) {
+    for (const c of cols) colToTable.set(c.id, tid)
+  }
+  const seenColEdge = new Set<string>()
+  for (const list of Object.values(columnEdgesByTable ?? {})) {
+    for (const ce of list) {
+      if (ce.granularity !== "COLUMN") continue
+      const key = edgeKey(ce)
+      if (seenColEdge.has(key)) continue
+      seenColEdge.add(key)
+      const srcTable = colToTable.get(ce.from)
+      const tgtTable = colToTable.get(ce.to)
+      if (!srcTable || !tgtTable) continue // 一端列不可见（表未展开）→ 不画悬挂
+      const colDsFrom = tableToDs.get(srcTable)
+      const colDsTo = tableToDs.get(tgtTable)
+      const colCross = !!colDsFrom && !!colDsTo && colDsFrom !== colDsTo
+      const colHighlighted = highlightEdgeKeys?.has(key) ?? false
+      edges.push({
+        id: `col:${key}`,
+        source: srcTable,
+        target: tgtTable,
+        sourceHandle: ce.from,
+        targetHandle: ce.to,
+        style: {
+          stroke: colHighlighted
+            ? "var(--color-primary)"
+            : colCross
+              ? "var(--color-warning)"
+              : "var(--color-muted-foreground)",
+          strokeWidth: 1,
+          strokeDasharray: "3 2",
+          opacity: colHighlighted ? 1 : 0.85,
+        },
+        data: ce as unknown as Record<string, unknown>,
+      })
+    }
+  }
 
   return { nodes, edges }
 }

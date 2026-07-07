@@ -26,6 +26,8 @@ export interface LineageGraphState {
   children: Record<string, string[]>
   /** 列展开（内联）：tableId → 该表列清单（含是否参与列级血缘 hasLineage）。 */
   columnsByTable: Record<string, LineageColumnItem[]>
+  /** 054：列级派生边（tableId → FlowEdgeView[]，granularity=COLUMN），驱动列→列连线（FR-012/013）。 */
+  columnEdgesByTable: Record<string, FlowEdgeView[]>
   truncated: boolean
 }
 
@@ -63,7 +65,7 @@ export type LineageGraphAction =
   | { type: "load"; anchorId: string; nodes: GraphNodeView[]; edges: FlowEdgeView[]; truncated: boolean }
   | { type: "expand"; nodeId: string; nodes: GraphNodeView[]; edges: FlowEdgeView[] }
   | { type: "collapse"; nodeId: string }
-  | { type: "expandColumns"; tableId: string; columns: LineageColumnItem[] }
+  | { type: "expandColumns"; tableId: string; columns: LineageColumnItem[]; columnEdges?: FlowEdgeView[] }
   | { type: "collapseColumns"; tableId: string }
   | { type: "reset" }
 
@@ -76,6 +78,7 @@ export function initialGraphState(): LineageGraphState {
     baseNodeIds: new Set(),
     children: {},
     columnsByTable: {},
+    columnEdgesByTable: {},
     truncated: false,
   }
 }
@@ -94,6 +97,7 @@ export function lineageGraphReducer(
         baseNodeIds: new Set(action.nodes.map((n) => n.id)),
         children: {},
         columnsByTable: {},
+        columnEdgesByTable: {},
         truncated: action.truncated,
       }
 
@@ -139,13 +143,16 @@ export function lineageGraphReducer(
 
     case "expandColumns": {
       const columnsByTable = { ...state.columnsByTable, [action.tableId]: action.columns }
-      return { ...state, columnsByTable }
+      const columnEdgesByTable = { ...state.columnEdgesByTable, [action.tableId]: action.columnEdges ?? [] }
+      return { ...state, columnsByTable, columnEdgesByTable }
     }
 
     case "collapseColumns": {
       const columnsByTable = { ...state.columnsByTable }
       delete columnsByTable[action.tableId]
-      return { ...state, columnsByTable }
+      const columnEdgesByTable = { ...state.columnEdgesByTable }
+      delete columnEdgesByTable[action.tableId]
+      return { ...state, columnsByTable, columnEdgesByTable }
     }
 
     case "reset":

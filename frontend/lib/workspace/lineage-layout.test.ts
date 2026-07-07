@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { lineageToFlow, edgeKey, isInferredEdge } from "@/lib/workspace/lineage-layout"
+import { datasourceColor } from "@/lib/workspace/lineage-datasource-style"
 import type { FlowEdgeView, GraphNodeView } from "@/lib/lineage-api"
 
 function table(id: string, name = id, layer = "DWD"): GraphNodeView {
@@ -95,5 +96,100 @@ describe("edge helpers", () => {
     expect(isInferredEdge(edge("a", "b", { source: "SCRIPT_MODEL" }))).toBe(true)
     expect(isInferredEdge(edge("a", "b", { confidence: "UNVERIFIED" }))).toBe(true)
     expect(isInferredEdge(edge("a", "b", { confidence: "CONFIRMED" }))).toBe(false)
+  })
+})
+
+function tableWithDs(id: string, dsId: string): GraphNodeView {
+  return { id, type: "TABLE", name: id, attrs: { datasourceId: dsId } }
+}
+
+describe("054 跨源边判定（FR-008/013）", () => {
+  it("两端数据源不同 → cross，描边 warning 色", () => {
+    const graph = {
+      nodes: [tableWithDs("a", "ds-1"), tableWithDs("c", "ds-2")],
+      edges: [edge("a", "c")],
+    }
+    const { edges } = lineageToFlow(graph)
+    const ac = edges.find((e) => e.source === "a" && e.target === "c")!
+    expect(ac.style?.stroke).toBe("var(--color-warning)")
+  })
+
+  it("两端同源 → intra，非 warning 色", () => {
+    const graph = {
+      nodes: [tableWithDs("a", "ds-1"), tableWithDs("b", "ds-1")],
+      edges: [edge("a", "b")],
+    }
+    const { edges } = lineageToFlow(graph)
+    const ab = edges.find((e) => e.source === "a" && e.target === "b")!
+    expect(ab.style?.stroke).not.toBe("var(--color-warning)")
+  })
+
+  it("任一端无数据源（metric/孤儿）→ unknown，非 warning（不误判跨源）", () => {
+    const metric: GraphNodeView = { id: "m", type: "METRIC", name: "m" }
+    const graph = {
+      nodes: [tableWithDs("a", "ds-1"), metric],
+      edges: [edge("a", "m")],
+    }
+    const { edges } = lineageToFlow(graph)
+    const am = edges.find((e) => e.source === "a" && e.target === "m")!
+    expect(am.style?.stroke).not.toBe("var(--color-warning)")
+  })
+})
+
+describe("054 列级连线（FR-012/013）", () => {
+  const colEdge = { from: "colA1", to: "colB1", granularity: "COLUMN" } as FlowEdgeView
+
+  it("两表展开且列可见 → 列级边连到具体列行（sourceHandle/targetHandle=列 id）", () => {
+    const graph = {
+      nodes: [tableWithDs("tA", "ds-1"), tableWithDs("tB", "ds-1")],
+      edges: [edge("tA", "tB")],
+    }
+    const { edges } = lineageToFlow(graph, {
+      columnsByTable: {
+        tA: [{ id: "colA1", name: "x" }],
+        tB: [{ id: "colB1", name: "u" }],
+      },
+      columnEdgesByTable: { tA: [colEdge] },
+    })
+    const ce = edges.find((e) => e.sourceHandle === "colA1" && e.targetHandle === "colB1")
+    expect(ce).toBeTruthy()
+    expect(ce!.source).toBe("tA")
+    expect(ce!.target).toBe("tB")
+  })
+
+  it("一端列不可见（表未展开）→ 不画悬挂列级连线", () => {
+    const graph = {
+      nodes: [tableWithDs("tA", "ds-1"), tableWithDs("tB", "ds-1")],
+      edges: [edge("tA", "tB")],
+    }
+    const { edges } = lineageToFlow(graph, {
+      columnsByTable: { tA: [{ id: "colA1", name: "x" }] },
+      columnEdgesByTable: { tA: [colEdge] },
+    })
+    expect(edges.find((e) => e.sourceHandle === "colA1")).toBeFalsy()
+  })
+
+  it("列级跨库映射复用跨源 warning 色", () => {
+    const graph = {
+      nodes: [tableWithDs("tA", "ds-1"), tableWithDs("tB", "ds-2")],
+      edges: [edge("tA", "tB")],
+    }
+    const { edges } = lineageToFlow(graph, {
+      columnsByTable: {
+        tA: [{ id: "colA1", name: "x" }],
+        tB: [{ id: "colB1", name: "u" }],
+      },
+      columnEdgesByTable: { tA: [colEdge] },
+    })
+    const ce = edges.find((e) => e.sourceHandle === "colA1" && e.targetHandle === "colB1")!
+    expect(ce.style?.stroke).toBe("var(--color-warning)")
+  })
+})
+
+describe("054 datasourceColor 确定性（FR-011，详见 lineage-datasource-style.test）", () => {
+  it("同 id 同色、返回 chart token、空 → 中性", () => {
+    expect(datasourceColor("ds-1")).toBe(datasourceColor("ds-1"))
+    expect(datasourceColor("ds-1")).toMatch(/^var\(--color-chart-[1-5]\)$/)
+    expect(datasourceColor(undefined)).toBe("var(--color-muted-foreground)")
   })
 })

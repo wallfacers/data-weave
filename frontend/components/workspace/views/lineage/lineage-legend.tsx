@@ -50,6 +50,37 @@ export function LineageLegend() {
             </svg>
             <span>{t("legendDefault")}</span>
           </div>
+
+          {/* 054：跨源 / 库内 / 未知 / 字段级 / 数据源徽标（FR-009） */}
+          <div className="my-0.5 h-px bg-border" />
+          <div className="flex items-center gap-2">
+            <svg width="24" height="4" aria-hidden>
+              <line x1="0" y1="2" x2="24" y2="2" stroke="var(--color-warning)" strokeWidth="1.75" />
+            </svg>
+            <span>{t("legendCrossSource")}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg width="24" height="4" aria-hidden>
+              <line x1="0" y1="2" x2="24" y2="2" stroke="var(--color-border)" strokeWidth="1.25" />
+            </svg>
+            <span>{t("legendIntraSource")}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg width="24" height="4" aria-hidden>
+              <line x1="0" y1="2" x2="24" y2="2" stroke="var(--color-muted-foreground)" strokeWidth="1.25" />
+            </svg>
+            <span>{t("legendUnknownSource")}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg width="24" height="4" aria-hidden>
+              <line x1="0" y1="2" x2="24" y2="2" stroke="var(--color-muted-foreground)" strokeWidth="1" strokeDasharray="3 2" />
+            </svg>
+            <span>{t("legendColumnLine")}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full" style={{ backgroundColor: "var(--color-chart-1)" }} aria-hidden />
+            <span>{t("legendDatasourceBadge")}</span>
+          </div>
         </div>
       </div>
     </div>

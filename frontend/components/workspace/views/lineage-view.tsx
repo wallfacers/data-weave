@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useState, type MouseEvent as ReactMouseEvent } from "react"
 import { useTranslations } from "next-intl"
 import { type Node } from "@xyflow/react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
 
 import type {
   GraphNodeView,
@@ -37,6 +39,7 @@ import { LineageTree } from "@/components/workspace/views/lineage/lineage-tree"
 import { LineageToolbar } from "@/components/workspace/views/lineage/lineage-toolbar"
 import { LineageDetailPanel } from "@/components/workspace/views/lineage/lineage-detail-panel"
 import { LineageLegend } from "@/components/workspace/views/lineage/lineage-legend"
+import { LineageSearchHero, LineageSearchCandidates } from "@/components/workspace/views/lineage/lineage-search-hero"
 import { lineageNodeTypes } from "@/components/workspace/nodes/lineage-node"
 import { LineageNodeActionsContext, type LineageNodeActions } from "@/components/workspace/nodes/lineage-node-actions-context"
 import { lineageToFlow, type LineageLayoutOptions } from "@/lib/workspace/lineage-layout"
@@ -87,6 +90,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searching, setSearching] = useState(false)
   const [searchCandidates, setSearchCandidates] = useState<SearchCandidate[]>([])
+
+  // ── 054 US1：左侧数据源树可折叠（搜索为主入口，树降级为可选分面；FR-001）──
+  const [treeCollapsed, setTreeCollapsed] = useState(false)
 
   // ── Escape 关面板 ──
   useEffect(() => {
@@ -153,6 +159,31 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     [direction, depth, granularity, t],
   )
 
+  // ── 054 US1：搜索提交（hero 与工具栏共用，提交/回车触发 research D4）──
+  const runSearch = useCallback(async () => {
+    const q = searchQuery.trim()
+    if (!q) return
+    setSearching(true)
+    setSearchCandidates([])
+    try {
+      const res = await fetchSearch(q)
+      if (res.data) setSearchCandidates(res.data)
+    } catch {
+      setSearchCandidates([])
+    } finally {
+      setSearching(false)
+    }
+  }, [searchQuery])
+
+  const onCandidateSelect = useCallback(
+    (c: SearchCandidate) => {
+      setSearchCandidates([])
+      setSearchQuery("")
+      loadAnchor(c.id)
+    },
+    [loadAnchor],
+  )
+
   // ── 深链恢复：挂载时若 params 带 anchor，自动加载该锚点（US5/FR-021）──
   useEffect(() => {
     const a = params?.anchor
@@ -191,7 +222,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             hasLineage: edgeCols.has(n.id),
           }))
           .sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0))
-        dispatch({ type: "expandColumns", tableId, columns })
+        // 054：保留列级 DERIVES_FROM 边（不再丢弃）→ 列→列连线（FR-012/013）
+        const columnEdges = (data?.edges ?? []).filter((e) => e.granularity === "COLUMN")
+        dispatch({ type: "expandColumns", tableId, columns, columnEdges })
       } catch {
         // 静默：列展开失败不阻断主图
       }
@@ -357,6 +390,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
       // chevron 指示列展开态（内联列清单）
       expandedNodeIds: new Set(Object.keys(graph.columnsByTable)),
       columnsByTable: graph.columnsByTable,
+      columnEdgesByTable: graph.columnEdgesByTable,
       impactedNodeIds: allImpactedIds.size > 0 ? allImpactedIds : undefined,
       selectedNodeId: sel.selectedNode?.id ?? null,
       highlightEdgeKeys: allHighlightEdges.size > 0 ? allHighlightEdges : undefined,
@@ -414,10 +448,29 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   return (
     <LineageNodeActionsContext.Provider value={nodeActions}>
       <div className="flex h-full gap-0">
-        {/* 左侧 catalog 树 */}
-        <aside className="w-64 shrink-0">
-          <LineageTree onSelect={handleTreeSelect} />
-        </aside>
+        {/* 左侧 catalog 树（054：可折叠——搜索为主入口，数据源树降级为可选分面；FR-001） */}
+        {treeCollapsed ? (
+          <button
+            type="button"
+            aria-label={t("expand")}
+            onClick={() => setTreeCollapsed(false)}
+            className="flex w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+          </button>
+        ) : (
+          <aside className="relative w-64 shrink-0">
+            <LineageTree onSelect={handleTreeSelect} />
+            <button
+              type="button"
+              aria-label={t("collapse")}
+              onClick={() => setTreeCollapsed(true)}
+              className="absolute right-0 top-1/2 z-10 flex h-8 w-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
+            </button>
+          </aside>
+        )}
 
         {/* 中间主区 */}
         <main className="flex min-w-0 flex-1 flex-col">
@@ -440,22 +493,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             }}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            onSearchSubmit={
-              searchQuery.trim()
-                ? async () => {
-                    setSearching(true)
-                    setSearchCandidates([])
-                    try {
-                      const res = await fetchSearch(searchQuery.trim())
-                      if (res.data) setSearchCandidates(res.data)
-                    } catch {
-                      setSearchCandidates([])
-                    } finally {
-                      setSearching(false)
-                    }
-                  }
-                : undefined
-            }
+            onSearchSubmit={runSearch}
             onImpactAnalysis={runImpact}
             onPathHighlight={enterPathMode}
             onCopyDeepLink={copyDeepLink}
@@ -516,32 +554,11 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             </div>
           )}
 
-          {/* 搜索候选下拉（叠加在画布上方） */}
-          {searchCandidates.length > 0 && (
+          {/* 搜索候选下拉（叠加在画布上方；054 显示数据源标注区分同名跨库，仅已锚定时——未锚定走 hero） */}
+          {searchCandidates.length > 0 && graph.anchorId && (
             <div className="relative z-30 mx-3 -mb-1">
               <div className="absolute top-0 left-0 right-0 max-h-48 overflow-auto rounded-md border bg-popover shadow-lg">
-                <div className="flex flex-col p-1">
-                  {searchCandidates.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted"
-                      onClick={() => {
-                        setSearchCandidates([])
-                        setSearchQuery("")
-                        loadAnchor(c.id)
-                      }}
-                    >
-                      <span className="truncate font-medium">{c.name}</span>
-                      {c.layer && (
-                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-                          {c.layer}
-                        </span>
-                      )}
-                      <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{c.type}</span>
-                    </button>
-                  ))}
-                </div>
+                <LineageSearchCandidates candidates={searchCandidates} onSelect={onCandidateSelect} />
               </div>
             </div>
           )}
@@ -579,6 +596,17 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             retryText={t("retry")}
             showMiniMap
           >
+            {/* 054 US1：未锚定时搜索 hero 为视觉主入口（居中、默认聚焦） */}
+            {!graph.anchorId && !loading && !error && (
+              <LineageSearchHero
+                query={searchQuery}
+                searching={searching}
+                candidates={searchCandidates}
+                onQueryChange={setSearchQuery}
+                onSubmit={runSearch}
+                onSelect={onCandidateSelect}
+              />
+            )}
             {/* 搜索结果无匹配提示（画布层） */}
             {searching && (
               <div className="absolute left-4 top-4 z-10 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">

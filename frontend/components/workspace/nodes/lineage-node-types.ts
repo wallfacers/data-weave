@@ -22,6 +22,10 @@ export interface LineageNodeData extends Record<string, unknown> {
   syncedRowsToday?: number | null
   /** 产出任务名列表。 */
   producers?: string[]
+  /** 054：所属数据源 id（徽标配色种子 + 跨源判定；孤儿/METRIC 缺省）。 */
+  datasourceId?: string
+  /** 054：数据源展示名（徽标显示）。 */
+  datasourceName?: string
   /** 列级展开：该表拥有的列数（>0 才显示展开按钮）。 */
   columnCount?: number
   /** 是否当前锚点（居中高亮）。 */

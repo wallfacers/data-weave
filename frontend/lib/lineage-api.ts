@@ -48,6 +48,10 @@ export interface LineageNodeAttrs {
   syncedRowsToday?: number | null;
   /** 最近一次同步业务日期（yyyy-MM-dd）。 */
   lastSyncDate?: string;
+  /** 054：节点所属数据源 dsKey（TABLE/COLUMN 投影；孤儿/未登记为 undefined）。 */
+  datasourceId?: string;
+  /** 054：数据源展示名（:Datasource.name；指标无）。 */
+  datasourceName?: string;
 }
 
 /** 从 GraphNodeView.attrs 安全抽取富属性。 */
@@ -58,6 +62,8 @@ export function readNodeAttrs(node: GraphNodeView): LineageNodeAttrs {
     producers: a.producers,
     syncedRowsToday: a.syncedRowsToday,
     lastSyncDate: a.lastSyncDate,
+    datasourceId: a.datasourceId,
+    datasourceName: a.datasourceName,
   };
 }
 
@@ -127,6 +133,8 @@ export interface SearchCandidate {
   layer?: string;
   /** 消歧：Table=datasourceId / Column=tableKey / Metric=metricType。 */
   datasource?: string;
+  /** 054：数据源展示名（Table/Column 取所属 :Datasource.name；Metric=null），用于同名跨库区分。 */
+  datasourceName?: string;
 }
 
 /** 052：两点间路径高亮集（US3 / FR-014）。 */

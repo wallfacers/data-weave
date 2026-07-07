@@ -24,6 +24,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import type { NodeType } from "@/lib/lineage-api"
+import { datasourceColor, datasourceAbbr } from "@/lib/workspace/lineage-datasource-style"
 import { type LineageNode, layerDotClass } from "./lineage-node-types"
 import { useLineageNodeActions } from "./lineage-node-actions-context"
 
@@ -83,6 +84,16 @@ export function LineageNode({ id, data }: NodeProps<LineageNode>) {
         <span className={cn("size-2 shrink-0 rounded-full", layerDotClass(d.layer))} />
         <HugeiconsIcon icon={iconForType(d.nodeType)} className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate font-medium">{d.name}</span>
+        {/* 054 US2：数据源徽标（TABLE/COLUMN；配色种子=datasourceId，缩写=datasourceName，FR-007/011） */}
+        {d.datasourceName && (d.nodeType === "TABLE" || d.nodeType === "COLUMN") && (
+          <span
+            className="flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-px text-[9px] leading-none text-muted-foreground"
+            title={d.datasourceName}
+          >
+            <span className="size-1.5 rounded-full" style={{ backgroundColor: datasourceColor(d.datasourceId) }} aria-hidden />
+            <span className="font-medium">{datasourceAbbr(d.datasourceName)}</span>
+          </span>
+        )}
         {showExpand && (
           <button
             type="button"
@@ -117,13 +128,28 @@ export function LineageNode({ id, data }: NodeProps<LineageNode>) {
             <div
               key={c.id}
               className={cn(
-                "flex items-center gap-1 rounded px-1 py-0.5 text-[11px] leading-none",
+                "relative flex items-center gap-1 rounded px-1 py-0.5 text-[11px] leading-none",
                 c.hasLineage ? "bg-primary/10 text-foreground" : "text-muted-foreground",
               )}
             >
+              {/* 054 US2：列级 Handle（id=列 id），连到具体字段行（FR-012/013） */}
+              <Handle
+                type="target"
+                position={Position.Left}
+                id={c.id}
+                style={{ top: "50%", left: "-3px", transform: "translateY(-50%)" }}
+                className="!h-1.5 !w-1.5 !border-0 bg-muted-foreground/60"
+              />
               <span className={cn("size-1 shrink-0 rounded-full", c.hasLineage ? "bg-primary" : "bg-muted-foreground/40")} />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
               {c.dataType && <span className="shrink-0 text-[10px] text-muted-foreground/70">{c.dataType}</span>}
+              <Handle
+                type="source"
+                position={Position.Right}
+                id={c.id}
+                style={{ top: "50%", right: "-3px", transform: "translateY(-50%)" }}
+                className="!h-1.5 !w-1.5 !border-0 bg-muted-foreground/60"
+              />
             </div>
           ))}
         </div>
