@@ -86,24 +86,32 @@ def test_gated_drops_comment_line_sql():
     assert extract_sql_lineage(src, exec_gated=True) == {"reads": [], "writes": []}
 
 
-def test_strict_command_fallback_skipped():
-    """解析回退成 Command 的碎片（GRANT/非血缘 DDL）→ strict 跳过，不吐噪声表。"""
-    # `GRANT CREATE TABLE ON SCHEMA ...` 片段化后以 CREATE TABLE 起头、解析回退 Command
+def test_strict_grant_and_command_skipped():
+    """GRANT 授权 DDL（整串解析为 exp.Grant）+ 解析回退 Command 的碎片 → strict 跳过，不吐噪声表。"""
     out = extract_sql_lineage('psql -c "GRANT CREATE TABLE ON SCHEMA db.public TO ROLE r"',
                               exec_gated=True)
     assert out == {"reads": [], "writes": []}
 
 
-def test_known_limitation_cte_ref_leaks_on_fragmentation():
-    """已知残差（诚实记录）：关键字锚定的片段化会丢掉 `WITH cte AS(...)` 前缀，
-    使 `FROM cte` 的 CTE 引用被当读表泄漏——语句级 CTE 排除对此无能为力。
-    这是 Tier 1 exec-gated precision ~0.68 的残余来源之一，非模型能力问题。"""
+def test_wholestring_fixes_cte_leak():
+    """整串抽取修复 CTE 泄漏：保住 `WITH cte AS(...)` 前缀 → find_all(exp.CTE) 拿到别名并扣除，
+    `FROM cte` 不再被当读表；真实源/目标表保留。（此前关键字片段化丢前缀致 cte 泄漏，现已修。）"""
     sql = ('spark.sql("WITH cte AS (SELECT * FROM raw.src) '
            'INSERT INTO mart.fact SELECT * FROM cte")')
     out = extract_sql_lineage(sql, exec_gated=True)
-    # 记录现状：cte 泄漏进 reads（若未来改为整串抽取修复，此断言应翻转）
-    assert "cte" in _names(out, "reads")
-    assert "raw.src" in _names(out, "reads")
+    assert "cte" not in _names(out, "reads") and "cte" not in _names(out, "writes")
+    assert "raw.src" in _names(out, "reads") and "mart.fact" in _names(out, "writes")
+
+
+def test_wholestring_multiline_triplequote_sql():
+    """多行三引号 SQL：整串抽取取完整语句（跨行 WITH + INSERT），不因换行截断。"""
+    sql = ('spark.sql("""\n'
+           '    WITH s AS (SELECT id FROM raw.events)\n'
+           '    INSERT INTO dwd.agg SELECT * FROM s\n'
+           '""")')
+    out = extract_sql_lineage(sql, exec_gated=True)
+    assert "raw.events" in _names(out, "reads") and "dwd.agg" in _names(out, "writes")
+    assert "s" not in _names(out, "reads")     # CTE 别名扣除
 
 
 def test_strict_excludes_system_tables():
