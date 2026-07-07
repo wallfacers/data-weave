@@ -16,6 +16,8 @@ const BASE = "/api/lineage";
 
 export type NodeType = "DATASOURCE" | "TABLE" | "COLUMN" | "METRIC";
 export type Granularity = "TABLE" | "COLUMN";
+/** 052：探索方向（US1 双向）。 */
+export type LineageDirection = "upstream" | "downstream" | "both";
 export type Confidence = "CONFIRMED" | "UNVERIFIED" | "CONFLICT" | "DECLARED";
 export type Transform = "DIRECT" | "EXPRESSION" | "AGGREGATE";
 /** 041：边来源通道（旧边可缺省）。 */
@@ -35,6 +37,28 @@ export interface GraphNodeView {
   granularity?: Granularity;
   parentId?: string;
   attrs?: Record<string, unknown>;
+}
+
+/** 052：富属性抽取（GraphNodeView.attrs 开放 map 的强类型视图，US5/FR-019）。 */
+export interface LineageNodeAttrs {
+  layer?: string;
+  /** 产出任务名列表（[(Task)-[:WRITES]->(Table)]）。 */
+  producers?: string[];
+  /** 今日 synced rows（null = 无同步记录）。 */
+  syncedRowsToday?: number | null;
+  /** 最近一次同步业务日期（yyyy-MM-dd）。 */
+  lastSyncDate?: string;
+}
+
+/** 从 GraphNodeView.attrs 安全抽取富属性。 */
+export function readNodeAttrs(node: GraphNodeView): LineageNodeAttrs {
+  const a = (node.attrs ?? {}) as Partial<LineageNodeAttrs>;
+  return {
+    layer: node.layer ?? a.layer,
+    producers: a.producers,
+    syncedRowsToday: a.syncedRowsToday,
+    lastSyncDate: a.lastSyncDate,
+  };
 }
 
 export interface FlowEdgeView {
@@ -74,9 +98,56 @@ export interface ImpactResult {
   root: GraphNodeView;
   downstream: GraphNodeView[];
   edges: FlowEdgeView[];
+  /** 当前页条数（= downstream.size()）。 */
   nodeCount: number;
+  /** 052：真实下游可达总数（独立 COUNT，FR-013）；达 countCap 时 = countCap。 */
+  reachableTotal?: number;
+  /** 052：达 countCap 时 true → 前端显示「≥N」（FR-013 下限表达）。 */
+  totalIsLowerBound?: boolean;
   truncated: boolean;
   truncatedAt?: number;
+}
+
+/** 052：按名搜索候选（US2 / FR-008~011）。 */
+export interface SearchCandidate {
+  id: string;
+  type: NodeType;
+  name: string;
+  /** Table 层（ODS/DWD/…）；Column/Metric 为 null。 */
+  layer?: string;
+  /** 消歧：Table=datasourceId / Column=tableKey / Metric=metricType。 */
+  datasource?: string;
+}
+
+/** 052：两点间路径高亮集（US3 / FR-014）。 */
+export interface LineagePath {
+  from: GraphNodeView;
+  to: GraphNodeView;
+  /** 所有连接路径上的节点去重集。 */
+  nodes: GraphNodeView[];
+  /** 路径上的边去重集（供高亮）。 */
+  edges: FlowEdgeView[];
+  pathExists: boolean;
+  truncated: boolean;
+}
+
+/** 052：服务端过滤参数（FR-007/019/024，可空；作用 upstream/downstream/impact/neighborhood）。 */
+export interface LineageFilters {
+  layers?: string[];
+  types?: string[];
+  confidences?: string[];
+  sources?: string[];
+}
+
+/** 把过滤参数序列化为 query（逗号连接），空数组省略。 */
+function filterParams(f?: LineageFilters): Record<string, string> {
+  if (!f) return {};
+  const out: Record<string, string> = {};
+  (["layers", "types", "confidences", "sources"] as const).forEach((k) => {
+    const v = f[k];
+    if (v && v.length > 0) out[k] = v.join(",");
+  });
+  return out;
 }
 
 export interface MetricLineage {
@@ -188,11 +259,13 @@ export function fetchColumns(tableId: string, offset = 0, limit = 100) {
 export function fetchUpstream(
   tableId: string,
   depth?: number,
-  granularity: Granularity = "TABLE"
+  granularity: Granularity = "TABLE",
+  filters?: LineageFilters
 ) {
   return get<LineageGraph>(`${BASE}/tables/${encodeURIComponent(tableId)}/upstream`, {
     depth: depth ?? 0,
     granularity,
+    ...filterParams(filters),
   });
 }
 
@@ -200,11 +273,27 @@ export function fetchUpstream(
 export function fetchDownstream(
   tableId: string,
   depth?: number,
-  granularity: Granularity = "TABLE"
+  granularity: Granularity = "TABLE",
+  filters?: LineageFilters
 ) {
   return get<LineageGraph>(`${BASE}/tables/${encodeURIComponent(tableId)}/downstream`, {
     depth: depth ?? 0,
     granularity,
+    ...filterParams(filters),
+  });
+}
+
+/** 052：双向邻域（无向遍历，带真实边，US1/FR-003/007）。 */
+export function fetchNeighborhood(
+  tableId: string,
+  depth = 2,
+  granularity: Granularity = "TABLE",
+  filters?: LineageFilters
+) {
+  return get<LineageGraph>(`${BASE}/tables/${encodeURIComponent(tableId)}/neighborhood`, {
+    depth,
+    granularity,
+    ...filterParams(filters),
   });
 }
 
@@ -229,12 +318,39 @@ export function fetchImpact(
   nodeId: string,
   depth?: number,
   offset = 0,
-  limit = 100
+  limit = 100,
+  filters?: LineageFilters
 ) {
   return get<ImpactResult>(`${BASE}/impact/${encodeURIComponent(nodeId)}`, {
     depth: depth ?? 0,
     offset,
     limit,
+    ...filterParams(filters),
+  });
+}
+
+// ─── 052 按名搜索 ──────────────────────────────────────────────
+
+/** 按名搜索数据资产（表/列/指标），空关键字或无匹配 → []（FR-008~011）。 */
+export function fetchSearch(
+  q: string,
+  types?: NodeType[],
+  offset = 0,
+  limit = 100
+) {
+  const params: Record<string, string | number> = { q, offset, limit };
+  if (types && types.length > 0) params.types = types.join(",");
+  return get<SearchCandidate[]>(`${BASE}/search`, params);
+}
+
+// ─── 052 两点间路径高亮 ────────────────────────────────────────
+
+/** 两节点间所有连接路径（去重节点∪边高亮集，FR-014）；无路径 pathExists=false。 */
+export function fetchPaths(from: string, to: string, depth = 10) {
+  return get<LineagePath>(`${BASE}/paths`, {
+    from,
+    to,
+    depth,
   });
 }
 
