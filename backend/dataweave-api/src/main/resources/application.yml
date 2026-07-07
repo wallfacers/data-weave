@@ -130,6 +130,11 @@ lineage:
   # 024 列级 catalog 类型：neo4j→读:Column图 / empty→恒空（H2 fallback）
   column-catalog:
     type: ${LINEAGE_COLUMN_CATALOG_TYPE:neo4j}
+  # 055 目录接地：绑定数据源即默认开启（纯精度、零额外外呼）；enabled=false 全局回退到接地前行为。
+  # system-schemas：逗号分隔追加到内置系统命名空间集合（非替换），供长尾引擎补充。
+  grounding:
+    enabled: ${LINEAGE_GROUNDING_ENABLED:true}
+    system-schemas: ${LINEAGE_GROUNDING_SYSTEM_SCHEMAS:}
 
 ---
 # h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）

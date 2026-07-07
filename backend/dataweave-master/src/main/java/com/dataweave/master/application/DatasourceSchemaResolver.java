@@ -2,6 +2,7 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.application.lineage.ColumnMeta;
 import com.dataweave.master.application.lineage.TableSchema;
+import com.dataweave.master.application.lineage.grounding.TableExistence;
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.DatasourceType;
@@ -116,6 +117,85 @@ public class DatasourceSchemaResolver {
             log.debug("DatasourceSchemaResolver: fetchColumns failed for datasource={} table={}: {}",
                     datasourceId, qualifiedName, e.getMessage());
             return Optional.empty();
+        }
+    }
+
+    /**
+     * 连库探表存在性（055 目录接地，契约 table-existence-probe.md C1）。
+     * 区分"连上但无表"(ABSENT) 与 "连不上/超时/非 JDBC/解密失败"(UNKNOWN)。永不抛。
+     * 用 {@link DatabaseMetaData#getTables}（比 getColumns 轻）；视图（VIEW）视为存在。
+     */
+    public TableExistence probeTable(long datasourceId, String qualifiedName) {
+        if (qualifiedName == null || qualifiedName.isBlank()) {
+            return TableExistence.UNKNOWN;
+        }
+        Datasource ds = datasourceRepository.findById(datasourceId)
+                .filter(d -> d.getDeleted() == null || d.getDeleted() == 0)
+                .orElse(null);
+        if (ds == null) {
+            return TableExistence.UNKNOWN;
+        }
+        String typeCode = ds.getTypeCode();
+        if (typeCode == null || !JDBC_TYPES.contains(typeCode.toUpperCase())) {
+            return TableExistence.UNKNOWN;
+        }
+        String password;
+        try {
+            password = datasourceResolver.decryptPassword(ds);
+        } catch (Exception e) {
+            log.debug("DatasourceSchemaResolver: probe decrypt failed for datasource {}: {}",
+                    datasourceId, e.getMessage());
+            return TableExistence.UNKNOWN;
+        }
+        try {
+            return doProbe(ds, password, qualifiedName);
+        } catch (Exception e) {
+            log.debug("DatasourceSchemaResolver: probeTable failed for datasource={} table={}: {}",
+                    datasourceId, qualifiedName, e.getMessage());
+            return TableExistence.UNKNOWN;
+        }
+    }
+
+    private TableExistence doProbe(Datasource ds, String password, String qualifiedName) throws Exception {
+        String typeCode = ds.getTypeCode().toUpperCase();
+        String jdbcUrl = ds.getJdbcUrl();
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            jdbcUrl = buildJdbcUrl(ds);
+        }
+        if (jdbcUrl == null) {
+            return TableExistence.UNKNOWN;
+        }
+        Optional<DriverJar> boundJar = resolveBoundJar(ds);
+        Properties props = new Properties();
+        if (ds.getUsername() != null) {
+            props.setProperty("user", ds.getUsername());
+            props.setProperty("password", password != null ? password : "");
+        }
+        props.setProperty("connectTimeout", String.valueOf(DEFAULT_TIMEOUT_SECONDS * 1000));
+        DriverManager.setLoginTimeout(DEFAULT_TIMEOUT_SECONDS);
+
+        Connection conn;
+        if (boundJar.isPresent()) {
+            conn = isolatedLoader.connect(boundJar.get(), jdbcUrl, props);
+        } else {
+            String driver = resolveDriver(typeCode);
+            try {
+                Class.forName(driver);
+            } catch (ClassNotFoundException e) {
+                log.debug("DatasourceSchemaResolver: probe driver {} not found", driver);
+                return TableExistence.UNKNOWN;
+            }
+            conn = DriverManager.getConnection(jdbcUrl, props);
+        }
+
+        try (Connection c = conn) {
+            ParsedName parsed = parseQualifiedName(qualifiedName, c);
+            DatabaseMetaData meta = c.getMetaData();
+            // 连上即权威：有行=PRESENT，无行=ABSENT（视图同表）。仅只读元数据，绝不执行数据查询。
+            try (ResultSet rs = meta.getTables(parsed.catalog(), parsed.schema(), parsed.table(),
+                    new String[]{"TABLE", "VIEW"})) {
+                return rs.next() ? TableExistence.PRESENT : TableExistence.ABSENT;
+            }
         }
     }
 

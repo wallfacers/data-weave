@@ -24,6 +24,9 @@ import com.dataweave.master.application.lineage.TableSchema;
 import com.dataweave.master.application.lineage.script.ScriptExtraction;
 import com.dataweave.master.application.lineage.script.ScriptLineageService;
 import com.dataweave.master.application.lineage.script.ScriptSource;
+import com.dataweave.master.application.lineage.grounding.CatalogGroundingService;
+import com.dataweave.master.application.lineage.grounding.GroundingDisposition;
+import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.TaskDef;
@@ -39,6 +42,7 @@ import com.dataweave.master.domain.lineage.Source;
 import com.dataweave.master.domain.lineage.TableRef;
 import com.dataweave.master.domain.lineage.Transform;
 import com.dataweave.master.infrastructure.lineage.AgentConfigRepository;
+import com.dataweave.master.infrastructure.lineage.GroundingDispositionRepository;
 import com.dataweave.master.infrastructure.lineage.Neo4jColumnBackfillWriter;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -83,6 +87,12 @@ public class LineageAgentEnricher {
     private final ColumnLineageCatalog neo4jCatalog;
     private final DatasourceRepository datasourceRepository;
 
+    // ── 055 目录接地 ────────────────────────────────────────────────────
+    private final CatalogGroundingService groundingService;
+    private final GroundingDispositionRepository dispositionRepository;
+    /** 全局 kill-switch（FR-014）：默认 true；false 时回退到接地前行为。 */
+    private final boolean groundingEnabled;
+
     /** 每配置令牌桶（FR-023/T033）：config_id → 上次填充纳秒 + 可用令牌数。 */
     private final ConcurrentHashMap<Long, TokenBucket> rateLimiters = new ConcurrentHashMap<>();
 
@@ -98,6 +108,9 @@ public class LineageAgentEnricher {
                                 Neo4jColumnBackfillWriter backfillWriter,
                                 ColumnLineageCatalog neo4jCatalog,
                                 DatasourceRepository datasourceRepository,
+                                CatalogGroundingService groundingService,
+                                GroundingDispositionRepository dispositionRepository,
+                                @Value("${lineage.grounding.enabled:true}") boolean groundingEnabled,
                                 @Value("${lineage.agent-enrich.pool-size:2}") int poolSize) {
         this.eventBus = eventBus;
         this.objectMapper = objectMapper;
@@ -112,6 +125,9 @@ public class LineageAgentEnricher {
         this.backfillWriter = backfillWriter;
         this.neo4jCatalog = neo4jCatalog;
         this.datasourceRepository = datasourceRepository;
+        this.groundingService = groundingService;
+        this.dispositionRepository = dispositionRepository;
+        this.groundingEnabled = groundingEnabled;
         int ps = Math.max(1, Math.min(poolSize, 64));
         this.pool = Executors.newFixedThreadPool(ps, r -> {
             Thread t = new Thread(r, "lineage-agent-enrich");
@@ -142,25 +158,35 @@ public class LineageAgentEnricher {
     }
 
     private void enrich(LineageAgentEnrichmentRequested ev) {
-        // C3 step 1：未启用 / 不该 AI → 旁路，零外呼（FR-019 / D7）
+        // AI 通道激活判定（原 C3 step 1：未启用 / 不该 AI → 不外呼）
         Optional<LineageAgentConfig> cfgOpt = configService.getActive(ev.tenantId(), ev.projectId());
-        if (cfgOpt.isEmpty() || !cfgOpt.get().enabled()) return;
-        if (!extractor.shouldEnrich(ev.taskType(), ev.calciteParsed())) return;
-        LineageAgentConfig cfg = cfgOpt.get();
-
-        // T033/US4：令牌桶限频——超限跳过并留痕（FR-023）
-        if (!tryAcquire(cfg)) {
-            log.debug("[LineageAgent] rate-limited for config {} (project={})", cfg.id(), ev.projectId());
-            agentConfigRepository.insertCall(ev.tenantId(), ev.projectId(), cfg.id(), cfg.protocol(),
-                    ev.taskDefId(), 0, "DEGRADED", 0, "rate limited");
-            return;
-        }
+        boolean aiActive = cfgOpt.isPresent() && cfgOpt.get().enabled()
+                && extractor.shouldEnrich(ev.taskType(), ev.calciteParsed());
 
         TaskDef task = taskDefRepository.findById(ev.taskDefId()).orElse(null);
         if (task == null) return;
 
+        // 055：grounding 独立于 AI——绑定数据源且 kill-switch 开即激活（FR-014）
+        boolean dsBound = task.getDatasourceId() != null || task.getTargetDatasourceId() != null;
+        boolean groundingActive = groundingEnabled && dsBound;
+
+        // 两条能力都不激活 → 保持接地前的完全早退（AI-off 且未接地：不重算、不 replace）
+        if (!aiActive && !groundingActive) return;
+
+        LineageAgentConfig cfg = aiActive ? cfgOpt.get() : null;
+
+        // T033/US4：令牌桶限频仅约束 AI 外呼；超限只跳过 AI，grounding 仍在确定性集上运行（FR-023）
+        if (aiActive && !tryAcquire(cfg)) {
+            log.debug("[LineageAgent] rate-limited for config {} (project={})", cfg.id(), ev.projectId());
+            agentConfigRepository.insertCall(ev.tenantId(), ev.projectId(), cfg.id(), cfg.protocol(),
+                    ev.taskDefId(), 0, "DEGRADED", 0, "rate limited");
+            aiActive = false;
+            cfg = null;
+            if (!groundingActive) return;
+        }
+
         long t0 = System.nanoTime();
-        String status;
+        String status = "SUCCESS";
         int edgesEmitted = 0;
         String note = null;
         try {
@@ -172,7 +198,7 @@ public class LineageAgentEnricher {
             DatasourceCoord writeCoord = assembler.resolveCoord(ev.tenantId(), ev.projectId(),
                     targetDsId != null ? targetDsId : dsId);
 
-            // C3 step 4a：重算确定性全集（assembly = Calcite/Agent 声明 A×B；script = 脚本通道）
+            // 重算确定性全集（assembly = Calcite/Agent 声明 A×B；script = 脚本通道）
             List<IoEdge> ioEdges = new ArrayList<>();
             List<ColumnEdge> columnEdges = new ArrayList<>();
             List<String> agentReads = ev.agentReads() != null ? ev.agentReads() : List.of();
@@ -188,51 +214,95 @@ public class LineageAgentEnricher {
                 columnEdges.addAll(r.columnEdges());
             }
 
-            // US3/T028-T029：解析候选表真实列清单作 schema 接地上下文
-            Map<String, Set<String>> schemaContext = resolveSchemaContext(
-                    ev.tenantId(), ev.projectId(), dsId, agentReads, agentWrites);
+            // AI 边（仅 AI 激活时；防幻觉 + schema 接地已在 AgentLineageExtractor.extract 内应用）
+            ScriptExtraction ai = null;
+            if (aiActive) {
+                Map<String, Set<String>> schemaContext = resolveSchemaContext(
+                        ev.tenantId(), ev.projectId(), dsId, agentReads, agentWrites);
+                ai = extractor.extract(new ScriptSource(ev.tenantId(), ev.projectId(),
+                        ev.taskDefId(), type, content, dsId, targetDsId), schemaContext);
+                String modelVersion = ai.modelVersion();
+                for (String t : ai.reads()) {
+                    ioEdges.add(new IoEdge(assembler.tableRef(readCoord, t), Direction.READS,
+                            Source.SCRIPT_AGENT, Confidence.UNVERIFIED, modelVersion));
+                }
+                for (String t : ai.writes()) {
+                    ioEdges.add(new IoEdge(assembler.tableRef(writeCoord, t), Direction.WRITES,
+                            Source.SCRIPT_AGENT, Confidence.UNVERIFIED, modelVersion));
+                }
+                for (com.dataweave.master.application.lineage.ColumnEdge ace : ai.columnEdges()) {
+                    columnEdges.add(new ColumnEdge(
+                            assembler.tableRef(readCoord, ace.srcTable().qualifiedName()), ace.srcCol(),
+                            assembler.tableRef(writeCoord, ace.dstTable().qualifiedName()), ace.dstCol(),
+                            Transform.DIRECT, Confidence.UNVERIFIED, Source.SCRIPT_AGENT));
+                }
+            }
 
-            // C3 step 4b：AI 边（防幻觉 + schema 接地已在 AgentLineageExtractor.extract 内应用）
-            ScriptExtraction ai = extractor.extract(new ScriptSource(ev.tenantId(), ev.projectId(),
-                    ev.taskDefId(), type, content, dsId, targetDsId), schemaContext);
-            String modelVersion = ai.modelVersion();
-            for (String t : ai.reads()) {
-                ioEdges.add(new IoEdge(assembler.tableRef(readCoord, t), Direction.READS,
-                        Source.SCRIPT_AGENT, Confidence.UNVERIFIED, modelVersion));
-            }
-            for (String t : ai.writes()) {
-                ioEdges.add(new IoEdge(assembler.tableRef(writeCoord, t), Direction.WRITES,
-                        Source.SCRIPT_AGENT, Confidence.UNVERIFIED, modelVersion));
-            }
-            for (com.dataweave.master.application.lineage.ColumnEdge ace : ai.columnEdges()) {
-                columnEdges.add(new ColumnEdge(
-                        assembler.tableRef(readCoord, ace.srcTable().qualifiedName()), ace.srcCol(),
-                        assembler.tableRef(writeCoord, ace.dstTable().qualifiedName()), ace.dstCol(),
-                        Transform.DIRECT, Confidence.UNVERIFIED, Source.SCRIPT_AGENT));
-            }
-
-            // C3 step 5：按 (direction, tableKey) + CHANNEL_PRIORITY 消解（recordTaskIo 对同键多 source CREATE 不去重）
+            // 按 (direction, tableKey) + CHANNEL_PRIORITY（+CONFIRMED 次级偏好，FR-012）消解
             List<IoEdge> mergedIo = dedupeIo(ioEdges);
             List<ColumnEdge> mergedCol = dedupeCol(columnEdges);
 
-            // C3 step 6：一次全量 keyed replace（确定性边已重新包含 → 不擦除）
+            // 055 grounding：replace 前接地（异步路径，push 零开销）——PRESENT 升级 / ABSENT+系统 剔除（仅推断类）。
+            // 整段包 try：grounding 故障 → 保持接地前边集，recordTaskIo 仍写（SC-004，绝不断链）。
+            if (groundingActive) {
+                try {
+                    Long writeDsId = targetDsId != null ? targetDsId : dsId;
+                    DatasourceBoundCatalog readCatalog = new DatasourceBoundCatalog(
+                            dsId, neo4jCatalog, schemaResolver, backfillWriter, datasourceRepository);
+                    DatasourceBoundCatalog writeCatalog = new DatasourceBoundCatalog(
+                            writeDsId, neo4jCatalog, schemaResolver, backfillWriter, datasourceRepository);
+                    CatalogGroundingService.GroundingResult gr = groundingService.ground(
+                            ev.tenantId(), ev.projectId(), ev.taskDefId(),
+                            mergedIo, mergedCol,
+                            readCatalog, dsId, engineOf(dsId),
+                            writeCatalog, writeDsId, engineOf(writeDsId));
+                    mergedIo = gr.ioEdges();
+                    mergedCol = gr.columnEdges();
+                    for (GroundingDisposition d : gr.dispositions()) {
+                        try {
+                            dispositionRepository.insert(ev.tenantId(), ev.projectId(), ev.taskDefId(), d);
+                        } catch (Exception e) {
+                            log.debug("[grounding] audit insert failed for {}: {}", d.candidate(), e.toString());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("[grounding] stage failed, retaining ungrounded edges (SC-004): {}", e.toString());
+                }
+            }
+
+            // 一次全量 keyed replace（确定性边已重新包含 → 不擦除）
             lineageStore.recordTaskIo(ev.tenantId(), ev.projectId(), ev.taskDefId(),
                     task.getCurrentVersionNo(), task.getName(), mergedIo, mergedCol, null);
 
-            long agentIo = mergedIo.stream().filter(e -> e.source() == Source.SCRIPT_AGENT).count();
-            boolean hasTimeout = ai.hints().stream()
-                    .anyMatch(h -> h.kind() == ScriptExtraction.HintKind.TIMEOUT);
-            edgesEmitted = (int) agentIo;
-            status = agentIo > 0 ? "SUCCESS" : (hasTimeout ? "DEGRADED" : "REJECTED");
+            if (aiActive) {
+                long agentIo = mergedIo.stream().filter(e -> e.source() == Source.SCRIPT_AGENT).count();
+                boolean hasTimeout = ai.hints().stream()
+                        .anyMatch(h -> h.kind() == ScriptExtraction.HintKind.TIMEOUT);
+                edgesEmitted = (int) agentIo;
+                status = agentIo > 0 ? "SUCCESS" : (hasTimeout ? "DEGRADED" : "REJECTED");
+            }
         } catch (Exception e) {
             log.warn("[LineageAgent] enrich degraded: {}", e.toString());
             status = "DEGRADED";
             note = abbreviate(e.toString());
         }
         long latency = (System.nanoTime() - t0) / 1_000_000;
-        // C3 step 7：审计（不含明文 key/脚本）
-        agentConfigRepository.insertCall(ev.tenantId(), ev.projectId(), cfg.id(), cfg.protocol(),
-                ev.taskDefId(), (int) Math.min(latency, Integer.MAX_VALUE), status, edgesEmitted, note);
+        // C3 step 7：AI 外呼审计（仅 AI 激活；grounding 处置已单独落 lineage_grounding_disposition）
+        if (cfg != null) {
+            agentConfigRepository.insertCall(ev.tenantId(), ev.projectId(), cfg.id(), cfg.protocol(),
+                    ev.taskDefId(), (int) Math.min(latency, Integer.MAX_VALUE), status, edgesEmitted, note);
+        }
+    }
+
+    /** 取数据源引擎 typeCode（用于系统命名空间判定）；null/缺失 → null。 */
+    private String engineOf(Long datasourceId) {
+        if (datasourceId == null) return null;
+        try {
+            return datasourceRepository.findById(datasourceId)
+                    .map(Datasource::getTypeCode).orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** 表级边消解：同 (direction, dsKey, qualifiedName.lower) 取 CHANNEL_PRIORITY 最高者。 */
@@ -243,7 +313,8 @@ public class LineageAgentEnricher {
             String qn = (e.table().qualifiedName() != null) ? e.table().qualifiedName().toLowerCase(Locale.ROOT) : "";
             String key = e.direction().name() + "|" + dsKey + "|" + qn;
             IoEdge cur = winners.get(key);
-            if (cur == null || priority(e.source()) < priority(cur.source())) winners.put(key, e);
+            if (cur == null || better(priority(e.source()), e.confidence(),
+                    priority(cur.source()), cur.confidence())) winners.put(key, e);
         }
         return new ArrayList<>(winners.values());
     }
@@ -255,9 +326,23 @@ public class LineageAgentEnricher {
             String key = (qn(e.srcTable()) + "|" + e.srcCol() + "|" + qn(e.dstTable()) + "|" + e.dstCol())
                     .toLowerCase(Locale.ROOT);
             ColumnEdge cur = winners.get(key);
-            if (cur == null || priority(e.source()) < priority(cur.source())) winners.put(key, e);
+            if (cur == null || better(priority(e.source()), e.confidence(),
+                    priority(cur.source()), cur.confidence())) winners.put(key, e);
         }
         return new ArrayList<>(winners.values());
+    }
+
+    /**
+     * 候选边是否胜过当前赢家：先比来源优先级（数字小=高）；同级时目录已核验（CONFIRMED）胜未核验（FR-012）。
+     */
+    private static boolean better(int candPrio, Confidence candConf, int curPrio, Confidence curConf) {
+        if (candPrio != curPrio) return candPrio < curPrio;
+        return confRank(candConf) > confRank(curConf);
+    }
+
+    /** CONFIRMED（catalog-verified）为最高可信信号。 */
+    private static int confRank(Confidence c) {
+        return c == Confidence.CONFIRMED ? 1 : 0;
     }
 
     private static String qn(TableRef t) {

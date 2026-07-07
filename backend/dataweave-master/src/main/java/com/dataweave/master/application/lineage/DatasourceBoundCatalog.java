@@ -1,6 +1,7 @@
 package com.dataweave.master.application.lineage;
 
 import com.dataweave.master.application.DatasourceSchemaResolver;
+import com.dataweave.master.application.lineage.grounding.TableExistence;
 import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.lineage.DatasourceCoord;
@@ -146,6 +147,46 @@ public class DatasourceBoundCatalog implements ColumnLineageCatalog {
 
         // 步骤 4：全 miss → 降级
         return Optional.empty();
+    }
+
+    // ── 三态存在性探针（055 目录接地，契约 table-existence-probe.md C2）─────
+
+    /**
+     * 组合链三态存在性：cache/neo4j 命中即 {@link TableExistence#PRESENT}；
+     * miss 且绑定数据源 → live probe；未绑定 → {@link TableExistence#UNKNOWN}。永不抛。
+     *
+     * <p><b>不缓存 ABSENT/UNKNOWN</b>：保证新建/删除表在下次 push 翻转结论（FR-013）。
+     */
+    public TableExistence probeExistence(long tenantId, long projectId, String qualifiedName) {
+        if (qualifiedName == null || qualifiedName.isBlank()) {
+            return TableExistence.UNKNOWN;
+        }
+        // 步骤 1：进程缓存命中即证存在
+        CacheEntry cached = CACHE.get(cacheKey(qualifiedName));
+        if (cached != null && !cached.isExpired()) {
+            return TableExistence.PRESENT;
+        }
+        // 步骤 2：neo4j 持久列目录命中即证存在（回填缓存）
+        try {
+            Optional<TableSchema> neo4jResult = neo4jCatalog.lookupTable(tenantId, projectId, qualifiedName);
+            if (neo4jResult.isPresent()) {
+                CACHE.put(cacheKey(qualifiedName), new CacheEntry(neo4jResult.get(), expireAt()));
+                return TableExistence.PRESENT;
+            }
+        } catch (Exception e) {
+            log.debug("DatasourceBoundCatalog: probe neo4j lookup failed for {}: {}", qualifiedName, e.getMessage());
+        }
+        // 步骤 3：未绑定数据源 → 无法判定
+        if (datasourceId == null) {
+            return TableExistence.UNKNOWN;
+        }
+        // 步骤 4：数据源实时三态探测
+        try {
+            return schemaResolver.probeTable(datasourceId, qualifiedName);
+        } catch (Exception e) {
+            log.debug("DatasourceBoundCatalog: probeTable failed for {}: {}", qualifiedName, e.getMessage());
+            return TableExistence.UNKNOWN;
+        }
     }
 
     // ── 新鲜度管理 ──────────────────────────────────────────────────────
