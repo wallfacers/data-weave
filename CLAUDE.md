@@ -76,6 +76,7 @@ This file is the map; details live elsewhere:
 | Metrics dashboard | `frontend/components/workspace/views/metrics-view.tsx` |
 | Catalog tree (folders+tags) | `CatalogTreeService` + `CatalogController`/`TagController` · frontend `catalog-tree.tsx` |
 | Table/column lineage | `LineageGraphService` + `SqlTableExtractor` (Calcite) + `/api/lineage/*`; **neo4j is the single store** (PG lineage tables retired); column lineage + synced rows: `specs/024-lineage-column-catalog`, `specs/025-lineage-synced-rows` |
+| Catalog grounding（血缘目录接地） | `CatalogGroundingService.ground()` 三态真伪裁决 + `DatasourceBoundCatalog.probeExistence` + `SystemNamespaceClassifier`; 审计 `lineage_grounding_disposition`; `specs/055-lineage-catalog-grounding/` |
 | ETA prediction | `SlaService` → `GET /api/ops/eta-summary` |
 | Node telemetry + fault injection | `HeartbeatReporter.sample()` (worker) + `NodeTelemetryService` (master) · `scripts/fault-injection.sql` |
 | Project sync (pull/push/diff) | `ProjectSyncService` + `ProjectSyncController` (`POST /api/projects/{id}/pull\|push\|diff`) |

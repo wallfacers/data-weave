@@ -324,4 +324,111 @@ class GroundingEnricherIntegrationIT {
                 .as("unbound datasource must not trigger grounding rewrite").isFalse();
         verify(lineageStore, never()).recordTaskIo(anyLong(), anyLong(), anyLong(), any(), any(), any(), any(), any());
     }
+
+    // ── ⑤ T019 系统表推断类候选 → EXCLUDED + 审计留痕 ─────────────
+
+    @Test
+    void systemTableInferential_excludedWithAudit() throws Exception {
+        when(taskDefRepository.findById(TASK_ID)).thenReturn(Optional.of(task(DS_ID, null)));
+        when(scriptLineageService.handles("PYTHON")).thenReturn(true);
+
+        // 候选：真表(PRESENT,推断类) + information_schema(推断类→系统排除) + pg_catalog(推断类→系统排除)
+        List<IoEdge> ioEdges = List.of(
+                io("public.orders", Source.SCRIPT_AGENT),
+                io("information_schema.columns", Source.SCRIPT_INFERRED),
+                io("pg_catalog.pg_class", Source.SCRIPT_MODEL));
+        when(scriptLineageService.extract(any()))
+                .thenReturn(new ScriptLineageService.Result(ioEdges, List.of(), List.of()));
+
+        DatasourceSchemaResolver resolver = probingResolver(java.util.Map.of(
+                "public.orders", TableExistence.PRESENT));
+        // information_schema / pg_catalog 不设 verdict——分类器在 probe 之前拦截，不会调 probe
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<List<IoEdge>> ioSlot = captureIoOnRecord(latch, null);
+
+        newEnricher(realGrounding(), resolver, true);
+        publish(TASK_ID);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).as("async enrich must invoke recordTaskIo").isTrue();
+
+        List<IoEdge> recorded = ioSlot.get();
+        List<String> qns = recorded.stream().map(e -> e.table().qualifiedName()).toList();
+        // 系统推断类被剔除，仅业务真表保留
+        assertThat(qns).containsExactly("public.orders");
+        assertThat(qns).doesNotContain("information_schema.columns", "pg_catalog.pg_class");
+
+        // 审计：系统表 disposition=EXCLUDED, verdict=SYSTEM_EXCLUDED
+        ArgumentCaptor<com.dataweave.master.application.lineage.grounding.GroundingDisposition> cap =
+                ArgumentCaptor.forClass(com.dataweave.master.application.lineage.grounding.GroundingDisposition.class);
+        verify(dispositionRepository, org.mockito.Mockito.atLeast(3))
+                .insert(anyLong(), anyLong(), any(), cap.capture());
+
+        List<com.dataweave.master.application.lineage.grounding.GroundingDisposition> all = cap.getAllValues();
+        com.dataweave.master.application.lineage.grounding.GroundingDisposition infoSchema = all.stream()
+                .filter(d -> d.candidate().equals("information_schema.columns")).findFirst().orElseThrow();
+        assertThat(infoSchema.verdict()).isEqualTo("SYSTEM_EXCLUDED");
+        assertThat(infoSchema.disposition()).isEqualTo("EXCLUDED");
+
+        com.dataweave.master.application.lineage.grounding.GroundingDisposition pgCatalog = all.stream()
+                .filter(d -> d.candidate().equals("pg_catalog.pg_class")).findFirst().orElseThrow();
+        assertThat(pgCatalog.verdict()).isEqualTo("SYSTEM_EXCLUDED");
+        assertThat(pgCatalog.disposition()).isEqualTo("EXCLUDED");
+
+        // 真表正常 ADOPTED
+        com.dataweave.master.application.lineage.grounding.GroundingDisposition orders = all.stream()
+                .filter(d -> d.candidate().equals("public.orders")).findFirst().orElseThrow();
+        assertThat(orders.verdict()).isEqualTo("PRESENT");
+        assertThat(orders.disposition()).isEqualTo("ADOPTED");
+    }
+
+    // ── ⑥ T019 系统表确定性候选 → RETAINED（留痕不剔）─────────────
+
+    @Test
+    void systemTableDeterministic_retainedWithAudit() throws Exception {
+        when(taskDefRepository.findById(TASK_ID)).thenReturn(Optional.of(task(DS_ID, null)));
+        when(scriptLineageService.handles("PYTHON")).thenReturn(true);
+
+        // 候选：真表(PRESENT,推断类) + information_schema.tables(确定性 SQL_PARSED→系统排除但保留)
+        List<IoEdge> ioEdges = List.of(
+                io("public.orders", Source.SCRIPT_AGENT),
+                io("information_schema.tables", Source.SQL_PARSED),
+                io("pg_catalog.pg_stat", Source.SCRIPT_SQL));
+        when(scriptLineageService.extract(any()))
+                .thenReturn(new ScriptLineageService.Result(ioEdges, List.of(), List.of()));
+
+        DatasourceSchemaResolver resolver = probingResolver(java.util.Map.of(
+                "public.orders", TableExistence.PRESENT));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<List<IoEdge>> ioSlot = captureIoOnRecord(latch, null);
+
+        newEnricher(realGrounding(), resolver, true);
+        publish(TASK_ID);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).as("async enrich must invoke recordTaskIo").isTrue();
+
+        List<IoEdge> recorded = ioSlot.get();
+        List<String> qns = recorded.stream().map(e -> e.table().qualifiedName()).toList();
+        // 系统确定性候选保留（不剔除）
+        assertThat(qns).containsExactlyInAnyOrder(
+                "public.orders", "information_schema.tables", "pg_catalog.pg_stat");
+
+        // 审计：系统确定性 disposition=RETAINED, verdict=SYSTEM_EXCLUDED
+        ArgumentCaptor<com.dataweave.master.application.lineage.grounding.GroundingDisposition> cap =
+                ArgumentCaptor.forClass(com.dataweave.master.application.lineage.grounding.GroundingDisposition.class);
+        verify(dispositionRepository, org.mockito.Mockito.atLeast(3))
+                .insert(anyLong(), anyLong(), any(), cap.capture());
+
+        List<com.dataweave.master.application.lineage.grounding.GroundingDisposition> all = cap.getAllValues();
+        com.dataweave.master.application.lineage.grounding.GroundingDisposition infoSchema = all.stream()
+                .filter(d -> d.candidate().equals("information_schema.tables")).findFirst().orElseThrow();
+        assertThat(infoSchema.verdict()).isEqualTo("SYSTEM_EXCLUDED");
+        assertThat(infoSchema.disposition()).isEqualTo("RETAINED");
+
+        com.dataweave.master.application.lineage.grounding.GroundingDisposition pgStat = all.stream()
+                .filter(d -> d.candidate().equals("pg_catalog.pg_stat")).findFirst().orElseThrow();
+        assertThat(pgStat.verdict()).isEqualTo("SYSTEM_EXCLUDED");
+        assertThat(pgStat.disposition()).isEqualTo("RETAINED");
+    }
 }
