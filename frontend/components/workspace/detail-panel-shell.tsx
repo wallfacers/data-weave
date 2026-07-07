@@ -43,7 +43,7 @@ export function DetailPanelShell({
   return (
     <div className="flex flex-col h-full min-w-[280px] rounded-[var(--radius-md)] border border-border overflow-hidden bg-card">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-3">
+      <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-3 border-b border-border">
         <span className="text-sm font-medium truncate">{title}</span>
         <Button variant="ghost" size="icon-sm" aria-label={t("close")} onClick={onClose}>
           <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
