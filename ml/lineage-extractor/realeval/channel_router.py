@@ -90,24 +90,49 @@ _EXEC_SINK_RE = re.compile(
 _COMMENT_LINE_RE = re.compile(r"^\s*(?:#|--|//|\*|>>>|\"\"\"|''')")
 _EXEC_WINDOW = 400   # 执行 sink 需出现在 SQL 关键字前 400 字符内（容多行三引号 SQL）
 
+# 052→整串抽取：定位执行 sink 调用/CLI/赋值的**字符串实参开头**（sink + 可选 f/r 前缀 + 开引号），
+# 之后手工扫到匹配闭引号，取**整个** SQL 串喂 sqlglot——修 CTE 片段泄漏（关键字锚定丢 `WITH` 前缀）。
+_SINK_OPEN_RE = re.compile(
+    r"(?is)(?:"
+    r"\.\s*(?:sql|execute(?:many|script)?|query|run_query|run|read_sql|read_sql_query|sql_query)\s*\(\s*|"  # .sql( / .execute(
+    r"\b(?:read_sql|read_sql_query)\s*\(\s*|"                                  # pandas.read_sql(
+    r"\b(?:hive|beeline|impala-shell|spark-sql|presto|trino|sqlplus|bq|psql|mysql)\b[^\n]{0,120}?[-\s](?:e|f|c|query)\b\s*|"  # CLI -e/-f/-c/query
+    r"\b(?:sql|query|_sql|stmt|statement|ddl|dml)\s*=\s*"                      # sql = "..."
+    r")"
+    r"(?:f|r|rf|fr|b)?(?P<q>\"\"\"|'''|\"|')")
+
+_MAX_SQL_STR = 4000   # 整串封顶（防超长非 SQL 字符串喂 sqlglot 回溯）
+
+
+def _exec_sink_strings(content: str) -> list[str]:
+    """抽取执行 sink（.sql()/.execute()/CLI -e/赋值）内的**整个字符串实参**。
+
+    docstring/注释里的示例 SQL 天然不被 sink 前缀命中 → 自动排除；从开引号手工扫到同型闭引号
+    （三引号/单双引号），取整串使 `WITH cte AS(...)` 等前缀不丢，sqlglot 正确解析 CTE。"""
+    out: list[str] = []
+    for m in _SINK_OPEN_RE.finditer(content):
+        q = m.group("q")
+        s = m.end()
+        end = content.find(q, s)                 # 同型闭引号
+        if end == -1:
+            end = min(len(content), s + _MAX_SQL_STR)
+        out.append(content[s:min(end, s + _MAX_SQL_STR)])
+    return out
+
 
 def _candidate_fragments(content: str, exec_gated: bool = False) -> list[str]:
-    """exec_gated=True（052 Tier 1 自动采纳层）：仅保留处于执行 sink 内、且本行非注释的
-    SQL 片段——排除 docstring/注释/文档示例 SQL。heredoc 天然是执行上下文（喂 CLI），保留。
-    默认 False：保留 050 及既有调用者的全量启发式行为（零破坏）。"""
+    """exec_gated=True（052 Tier 1 自动采纳层）：整串抽取——只取执行 sink 内的完整 SQL 字符串
+    （+ heredoc 正文），排除 docstring/注释/文档示例 SQL，且保住 `WITH` 前缀修 CTE 泄漏。
+    默认 False：保留 050 及既有调用者的关键字锚定全量启发式行为（零破坏）。"""
     frags: list[str] = []
     for m in _HEREDOC_RE.finditer(content):
         frags.append(m.group(2))
-    # 关键字定位：从每个 SQL 起始词抓到下一个 ';'，但**无条件封顶 800 字符**——避免远处
-    # 分号导致抓到数十 KB 巨块喂给 sqlglot（曾致 10GB 内存/回溯）。SQL 语句极少超 800 字符。
+    if exec_gated:
+        frags.extend(_exec_sink_strings(content))    # 整串：sink 实参完整喂 sqlglot
+        return frags
+    # ungated（050）：关键字定位，从每个 SQL 起始词抓到下一个 ';'，无条件封顶 800 字符。
     for m in _STMT_RE.finditer(content):
         start = m.start()
-        if exec_gated:
-            line_start = content.rfind("\n", 0, start) + 1
-            if _COMMENT_LINE_RE.match(content[line_start:start + 1]):
-                continue                       # SQL 在注释/MAGIC/docstring 行 → 剔除
-            if not _EXEC_SINK_RE.search(content[max(0, start - _EXEC_WINDOW):start]):
-                continue                       # 前窗无执行 sink → 非执行 SQL，剔除
         semi = content.find(";", start)
         end = semi if semi != -1 else len(content)
         frag = content[start:min(end, start + 800)]
@@ -143,9 +168,17 @@ def _stmt_lineage(sql: str, strict: bool = False) -> tuple[set[str], set[str]]:
     for st in _safe_parse(sql):
         if st is None:
             continue
-        # strict：解析失败回退成 Command 的碎片（GRANT/ALTER PARTITION 等非血缘 DDL 常落此）跳过。
-        if strict and isinstance(st, exp.Command):
+        # strict：GRANT/角色/仓库授权 + 解析失败回退成 Command 的碎片（非血缘 DDL）跳过。
+        if strict and isinstance(st, (exp.Grant, exp.Command)):
             continue
+        # strict：CTE 名不是持久表——整串抽取保住 `WITH` 前缀后 find_all(exp.CTE) 可拿到别名，
+        # 从 exp.Table 结果里扣除（`FROM cte` 语法上仍是 Table 节点，须显式排除）。
+        excluded = set()
+        if strict:
+            for cte in st.find_all(exp.CTE):
+                nm = _clean_name(cte.alias_or_name, strict=False)
+                if nm:
+                    excluded.add(nm)
         # 目标表只取**顶层语句**的 target（INSERT/CREATE/MERGE/UPDATE/DELETE 的 .this）——
         # 不 find_all，避免 MERGE 的 `WHEN MATCHED THEN UPDATE SET` 等嵌套 mutation 被误抓成表。
         tgts = set()
@@ -162,7 +195,7 @@ def _stmt_lineage(sql: str, strict: bool = False) -> tuple[set[str], set[str]]:
                         tgts.add(nm)
         for t in st.find_all(exp.Table):
             name = _clean_name(t.sql(), strict)
-            if name is None:
+            if name is None or name in excluded:
                 continue
             (writes if name in tgts else reads).add(name)
     return reads - writes, writes
