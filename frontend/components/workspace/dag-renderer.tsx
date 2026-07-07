@@ -32,6 +32,8 @@ export interface DagRendererProps {
   onNodeClick?: (event: ReactMouseEvent, node: Node) => void
   /** 节点右键菜单回调（readOnly 模式下仍触发）。 */
   onNodeContextMenu?: (event: ReactMouseEvent, node: Node) => void
+  /** 边点击（052 血缘选中边用，readOnly 下仍触发）。 */
+  onEdgeClick?: (event: ReactMouseEvent, edge: Edge) => void
   onMoveStart?: () => void
   /** 编辑态回调 */
   onNodesChange?: (changes: any) => void
@@ -53,6 +55,7 @@ export function DagRenderer({
   onPaneClick,
   onNodeClick,
   onNodeContextMenu,
+  onEdgeClick,
   onMoveStart,
   onNodesChange,
   onEdgesChange,
@@ -79,6 +82,7 @@ export function DagRenderer({
       onEdgesChange={readOnly ? undefined : onEdgesChange}
       onConnect={readOnly ? undefined : onConnect}
       onEdgeContextMenu={readOnly ? undefined : onEdgeContextMenu}
+      onEdgeClick={onEdgeClick}
       // pane/节点点击 —— 只读/编辑模式均触发（只读供 Ops DAG 弹框的节点详情面板）
       onPaneClick={onPaneClick}
       onNodeClick={onNodeClick}

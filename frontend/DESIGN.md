@@ -140,6 +140,8 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 | 日期 | `DatePicker` + `biz-date`/`useFormatDateTime` | `components/ui/date-picker.tsx` · `lib/workspace/biz-date.ts` · `hooks/use-format-date-time.ts` | 见下方日期条目 |
 | 加载态 | `LoadingState` | `components/workspace/shared/loading-state.tsx` | 见下方加载条目 |
 | 刷新入口 | `ViewRefreshControl` | `components/workspace/views/view-refresh-control.tsx` | 见下方刷新条目 |
+| 段控（互斥分段切换） | `Segmented` | `components/ui/segmented.tsx` | 见下方段控条目 |
+| 数值步进 | `Stepper` | `components/ui/stepper.tsx` | 见下方步进器条目 |
 | 卡片容器 | `Card` | `components/ui/card.tsx` | 见 [卡片内容内边距](#卡片内容内边距--单一-token---card-spacing) |
 
 ### 滚动条/滚动区 —— `DwScroll`
@@ -212,6 +214,20 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **统一位置约定**：视图工具条右侧（与筛选/搜索同行，`ml-auto` 推右），跨视图一致。
 - **关键 props/变体**：`lastRefreshMs` / `autoRefresh` / `onAutoRefreshChange` / `onRefresh` / `refreshing` / `disabled`；刷新中 `RefreshIcon` 旋转（`motion-safe`），秒级更新 last-refresh 时间戳。
 - **组件**：`components/workspace/views/view-refresh-control.tsx`。
+
+### 段控 —— `Segmented`
+
+- **用途/何时用**：少量互斥选项间的分段切换——方向（上游/下游/双向）、粒度（表/列）、二元状态切换等。**禁止**手写 `button` toggle 组 + `bg-primary` 选中字面样式替代。
+- **何时不用/禁写**：① 可关闭的主 tab → `TabStrip`；② 不可关闭的页内子导航（需下划线指示）→ 下划线式 `Tabs`。段控用于「平铺互斥枚举、无序列、选中即生效」的场景，三者各司其职。
+- **关键 props/变体**：`options`（{value,label,icon?}[]）/ `value` / `onChange`；`size="sm"`（h-8，工具条紧凑，默认）/ `size="md"`（h-9，表单对齐）；可选 `icon`（hugeicons，size-3.5）。
+- **外观**：圆角胶囊容器（`border border-input bg-background`），选中态 `bg-muted font-medium text-foreground`（中性灰，段控语义为「切换」非「主操作」，故不用 `bg-primary`），非选中 `text-muted-foreground hover:text-foreground`。沉淀自 `data-table-toolbar` 原 `segmented` 私有实现，提升为公共原语（reuse-first：目录此前无私有之外的公共段控）。
+
+### 步进器 —— `Stepper`
+
+- **用途/何时用**：在数值范围内 `−N+` 调节——血缘展开深度、重试次数、阈值、配额等。**禁止**手写 `<input type="number">`（浏览器 spinner 不可控）或裸按钮拼装替代。
+- **何时不用/禁写**：全仓此前无任何 stepper/number-input 原语，故新建（reuse-first：目录确无才新建，且同一改动回填本条目）。大范围连续数值仍用 `Input` 或滑块（目录暂无，按需新建）。
+- **关键 props/变体**：`value` / `onChange` / `min` / `max` / `step`（默认 1）；可选 `ariaLabel`、`valueClassName`（数值展示宽度，默认 `w-6`）、`disabled`。
+- **外观**：与 `Segmented` 同款胶囊容器（h-8、`border border-input`）；两端 `−/+` 按钮（hugeicons `MinusSignIcon`/`Add01Icon`，size-3.5），中间数值 `tabular-nums` 等宽对齐；到 `min`/`max` 边界禁用对应按钮（`disabled:opacity-40`）。
 
 ## CopilotKit 主题对齐（`/agent` 对话）
 

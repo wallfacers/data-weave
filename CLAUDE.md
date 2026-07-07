@@ -147,9 +147,9 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 - Concise and direct, no filler. Report faithfully: failed test → say so + paste output; skipped step → say it was skipped.
 
 <!-- SPECKIT START -->
-Current feature: [051-claim-readiness-closure](specs/051-claim-readiness-closure/spec.md)
-Implementation plan: [plan.md](specs/051-claim-readiness-closure/plan.md)
-Research: [research.md](specs/051-claim-readiness-closure/research.md)
-Data model: [data-model.md](specs/051-claim-readiness-closure/data-model.md)
-API contracts: [contracts/](specs/051-claim-readiness-closure/contracts/)
+Current feature: [052-lineage-graph-explorer](specs/052-lineage-graph-explorer/spec.md)
+Implementation plan: [plan.md](specs/052-lineage-graph-explorer/plan.md)
+Research: [research.md](specs/052-lineage-graph-explorer/research.md)
+Data model: [data-model.md](specs/052-lineage-graph-explorer/data-model.md)
+API contracts: [contracts/](specs/052-lineage-graph-explorer/contracts/)
 <!-- SPECKIT END -->
