@@ -57,6 +57,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final ObjectProvider<QualityRuleService> qualityRuleService;
     private final ObjectProvider<QualityCheckRunner> qualityCheckRunner;
     private final ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionService;
+    private final ObjectProvider<BackfillService> backfillService;
     private final Messages messages;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,6 +75,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<QualityRuleService> qualityRuleService,
                                          ObjectProvider<QualityCheckRunner> qualityCheckRunner,
                                          ObjectProvider<com.dataweave.master.application.lineage.LineageCorrectionService> lineageCorrectionService,
+                                         ObjectProvider<BackfillService> backfillService,
                                          Messages messages) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
@@ -89,6 +91,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.qualityRuleService = qualityRuleService;
         this.qualityCheckRunner = qualityCheckRunner;
         this.lineageCorrectionService = lineageCorrectionService;
+        this.backfillService = backfillService;
         this.messages = messages;
     }
 
@@ -121,6 +124,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "LINEAGE_EDGE_CONFIRM" -> lineageCorrection(action, "CONFIRM", locale);
             case "LINEAGE_EDGE_REMOVE" -> lineageCorrection(action, "REMOVE", locale);
             case "LINEAGE_CORRECTION_REVOKE" -> lineageCorrection(action, "REVOKE", locale);
+            case "BACKFILL" -> backfill(action, locale);
             default -> {
                 // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {
@@ -296,6 +300,49 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             return new ExecOutcome(false,
                     messages.get("executor.lineage_correction.failed", locale, String.valueOf(e.getMessage())),
                     json(Map.of("error", "correction_failed", "detail", String.valueOf(e.getMessage()))), null);
+        }
+    }
+
+    /** 补数据执行：从 command JSON 反序列化回填参数 → BackfillService.submitBackfill（L0/L1 同步 + L2+ 审批后统一路径）。 */
+    private ExecOutcome backfill(AgentAction action, Locale locale) {
+        String cmd = action.getCommand();
+        if (cmd == null || cmd.isBlank()) {
+            return new ExecOutcome(false,
+                    messages.get("executor.backfill.missing_params", locale),
+                    json(Map.of("error", "missing_backfill_params")), null);
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(cmd,
+                    new TypeReference<Map<String, Object>>() {});
+            String dateStart = (String) payload.get("dateStart");
+            String dateEnd = (String) payload.get("dateEnd");
+            boolean includeDownstream = Boolean.TRUE.equals(payload.get("includeDownstream"));
+            int parallelism = payload.get("parallelism") instanceof Number n ? n.intValue() : 1;
+            @SuppressWarnings("unchecked")
+            List<Long> downstreamTaskIds = (List<Long>) payload.getOrDefault("downstreamTaskIds", List.of());
+
+            OpsContracts.BackfillRequest req = new OpsContracts.BackfillRequest(
+                    action.getTargetType(), Long.parseLong(action.getTargetId()),
+                    dateStart, dateEnd, includeDownstream, parallelism, downstreamTaskIds);
+
+            OpsContracts.BackfillRunView run = backfillService.getObject().submitBackfill(req);
+            return new ExecOutcome(true,
+                    messages.get("executor.backfill.success", locale, dateStart, dateEnd),
+                    json(Map.of("backfillRunId", run.id().toString(),
+                            "targetType", run.targetType(),
+                            "targetName", run.targetName(),
+                            "dateStart", run.dateStart(),
+                            "dateEnd", run.dateEnd(),
+                            "total", run.total())),
+                    run.id());
+        } catch (BizException e) {
+            return new ExecOutcome(false, e.getMessage(),
+                    json(Map.of("error", e.getCode(), "detail", String.valueOf(e.getMessage()))), null);
+        } catch (Exception e) {
+            log.error("[Backfill] executor failed", e);
+            return new ExecOutcome(false,
+                    messages.get("executor.backfill.failed", locale, String.valueOf(e.getMessage())),
+                    json(Map.of("error", "backfill_failed", "detail", String.valueOf(e.getMessage()))), null);
         }
     }
 

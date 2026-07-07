@@ -23,6 +23,7 @@ import com.dataweave.master.application.WorkflowService.NodeTaskDetail;
 import com.dataweave.master.domain.*;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +52,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/ops")
 public class OpsController {
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final OpsService opsService;
     private final RecoveryService recoveryService;
@@ -453,11 +456,20 @@ public class OpsController {
                                                       ServerWebExchange exchange) {
         var locale = Locales.uiLocale(exchange.getRequest().getHeaders());
 
+        // 回填参数序列化到 command，供 L2 审批后 executor 反序列化执行（与 PROJECT_PUSH 等 pattern 一致）
+        String cmdJson = objectMapper.writeValueAsString(Map.of(
+                "dateStart", req.dateStart(),
+                "dateEnd", req.dateEnd(),
+                "includeDownstream", req.includeDownstream(),
+                "parallelism", req.parallelism(),
+                "downstreamTaskIds", req.downstreamTaskIds()));
+
         ActionRequest actionReq = ActionRequest.builder()
                 .toolName("backfill").actionType("BACKFILL")
                 .targetType(req.targetType().toUpperCase())
                 .targetId(String.valueOf(req.targetId()))
                 .actor("ui").actorSource("UI")
+                .command(cmdJson)
                 .summary(opsMessages.get("ops.approval.backfill", locale))
                 .param("dateStart", req.dateStart())
                 .param("dateEnd", req.dateEnd())
@@ -471,12 +483,10 @@ public class OpsController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("outcome", gr.outcome().name());
         if (gr.executed()) {
-            try {
-                BackfillRun run = dataOpsBridge.submitBackfill(req);
-                result.put("run", run);
-            } catch (UnsupportedOperationException e) {
-                result.put("message", "闸门通过，领域执行待 Stream A 实现");
-                result.put("run", null);
+            // L0/L1：executor 在 submit() 内同步执行；L2+ 审批后 executor 在 approve() 内执行
+            result.put("message", gr.message());
+            if (gr.resultInstanceId() != null) {
+                result.put("backfillRunId", gr.resultInstanceId().toString());
             }
         } else {
             result.put("message", gr.message());

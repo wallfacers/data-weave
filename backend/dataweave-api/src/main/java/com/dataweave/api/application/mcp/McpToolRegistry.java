@@ -609,6 +609,12 @@ public class McpToolRegistry {
                             .targetType(bfReq.targetType().toUpperCase())
                             .targetId(String.valueOf(bfReq.targetId()))
                             .actor("agent").actorSource("AGENT")
+                            .command(objectMapper.writeValueAsString(Map.of(
+                                    "dateStart", bfReq.dateStart(),
+                                    "dateEnd", bfReq.dateEnd(),
+                                    "includeDownstream", bfReq.includeDownstream(),
+                                    "parallelism", bfReq.parallelism(),
+                                    "downstreamTaskIds", bfReq.downstreamTaskIds())))
                             .summary(opsMessages.get("ops.approval.backfill", ctx.locale()))
                             .param("dateStart", bfReq.dateStart())
                             .param("dateEnd", bfReq.dateEnd())
@@ -617,13 +623,10 @@ public class McpToolRegistry {
                             .build();
                     GateResult gr = gatedActionService.submit(req, ctx.locale());
                     if (gr.pending() || "DENIED".equals(gr.outcome().name())) return gateText(gr);
-                    try {
-                        BackfillRun run = dataOpsBridge.submitBackfill(bfReq);
-                        return Map.of("outcome", "EXECUTED", "run", run);
-                    } catch (UnsupportedOperationException e) {
-                        return Map.of("outcome", "EXECUTED", "run", null,
-                                "note", "领域执行待 Stream A 实现");
-                    }
+                    // L0/L1：executor 在 submit() 内同步执行；L2+ 审批后 executor 在 approve() 内执行
+                    return Map.of("outcome", "EXECUTED",
+                            "backfillRunId", gr.resultInstanceId() != null ? gr.resultInstanceId().toString() : null,
+                            "message", gr.message());
                 });
 
         register("query_backfill", "查询本租户补数据运行记录（租户隔离）",
