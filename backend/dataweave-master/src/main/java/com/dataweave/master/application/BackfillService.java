@@ -384,6 +384,6 @@ public class BackfillService {
                 startedAt != null ? startedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                 finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null, durationMs,
                 rs.getString("cron_expression"), rs.getString("env"),
-                rs.getString("workflow_def_name"), null);
+                rs.getString("workflow_def_name"), null, null);
     }
 }

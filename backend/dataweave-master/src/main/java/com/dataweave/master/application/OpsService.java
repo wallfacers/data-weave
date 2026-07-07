@@ -645,7 +645,7 @@ public class OpsService {
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
                         + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name, "
-                        + "wi.scheduled_fire_time "
+                        + "wi.scheduled_fire_time, wi.trigger_type "
                         + "FROM task_instance ti "
                         + "LEFT JOIN workflow_instance wi ON ti.workflow_instance_id = wi.id" + where
                         // 未成功优先：失败/终止类 → 运行中类 → 成功/其它；同档按 id 降序（新在前）
@@ -668,7 +668,8 @@ public class OpsService {
                             finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             durationMs, rs.getString("cron_expression"),
                             rs.getString("env"), rs.getString("workflow_def_name"),
-                            sft != null ? sft.atZone(ZoneId.systemDefault()).toInstant().toString() : null);
+                            sft != null ? sft.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                            rs.getString("trigger_type"));
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);

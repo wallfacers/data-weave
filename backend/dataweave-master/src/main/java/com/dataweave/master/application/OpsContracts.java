@@ -22,7 +22,7 @@ public final class OpsContracts {
                               String runMode, String state, String bizDate,
                               String startedAt, String finishedAt, Long durationMs,
                               String cronExpression, String env, String workflowName,
-                              String scheduledFireTime) {}
+                              String scheduledFireTime, String triggerType) {}
 
     /**
      * 实例多维筛选条件（任一为空即不约束该维度）。page 从 0 起；size 上限由调用方夹取。

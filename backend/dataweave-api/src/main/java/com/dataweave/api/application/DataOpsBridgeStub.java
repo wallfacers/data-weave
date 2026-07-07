@@ -199,7 +199,8 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getCronExpression(),      // 快照列
                 ti.getEnv(),                 // 直接列（之前写死 null）
                 ti.getWorkflowDefName(),     // 快照列
-                null                         // scheduledFireTime: stub 无此数据
+                null,                        // scheduledFireTime: stub 无此数据
+                null                         // triggerType: stub 无此数据
         );
     }
 }

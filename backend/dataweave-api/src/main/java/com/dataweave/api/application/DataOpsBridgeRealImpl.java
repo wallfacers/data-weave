@@ -184,7 +184,8 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 r.runMode(), r.state(), r.bizDate(),
                 parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
                 r.cronExpression(), r.env(), r.workflowName(),
-                parseDt(r.scheduledFireTime()));
+                parseDt(r.scheduledFireTime()),
+                r.triggerType());
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {

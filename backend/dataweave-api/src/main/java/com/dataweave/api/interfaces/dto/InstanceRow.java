@@ -21,5 +21,6 @@ public record InstanceRow(
         String cronExpression,
         String env,
         String workflowName,
-        LocalDateTime scheduledFireTime
+        LocalDateTime scheduledFireTime,
+        String triggerType
 ) {}

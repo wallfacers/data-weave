@@ -58,6 +58,7 @@ interface InstanceRow {
   scheduledFireTime?: string | null
   env?: string  // PROD | DEV
   workflowName?: string | null
+  triggerType?: string | null  // CRON / MANUAL / BACKFILL
 }
 
 interface BatchRowResult {
@@ -120,6 +121,12 @@ const STATE_OPTIONS = [
   { value: "KILLED", labelKey: "stateKilled" },
   { value: "PAUSED", labelKey: "statePaused" },
 ] as const
+
+const TRIGGER_TYPE_I18N: Record<string, string> = {
+  CRON: "triggerTypeCron",
+  MANUAL: "triggerTypeManual",
+  BACKFILL: "triggerTypeBackfill",
+}
 
 export function PeriodicInstancesPanel({
   initialFilter,
@@ -323,6 +330,19 @@ export function PeriodicInstancesPanel({
             {r.env ?? "PROD"}
           </Badge>
         ),
+      },
+      {
+        key: "triggerType",
+        header: t("colTriggerType"),
+        widthPct: 5,
+        cell: (r) => {
+          const labelKey = r.triggerType ? TRIGGER_TYPE_I18N[r.triggerType] : null
+          return (
+            <span className="text-sm">
+              {labelKey ? t(labelKey as never) : (r.triggerType || "—")}
+            </span>
+          )
+        },
       },
       {
         key: "scheduledFireTime",
