@@ -1,8 +1,8 @@
 # Implementation Plan: 自训小模型血缘抽取达到生产可用（真实语料 teacher 蒸馏）
 
-**Branch**: `052-lineage-distillation` | **Date**: 2026-07-07 | **Spec**: [spec.md](./spec.md)
+**Branch**: `054-lineage-distillation` | **Date**: 2026-07-07 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Feature specification from `specs/052-lineage-distillation/spec.md`
+**Input**: Feature specification from `specs/054-lineage-distillation/spec.md`
 
 ## Summary
 
@@ -49,7 +49,7 @@
 ### Documentation (this feature)
 
 ```text
-specs/052-lineage-distillation/
+specs/054-lineage-distillation/
 ├── plan.md              # 本文件
 ├── research.md          # Phase 0：关键技术决策
 ├── data-model.md        # Phase 1：语料/标注/银标/金标/权重/报告 实体

@@ -1,6 +1,6 @@
 # Feature Specification: 自训小模型血缘抽取达到生产可用（真实语料 teacher 蒸馏）
 
-**Feature Branch**: `052-lineage-distillation`
+**Feature Branch**: `054-lineage-distillation`
 
 **Created**: 2026-07-07
 
@@ -153,6 +153,6 @@
 - GITHUB_TOKEN 可用于 `collect.py` 扩采真实语料。
 - 训练语料为**公开** GitHub 脚本，不涉及客户私有数据隐私；服务态在客户私有脚本上只跑自托管小模型。
 - teacher 为 Qwen 系，"追平 m2"=追平同源 teacher，作为已知天花板如实披露；学生追平不保证，届时按升级路径与维护者拍板。
-- 本特性在 worktree `dw-052-lineage-distillation`（分支同名，从 main d0aeae0 起）隔离开发；gitignore 数据资产（`.env` / `realeval/pool` / `realeval/gold`）从 `dw-041` worktree 复制，权重复用 sibling `weft-lineage-weights/`。
+- 本特性在 worktree `dw-054-lineage-distillation`（分支同名，从 main d0aeae0 起）隔离开发；gitignore 数据资产（`.env` / `realeval/pool` / `realeval/gold`）从 `dw-041` worktree 复制，权重复用 sibling `weft-lineage-weights/`。
 - 复用既有管线：`collect.py`（采集）、`adjudicate_aid.py`（字面门/裁决）、`train/sft_qlora.py`（训练）、`eval_real.py`/`jvm_slice_eval.py`/`leak_analysis.py`（评测），新增打标/银标构建/dir_fix 产品化。
 - 后端 `ScriptLineageService` 三通道路由与 Java 接口不变，改动集中在 Python sidecar 与配置。

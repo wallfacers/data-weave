@@ -1,10 +1,10 @@
 # Tasks: 自训小模型血缘抽取达到生产可用（真实语料 teacher 蒸馏）
 
-**Feature**: `052-lineage-distillation` | **Branch**: `052-lineage-distillation`
+**Feature**: `054-lineage-distillation` | **Branch**: `054-lineage-distillation`
 
 **Input**: [spec.md](./spec.md) · [plan.md](./plan.md) · [research.md](./research.md) · [data-model.md](./data-model.md) · [contracts/](./contracts/) · [quickstart.md](./quickstart.md)
 
-工作目录均为 worktree `dw-052-lineage-distillation/ml/lineage-extractor/`（下称 ML 根）；后端路径为 `backend/dataweave-master/.../lineage/script/`。长命令按 [[wsl2-long-command-detach]] `setsid` 脱离 + 单次秒回轮询。GPU 训练/评测只读 GPU，不碰共享 PG/neo4j。
+工作目录均为 worktree `dw-054-lineage-distillation/ml/lineage-extractor/`（下称 ML 根）；后端路径为 `backend/dataweave-master/.../lineage/script/`。长命令按 [[wsl2-long-command-detach]] `setsid` 脱离 + 单次秒回轮询。GPU 训练/评测只读 GPU，不碰共享 PG/neo4j。
 
 **测试策略**：新增管线模块（`teacher_label`/`build_silver`/`dir_fix`/sidecar 改造）须配 pytest 单测（CLAUDE.md「no test = not done」+ contracts 不变量）。既有评测 harness 作验收 harness。
 

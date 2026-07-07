@@ -1,11 +1,11 @@
 # Quickstart: 自训小模型血缘蒸馏到生产可用
 
-端到端跑通顺序（全部在 worktree `dw-052-lineage-distillation` 的 `ml/lineage-extractor/` 下）。长命令按 [[wsl2-long-command-detach]] 用 `setsid` 脱离 + 单次秒回轮询。
+端到端跑通顺序（全部在 worktree `dw-054-lineage-distillation` 的 `ml/lineage-extractor/` 下）。长命令按 [[wsl2-long-command-detach]] 用 `setsid` 脱离 + 单次秒回轮询。
 
 ## 0. 一次性：数据资产与环境
 
 ```bash
-cd /home/wallfacers/project/dw-052-lineage-distillation/ml/lineage-extractor
+cd /home/wallfacers/project/dw-054-lineage-distillation/ml/lineage-extractor
 # 从 dw-041 复制 gitignore 数据资产（.env / 已有金标 / 语料池）——不入 git
 cp ../../../dw-041-script-lineage/ml/lineage-extractor/.env .
 cp -r ../../../dw-041-script-lineage/ml/lineage-extractor/realeval/gold realeval/
