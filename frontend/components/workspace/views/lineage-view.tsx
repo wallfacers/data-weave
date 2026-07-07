@@ -1,192 +1,424 @@
 "use client"
 
 /**
- * 企业级血缘视图 —— 020 多粒度血缘浏览与下钻。
+ * 血缘图探索器 —— 三栏视图（左 catalog 树 · 中画布+嵌入面板 · 无右侧固定列）。
  *
- * 架构：左侧三级树（数据源→表→列）+ 右侧血缘流画布。
- * 设计约束（DESIGN.md）：
- * - 无 header/footer 分割线，区域靠留白
- * - 语义 token，不手写 dark:
- * - gap-* / size-* 间距
- * - hugeicons 图标
+ * 052 重写：弃用 lineage-flow.tsx（手绘 SVG 网格），改为复用工作流 DAG 栈：
+ *   DagRenderer（ReactFlow 画布）+ FlowCanvasWithPanel（可调宽嵌入面板壳）。
+ * 分层布局走 dagre LR（lineage-layout），数据累积走 lineage-graph reducer。
+ *
+ * 设计约束（DESIGN.md）：语义 token、三栏无分割线、gap-* / size-*、hugeicons、不手写 dark:。
  */
-import { useState, useCallback } from "react"
+import { useCallback, useEffect, useMemo, useReducer, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import type { GraphNodeView, FlowEdgeView, Granularity, ImpactResult } from "@/lib/lineage-api"
-import { LoadingState } from "@/components/workspace/shared/loading-state"
+import { type Node } from "@xyflow/react"
+
+import type {
+  GraphNodeView,
+  FlowEdgeView,
+  LineageDirection,
+  ImpactResult,
+} from "@/lib/lineage-api"
 import {
+  fetchNeighborhood,
+  fetchUpstream,
   fetchDownstream,
+  fetchColumnUpstream,
   fetchColumnDownstream,
   fetchImpact,
+  fetchSearch,
+  type SearchCandidate,
 } from "@/lib/lineage-api"
-import { LineageTree } from "./lineage/lineage-tree"
-import { LineageFlow } from "./lineage/lineage-flow"
-import { ImpactPanel } from "./lineage/impact-panel"
-import { EdgeDetailPanel } from "./lineage/edge-detail-panel"
+import { FlowCanvasWithPanel } from "@/components/workspace/flow-canvas-with-panel"
+import { LineageTree } from "@/components/workspace/views/lineage/lineage-tree"
+import { LineageToolbar } from "@/components/workspace/views/lineage/lineage-toolbar"
+import { LineageDetailPanel } from "@/components/workspace/views/lineage/lineage-detail-panel"
+import { lineageNodeTypes } from "@/components/workspace/nodes/lineage-node"
+import { LineageNodeActionsContext, type LineageNodeActions } from "@/components/workspace/nodes/lineage-node-actions-context"
+import { lineageToFlow, type LineageLayoutOptions } from "@/lib/workspace/lineage-layout"
+import { lineageGraphReducer, initialGraphState } from "@/lib/workspace/lineage-graph"
+import { useLineageSelection } from "@/lib/workspace/lineage-selection-store"
+import { useMinSpin } from "@/hooks/use-min-spin"
 
-export function LineageView() {
+const DEFAULT_DEPTH = 3
+const EXPAND_DEPTH = 1
+
+export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const t = useTranslations("lineageView")
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  // 选中节点
-  const [selectedNode, setSelectedNode] = useState<GraphNodeView | null>(null)
-  const [granularity, setGranularity] = useState<Granularity>("TABLE")
+  // ── ViewState ──
+  const [direction, setDirection] = useState<LineageDirection>(
+    (params?.dir as LineageDirection) ?? "both",
+  )
+  const [depth, setDepth] = useState(Number(params?.depth) || DEFAULT_DEPTH)
+  const [granularity, setGranularity] = useState<"TABLE" | "COLUMN">(
+    (params?.gran as "TABLE" | "COLUMN") ?? "TABLE",
+  )
 
-  // 血缘流数据
-  const [nodes, setNodes] = useState<GraphNodeView[]>([])
-  const [edges, setEdges] = useState<FlowEdgeView[]>([])
-  const [truncated, setTruncated] = useState(false)
+  // ── Graph state ──
+  const [graph, dispatch] = useReducer(lineageGraphReducer, initialGraphState())
+
+  // ── Loading / error ──
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastRefreshMs, setLastRefreshMs] = useState<number | null>(null)
+  const [stale, setStale] = useState(false)
+  const [truncated, setTruncated] = useState(false)
 
-  // 影响面
-  const [showImpact, setShowImpact] = useState(false)
+  // ── Selection store ──
+  const sel = useLineageSelection()
+
+  // ── Impact ──
   const [impact, setImpact] = useState<ImpactResult | null>(null)
-  const [impactedIds, setImpactedIds] = useState<Set<string>>(new Set())
+  const [impactLoading, setImpactLoading] = useState(false)
 
-  // 041：选中边 → 右侧边详情面板
-  const [selectedEdge, setSelectedEdge] = useState<FlowEdgeView | null>(null)
+  // ── Search（US2）──
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [searchCandidates, setSearchCandidates] = useState<SearchCandidate[]>([])
 
-  // 加载某节点的下游子图（silent=true 不切 loading，供裁决后无感刷新）
-  const loadFlow = useCallback(async (node: GraphNodeView, silent = false) => {
-    if (!silent) setLoading(true)
-    try {
-      if (node.type === "COLUMN") {
-        const res = await fetchColumnDownstream(node.id, 10)
-        if (res.data) {
-          setNodes(res.data.nodes ?? [])
-          setEdges(res.data.edges ?? [])
-          setTruncated(res.data.truncated ?? false)
-          setGranularity("COLUMN")
-        }
-      } else {
-        const res = await fetchDownstream(node.id, 10, granularity)
-        if (res.data) {
-          setNodes(res.data.nodes ?? [])
-          setEdges(res.data.edges ?? [])
-          setTruncated(res.data.truncated ?? false)
-        }
+  // ── Escape 关面板 ──
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && sel.panelOpen) {
+        sel.closePanel()
       }
-    } catch {
-      setNodes([])
-      setEdges([])
-    } finally {
-      if (!silent) setLoading(false)
     }
-  }, [granularity])
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [sel])
 
-  // 选中节点 → 加载下游血缘
-  const handleSelect = useCallback(async (node: GraphNodeView) => {
-    setSelectedNode(node)
-    setShowImpact(false)
+  // ── Deep link sync（US5 base）──
+  useEffect(() => {
+    if (!graph.anchorId) return
+    const q = new URLSearchParams(searchParams.toString())
+    q.set("open", "lineage")
+    q.set("anchor", graph.anchorId)
+    q.set("dir", direction)
+    q.set("depth", String(depth))
+    q.set("gran", granularity)
+    const href = `/?${q.toString()}`
+    router.replace(href, { scroll: false })
+  }, [graph.anchorId, direction, depth, granularity]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Data fetching ──
+
+  const loadAnchor = useCallback(
+    async (nodeId: string, d: LineageDirection = direction, dep: number = depth, gran = granularity) => {
+      setLoading(true)
+      setError(null)
+      dispatch({ type: "reset" })
+      try {
+        let res
+        const filters = undefined // US4+ 加 filters
+        if (gran === "COLUMN" || (gran === "TABLE" && d !== "both")) {
+          const col = gran === "COLUMN"
+          if (d === "upstream") {
+            res = col
+              ? await fetchColumnUpstream(nodeId, dep)
+              : await fetchUpstream(nodeId, dep, gran, filters)
+          } else {
+            res = col
+              ? await fetchColumnDownstream(nodeId, dep)
+              : await fetchDownstream(nodeId, dep, gran, filters)
+          }
+        } else {
+          res = await fetchNeighborhood(nodeId, dep, gran, filters)
+        }
+        if (res.code === "lineage.store_unavailable") {
+          setError(t("unavailable"))
+          return
+        }
+        const data = res.data
+        if (data) {
+          dispatch({
+            type: "load",
+            anchorId: nodeId,
+            nodes: data.nodes ?? [],
+            edges: data.edges ?? [],
+            truncated: data.truncated ?? false,
+          })
+          setTruncated(data.truncated ?? false)
+        }
+      } catch {
+        setError(t("unavailable"))
+      } finally {
+        setLoading(false)
+        setLastRefreshMs(Date.now())
+        setStale(false)
+      }
+    },
+    [direction, depth, granularity, t],
+  )
+
+  const expandNode = useCallback(
+    async (nodeId: string) => {
+      if (graph.expanded.has(nodeId)) {
+        dispatch({ type: "collapse", nodeId })
+        return
+      }
+      const gran = granularity === "TABLE" ? "TABLE" : "COLUMN"
+      try {
+        const res = await fetchNeighborhood(nodeId, EXPAND_DEPTH, gran as "TABLE" | "COLUMN")
+        if (res.code === "lineage.store_unavailable") {
+          setError(t("unavailable"))
+          return
+        }
+        const data = res.data
+        if (data) {
+          dispatch({
+            type: "expand",
+            nodeId,
+            nodes: data.nodes ?? [],
+            edges: data.edges ?? [],
+          })
+        } else {
+          // 标记为已展开（即使无邻居，防止重复请求）
+          dispatch({ type: "expand", nodeId, nodes: [], edges: [] })
+        }
+      } catch {
+        // silent
+      }
+    },
+    [graph.expanded, granularity, t],
+  )
+
+  // ── Impact analysis ──
+  const runImpact = useCallback(async () => {
+    const anchor = graph.anchorId
+    if (!anchor) return
+    setImpactLoading(true)
     setImpact(null)
-    setSelectedEdge(null)
-    await loadFlow(node)
-  }, [loadFlow])
-
-  // 切换粒度
-  const handleToggleGranularity = useCallback(() => {
-    const next = granularity === "TABLE" ? "COLUMN" : "TABLE"
-    setGranularity(next as Granularity)
-    if (selectedNode) {
-      handleSelect({ ...selectedNode, granularity: next as Granularity } as GraphNodeView)
-    }
-  }, [granularity, selectedNode, handleSelect])
-
-  // 影响面分析
-  const handleImpact = useCallback(async () => {
-    if (!selectedNode) return
-    setShowImpact(true)
-    setSelectedEdge(null)
-    setLoading(true)
     try {
-      const res = await fetchImpact(selectedNode.id, 20)
+      const res = await fetchImpact(anchor, 20)
       if (res.data) {
         setImpact(res.data)
-        const ids = new Set<string>(res.data.downstream?.map((n: GraphNodeView) => n.id) ?? [])
-        ids.add(selectedNode.id)
-        setImpactedIds(ids)
+        sel.setImpact(res.data)
+        sel.showImpact()
       }
     } catch {
-      setImpact(null)
+      // silent
     } finally {
-      setLoading(false)
+      setImpactLoading(false)
     }
-  }, [selectedNode])
+  }, [graph.anchorId, sel])
+
+  // ── Handle node select from tree ──
+  const handleTreeSelect = useCallback(
+    (node: GraphNodeView) => {
+      sel.closePanel()
+      setGranularity(node.type === "COLUMN" ? "COLUMN" : "TABLE")
+      loadAnchor(node.id)
+    },
+    [loadAnchor, sel],
+  )
+
+  // ── Handle node click on canvas ──
+  const handleCanvasNodeClick = useCallback(
+    (_event: ReactMouseEvent, node: Node) => {
+      // 找到 graph 中对应节点
+      const gNode = graph.nodes.find((n) => n.id === node.id)
+      if (gNode) sel.selectNode(gNode)
+    },
+    [graph.nodes, sel],
+  )
+
+  // ── Handle pane click → deselect ──
+  const handlePaneClick = useCallback(() => {
+    sel.closePanel()
+  }, [sel])
+
+  // ── Node actions context ──
+  const nodeActions: LineageNodeActions = useMemo(
+    () => ({
+      onSelectNode: (nodeId) => {
+        const gNode = graph.nodes.find((n) => n.id === nodeId)
+        if (gNode) sel.selectNode(gNode)
+      },
+      onToggleExpand: expandNode,
+    }),
+    [graph.nodes, sel, expandNode],
+  )
+
+  // ── Layout ──
+  const layoutOpts: LineageLayoutOptions = useMemo(() => {
+    const impactedIds = new Set(impact?.downstream?.map((n) => n.id) ?? [])
+    if (impact?.root) impactedIds.add(impact.root.id)
+    return {
+      anchorId: graph.anchorId ?? undefined,
+      expandedNodeIds: graph.expanded,
+      impactedNodeIds: impactedIds.size > 0 ? impactedIds : undefined,
+      selectedNodeId: sel.selectedNode?.id ?? null,
+      dimUnrelated: !!sel.selectedNode,
+    }
+  }, [graph.anchorId, graph.expanded, impact, sel.selectedNode?.id])
+
+  const layout = useMemo(
+    () =>
+      lineageToFlow(
+        { nodes: graph.nodes, edges: graph.edges },
+        layoutOpts,
+      ),
+    [graph.nodes, graph.edges, layoutOpts],
+  )
+
+  // ── Refresh ──
+  const handleRefresh = useCallback(() => {
+    if (graph.anchorId) loadAnchor(graph.anchorId)
+  }, [graph.anchorId, loadAnchor])
+  const refreshing = useMinSpin(loading)
+
+  // ── Deep link copy ──
+  const copyDeepLink = useCallback(() => {
+    const q = new URLSearchParams()
+    q.set("open", "lineage")
+    if (graph.anchorId) q.set("anchor", graph.anchorId)
+    q.set("dir", direction)
+    q.set("depth", String(depth))
+    q.set("gran", granularity)
+    navigator.clipboard.writeText(`${window.location.origin}/?${q.toString()}`).catch(() => {})
+  }, [graph.anchorId, direction, depth, granularity])
+
+  // ── Export subgraph JSON ──
+  const exportGraph = useCallback(() => {
+    const blob = new Blob(
+      [JSON.stringify({ nodes: graph.nodes, edges: graph.edges, anchorId: graph.anchorId }, null, 2)],
+      { type: "application/json" },
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `lineage-${graph.anchorId ?? "export"}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [graph.nodes, graph.edges, graph.anchorId])
+
+  // ── onPaneClick → close panel ──
+  const onPaneClickForCanvas = useCallback(() => {
+    sel.closePanel()
+  }, [sel])
+
+  const hasData = graph.nodes.length > 0 && !loading
 
   return (
-    <div className="flex h-full gap-0">
-      {/* 左侧三级树 */}
-      <aside className="w-64 shrink-0 border-r">
-        <LineageTree onSelect={handleSelect} />
-      </aside>
+    <LineageNodeActionsContext.Provider value={nodeActions}>
+      <div className="flex h-full gap-0">
+        {/* 左侧 catalog 树 */}
+        <aside className="w-64 shrink-0">
+          <LineageTree onSelect={handleTreeSelect} />
+        </aside>
 
-      {/* 右侧主区 */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* 操作栏 */}
-        {selectedNode && (
-          <div className="flex items-center gap-2 px-4 py-2 shrink-0">
-            <span className="text-sm font-medium truncate">{selectedNode.name}</span>
-            {selectedNode.type && (
-              <span className="text-xs text-muted-foreground">{selectedNode.type}</span>
-            )}
-            <button
-              className="ml-auto text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/70
-                         text-muted-foreground transition-colors"
-              onClick={handleImpact}
-            >
-              {t("impactTitle")}
-            </button>
-          </div>
-        )}
+        {/* 中间主区 */}
+        <main className="flex min-w-0 flex-1 flex-col">
+          {/* 工具栏 */}
+          <LineageToolbar
+            direction={direction}
+            onDirectionChange={(v) => {
+              setDirection(v)
+              if (graph.anchorId) loadAnchor(graph.anchorId, v)
+            }}
+            depth={depth}
+            onDepthChange={(v) => {
+              setDepth(v)
+              if (graph.anchorId) loadAnchor(graph.anchorId, direction, v)
+            }}
+            granularity={granularity}
+            onGranularityChange={(v) => {
+              setGranularity(v)
+              if (graph.anchorId) loadAnchor(graph.anchorId, direction, depth, v)
+            }}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearchSubmit={
+              searchQuery.trim()
+                ? async () => {
+                    setSearching(true)
+                    setSearchCandidates([])
+                    try {
+                      const res = await fetchSearch(searchQuery.trim())
+                      if (res.data) setSearchCandidates(res.data)
+                    } catch {
+                      setSearchCandidates([])
+                    } finally {
+                      setSearching(false)
+                    }
+                  }
+                : undefined
+            }
+            onImpactAnalysis={runImpact}
+            onPathHighlight={undefined /* US3 */}
+            onCopyDeepLink={copyDeepLink}
+            onExport={exportGraph}
+            lastRefreshMs={lastRefreshMs}
+            refreshing={refreshing}
+            stale={stale}
+            onRefresh={handleRefresh}
+            hasAnchor={!!graph.anchorId}
+            loading={loading}
+          />
 
-        {/* 画布区 */}
-        <div className="flex-1 min-h-0">
-          {loading ? (
-            <LoadingState active={loading} />
-          ) : showImpact && impact ? (
-            <ImpactPanel
-              impact={impact}
-              selectedId={selectedNode?.id}
-              impactedIds={impactedIds}
-              onClose={() => { setShowImpact(false); setImpact(null); setImpactedIds(new Set()); }}
-              onSelect={handleSelect}
-            />
-          ) : nodes.length > 0 || edges.length > 0 ? (
-            <div className="flex h-full min-w-0">
-              <div className="flex-1 min-w-0">
-                <LineageFlow
-                  nodes={nodes}
-                  edges={edges}
-                  granularity={granularity}
-                  selectedId={selectedNode?.id}
-                  selectedEdge={selectedEdge}
-                  impactedIds={impactedIds}
-                  truncated={truncated}
-                  onSelect={handleSelect}
-                  onSelectEdge={setSelectedEdge}
-                  onToggleGranularity={handleToggleGranularity}
-                />
+          {/* 搜索候选下拉（叠加在画布上方） */}
+          {searchCandidates.length > 0 && (
+            <div className="relative z-30 mx-3 -mb-1">
+              <div className="absolute top-0 left-0 right-0 max-h-48 overflow-auto rounded-md border bg-popover shadow-lg">
+                <div className="flex flex-col p-1">
+                  {searchCandidates.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-muted"
+                      onClick={() => {
+                        setSearchCandidates([])
+                        setSearchQuery("")
+                        loadAnchor(c.id)
+                      }}
+                    >
+                      <span className="truncate font-medium">{c.name}</span>
+                      {c.layer && (
+                        <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                          {c.layer}
+                        </span>
+                      )}
+                      <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{c.type}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              {/* 041：边详情面板（与画布并排，右侧固定宽） */}
-              {selectedEdge && (
-                <aside className="w-80 shrink-0">
-                  <EdgeDetailPanel
-                    edge={selectedEdge}
-                    nodes={nodes}
-                    onClose={() => setSelectedEdge(null)}
-                    onChanged={() => {
-                      if (selectedNode) void loadFlow(selectedNode, true)
-                    }}
-                  />
-                </aside>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-              {selectedNode ? t("empty") : t("expand")}
             </div>
           )}
-        </div>
-      </main>
-    </div>
+
+          {/* 画布 + 嵌入面板 */}
+          <FlowCanvasWithPanel
+            rfId="lineage-canvas"
+            nodes={layout.nodes}
+            edges={layout.edges}
+            nodeTypes={lineageNodeTypes}
+            loading={loading}
+            error={error}
+            onRetry={handleRefresh}
+            hasData={hasData}
+            onNodeClick={handleCanvasNodeClick}
+            onPaneClick={onPaneClickForCanvas}
+            panelOpen={sel.panelOpen}
+            renderPanel={() => <LineageDetailPanel />}
+            panelStorageKey="dw.lineage.panel-width"
+            loadingText={t("loading")}
+            emptyText={t("emptyCanvasHint")}
+            retryText={t("retry")}
+            showMiniMap
+          >
+            {/* 搜索结果无匹配提示（画布层） */}
+            {searching && (
+              <div className="absolute left-4 top-4 z-10 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
+                {t("searching")}
+              </div>
+            )}
+          </FlowCanvasWithPanel>
+        </main>
+      </div>
+    </LineageNodeActionsContext.Provider>
   )
 }
