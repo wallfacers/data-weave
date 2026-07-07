@@ -136,8 +136,16 @@ public class LineageQueryService {
             throw e;
         } catch (Exception e) {
             String exName = e.getClass().getName();
-            if (exName.contains("ServiceUnavailable") || exName.contains("SessionExpired")
-                    || exName.contains("Connect") || exName.contains("neo4j")) {
+            // 仅「真连通性异常」降级为 store_unavailable；ClientException/DatabaseException
+            // （Cypher 语法/语义错误）是查询缺陷，必须原样抛 500——不能被宽泛的 "neo4j"
+            // 匹配掩盖成「存储不可用」（否则真实 Cypher bug 会被伪装成降级而漏过）。
+            boolean connectivity = exName.contains("ServiceUnavailable")
+                    || exName.contains("SessionExpired")
+                    || exName.contains("ConnectionRead")
+                    || exName.contains("Discovery")
+                    || exName.contains("ConnectException")
+                    || exName.contains("UnknownHost");
+            if (connectivity) {
                 throw storeUnavailable(e);
             }
             throw new RuntimeException("Lineage query failed: " + e.getMessage(), e);
@@ -201,7 +209,7 @@ public class LineageQueryService {
                  layer: end.layer,
                  producers: [(task:Task)-[:WRITES]->(end) WHERE task.tenantId=$tenantId AND task.projectId=$projectId | task.name],
                  syncedRowsToday: reduce(total=0, rc IN [(run:TaskRun)-[sync:SYNCED]->(end) WHERE run.bizDate=date() | sync.rowCount] | total + rc),
-                 lastSyncDate: toString(max([(run:TaskRun)-[sync:SYNCED]->(end) | run.bizDate]))
+                 lastSyncDate: toString(reduce(m=null, d IN [(run:TaskRun)-[sync:SYNCED]->(end) | run.bizDate] | CASE WHEN m IS NULL OR d > m THEN d ELSE m END))
                }""";
     }
 
@@ -216,8 +224,10 @@ public class LineageQueryService {
     }
 
     private static String edgeFilterWhere() {
+        // 置于 `WITH DISTINCT r` 之后 → 必须以 WHERE 起头（此处无前驱 WHERE，
+        // 用 AND 会被解析为 `r AND (...)` 即 Relationship AND Boolean 类型错误）。
         return """
-               AND ($confidences IS NULL OR r.confidence IN $confidences)
+               WHERE ($confidences IS NULL OR r.confidence IN $confidences)
                AND ($sources IS NULL OR r.source IN $sources)""";
     }
 

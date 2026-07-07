@@ -34,16 +34,8 @@ class LineageGraphExplorerE2EIT extends Neo4jTestSupport {
     void setUp() {
         driver = newDriver();
         cleanDb(driver);
-        // Load seed data
-        try (Session session = driver.session()) {
-            session.run("""
-                    LOAD CSV WITH HEADERS FROM 'file:///seed-lineage.cypher' AS row
-                    RETURN row
-                    """).consume();
-        } catch (Exception e) {
-            // Fallback: run seed Cypher inline
-            loadSeedInline(driver);
-        }
+        // Load seed data（逐条执行——Neo4j driver 要求一次一条语句）
+        loadSeedInline(driver);
         querySvc = new LineageQueryService(new Neo4jLineageGraphReader(driver), noCorrections());
     }
 
@@ -320,8 +312,7 @@ class LineageGraphExplorerE2EIT extends Neo4jTestSupport {
     // ═════════════════════════════════════════════════════════════
 
     private static void loadSeedInline(Driver driver) {
-        try (Session session = driver.session()) {
-            session.run("""
+        String seed = """
                     CREATE (ds1:Datasource {id: 'ds-1', tenantId: 1, projectId: 1, name: 'ods_db'});
                     CREATE (t1:Table {id: 't-a', tenantId: 1, projectId: 1, qualifiedName: 'ods_orders', layer: 'ODS', datasourceId: 'ds-1'});
                     CREATE (t2:Table {id: 't-b', tenantId: 1, projectId: 1, qualifiedName: 'dwd_orders_clean', layer: 'DWD', datasourceId: 'ds-1'});
@@ -389,7 +380,12 @@ class LineageGraphExplorerE2EIT extends Neo4jTestSupport {
                     CREATE (task20:Task {id: 'task-20', tenantId: 2, projectId: 2, name: 'etl_tenant2', taskDefId: 20});
                     CREATE (task20)-[:WRITES]->(t5);
                     CREATE (task20)-[:WRITES]->(t6);
-                    """).consume();
+                    """;
+        // 整份种子是「共享变量作用域」的单条多-CREATE 查询：t1/t2/… 需跨 CREATE 保持绑定。
+        // 分号会被 driver 视为「一次多语句」而拒绝；但按分号逐条拆分又会丢失变量绑定
+        // （relationship CREATE 会生成全新空节点而非连接既有节点）。故去掉分号、整体单条执行。
+        try (Session session = driver.session()) {
+            session.run(seed.replace(";", "")).consume();
         }
     }
 }
