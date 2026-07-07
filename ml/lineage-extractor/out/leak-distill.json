@@ -1,0 +1,32 @@
+[
+  {
+    "name": "sft-1.5b",
+    "hallucinations": 51,
+    "verbatim_train_names": 0,
+    "synthetic_shaped": 0,
+    "verbatim_rate": 0.0,
+    "shaped_rate": 0.0,
+    "examples": [
+      {
+        "table": "employee",
+        "verbatim_train": false,
+        "synthetic_shaped": false,
+        "script": "sqoop-import.distro",
+        "verbatim_own": true
+      }
+    ],
+    "verbatim_own_names": 1,
+    "verbatim_own_rate": 0.02
+  },
+  {
+    "name": "m2-anthropic",
+    "hallucinations": 41,
+    "verbatim_train_names": 0,
+    "synthetic_shaped": 0,
+    "verbatim_rate": 0.0,
+    "shaped_rate": 0.0,
+    "examples": [],
+    "verbatim_own_names": 0,
+    "verbatim_own_rate": 0.0
+  }
+]

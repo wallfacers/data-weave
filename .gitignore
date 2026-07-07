@@ -84,4 +84,9 @@ ml/lineage-extractor/realeval/teacher_labels/
 ml/lineage-extractor/realeval/pool-b/
 ml/lineage-extractor/realeval/tolabel-b.jsonl
 ml/lineage-extractor/data/silver.jsonl
+ml/lineage-extractor/data/silver_pool.json
 ml/lineage-extractor/data/out/train-distill.jsonl
+# 052 分层信封：模型逐行原始预测（含第三方脚本抽取结果，复现即得）+ 脱离标记
+ml/lineage-extractor/out/model-preds-*.jsonl
+ml/lineage-extractor/out/teacher-smoke.txt
+ml/lineage-extractor/*.exit
