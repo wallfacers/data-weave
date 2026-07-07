@@ -98,11 +98,13 @@ function SortableTabItem({
   tab,
   active,
   draggable,
+  index,
   renderTab,
 }: {
   tab: TabStripItem
   active: boolean
   draggable: boolean
+  index: number
   renderTab: (tab: TabStripItem, index: number) => ReactNode
 }) {
   const {
@@ -130,7 +132,7 @@ function SortableTabItem({
         isDragging && "opacity-30",
       )}
     >
-      {renderTab(tab, 0)}
+      {renderTab(tab, index)}
     </div>
   )
 }
@@ -245,7 +247,7 @@ export function TabStrip({
   const renderTab = (tab: TabStripItem, i: number) => {
     const active = tab.id === activeId
     const closable = tab.closable !== false
-    const firstFlush = i === 0 && !leading
+    const firstFlush = i === 0
 
     return (
       <div
@@ -343,6 +345,7 @@ export function TabStrip({
                     tab={tab}
                     active={tab.id === activeId}
                     draggable={!!onMoveTab}
+                    index={i}
                     renderTab={renderTab}
                   />
                 </Fragment>
