@@ -27,13 +27,16 @@ import {
   fetchColumnUpstream,
   fetchColumnDownstream,
   fetchImpact,
+  fetchPaths,
   fetchSearch,
+  type LineagePath,
   type SearchCandidate,
 } from "@/lib/lineage-api"
 import { FlowCanvasWithPanel } from "@/components/workspace/flow-canvas-with-panel"
 import { LineageTree } from "@/components/workspace/views/lineage/lineage-tree"
 import { LineageToolbar } from "@/components/workspace/views/lineage/lineage-toolbar"
 import { LineageDetailPanel } from "@/components/workspace/views/lineage/lineage-detail-panel"
+import { LineageLegend } from "@/components/workspace/views/lineage/lineage-legend"
 import { lineageNodeTypes } from "@/components/workspace/nodes/lineage-node"
 import { LineageNodeActionsContext, type LineageNodeActions } from "@/components/workspace/nodes/lineage-node-actions-context"
 import { lineageToFlow, type LineageLayoutOptions } from "@/lib/workspace/lineage-layout"
@@ -74,6 +77,13 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   // ── Impact ──
   const [impact, setImpact] = useState<ImpactResult | null>(null)
   const [impactLoading, setImpactLoading] = useState(false)
+
+  // ── Path（US3）──
+  const [pathMode, setPathMode] = useState(false)
+  const [pathFrom, setPathFrom] = useState<string | null>(null)
+  const [pathTo, setPathTo] = useState<string | null>(null)
+  const [pathResult, setPathResult] = useState<LineagePath | null>(null)
+  const [pathLoading, setPathLoading] = useState(false)
 
   // ── Search（US2）──
   const [searchQuery, setSearchQuery] = useState("")
@@ -218,12 +228,33 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
 
   // ── Handle node click on canvas ──
   const handleCanvasNodeClick = useCallback(
-    (_event: ReactMouseEvent, node: Node) => {
-      // 找到 graph 中对应节点
+    async (_event: ReactMouseEvent, node: Node) => {
+      if (pathMode) {
+        if (!pathFrom) {
+          setPathFrom(node.id)
+        } else if (node.id !== pathFrom) {
+          const to = node.id
+          setPathTo(to)
+          setPathLoading(true)
+          setPathMode(false)
+          try {
+            const res = await fetchPaths(pathFrom, to, depth)
+            setPathResult(res.data ?? null)
+          } catch {
+            setPathResult(null)
+          } finally {
+            setPathLoading(false)
+            setPathFrom(null)
+            setPathTo(null)
+          }
+        }
+        return
+      }
+      // Normal mode: select node
       const gNode = graph.nodes.find((n) => n.id === node.id)
       if (gNode) sel.selectNode(gNode)
     },
-    [graph.nodes, sel],
+    [pathMode, pathFrom, depth, graph.nodes, sel],
   )
 
   // ── Handle edge click on canvas → selectEdge ──
@@ -255,21 +286,42 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   )
 
   // ── Layout ──
+  // ── Path mode actions ──
+  const enterPathMode = useCallback(() => {
+    setPathResult(null)
+    setPathFrom(null)
+    setPathTo(null)
+    setPathMode(true)
+  }, [])
+  const cancelPathMode = useCallback(() => {
+    setPathMode(false)
+    setPathFrom(null)
+    setPathTo(null)
+  }, [])
+
+  // ── Layout ──
   const layoutOpts: LineageLayoutOptions = useMemo(() => {
     const impactedIds = new Set(impact?.downstream?.map((n) => n.id) ?? [])
     if (impact?.root) impactedIds.add(impact.root.id)
     const impactEdgeKeys = new Set(
       (impact?.edges ?? []).map((e) => `${e.from}→${e.to}`),
     )
+    const pathIds = new Set(pathResult?.nodes?.map((n) => n.id) ?? [])
+    const pathEdgeKeys = new Set(
+      (pathResult?.edges ?? []).map((e) => `${e.from}→${e.to}`),
+    )
+    // 合并影响 + 路径高亮
+    const allHighlightEdges = new Set([...impactEdgeKeys, ...pathEdgeKeys])
+    const allImpactedIds = new Set([...impactedIds, ...pathIds])
     return {
       anchorId: graph.anchorId ?? undefined,
       expandedNodeIds: graph.expanded,
-      impactedNodeIds: impactedIds.size > 0 ? impactedIds : undefined,
+      impactedNodeIds: allImpactedIds.size > 0 ? allImpactedIds : undefined,
       selectedNodeId: sel.selectedNode?.id ?? null,
-      highlightEdgeKeys: impactEdgeKeys.size > 0 ? impactEdgeKeys : undefined,
-      dimUnrelated: !!(sel.selectedNode),
+      highlightEdgeKeys: allHighlightEdges.size > 0 ? allHighlightEdges : undefined,
+      dimUnrelated: pathMode || !!(sel.selectedNode) || pathResult != null,
     }
-  }, [graph.anchorId, graph.expanded, impact, sel.selectedNode?.id])
+  }, [graph.anchorId, graph.expanded, impact, pathResult, pathMode, sel.selectedNode?.id])
 
   const layout = useMemo(
     () =>
@@ -364,7 +416,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
                 : undefined
             }
             onImpactAnalysis={runImpact}
-            onPathHighlight={undefined /* US3 */}
+            onPathHighlight={enterPathMode}
             onCopyDeepLink={copyDeepLink}
             onExport={exportGraph}
             lastRefreshMs={lastRefreshMs}
@@ -374,6 +426,54 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             hasAnchor={!!graph.anchorId}
             loading={loading}
           />
+
+          {/* 路径模式指示 */}
+          {pathMode && (
+            <div className="flex h-8 shrink-0 items-center gap-2 bg-accent px-3 text-xs">
+              <span className="text-muted-foreground">
+                {!pathFrom
+                  ? t("pathSelectFrom")
+                  : t("pathSelectTo")}
+              </span>
+              <button
+                type="button"
+                className="ml-auto rounded px-2 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                onClick={cancelPathMode}
+              >
+                {t("close")}
+              </button>
+            </div>
+          )}
+
+          {/* 路径结果提示 */}
+          {pathResult && !pathMode && (
+            <div className="flex h-8 shrink-0 items-center gap-2 bg-accent px-3 text-xs">
+              {pathResult.pathExists ? (
+                <>
+                  <span className="text-muted-foreground">
+                    {t("pathExists", {
+                      nodes: pathResult.nodes.length,
+                      edges: pathResult.edges.length,
+                    })}
+                  </span>
+                  {pathResult.truncated && (
+                    <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                      {t("truncated")}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-muted-foreground">{t("pathNotFound")}</span>
+              )}
+              <button
+                type="button"
+                className="ml-auto rounded px-2 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setPathResult(null)}
+              >
+                {t("close")}
+              </button>
+            </div>
+          )}
 
           {/* 搜索候选下拉（叠加在画布上方） */}
           {searchCandidates.length > 0 && (
@@ -443,6 +543,8 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
                 {t("searching")}
               </div>
             )}
+            {/* 边样式图例 */}
+            {hasData && <LineageLegend />}
           </FlowCanvasWithPanel>
         </main>
       </div>
