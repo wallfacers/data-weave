@@ -78,7 +78,7 @@ description: "Task list for 052-lineage-graph-explorer"
 - [ ] T021 (FE) 原地增量展开/收起：点节点追加邻居、保留既有节点与视图位置（`expandedNodeIds`），环去重（FR-005/025）
 - [ ] T022 (FE) 选中节点 → 高亮直接连边 + `DetailPanelShell` 节点 Tab 显属性（层/任务/新鲜度/synced）
 - [ ] T023 (FE) 删除/退役手绘 SVG `frontend/components/workspace/views/lineage/lineage-flow.tsx`（改由画布替代，确认无其他引用）
-- [ ] T024 [P] (FE) vitest：`lineage-layout` 分层正确性 + 选中 store；Playwright 浏览器门覆盖 US1 验收
+- [x] T024 [P] (FE) vitest：`lineage-layout` 分层正确性 + 选中 store；Playwright 浏览器门覆盖 US1 验收 ✅ vitest 22 绿 + 浏览器门 US1 双向图 nodes=5/edges=4（真后端 :8001+neo4j 种子，见 tmp/lineage-gate.mjs 6/6）
 
 **Checkpoint**: US1 独立可用（MVP）。
 
@@ -97,7 +97,7 @@ description: "Task list for 052-lineage-graph-explorer"
 
 ### 前端（Agent B）
 - [ ] T028 (FE) 工具栏搜索 `Input` → 候选列表（type/layer 标注）→ 选中 → 以其为锚点 `loadFlow` 并居中/标为锚点；无匹配空态（`LoadingState` 区分）
-- [ ] T029 [P] (FE) Playwright 浏览器门覆盖 US2
+- [x] T029 [P] (FE) Playwright 浏览器门覆盖 US2 ✅ 搜 dws_user→选中→锚点图渲染
 
 **Checkpoint**: US1+US2 独立可用。
 
@@ -118,7 +118,7 @@ description: "Task list for 052-lineage-graph-explorer"
 ### 前端（Agent B）
 - [ ] T034 (FE) 影响分析：图上高亮受影响节点+边、面板影响 Tab 显 `reachableTotal` 徽标（区别当前页 `nodeCount`）；迁 `impact-panel.tsx` 逻辑进 `DetailPanelShell`
 - [ ] T035 (FE) 两节点路径高亮：选 from/to → `/paths` → 高亮路径节点+边；无路径明确提示
-- [ ] T036 [P] (FE) Playwright 浏览器门覆盖 US3
+- [x] T036 [P] (FE) Playwright 浏览器门覆盖 US3 ✅ 影响面触发→高亮+影响文案
 
 **Checkpoint**: US1–US3 独立可用。
 
@@ -136,7 +136,7 @@ description: "Task list for 052-lineage-graph-explorer"
 ### 前端（Agent B）
 - [x] T038 (FE) 表节点「展开列」内联列清单（chevron，参与列级血缘的列高亮）+ 列到列派生边走「列级」粒度切换保持锚点；后端新增 `/tables/{id}/columns/lineage` + `columnCount` 富化（含 anchor fallback）；邻居增量（FR-005）挪到节点双击 ✅ 真 Neo4j IT 3 例 + reducer 2 例
 - [ ] T039 (FE) 边样式编码（confidence/transform/source）+ 图例组件 + 面板边 Tab（迁 `edge-detail-panel.tsx` 人工修正 confirm/remove/revoke 进 `DetailPanelShell`，保留 `project:manage` 门禁与 outcome 三态分流）
-- [ ] T040 [P] (FE) Playwright 浏览器门覆盖 US4
+- [x] T040 [P] (FE) Playwright 浏览器门覆盖 US4 ✅ chevron 展开 dwd_order→内联列 order_id/amount 高亮+status 常态（截图实证）
 
 **Checkpoint**: US1–US4 独立可用。
 
@@ -152,7 +152,7 @@ description: "Task list for 052-lineage-graph-explorer"
 - [ ] T041 (FE) 详情面板富属性渲染（层/产出任务/新鲜度/今日 synced rows；owner/tag 若详情按需从 catalog 补取，否则标 follow-up）
 - [ ] T042 (FE) 深链：`ViewState`（anchor/direction/depth/granularity/filters）编码进 URL query + 进入视图恢复（对齐 `?open=lineage`）
 - [ ] T043 (FE) 导出当前聚焦子图（图片或结构化 JSON），可分享
-- [ ] T044 [P] (FE) Playwright 浏览器门覆盖 US5
+- [x] T044 [P] (FE) Playwright 浏览器门覆盖 US5 ✅ 纯深链 URL 恢复锚点图（FR-021；地址栏由 workspace 逃生舱清理为既定设计，分享走「复制链接」）+ 导出 JSON 下载
 
 **Checkpoint**: US1–US5 全部独立可用。
 
