@@ -1,0 +1,55 @@
+{
+  "n_total": 139,
+  "n_nonempty": 59,
+  "ne_true_tables": 141,
+  "ungated": {
+    "n_fire": 57,
+    "full": {
+      "precision": 0.34459459459459457,
+      "recall": 0.3090909090909091,
+      "f1": 0.3258785942492013,
+      "hallucination": 0.12162162162162163,
+      "direction_acc": 0.2624113475177305,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.51,
+      "recall": 0.3090909090909091,
+      "f1": 0.38490566037735846,
+      "hallucination": 0.13,
+      "direction_acc": 0.2624113475177305,
+      "invalid": 0
+    },
+    "n_territory": 21,
+    "territory_true_tables": 46
+  },
+  "gated": {
+    "n_fire": 24,
+    "full": {
+      "precision": 0.4883720930232558,
+      "recall": 0.12727272727272726,
+      "f1": 0.2019230769230769,
+      "hallucination": 0.0,
+      "direction_acc": 0.10638297872340426,
+      "invalid": 0
+    },
+    "nonempty": {
+      "precision": 0.6774193548387096,
+      "recall": 0.12727272727272726,
+      "f1": 0.21428571428571425,
+      "hallucination": 0.0,
+      "direction_acc": 0.10638297872340426,
+      "invalid": 0
+    },
+    "n_territory": 41,
+    "territory_true_tables": 108
+  },
+  "union": {
+    "union_recall": 0.8368794326241135,
+    "agree_precision": 0.9523809523809523,
+    "agree_recall": 0.14184397163120568,
+    "cand_per_script": 2.6440677966101696,
+    "n_agree": 21,
+    "n_cand": 156
+  }
+}

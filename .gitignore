@@ -78,3 +78,15 @@ ml/lineage-extractor/data/out-b2/
 ml/lineage-extractor/data/out-b3/
 # 050 逐例预测中间物（可由 dump_and_score 复推理，体积小但非结论证据）
 ml/lineage-extractor/out/*.preds.jsonl
+
+# 052 蒸馏：真实第三方脚本内容 + teacher 标注 + 训练银标（走 HF 数据集，不入代码仓）
+ml/lineage-extractor/realeval/teacher_labels/
+ml/lineage-extractor/realeval/pool-b/
+ml/lineage-extractor/realeval/tolabel-b.jsonl
+ml/lineage-extractor/data/silver.jsonl
+ml/lineage-extractor/data/silver_pool.json
+ml/lineage-extractor/data/out/train-distill.jsonl
+# 052 分层信封：模型逐行原始预测（含第三方脚本抽取结果，复现即得）+ 脱离标记
+ml/lineage-extractor/out/model-preds-*.jsonl
+ml/lineage-extractor/out/teacher-smoke.txt
+ml/lineage-extractor/*.exit

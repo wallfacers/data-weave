@@ -19,6 +19,8 @@ import torch
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from realeval.dir_fix import apply_dir_fix
+
 MODEL_DIR = os.environ.get("MODEL_DIR", "out/run1/merged")
 MODEL_VERSION = os.environ.get("MODEL_VERSION", "wallfacers/weft-lineage-extractor-1.5b@v1")
 
@@ -62,6 +64,35 @@ class ExtractResponse(BaseModel):
     modelVersion: str
     reads: list[TableIo]
     writes: list[TableIo]
+    dirFixed: bool = False
+
+
+def _parse_model_json(text: str) -> dict:
+    """从模型输出提取 {reads, writes}（非法/无 JSON → 空）。"""
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if not m:
+        return {"reads": [], "writes": []}
+    try:
+        obj = json.loads(m.group(0))
+    except Exception:
+        return {"reads": [], "writes": []}
+    reads = [t for t in obj.get("reads") or [] if isinstance(t, dict) and t.get("table")]
+    writes = [t for t in obj.get("writes") or [] if isinstance(t, dict) and t.get("table")]
+    return {"reads": reads, "writes": writes}
+
+
+def postprocess(model_text: str, content: str) -> dict:
+    """解析模型 JSON → dir_fix 方向修正（表由模型定、方向由 AST 定）。
+
+    纯函数、无 torch/GPU（dir_fix 复用 channel_router 健壮性补丁：片段窗封顶/跳模板/限时）——
+    可无 GPU 单测（T024）。畸形超大脚本靠 800 字符片段窗封顶防回溯爆内存（与线程无关）。
+    """
+    pred = _parse_model_json(model_text)
+    return apply_dir_fix(pred, content)
+
+
+def _to_io(items) -> list[TableIo]:
+    return [TableIo(table=t["table"], columns=t.get("columns")) for t in items if t.get("table")]
 
 
 @app.get("/health")
@@ -82,13 +113,7 @@ def extract(req: ExtractRequest) -> ExtractResponse:
         out = model.generate(**inputs, max_new_tokens=256, do_sample=False,
                              pad_token_id=tok.pad_token_id or tok.eos_token_id)
     text = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-    reads, writes = [], []
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        try:
-            obj = json.loads(m.group(0))
-            reads = [TableIo(**t) for t in obj.get("reads") or [] if isinstance(t, dict) and t.get("table")]
-            writes = [TableIo(**t) for t in obj.get("writes") or [] if isinstance(t, dict) and t.get("table")]
-        except Exception:
-            pass  # 非法输出 → 空结果（平台侧另有幻觉校验兜底）
-    return ExtractResponse(modelVersion=MODEL_VERSION, reads=reads, writes=writes)
+    fixed = postprocess(text, req.content)  # dir_fix：方向由 AST 校正
+    return ExtractResponse(modelVersion=MODEL_VERSION,
+                           reads=_to_io(fixed["reads"]), writes=_to_io(fixed["writes"]),
+                           dirFixed=fixed["dir_fixed"])
