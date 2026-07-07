@@ -132,12 +132,10 @@ export function IncidentsView({ active }: ViewProps) {
             onRefresh={refresh}
           />
         </div>
-        <DwScroll className="flex-1">
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <HugeiconsIcon icon={BugIcon} className="size-12 text-muted-foreground/30" />
-            <p className="mt-4 text-sm font-medium text-muted-foreground">{t("emptyActive")}</p>
-            <p className="mt-1 text-xs text-muted-foreground/70">{t("emptyActiveHint")}</p>
-          </div>
+        <DwScroll className="flex-1" innerClassName="min-h-full flex flex-col items-center justify-center py-16 text-center">
+          <HugeiconsIcon icon={BugIcon} className="size-12 text-muted-foreground/30" />
+          <p className="mt-4 text-sm font-medium text-muted-foreground">{t("emptyActive")}</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">{t("emptyActiveHint")}</p>
         </DwScroll>
       </div>
     )
