@@ -22,6 +22,7 @@ import type {
 } from "@/lib/lineage-api"
 import {
   fetchNeighborhood,
+  fetchTableColumnLineage,
   fetchUpstream,
   fetchDownstream,
   fetchColumnUpstream,
@@ -172,7 +173,46 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const expandNode = useCallback(
+  // ── 列展开（chevron，FR-015）：表节点 → 内联列清单（参与列级血缘的列高亮）──
+  const toggleColumns = useCallback(
+    async (tableId: string) => {
+      if (graph.columnsByTable[tableId]) {
+        dispatch({ type: "collapseColumns", tableId })
+        return
+      }
+      try {
+        const res = await fetchTableColumnLineage(tableId)
+        if (res.code === "lineage.store_unavailable") {
+          setError(t("unavailable"))
+          return
+        }
+        const data = res.data
+        // 本表列（parentId==tableId）；hasLineage = 该列出现在任一列级派生边
+        const edgeCols = new Set<string>()
+        for (const e of data?.edges ?? []) {
+          edgeCols.add(e.from)
+          edgeCols.add(e.to)
+        }
+        const columns = (data?.nodes ?? [])
+          .filter((n) => n.parentId === tableId)
+          .map((n) => ({
+            id: n.id,
+            name: n.name,
+            dataType: typeof n.attrs?.dataType === "string" ? (n.attrs.dataType as string) : undefined,
+            ordinal: typeof n.attrs?.ordinal === "number" ? (n.attrs.ordinal as number) : undefined,
+            hasLineage: edgeCols.has(n.id),
+          }))
+          .sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0))
+        dispatch({ type: "expandColumns", tableId, columns })
+      } catch {
+        // 静默：列展开失败不阻断主图
+      }
+    },
+    [graph.columnsByTable, t],
+  )
+
+  // ── 邻居增量展开（双击，FR-005）：原地追加相邻一跳、保留视图 ──
+  const toggleNeighbors = useCallback(
     async (nodeId: string) => {
       if (graph.expanded.has(nodeId)) {
         dispatch({ type: "collapse", nodeId })
@@ -186,17 +226,12 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
           return
         }
         const data = res.data
-        if (data) {
-          dispatch({
-            type: "expand",
-            nodeId,
-            nodes: data.nodes ?? [],
-            edges: data.edges ?? [],
-          })
-        } else {
-          // 标记为已展开（即使无邻居，防止重复请求）
-          dispatch({ type: "expand", nodeId, nodes: [], edges: [] })
-        }
+        dispatch({
+          type: "expand",
+          nodeId,
+          nodes: data?.nodes ?? [],
+          edges: data?.edges ?? [],
+        })
       } catch {
         // silent
       }
@@ -288,9 +323,17 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
         const gNode = graph.nodes.find((n) => n.id === nodeId)
         if (gNode) sel.selectNode(gNode)
       },
-      onToggleExpand: expandNode,
+      onToggleExpand: toggleColumns,
     }),
-    [graph.nodes, sel, expandNode],
+    [graph.nodes, sel, toggleColumns],
+  )
+
+  // ── 双击节点 → 邻居增量展开（FR-005）──
+  const handleCanvasNodeDoubleClick = useCallback(
+    (_event: ReactMouseEvent, node: Node) => {
+      void toggleNeighbors(node.id)
+    },
+    [toggleNeighbors],
   )
 
   // ── Layout ──
@@ -323,13 +366,15 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     const allImpactedIds = new Set([...impactedIds, ...pathIds])
     return {
       anchorId: graph.anchorId ?? undefined,
-      expandedNodeIds: graph.expanded,
+      // chevron 指示列展开态（内联列清单）
+      expandedNodeIds: new Set(Object.keys(graph.columnsByTable)),
+      columnsByTable: graph.columnsByTable,
       impactedNodeIds: allImpactedIds.size > 0 ? allImpactedIds : undefined,
       selectedNodeId: sel.selectedNode?.id ?? null,
       highlightEdgeKeys: allHighlightEdges.size > 0 ? allHighlightEdges : undefined,
       dimUnrelated: pathMode || !!(sel.selectedNode) || pathResult != null,
     }
-  }, [graph.anchorId, graph.expanded, impact, pathResult, pathMode, sel.selectedNode?.id])
+  }, [graph.anchorId, graph.columnsByTable, impact, pathResult, pathMode, sel.selectedNode?.id])
 
   const layout = useMemo(
     () =>
@@ -524,6 +569,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             onRetry={handleRefresh}
             hasData={hasData}
             onNodeClick={handleCanvasNodeClick}
+            onNodeDoubleClick={handleCanvasNodeDoubleClick}
             onEdgeClick={handleCanvasEdgeClick}
             onPaneClick={onPaneClickForCanvas}
             panelOpen={sel.panelOpen}

@@ -308,6 +308,68 @@ class LineageGraphExplorerE2EIT extends Neo4jTestSupport {
     }
 
     // ═════════════════════════════════════════════════════════════
+    // T038: 表→列展开（列清单 + 列级派生边 + 邻接列闭合）
+    // ═════════════════════════════════════════════════════════════
+
+    @Test
+    void expandColumns_shouldReturnTableColumnsWithParentAndDerivesEdges() {
+        // t-a(ods_orders) 有 col-a1/col-a2/col-a3；col-a3-[:DERIVES_FROM]->col-b2(t-b)
+        LineageGraph result = querySvc.expandColumns(T1, P1, "t-a");
+
+        // 本表 3 列均在，parentId 指回本表
+        var ownCols = result.nodes().stream()
+                .filter(n -> "t-a".equals(n.parentId())).toList();
+        assertThat(ownCols).extracting(GraphNodeView::id)
+                .containsExactlyInAnyOrder("col-a1", "col-a2", "col-a3");
+        assertThat(ownCols).allSatisfy(n ->
+                assertThat(n.type()).isEqualTo(GraphNodeView.NodeType.COLUMN));
+
+        // 邻接列 col-b2 带入（parentId=其所属表 t-b），使列到列边可闭合渲染
+        var nbCol = result.nodes().stream()
+                .filter(n -> "col-b2".equals(n.id())).findFirst().orElse(null);
+        assertThat(nbCol).isNotNull();
+        assertThat(nbCol.parentId()).isEqualTo("t-b");
+
+        // 列级派生边：col-a3 → col-b2，两端都在节点集内（闭合）
+        var nodeIds = result.nodes().stream().map(GraphNodeView::id).toList();
+        assertThat(result.edges()).isNotEmpty();
+        assertThat(result.edges()).anySatisfy(e -> {
+            assertThat(e.granularity()).isEqualTo(GraphNodeView.Granularity.COLUMN);
+            assertThat(nodeIds).contains(e.from(), e.to());
+        });
+        assertThat(result.edges()).extracting(e -> e.from() + "→" + e.to())
+                .contains("col-a3→col-b2");
+    }
+
+    @Test
+    void expandColumns_shouldNotLeakAcrossProjects() {
+        // tenant2 的表 t-y(dwd_order_detail_bak) 只有 col-y1；不得返回 tenant1 的列
+        LineageGraph result = querySvc.expandColumns(T2, P2, "t-y");
+        assertThat(result.nodes()).extracting(GraphNodeView::id)
+                .contains("col-y1")
+                .doesNotContain("col-a1", "col-a2", "col-a3", "col-b2");
+    }
+
+    @Test
+    void tableAttrs_shouldExposeColumnCountForExpandAffordance() {
+        // 展开 chevron 依赖 attrs.columnCount>0；t-a 有 3 列
+        LineageGraph result = querySvc.neighborhood(T1, P1, "t-a", 1,
+                GraphNodeView.Granularity.TABLE, null, null, null, null);
+        // 锚点 t-a 走 fallback 补回，也须带 columnCount=3（否则焦点表 chevron 不显示）
+        var tA = result.nodes().stream()
+                .filter(n -> "t-a".equals(n.id())).findFirst().orElse(null);
+        assertThat(tA).isNotNull();
+        assertThat(tA.attrs()).isNotNull();
+        assertThat(((Number) tA.attrs().get("columnCount")).intValue()).isEqualTo(3);
+        // 邻居 t-b（遍历 end）columnCount=2
+        var tB = result.nodes().stream()
+                .filter(n -> "t-b".equals(n.id())).findFirst().orElse(null);
+        assertThat(tB).isNotNull();
+        assertThat(tB.attrs()).isNotNull();
+        assertThat(((Number) tB.attrs().get("columnCount")).intValue()).isEqualTo(2);
+    }
+
+    // ═════════════════════════════════════════════════════════════
     // Helper: load seed Cypher inline (fallback when file: not available)
     // ═════════════════════════════════════════════════════════════
 

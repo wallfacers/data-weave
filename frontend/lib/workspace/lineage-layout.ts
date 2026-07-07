@@ -12,6 +12,7 @@ import type { Edge } from "@xyflow/react"
 import type {
   FlowEdgeView,
   GraphNodeView,
+  LineageColumnItem,
   NodeType,
 } from "@/lib/lineage-api"
 import { readNodeAttrs } from "@/lib/lineage-api"
@@ -31,8 +32,14 @@ export function isInferredEdge(edge: FlowEdgeView): boolean {
   )
 }
 
-/** 节点类型 → dagre 占位尺寸（与 lineage-node.tsx 渲染尺寸对齐，留 nodesep 余量）。 */
-function nodeSize(type: NodeType): { width: number; height: number } {
+/** 内联列清单每行高度（与 lineage-node.tsx 的 .col 行对齐）。 */
+const COL_ROW_H = 18
+
+/**
+ * 节点类型 → dagre 占位尺寸（与 lineage-node.tsx 渲染尺寸对齐，留 nodesep 余量）。
+ * 表节点展开内联列时按列数增高，避免 dagre 重叠。
+ */
+function nodeSize(type: NodeType, columnCount = 0): { width: number; height: number } {
   switch (type) {
     case "COLUMN":
       return { width: 176, height: 40 }
@@ -40,16 +47,18 @@ function nodeSize(type: NodeType): { width: number; height: number } {
     case "METRIC":
       return { width: 208, height: 48 }
     default:
-      // TABLE 带元信息行略高
-      return { width: 208, height: 62 }
+      // TABLE 带元信息行略高；展开列时 + 列清单高度（含分隔）
+      return { width: 208, height: 62 + (columnCount > 0 ? columnCount * COL_ROW_H + 10 : 0) }
   }
 }
 
 export interface LineageLayoutOptions {
   /** 当前锚点（居中标记）。 */
   anchorId?: string
-  /** 已展开列的表节点。 */
+  /** 已展开列的表节点（chevron 指示）。 */
   expandedNodeIds?: Set<string>
+  /** 展开态内联列清单：tableId → 列项（FR-015）。 */
+  columnsByTable?: Record<string, LineageColumnItem[]>
   /** 影响/路径高亮集内的节点 id。 */
   impactedNodeIds?: Set<string>
   /** 当前选中节点（高亮其直接连边）。 */
@@ -73,6 +82,7 @@ export function lineageToFlow(
   const {
     anchorId,
     expandedNodeIds,
+    columnsByTable,
     impactedNodeIds,
     selectedNodeId,
     highlightEdgeKeys,
@@ -100,7 +110,7 @@ export function lineageToFlow(
 
   graph.nodes.forEach((n) => {
     if (!g.hasNode(n.id)) {
-      const { width, height } = nodeSize(n.type)
+      const { width, height } = nodeSize(n.type, columnsByTable?.[n.id]?.length ?? 0)
       g.setNode(n.id, { width, height })
     }
   })
@@ -116,7 +126,8 @@ export function lineageToFlow(
   const nodes: LineageNode[] = graph.nodes.map((n) => {
     const pos = g.node(n.id)
     const attrs = readNodeAttrs(n)
-    const isExpanded = expandedNodeIds?.has(n.id) ?? false
+    const cols = columnsByTable?.[n.id]
+    const isExpanded = (expandedNodeIds?.has(n.id) ?? false) || !!cols
     const data: LineageNodeData = {
       nodeType: n.type,
       name: n.name,
@@ -129,6 +140,7 @@ export function lineageToFlow(
       isAnchor: n.id === anchorId,
       isImpacted: impactedNodeIds?.has(n.id) ?? false,
       expanded: isExpanded,
+      columns: cols,
       dimmed: dimUnrelated ? !relevantNodeIds.has(n.id) : false,
     }
     // dagre 返回中心点，ReactFlow position 用左上角 → 各减半宽高

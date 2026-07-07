@@ -1,5 +1,5 @@
 import type { Node } from "@xyflow/react"
-import type { Granularity, NodeType } from "@/lib/lineage-api"
+import type { Granularity, LineageColumnItem, NodeType } from "@/lib/lineage-api"
 
 /**
  * 血缘画布节点数据（与工作流 CanvasNodeData 分离，research D3）。
@@ -30,6 +30,8 @@ export interface LineageNodeData extends Record<string, unknown> {
   isImpacted?: boolean
   /** 是否已展开列。 */
   expanded?: boolean
+  /** 展开态内联列清单（chevron 展开，FR-015）。 */
+  columns?: LineageColumnItem[]
   /** 焦点态（选中/影响/路径）下，非相关节点置暗。 */
   dimmed?: boolean
 }

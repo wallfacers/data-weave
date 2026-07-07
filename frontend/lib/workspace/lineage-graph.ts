@@ -1,25 +1,31 @@
 /**
- * 血缘图累积状态 reducer —— 支持增量展开/收起（FR-005）的节点∪边 merge + dedup + collapse 纯逻辑。
+ * 血缘图累积状态 reducer —— 两个独立展开维度的纯逻辑。
+ *
+ *   ① 邻居增量（双击，FR-005）：`expand`/`collapse` + `expanded`/`children`——原地追加相邻一跳
+ *      画布节点/边，保留既有节点与视图；收起仅移除该次独占且非基图/锚点/其他展开的节点（FR-025 环去重）。
+ *   ② 列展开（chevron，FR-015）：`expandColumns`/`collapseColumns` + `columnsByTable`——表节点内联列清单
+ *      （不新增画布节点；列到列派生边走「列级」粒度切换）。驱动 chevron 指示 + 节点 data.columns 渲染。
  *
  * 与 lineage-layout 分离：layout 做 dagre 定位 → 渲染；graph 管图数据的增删去重。
- * 收起时仅移除「该次展开独占且不属于基图/其他展开/锚点」的子节点，保护锚点与基图防误删（FR-025 环去重）。
  */
-import type { FlowEdgeView, GraphNodeView } from "@/lib/lineage-api"
+import type { FlowEdgeView, GraphNodeView, LineageColumnItem } from "@/lib/lineage-api"
 import { edgeKey } from "./lineage-layout"
 
 export interface LineageGraphState {
   anchorId: string | null
   nodes: GraphNodeView[]
   edges: FlowEdgeView[]
-  /** 已增量展开邻居的节点 id 集合。 */
+  /** 已邻居增量展开（双击）的节点 id 集合。 */
   expanded: Set<string>
   /** 锚点初始加载时的节点集（收起时不误删）。 */
   baseNodeIds: Set<string>
   /**
-   * 展开关系簿：nodeId → 该次展开新增的子节点 id（仅当次不重复项）。
+   * 邻居展开关系簿：nodeId → 该次展开新增的子节点 id（仅当次不重复项）。
    * 收起 nodeId 时从 children[nodeId] 找到候选移除项。
    */
   children: Record<string, string[]>
+  /** 列展开（内联）：tableId → 该表列清单（含是否参与列级血缘 hasLineage）。 */
+  columnsByTable: Record<string, LineageColumnItem[]>
   truncated: boolean
 }
 
@@ -57,6 +63,8 @@ export type LineageGraphAction =
   | { type: "load"; anchorId: string; nodes: GraphNodeView[]; edges: FlowEdgeView[]; truncated: boolean }
   | { type: "expand"; nodeId: string; nodes: GraphNodeView[]; edges: FlowEdgeView[] }
   | { type: "collapse"; nodeId: string }
+  | { type: "expandColumns"; tableId: string; columns: LineageColumnItem[] }
+  | { type: "collapseColumns"; tableId: string }
   | { type: "reset" }
 
 export function initialGraphState(): LineageGraphState {
@@ -67,6 +75,7 @@ export function initialGraphState(): LineageGraphState {
     expanded: new Set(),
     baseNodeIds: new Set(),
     children: {},
+    columnsByTable: {},
     truncated: false,
   }
 }
@@ -84,6 +93,7 @@ export function lineageGraphReducer(
         expanded: new Set<string>(),
         baseNodeIds: new Set(action.nodes.map((n) => n.id)),
         children: {},
+        columnsByTable: {},
         truncated: action.truncated,
       }
 
@@ -125,6 +135,17 @@ export function lineageGraphReducer(
       const children = { ...state.children }
       delete children[action.nodeId]
       return { ...state, nodes, edges, expanded, children }
+    }
+
+    case "expandColumns": {
+      const columnsByTable = { ...state.columnsByTable, [action.tableId]: action.columns }
+      return { ...state, columnsByTable }
+    }
+
+    case "collapseColumns": {
+      const columnsByTable = { ...state.columnsByTable }
+      delete columnsByTable[action.tableId]
+      return { ...state, columnsByTable }
     }
 
     case "reset":

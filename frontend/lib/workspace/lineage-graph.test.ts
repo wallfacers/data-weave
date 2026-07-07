@@ -119,6 +119,67 @@ describe("lineageGraphReducer", () => {
     expect(s.nodes.map((n) => n.id).sort()).toEqual(["a", "b"])
   })
 
+  it("expandColumns 内联列清单独立于邻居画布展开，互不干扰", () => {
+    let s = lineageGraphReducer(initialGraphState(), {
+      type: "load",
+      anchorId: "a",
+      nodes: [tbl("a"), tbl("b")],
+      edges: [e("a", "b")],
+      truncated: false,
+    })
+    // 邻居展开 b → {n1}（画布节点）
+    s = lineageGraphReducer(s, {
+      type: "expand",
+      nodeId: "b",
+      nodes: [tbl("n1")],
+      edges: [e("b", "n1")],
+    })
+    // 列展开 b → 内联列清单（不新增画布节点）
+    s = lineageGraphReducer(s, {
+      type: "expandColumns",
+      tableId: "b",
+      columns: [
+        { id: "b.c1", name: "c1", hasLineage: true },
+        { id: "b.c2", name: "c2" },
+      ],
+    })
+    expect(s.expanded.has("b")).toBe(true)
+    expect(s.columnsByTable["b"]).toHaveLength(2)
+    // 画布节点仍是 a,b,n1（列不入画布）
+    expect(s.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "n1"])
+
+    // 收起列：仅移除内联列，邻居画布节点 n1 不受影响
+    s = lineageGraphReducer(s, { type: "collapseColumns", tableId: "b" })
+    expect(s.columnsByTable["b"]).toBeUndefined()
+    expect(s.expanded.has("b")).toBe(true)
+    expect(s.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "n1"])
+  })
+
+  it("collapse 邻居展开不影响已展开的内联列", () => {
+    let s = lineageGraphReducer(initialGraphState(), {
+      type: "load",
+      anchorId: "a",
+      nodes: [tbl("a")],
+      edges: [],
+      truncated: false,
+    })
+    s = lineageGraphReducer(s, {
+      type: "expandColumns",
+      tableId: "a",
+      columns: [{ id: "a.c1", name: "c1" }],
+    })
+    s = lineageGraphReducer(s, {
+      type: "expand",
+      nodeId: "a",
+      nodes: [tbl("n1")],
+      edges: [e("a", "n1")],
+    })
+    s = lineageGraphReducer(s, { type: "collapse", nodeId: "a" })
+    // n1 移除，内联列保留
+    expect(s.nodes.map((n) => n.id).sort()).toEqual(["a"])
+    expect(s.columnsByTable["a"]).toHaveLength(1)
+  })
+
   it("reset 清空全态", () => {
     let s = lineageGraphReducer(initialGraphState(), {
       type: "load",

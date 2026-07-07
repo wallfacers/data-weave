@@ -207,6 +207,7 @@ public class LineageQueryService {
         return """
                {
                  layer: end.layer,
+                 columnCount: size([(end)-[:HAS_COLUMN]->(col:Column) | col]),
                  producers: [(task:Task)-[:WRITES]->(end) WHERE task.tenantId=$tenantId AND task.projectId=$projectId | task.name],
                  syncedRowsToday: reduce(total=0, rc IN [(run:TaskRun)-[sync:SYNCED]->(end) WHERE run.bizDate=date() | sync.rowCount] | total + rc),
                  lastSyncDate: toString(reduce(m=null, d IN [(run:TaskRun)-[sync:SYNCED]->(end) | run.bizDate] | CASE WHEN m IS NULL OR d > m THEN d ELSE m END))
@@ -283,6 +284,53 @@ public class LineageQueryService {
         List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,
                 "tableId", tableId, "offset", offset, "limit", l));
         return rows.stream().map(LineageQueryService::mapNode).toList();
+    }
+
+    /**
+     * 052 T038：表节点「展开列」——本表列清单 + 列级派生边（FR-015）。
+     *
+     * <p>节点集 = 本表列（{@code parentId=本表}）∪ 经 {@code DERIVES_FROM} 1 跳邻接列
+     * （{@code parentId=其所属表}）；后者使「列与其上下游列之间的派生边」在两表都展开时能闭合渲染
+     * （布局层丢弃悬挂边，故必须带入对端列节点）。边集 = 本表任一列关联的 {@code DERIVES_FROM}（双向）。
+     * 只读；neo4j 不可达经 {@link #execute} 降级为 {@code lineage.store_unavailable}。
+     */
+    public LineageGraph expandColumns(long tenantId, long projectId, String tableId) {
+        String nodeCypher = """
+                MATCH (t:Table {id:$tableId})-[:HAS_COLUMN]->(c:Column)
+                WHERE t.tenantId=$tenantId AND t.projectId=$projectId
+                RETURN c.id AS id, 'COLUMN' AS type, c.name AS name,
+                       NULL AS layer, 'COLUMN' AS granularity, $tableId AS parentId,
+                       {dataType: c.dataType, ordinal: c.ordinal} AS attrs
+                LIMIT $limit
+                UNION
+                MATCH (t:Table {id:$tableId})-[:HAS_COLUMN]->(:Column)-[:DERIVES_FROM]-(nb:Column)<-[:HAS_COLUMN]-(nbt:Table)
+                WHERE t.tenantId=$tenantId AND t.projectId=$projectId
+                  AND nbt.tenantId=$tenantId AND nbt.projectId=$projectId
+                RETURN nb.id AS id, 'COLUMN' AS type, nb.name AS name,
+                       NULL AS layer, 'COLUMN' AS granularity, nbt.id AS parentId,
+                       {dataType: nb.dataType, ordinal: nb.ordinal} AS attrs
+                LIMIT $limit""";
+        List<Map<String, Object>> nodeRows = execute(nodeCypher, params(tenantId, projectId,
+                "tableId", tableId, "limit", MAX_NODES));
+        List<GraphNodeView> nodes = nodeRows.stream().map(LineageQueryService::mapNode).toList();
+        boolean truncated = nodes.size() >= MAX_NODES;
+        if (truncated) logTruncation(tableId, 1, nodes.size());
+
+        String edgeCypher = """
+                MATCH (t:Table {id:$tableId})-[:HAS_COLUMN]->(:Column)-[r:DERIVES_FROM]-(:Column)
+                WHERE t.tenantId=$tenantId AND t.projectId=$projectId
+                WITH DISTINCT r
+                RETURN startNode(r).id AS from, endNode(r).id AS to, 'COLUMN' AS granularity,
+                       r.taskDefId AS taskDefId, r.confidence AS confidence, r.transform AS transform,
+                       r.source AS source, r.modelVersion AS modelVersion
+                LIMIT $limit""";
+        List<Map<String, Object>> edgeRows = execute(edgeCypher, params(tenantId, projectId,
+                "tableId", tableId, "limit", MAX_NODES));
+        List<FlowEdgeView> edges = annotateCorrections(tenantId, projectId,
+                edgeRows.stream().map(LineageQueryService::mapEdge).toList());
+
+        return new LineageGraph(nodes, edges,
+                GraphNodeView.Granularity.COLUMN, 1, truncated, truncated ? nodes.size() : null);
     }
 
     // ═════════════════════════════════════════════════════════════
@@ -537,23 +585,25 @@ public class LineageQueryService {
         // 锚点本身可能不在结果中（无向匹配不包含自身），加回锚点
         boolean hasAnchor = nodes.stream().anyMatch(n -> n.id().equals(tableId));
         if (!hasAnchor) {
-            // 查找锚点
-            String anchorCypher = """
-                    MATCH (n {id:$tableId})
-                    WHERE n.tenantId=$tenantId AND n.projectId=$projectId
-                    RETURN n.id AS id,
-                           CASE labels(n)[0]
+            // 查找锚点（变量名用 end 以复用 nodeAttrsExpr——锚点表须带 columnCount 等富属性，
+            // 否则焦点表的展开列 chevron 因 attrs 空而不显示）
+            String anchorCypher = ("""
+                    MATCH (end {id:$tableId})
+                    WHERE end.tenantId=$tenantId AND end.projectId=$projectId
+                    RETURN end.id AS id,
+                           CASE labels(end)[0]
                              WHEN 'Table' THEN 'TABLE'
                              WHEN 'Column' THEN 'COLUMN'
                              WHEN 'Metric' THEN 'METRIC'
                              ELSE 'TABLE'
                            END AS type,
-                           COALESCE(n.name, n.qualifiedName) AS name,
-                           n.layer AS layer,
+                           COALESCE(end.name, end.qualifiedName) AS name,
+                           end.layer AS layer,
                            '%s' AS granularity,
-                           NULL AS parentId, {} AS attrs
-                    LIMIT 1""".formatted(
-                    granularity == GraphNodeView.Granularity.COLUMN ? "COLUMN" : "TABLE");
+                           NULL AS parentId, %s AS attrs
+                    LIMIT 1""").formatted(
+                    granularity == GraphNodeView.Granularity.COLUMN ? "COLUMN" : "TABLE",
+                    nodeAttrsExpr());
             List<Map<String, Object>> aRows = execute(anchorCypher, params(tenantId, projectId, "tableId", tableId));
             if (!aRows.isEmpty()) {
                 List<GraphNodeView> withAnchor = new ArrayList<>();

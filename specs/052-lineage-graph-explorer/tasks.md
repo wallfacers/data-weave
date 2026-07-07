@@ -131,10 +131,10 @@ description: "Task list for 052-lineage-graph-explorer"
 **Independent Test**: 展开列见列间派生边；不同可信度/来源边样式可辨 + 图例；粒度切换锚点保持。
 
 ### 后端（Agent A）
-- [ ] T037 (BE) 校验/补齐列级 traverse（`granularity=column` 的 `DERIVES_FROM` 上下游）与列过滤，补 IT 断言列级边字段（transform/confidence/source）齐全
+- [x] T037 (BE) 校验/补齐列级 traverse（`granularity=column` 的 `DERIVES_FROM` 上下游）与列过滤，补 IT 断言列级边字段（transform/confidence/source）齐全 ✅ `columnDownstream_shouldReturnEdgesWithAllFields`
 
 ### 前端（Agent B）
-- [ ] T038 (FE) 表节点「展开列」内联列清单 + 列到列派生边渲染；粒度 `Segmented`(表/列) 切换保持锚点
+- [x] T038 (FE) 表节点「展开列」内联列清单（chevron，参与列级血缘的列高亮）+ 列到列派生边走「列级」粒度切换保持锚点；后端新增 `/tables/{id}/columns/lineage` + `columnCount` 富化（含 anchor fallback）；邻居增量（FR-005）挪到节点双击 ✅ 真 Neo4j IT 3 例 + reducer 2 例
 - [ ] T039 (FE) 边样式编码（confidence/transform/source）+ 图例组件 + 面板边 Tab（迁 `edge-detail-panel.tsx` 人工修正 confirm/remove/revoke 进 `DetailPanelShell`，保留 `project:manage` 门禁与 outcome 三态分流）
 - [ ] T040 [P] (FE) Playwright 浏览器门覆盖 US4
 

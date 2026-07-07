@@ -61,6 +61,16 @@ export function readNodeAttrs(node: GraphNodeView): LineageNodeAttrs {
   };
 }
 
+/** 052 T038：表内联列清单项（chevron 展开，US4/FR-015）。 */
+export interface LineageColumnItem {
+  id: string;
+  name: string;
+  dataType?: string;
+  ordinal?: number;
+  /** 是否参与列级血缘（有 DERIVES_FROM 边）→ 内联高亮。 */
+  hasLineage?: boolean;
+}
+
 export interface FlowEdgeView {
   from: string;
   to: string;
@@ -281,6 +291,14 @@ export function fetchDownstream(
     granularity,
     ...filterParams(filters),
   });
+}
+
+/**
+ * 052 T038：表→列展开（列清单 + 列级派生边，US4/FR-015）。
+ * 返回本表列（parentId=本表）∪ 1 跳邻接列（parentId=其所属表）+ 列到列 DERIVES_FROM 边。
+ */
+export function fetchTableColumnLineage(tableId: string) {
+  return get<LineageGraph>(`${BASE}/tables/${encodeURIComponent(tableId)}/columns/lineage`);
 }
 
 /** 052：双向邻域（无向遍历，带真实边，US1/FR-003/007）。 */

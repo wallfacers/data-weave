@@ -85,6 +85,14 @@ public class LineageGraphController {
         return ApiResponse.ok(lineageQueryService.columns(tenant(), project(projectId), id, offset, limit));
     }
 
+    /** 052 T038：表节点「展开列」——本表列清单 + 列级派生边（FR-015，含邻接列使边可闭合）。只读。 */
+    @GetMapping("/tables/{id}/columns/lineage")
+    public ApiResponse<LineageGraph> expandColumns(
+            @RequestParam(required = false) Long projectId,
+            @PathVariable String id) {
+        return ApiResponse.ok(lineageQueryService.expandColumns(tenant(), project(projectId), id));
+    }
+
     // ─── 上游/下游 变长路径（US2） ──────────────────────────────
 
     /** 表上游。granularity=table（默认）仅 FLOWS_TO；=column 含 DERIVES_FROM。 */

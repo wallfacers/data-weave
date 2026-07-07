@@ -110,6 +110,25 @@ export function LineageNode({ id, data }: NodeProps<LineageNode>) {
         </div>
       )}
 
+      {/* 内联列清单（chevron 展开，FR-015）：参与列级血缘的列高亮 */}
+      {d.columns && d.columns.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-0.5 border-t border-border pt-1.5">
+          {d.columns.map((c) => (
+            <div
+              key={c.id}
+              className={cn(
+                "flex items-center gap-1 rounded px-1 py-0.5 text-[11px] leading-none",
+                c.hasLineage ? "bg-primary/10 text-foreground" : "text-muted-foreground",
+              )}
+            >
+              <span className={cn("size-1 shrink-0 rounded-full", c.hasLineage ? "bg-primary" : "bg-muted-foreground/40")} />
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              {c.dataType && <span className="shrink-0 text-[10px] text-muted-foreground/70">{c.dataType}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Handle type="source" position={Position.Right} />
     </div>
   )

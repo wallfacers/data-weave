@@ -15,6 +15,7 @@ Base: `/api/lineage` · 全部 `ApiResponse<T>{code,message,data}` 包裹 · 项
 | 5 | GET | `/tables/{id}/neighborhood` | ✏️ | `depth=2`, +`granularity`?, 过滤? | `LineageGraph`（**双向带边**，原丢边） |
 | 6 | GET | `/impact/{nodeId}` | ✏️ | `depth`, `offset`, `limit`, 过滤? | `ImpactResult`（**edges 填充** + `reachableTotal` + `totalIsLowerBound`） |
 | 7 | GET | `/paths` | 🆕 | `from`(必), `to`(必), `depth`? | `LineagePath` |
+| 8 | GET | `/tables/{id}/columns/lineage` | 🆕 | `projectId`? | `LineageGraph`（T038：本表列 parentId=本表 ∪ 1 跳邻接列 parentId=其表 + 列到列 DERIVES_FROM 边；chevron 内联展开用） |
 | — | GET | `/datasources`·`/tables/{id}/columns`·`/metrics/{id}/lineage`·`/sync-summary`·`/tasks/{id}/hints`·`/tasks/{id}/corrections` | ♻️ | 现有 | 不变 |
 
 ## 1. 🆕 GET /search
