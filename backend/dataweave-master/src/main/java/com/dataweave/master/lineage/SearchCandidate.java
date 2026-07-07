@@ -19,5 +19,10 @@ public record SearchCandidate(
         /** 层标签（ODS/DWD/…；Table 有，Column/Metric 为 null）。 */
         String layer,
         /** 消歧信息：Table=datasourceId / Column=tableKey / Metric=metricType。 */
-        String datasource) {
+        String datasource,
+        /**
+         * 054：数据源展示名（Table/Column 取所属 {@code :Datasource.name}；Metric=null），
+         * 用于候选项显示与同名跨库资产区分（FR-003/SC-005）。可空、向后兼容追加。
+         */
+        String datasourceName) {
 }

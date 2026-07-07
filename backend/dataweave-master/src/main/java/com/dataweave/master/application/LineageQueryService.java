@@ -210,9 +210,14 @@ public class LineageQueryService {
      * lastSyncDate(最近一次 SYNCED 的 bizDate)。
      */
     private static String tableAttrsCypher() {
+        // 054：datasourceId/datasourceName 走 pattern comprehension——兼容写侧 (:Datasource)-[:HAS_TABLE]->(:Table)
+        // 与测试 seed (Table)-[:HAS_DATASOURCE]->(Datasource) 两种关系方向（无向匹配 HAS_DATASOURCE|HAS_TABLE）；
+        // 任一端无数据源（如孤儿表）→ head([])=null。仅用于表节点（nodeAttrsExpr 的 CASE 已限定）。
         return """
                {
                  layer: end.layer,
+                 datasourceId: end.datasourceId,
+                 datasourceName: head([(end)-[:HAS_DATASOURCE|HAS_TABLE]-(ds:Datasource) | ds.name]),
                  columnCount: size([(end)-[:HAS_COLUMN]->(col:Column) | col]),
                  producers: [(task:Task)-[:WRITES]->(end) WHERE task.tenantId=$tenantId AND task.projectId=$projectId | task.name],
                  syncedRowsToday: reduce(total=0, rc IN [(run:TaskRun)-[sync:SYNCED]->(end) WHERE run.bizDate=date() | sync.rowCount] | total + rc),
@@ -284,7 +289,9 @@ public class LineageQueryService {
                 WHERE t.tenantId=$tenantId AND t.projectId=$projectId
                 RETURN c.id AS id, 'COLUMN' AS type, c.name AS name,
                        NULL AS layer, NULL AS granularity, $tableId AS parentId,
-                       {dataType: c.dataType, ordinal: c.ordinal} AS attrs
+                       {dataType: c.dataType, ordinal: c.ordinal,
+                        datasourceId: t.datasourceId,
+                        datasourceName: head([(t)-[:HAS_DATASOURCE|HAS_TABLE]-(ds:Datasource) | ds.name])} AS attrs
                 ORDER BY c.ordinal
                 SKIP $offset LIMIT $limit""";
         List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,
@@ -306,7 +313,9 @@ public class LineageQueryService {
                 WHERE t.tenantId=$tenantId AND t.projectId=$projectId
                 RETURN c.id AS id, 'COLUMN' AS type, c.name AS name,
                        NULL AS layer, 'COLUMN' AS granularity, $tableId AS parentId,
-                       {dataType: c.dataType, ordinal: c.ordinal} AS attrs
+                       {dataType: c.dataType, ordinal: c.ordinal,
+                        datasourceId: t.datasourceId,
+                        datasourceName: head([(t)-[:HAS_DATASOURCE|HAS_TABLE]-(ds:Datasource) | ds.name])} AS attrs
                 LIMIT $limit
                 UNION
                 MATCH (t:Table {id:$tableId})-[:HAS_COLUMN]->(:Column)-[:DERIVES_FROM]-(nb:Column)<-[:HAS_COLUMN]-(nbt:Table)
@@ -314,7 +323,9 @@ public class LineageQueryService {
                   AND nbt.tenantId=$tenantId AND nbt.projectId=$projectId
                 RETURN nb.id AS id, 'COLUMN' AS type, nb.name AS name,
                        NULL AS layer, 'COLUMN' AS granularity, nbt.id AS parentId,
-                       {dataType: nb.dataType, ordinal: nb.ordinal} AS attrs
+                       {dataType: nb.dataType, ordinal: nb.ordinal,
+                        datasourceId: nbt.datasourceId,
+                        datasourceName: head([(nbt)-[:HAS_DATASOURCE|HAS_TABLE]-(ds:Datasource) | ds.name])} AS attrs
                 LIMIT $limit""";
         List<Map<String, Object>> nodeRows = execute(nodeCypher, params(tenantId, projectId,
                 "tableId", tableId, "limit", MAX_NODES));
@@ -503,7 +514,9 @@ public class LineageQueryService {
                 WHERE start.tenantId=$tenantId AND start.projectId=$projectId
                 RETURN DISTINCT end.id AS id, 'COLUMN' AS type, end.name AS name,
                        NULL AS layer, 'COLUMN' AS granularity, NULL AS parentId,
-                       {dataType: end.dataType, ordinal: end.ordinal} AS attrs
+                       {dataType: end.dataType, ordinal: end.ordinal,
+                        datasourceId: head([(end)<-[:HAS_COLUMN]-(ct:Table) | ct.datasourceId]),
+                        datasourceName: head([(end)<-[:HAS_COLUMN]-(ct:Table)-[:HAS_DATASOURCE|HAS_TABLE]-(ds:Datasource) | ds.name])} AS attrs
                 LIMIT $limit""",
                 dir, d, arrow);
 
@@ -789,54 +802,60 @@ public class LineageQueryService {
         List<SearchCandidate> results = new ArrayList<>();
 
         if (includeTable) {
+            // 054：join 所属数据源展示名（兼容写侧 (:Datasource)-[:HAS_TABLE]->(:Table) 与
+            // 测试 seed (Table)-[:HAS_DATASOURCE]->(Datasource)；任一缺失 head([])=null）。
             String tableCypher = """
                     MATCH (t:Table)
                     WHERE t.tenantId=$tenantId AND t.projectId=$projectId
                       AND toLower(t.qualifiedName) CONTAINS toLower($keyword)
                     RETURN t.id AS id, 'TABLE' AS type,
                            t.qualifiedName AS name, t.layer AS layer,
-                           t.datasourceId AS datasource
+                           t.datasourceId AS datasource,
+                           head([(t)-[:HAS_DATASOURCE|HAS_TABLE]-(dd:Datasource) | dd.name]) AS datasourceName
                     ORDER BY t.qualifiedName
                     SKIP $offset LIMIT $limit""";
             List<Map<String, Object>> rows = execute(tableCypher, params(tenantId, projectId,
                     "keyword", kw, "offset", offset, "limit", l));
             rows.forEach(r -> results.add(new SearchCandidate(
                     (String) r.get("id"), (String) r.get("type"), (String) r.get("name"),
-                    (String) r.get("layer"), (String) r.get("datasource"))));
+                    (String) r.get("layer"), (String) r.get("datasource"), (String) r.get("datasourceName"))));
         }
 
         if (includeColumn) {
+            // 054：列继承所属表的数据源展示名（经 HAS_COLUMN→Table→Datasource）。
             String colCypher = """
                     MATCH (c:Column)
                     WHERE c.tenantId=$tenantId AND c.projectId=$projectId
                       AND toLower(c.name) CONTAINS toLower($keyword)
                     RETURN c.id AS id, 'COLUMN' AS type,
                            c.name AS name, NULL AS layer,
-                           c.tableKey AS datasource
+                           c.tableKey AS datasource,
+                           head([(c)<-[:HAS_COLUMN]-(ct:Table)-[:HAS_DATASOURCE|HAS_TABLE]-(dd:Datasource) | dd.name]) AS datasourceName
                     ORDER BY c.name
                     SKIP $offset LIMIT $limit""";
             List<Map<String, Object>> rows = execute(colCypher, params(tenantId, projectId,
                     "keyword", kw, "offset", offset, "limit", l));
             rows.forEach(r -> results.add(new SearchCandidate(
                     (String) r.get("id"), (String) r.get("type"), (String) r.get("name"),
-                    (String) r.get("layer"), (String) r.get("datasource"))));
+                    (String) r.get("layer"), (String) r.get("datasource"), (String) r.get("datasourceName"))));
         }
 
         if (includeMetric) {
+            // 054：指标无物理数据源 → datasourceName 恒 null（FR-006/011）。
             String metricCypher = """
                     MATCH (m:Metric)
                     WHERE m.tenantId=$tenantId AND m.projectId=$projectId
                       AND toLower(m.name) CONTAINS toLower($keyword)
                     RETURN m.id AS id, 'METRIC' AS type,
                            m.name AS name, NULL AS layer,
-                           m.metricType AS datasource
+                           m.metricType AS datasource, NULL AS datasourceName
                     ORDER BY m.name
                     SKIP $offset LIMIT $limit""";
             List<Map<String, Object>> rows = execute(metricCypher, params(tenantId, projectId,
                     "keyword", kw, "offset", offset, "limit", l));
             rows.forEach(r -> results.add(new SearchCandidate(
                     (String) r.get("id"), (String) r.get("type"), (String) r.get("name"),
-                    (String) r.get("layer"), (String) r.get("datasource"))));
+                    (String) r.get("layer"), (String) r.get("datasource"), (String) r.get("datasourceName"))));
         }
 
         // 排序 + 截断

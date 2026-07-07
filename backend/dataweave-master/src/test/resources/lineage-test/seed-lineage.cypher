@@ -121,3 +121,50 @@ CREATE (metric2)-[:COMPUTED_FROM]->(t5);
 CREATE (task20:Task {id: 'task-20', tenantId: 2, projectId: 2, name: 'etl_tenant2', taskDefId: 20});
 CREATE (task20)-[:WRITES]->(t5);
 CREATE (task20)-[:WRITES]->(t6);
+
+// ============================================================================
+// 054-lineage-search-first-nav：跨数据源链 + 列级血缘种子（场景目录化文档）
+// 场景：mysql-prod.user(ODS) → hive-dw.dwd_user(DWD) → hive-dw.dws_user_1d(DWS) → pg-bi.rpt_user(ADS)
+//   + hive 内列级 DERIVES_FROM：dwd_user.uid → dws_user_1d.user_id
+//   + 同名跨库（mysql/pg 各一 user）用于搜索同名区分断言
+//   + 他项目资产（tenant2 other-db.user）用于隔离断言
+// 注：真 Neo4j IT（LineageDatasourceProjectionIT）用 inline seed 自带等价场景；本文件为目录化文档，
+//   读侧投影（datasourceId/datasourceName）走无向 pattern comprehension，兼容此处 HAS_DATASOURCE 与写侧 HAS_TABLE。
+// ============================================================================
+
+// ─── 054 Tenant 1, Project 1：跨数据源链 ──────────────────────────
+CREATE (dsMysql:Datasource {id: 'ds-mysql', tenantId: 1, projectId: 1, name: 'mysql-prod'});
+CREATE (dsHive:Datasource {id: 'ds-hive', tenantId: 1, projectId: 1, name: 'hive-dw'});
+CREATE (dsPg:Datasource {id: 'ds-pg', tenantId: 1, projectId: 1, name: 'pg-bi'});
+
+CREATE (tMysqlUser:Table {id: 't-mysql-user', tenantId: 1, projectId: 1, qualifiedName: 'user', layer: 'ODS', datasourceId: 'ds-mysql'});
+CREATE (tHiveDwd:Table {id: 't-hive-dwd-user', tenantId: 1, projectId: 1, qualifiedName: 'dwd_user', layer: 'DWD', datasourceId: 'ds-hive'});
+CREATE (tHiveDws:Table {id: 't-hive-dws-user', tenantId: 1, projectId: 1, qualifiedName: 'dws_user_1d', layer: 'DWS', datasourceId: 'ds-hive'});
+CREATE (tPgRpt:Table {id: 't-pg-rpt-user', tenantId: 1, projectId: 1, qualifiedName: 'rpt_user', layer: 'ADS', datasourceId: 'ds-pg'});
+CREATE (tPgUser:Table {id: 't-pg-user', tenantId: 1, projectId: 1, qualifiedName: 'user', layer: 'ODS', datasourceId: 'ds-pg'});
+
+CREATE (tMysqlUser)-[:HAS_DATASOURCE]->(dsMysql);
+CREATE (tHiveDwd)-[:HAS_DATASOURCE]->(dsHive);
+CREATE (tHiveDws)-[:HAS_DATASOURCE]->(dsHive);
+CREATE (tPgRpt)-[:HAS_DATASOURCE]->(dsPg);
+CREATE (tPgUser)-[:HAS_DATASOURCE]->(dsPg);
+
+CREATE (tMysqlUser)-[:FLOWS_TO {taskDefId: 100, confidence: 'CONFIRMED', source: 'SQL_PARSED'}]->(tHiveDwd);
+CREATE (tHiveDwd)-[:FLOWS_TO {taskDefId: 101, confidence: 'CONFIRMED', source: 'SQL_PARSED'}]->(tHiveDws);
+CREATE (tHiveDws)-[:FLOWS_TO {taskDefId: 102, confidence: 'UNVERIFIED', source: 'FORM'}]->(tPgRpt);
+
+// hive 内列级血缘：dwd_user.uid → dws_user_1d.user_id
+CREATE (cDwdUid:Column {id: 'col-dwd-uid', tenantId: 1, projectId: 1, name: 'uid', dataType: 'BIGINT', ordinal: 1, tableKey: 't-hive-dwd-user'});
+CREATE (cDwsUserId:Column {id: 'col-dws-user-id', tenantId: 1, projectId: 1, name: 'user_id', dataType: 'BIGINT', ordinal: 1, tableKey: 't-hive-dws-user'});
+CREATE (tHiveDwd)-[:HAS_COLUMN]->(cDwdUid);
+CREATE (tHiveDws)-[:HAS_COLUMN]->(cDwsUserId);
+CREATE (cDwdUid)-[:DERIVES_FROM {taskDefId: 101, transform: 'DIRECT', confidence: 'CONFIRMED', source: 'SQL_PARSED'}]->(cDwsUserId);
+
+// 指标（无物理数据源 → 无 datasource 投影，跨源判定视为未知来源）
+CREATE (metric054:Metric {id: 'metric-054', tenantId: 1, projectId: 1, name: 'active_user_metric', metricType: 'DERIVED'});
+CREATE (metric054)-[:COMPUTED_FROM]->(tMysqlUser);
+
+// ─── 054 Tenant 2, Project 2：他项目资产（隔离断言） ──────────────
+CREATE (dsT2:Datasource {id: 'ds-t2', tenantId: 2, projectId: 2, name: 'other-db'});
+CREATE (tT2User:Table {id: 't-t2-user', tenantId: 2, projectId: 2, qualifiedName: 'user', layer: 'ODS', datasourceId: 'ds-t2'});
+CREATE (tT2User)-[:HAS_DATASOURCE]->(dsT2);

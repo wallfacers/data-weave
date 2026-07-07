@@ -76,4 +76,39 @@ class LineageGraphEndpointTest {
                 .jsonPath("$.data").isArray()
                 .jsonPath("$.data.length()").isEqualTo(0);
     }
+
+    // ─── 054 向后兼容 + 项目隔离守卫（FR-020） ─────────────────
+    // 054 新增的节点 attrs(datasourceId/datasourceName) 与 SearchCandidate.datasourceName 富化
+    // 由真 Neo4j IT（LineageDatasourceProjectionIT）覆盖；h2 无 Neo4j，这里锁「形状不破 + 隔离不漏」。
+
+    @Test
+    void graphLegacyContract_preservesLineageGraphShape() {
+        // /api/lineage/graph 恒返回空 LineageGraph；锁其 record 字段形状（向后兼容，DTO 富化不改既有字段）。
+        client.get().uri("/api/lineage/graph")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.nodes").isArray()
+                .jsonPath("$.data.edges").isArray()
+                .jsonPath("$.data.granularity").exists()
+                .jsonPath("$.data.depth").exists()
+                .jsonPath("$.data.truncated").exists();
+    }
+
+    @Test
+    void search_withoutProject_returnsProjectRequired() {
+        // 不带 X-Project-Id（亦无 projectId 参数）→ project() 抛 project.required（FR-020 项目隔离守卫，
+        // 在任何 Neo4j 查询之前）。HTTP 恒 200，业务状态经 code/errorCode 表达（GlobalExceptionHandler 约定）。
+        WebTestClient noProjectClient = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
+        noProjectClient.get().uri("/api/lineage/search?q=user")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400)
+                .jsonPath("$.errorCode").isEqualTo("project.required");
+    }
 }
