@@ -37,7 +37,10 @@
     "confirmCloseTitle": "确认关闭",
     "confirmCloseDesc": "「{label}」有未保存的改动，关闭后改动将丢失。",
     "discardChanges": "丢弃改动",
-    "noAvailableViews": "无可用视图"
+    "noAvailableViews": "无可用视图",
+    "welcomeTitle": "Weft",
+    "welcomeDesc": "Tasks-as-Code 平台，开发者在本地与 AI 协作编写任务，推送至服务端进行治理与调度执行。",
+    "welcomeHint": "从左侧 Agent 对话或点击右上角 + 开启视图"
   },
   "ops": {
     "title": "运营中心",

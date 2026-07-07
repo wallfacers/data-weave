@@ -37,7 +37,10 @@
     "confirmCloseTitle": "Confirm close",
     "confirmCloseDesc": "\"{label}\" has unsaved changes. Changes will be lost if closed.",
     "discardChanges": "Discard changes",
-    "noAvailableViews": "No available views"
+    "noAvailableViews": "No available views",
+    "welcomeTitle": "Weft",
+    "welcomeDesc": "Tasks-as-Code platform. Author tasks locally with AI, push to the server for governance and execution.",
+    "welcomeHint": "Chat with the Agent or click + to open a view"
   },
   "ops": {
     "title": "Ops Center",

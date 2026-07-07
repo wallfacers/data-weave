@@ -247,7 +247,7 @@ export function TabStrip({
   const renderTab = (tab: TabStripItem, i: number) => {
     const active = tab.id === activeId
     const closable = tab.closable !== false
-    const firstFlush = i === 0
+    const firstFlush = i === 0 && !leading
 
     return (
       <div
