@@ -7,6 +7,7 @@ import com.dataweave.master.domain.WorkflowInstance;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -213,5 +214,102 @@ class WorkflowStateServiceTest {
         new WorkflowStateService(tiRepo, wiRepo, bus).computeAndUpdate(wid);
 
         verify(bus, never()).publish(any(), any());
+    }
+
+    // ── finishedAt：终态记结束时间，非终态清空 ──
+
+    @Test
+    void computeAndUpdate_状态变迁到SUCCESS_设置finishedAt() {
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(0);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid)).thenReturn(List.of(n("SUCCESS"), n("SUCCESS")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid);
+
+        assertThat(wi.getState()).isEqualTo("SUCCESS");
+        assertThat(wi.getFinishedAt()).isNotNull();
+    }
+
+    @Test
+    void computeAndUpdate_状态变迁到FAILED_设置finishedAt() {
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setCompletedTasks(0);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid)).thenReturn(List.of(n("FAILED"), n("SUCCESS")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid);
+
+        assertThat(wi.getState()).isEqualTo("FAILED");
+        assertThat(wi.getFinishedAt()).isNotNull();
+    }
+
+    @Test
+    void computeAndUpdate_状态变迁到非终态_清空finishedAt() {
+        // 重跑场景：workflow 从 SUCCESS 回 RUNNING，finishedAt 应被清空
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("SUCCESS");
+        wi.setFinishedAt(LocalDateTime.now().minusHours(1)); // 旧终态时间
+        wi.setCompletedTasks(2);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(3);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        // 一个节点被重跑→WAITING，另一个仍 SUCCESS
+        when(tiRepo.findByWorkflowInstanceId(wid))
+                .thenReturn(List.of(n("SUCCESS"), n("SUCCESS"), n("WAITING")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid);
+
+        assertThat(wi.getState()).isEqualTo("RUNNING");
+        assertThat(wi.getFinishedAt()).isNull();
+    }
+
+    @Test
+    void computeAndUpdate_状态未变仅进度变_不修改finishedAt() {
+        // RUNNING→RUNNING（仅 completedTasks 增加），finishedAt 保持原值不变
+        UUID wid = UUID.randomUUID();
+        WorkflowInstance wi = new WorkflowInstance();
+        wi.setId(wid);
+        wi.setState("RUNNING");
+        wi.setFinishedAt(null); // 运行中本就没有
+        wi.setCompletedTasks(0);
+        wi.setFailedTasks(0);
+        wi.setTotalTasks(2);
+
+        TaskInstanceRepository tiRepo = mock(TaskInstanceRepository.class);
+        WorkflowInstanceRepository wiRepo = mock(WorkflowInstanceRepository.class);
+        when(wiRepo.findById(wid)).thenReturn(Optional.of(wi));
+        when(tiRepo.findByWorkflowInstanceId(wid)).thenReturn(List.of(n("SUCCESS"), n("WAITING")));
+        when(wiRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        new WorkflowStateService(tiRepo, wiRepo, mock(EventBus.class)).computeAndUpdate(wid);
+
+        // 状态未变 → finishedAt 不动
+        assertThat(wi.getState()).isEqualTo("RUNNING");
+        assertThat(wi.getFinishedAt()).isNull();
     }
 }

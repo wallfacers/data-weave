@@ -1,6 +1,7 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.TaskInstance;
 import com.dataweave.master.domain.WorkflowInstance;
 import com.dataweave.master.domain.WorkflowInstanceRepository;
@@ -123,10 +124,19 @@ public class WorkflowStateService {
                 || !Integer.valueOf(completed).equals(wi.getCompletedTasks())
                 || !Integer.valueOf(failed).equals(wi.getFailedTasks());
         if (changed) {
+            boolean stateChanged = !state.equals(wi.getState());
             wi.setState(state);
             wi.setCompletedTasks(completed);
             wi.setFailedTasks(failed);
             wi.setUpdatedAt(LocalDateTime.now());
+            // 状态变迁 → 记/清结束时间：终态记 finishedAt；非终态（重跑/恢复/回炉）清空 finishedAt。
+            if (stateChanged) {
+                if (InstanceStates.isTerminal(state)) {
+                    wi.setFinishedAt(LocalDateTime.now());
+                } else {
+                    wi.setFinishedAt(null);
+                }
+            }
             workflowInstanceRepository.save(wi);
             // 聚合态变化即向画布事件频道补发 workflowState：自然完成（SUCCESS/FAILED）也能让前端 runStatus
             // 翻到终态，停止按钮收起（此前只有显式 STOP 路径发 workflowState，自然聚合从不发，按钮常驻）。
