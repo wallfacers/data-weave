@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 多粒度血缘 REST（020 重设计）—— 基于 neo4j Cypher 变长路径。
+ * 多粒度血缘 REST（020 重设计 + 052 查询补齐）—— 基于 neo4j Cypher 变长路径。
  *
  * <p>读写均经 {@link LineageQueryService}（neo4j 读侧）；写侧由 018 {@code LineageStore} 落图。
  *
@@ -18,6 +18,9 @@ import java.util.List;
  * tenantId 取 {@link TenantContext}（JwtAuthFilter 注入），projectId 优先取 TenantContext
  * （地基注入并校验成员归属），回退到 {@code projectId} 查询参数（地基未注入前的兼容形态），
  * 二者皆空 → {@code project.required}。查询按项目作用域，杜绝跨项目血缘串号。
+ *
+ * <p>052 扩展：/search、/paths 新端点；upstream/downstream/impact/neighborhood 加过滤参数；
+ * neighborhood 双向带边（修复 List.of() 丢边）；全部只读不经 PolicyEngine。
  */
 @RestController
 @RequestMapping("/api/lineage")
@@ -90,9 +93,17 @@ public class LineageGraphController {
             @RequestParam(required = false) Long projectId,
             @PathVariable String id,
             @RequestParam(defaultValue = "0") int depth,
-            @RequestParam(defaultValue = "TABLE") String granularity) {
+            @RequestParam(defaultValue = "TABLE") String granularity,
+            @RequestParam(required = false) String layers,
+            @RequestParam(required = false) String types,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
         GraphNodeView.Granularity g = parseGranularity(granularity);
-        return ApiResponse.ok(lineageQueryService.upstream(tenant(), project(projectId), id, depth, g));
+        return ApiResponse.ok(lineageQueryService.upstream(tenant(), project(projectId), id, depth, g,
+                LineageQueryService.parseFilterList(layers),
+                LineageQueryService.parseFilterList(types),
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
     }
 
     /** 表下游。 */
@@ -101,9 +112,17 @@ public class LineageGraphController {
             @RequestParam(required = false) Long projectId,
             @PathVariable String id,
             @RequestParam(defaultValue = "0") int depth,
-            @RequestParam(defaultValue = "TABLE") String granularity) {
+            @RequestParam(defaultValue = "TABLE") String granularity,
+            @RequestParam(required = false) String layers,
+            @RequestParam(required = false) String types,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
         GraphNodeView.Granularity g = parseGranularity(granularity);
-        return ApiResponse.ok(lineageQueryService.downstream(tenant(), project(projectId), id, depth, g));
+        return ApiResponse.ok(lineageQueryService.downstream(tenant(), project(projectId), id, depth, g,
+                LineageQueryService.parseFilterList(layers),
+                LineageQueryService.parseFilterList(types),
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
     }
 
     /** 列上游（列级 DERIVES_FROM 流）。 */
@@ -111,8 +130,12 @@ public class LineageGraphController {
     public ApiResponse<LineageGraph> columnUpstream(
             @RequestParam(required = false) Long projectId,
             @PathVariable String id,
-            @RequestParam(defaultValue = "0") int depth) {
-        return ApiResponse.ok(lineageQueryService.columnUpstream(tenant(), project(projectId), id, depth));
+            @RequestParam(defaultValue = "0") int depth,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
+        return ApiResponse.ok(lineageQueryService.columnUpstream(tenant(), project(projectId), id, depth,
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
     }
 
     /** 列下游。 */
@@ -120,21 +143,80 @@ public class LineageGraphController {
     public ApiResponse<LineageGraph> columnDownstream(
             @RequestParam(required = false) Long projectId,
             @PathVariable String id,
-            @RequestParam(defaultValue = "0") int depth) {
-        return ApiResponse.ok(lineageQueryService.columnDownstream(tenant(), project(projectId), id, depth));
+            @RequestParam(defaultValue = "0") int depth,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
+        return ApiResponse.ok(lineageQueryService.columnDownstream(tenant(), project(projectId), id, depth,
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
     }
 
     // ─── 影响面（US2） ─────────────────────────────────────────
 
-    /** 全下游可达集合（表+列）。 */
+    /** 全下游可达集合（表+列）。052：加过滤 + edges + reachableTotal。 */
     @GetMapping("/impact/{nodeId}")
     public ApiResponse<ImpactResult> impact(
             @RequestParam(required = false) Long projectId,
             @PathVariable String nodeId,
             @RequestParam(defaultValue = "0") int depth,
             @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(required = false) String layers,
+            @RequestParam(required = false) String types,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
+        return ApiResponse.ok(lineageQueryService.impact(tenant(), project(projectId), nodeId, depth, offset, limit,
+                LineageQueryService.parseFilterList(layers),
+                LineageQueryService.parseFilterList(types),
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
+    }
+
+    // ─── 052 双向邻域（US1 / FR-003/007） ──────────────────────
+
+    /** N 跳邻域：双向带边（修复原 List.of() 丢边）。 */
+    @GetMapping("/tables/{id}/neighborhood")
+    public ApiResponse<LineageGraph> neighborhood(
+            @RequestParam(required = false) Long projectId,
+            @PathVariable String id,
+            @RequestParam(defaultValue = "2") int depth,
+            @RequestParam(defaultValue = "TABLE") String granularity,
+            @RequestParam(required = false) String layers,
+            @RequestParam(required = false) String types,
+            @RequestParam(required = false) String confidences,
+            @RequestParam(required = false) String sources) {
+        GraphNodeView.Granularity g = parseGranularity(granularity);
+        return ApiResponse.ok(lineageQueryService.neighborhood(tenant(), project(projectId), id, depth, g,
+                LineageQueryService.parseFilterList(layers),
+                LineageQueryService.parseFilterList(types),
+                LineageQueryService.parseFilterList(confidences),
+                LineageQueryService.parseFilterList(sources)));
+    }
+
+    // ─── 052 按名搜索（US2 / FR-008/009/011/022） ──────────────
+
+    /** 按名搜索数据资产。 */
+    @GetMapping("/search")
+    public ApiResponse<List<SearchCandidate>> search(
+            @RequestParam(required = false) Long projectId,
+            @RequestParam String q,
+            @RequestParam(required = false) String types,
+            @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "100") int limit) {
-        return ApiResponse.ok(lineageQueryService.impact(tenant(), project(projectId), nodeId, depth, offset, limit));
+        return ApiResponse.ok(lineageQueryService.search(tenant(), project(projectId), q,
+                LineageQueryService.parseFilterList(types), offset, limit));
+    }
+
+    // ─── 052 两点间路径（US3 / FR-014） ────────────────────────
+
+    /** 两节点间所有连接路径。 */
+    @GetMapping("/paths")
+    public ApiResponse<LineagePath> paths(
+            @RequestParam(required = false) Long projectId,
+            @RequestParam String from,
+            @RequestParam String to,
+            @RequestParam(defaultValue = "0") int depth) {
+        return ApiResponse.ok(lineageQueryService.pathsBetween(tenant(), project(projectId), from, to, depth));
     }
 
     // ─── 指标血缘 + 运行态（US3） ───────────────────────────────
@@ -159,28 +241,6 @@ public class LineageGraphController {
     @GetMapping("/graph")
     public ApiResponse<LineageGraph> graph() {
         return ApiResponse.ok(LineageGraph.empty());
-    }
-
-    /** N 跳邻域（兼容旧端点 → 影响面替代）。 */
-    @GetMapping("/tables/{id}/neighborhood")
-    public ApiResponse<LineageGraph> neighborhood(
-            @RequestParam(required = false) Long projectId,
-            @PathVariable String id,
-            @RequestParam(defaultValue = "2") int depth) {
-        // 邻域 = 上游 ∪ 下游（有界）
-        long t = tenant();
-        long p = project(projectId);
-        var d = LineageQueryService.clampDepth(depth);
-        var up = lineageQueryService.upstream(t, p, id, d, GraphNodeView.Granularity.TABLE);
-        var down = lineageQueryService.downstream(t, p, id, d, GraphNodeView.Granularity.TABLE);
-        var allNodes = new java.util.ArrayList<GraphNodeView>();
-        allNodes.addAll(up.nodes());
-        allNodes.addAll(down.nodes());
-        return ApiResponse.ok(new LineageGraph(
-                allNodes.stream().distinct().toList(), List.of(),
-                GraphNodeView.Granularity.TABLE, d,
-                up.truncated() || down.truncated(),
-                up.truncated() ? up.truncatedAt() : down.truncatedAt()));
     }
 
     // ─── 041 脚本血缘：人工修正（US3，FR-007，经门禁 L1 + agent_action 留痕） ───

@@ -17,6 +17,10 @@ public record ImpactResult(
         List<FlowEdgeView> edges,
         /** 可达节点数。 */
         int nodeCount,
+        /** 真实下游可达总数（独立 COUNT，与当前页 nodeCount 解耦；FR-013）。 */
+        int reachableTotal,
+        /** 达 countCap 时 true → 前端显示「≥N」（FR-013 下限表达）。 */
+        boolean totalIsLowerBound,
         /** 是否截断。 */
         boolean truncated,
         /** 截断点（truncated=false 时 null）。 */

@@ -60,12 +60,13 @@ class LineageSeamE2EIT extends Neo4jTestSupport {
                 .contains(DS_KEY);
 
         // 2. 表级下游（FLOWS_TO 变长路径）：ods_orders → dwd_orders
-        assertThat(query.downstream(T, P, SRC_TK, 5, Granularity.TABLE).nodes())
+        assertThat(query.downstream(T, P, SRC_TK, 5, Granularity.TABLE,
+                null, null, null, null).nodes())
                 .extracting(GraphNodeView::name)
                 .contains("dwd_orders");
 
         // 3. 列级下游（DERIVES_FROM）：ods_orders.id → dwd_orders.id
-        assertThat(query.columnDownstream(T, P, SRC_CK, 5).nodes())
+        assertThat(query.columnDownstream(T, P, SRC_CK, 5, null, null).nodes())
                 .isNotEmpty();
 
         // 4. 目标表的列可被读回（HAS_COLUMN）
