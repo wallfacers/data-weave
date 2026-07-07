@@ -10,7 +10,6 @@
  * 设计约束（DESIGN.md）：语义 token、三栏无分割线、gap-* / size-*、hugeicons、不手写 dark:。
  */
 import { useCallback, useEffect, useMemo, useReducer, useState, type MouseEvent as ReactMouseEvent } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { type Node } from "@xyflow/react"
 
@@ -50,8 +49,6 @@ const EXPAND_DEPTH = 1
 
 export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const t = useTranslations("lineageView")
-  const router = useRouter()
-  const searchParams = useSearchParams()
 
   // ── ViewState ──
   const [direction, setDirection] = useState<LineageDirection>(
@@ -102,18 +99,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [sel])
 
-  // ── Deep link sync（US5 base）──
-  useEffect(() => {
-    if (!graph.anchorId) return
-    const q = new URLSearchParams(searchParams.toString())
-    q.set("open", "lineage")
-    q.set("anchor", graph.anchorId)
-    q.set("dir", direction)
-    q.set("depth", String(depth))
-    q.set("gran", granularity)
-    const href = `/?${q.toString()}`
-    router.replace(href, { scroll: false })
-  }, [graph.anchorId, direction, depth, granularity]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 注：不再持续把 ?open=lineage&anchor= 写回地址栏——workspace 深链逃生舱（workspace.tsx）
+  // 消费一次 ?open= 后即 replace("/")，二者互写只产生 churn。分享走工具栏「复制链接」
+  // （copyDeepLink 从当前状态重建 URL）；深链恢复走挂载时的 params.anchor（下方 effect）。
 
   // ── Data fetching ──
 
