@@ -164,6 +164,14 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     [direction, depth, granularity, t],
   )
 
+  // ── 深链恢复：挂载时若 params 带 anchor，自动加载该锚点（US5/FR-021）──
+  useEffect(() => {
+    const a = params?.anchor
+    if (typeof a === "string" && a && !graph.anchorId) {
+      loadAnchor(a)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const expandNode = useCallback(
     async (nodeId: string) => {
       if (graph.expanded.has(nodeId)) {

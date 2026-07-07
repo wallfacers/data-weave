@@ -671,7 +671,7 @@ public class LineageQueryService {
         Set<String> nodeIds = downstream.stream().map(GraphNodeView::id).collect(Collectors.toSet());
         nodeIds.add(root.id()); // 包含根节点（边的起点可能是根）
         String edgeCypher = String.format("""
-                MATCH (start {id:$nodeId})-[:FLOWS_TO|DERIVES_FROM*1..%d]->(end)
+                MATCH path = (start {id:$nodeId})-[:FLOWS_TO|DERIVES_FROM*1..%d]->(end)
                 WHERE start.tenantId=$tenantId AND start.projectId=$projectId
                 UNWIND relationships(path) AS r
                 WITH DISTINCT r
