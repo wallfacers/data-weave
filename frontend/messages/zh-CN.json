@@ -1070,6 +1070,7 @@
     "impactDownstream": "下游 {count} 个节点",
     "impactNoEdges": "影响路径无边数据",
     "impactPlaceholder": "对节点触发影响分析后在此查看",
+    "impactReachableLowerBound": "至少 {count} 个下游资产",
     "impactTab": "影响",
     "impactTitle": "影响面",
     "legendInferred": "推断（虚线）",

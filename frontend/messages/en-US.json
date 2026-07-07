@@ -1070,6 +1070,7 @@
     "impactDownstream": "{count} downstream nodes",
     "impactNoEdges": "No impact edges data",
     "impactPlaceholder": "Run impact analysis for a node to view here",
+    "impactReachableLowerBound": "≥{count} downstream assets",
     "impactTab": "Impact",
     "impactTitle": "Impact",
     "legendInferred": "Inferred (dashed)",

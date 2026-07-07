@@ -226,6 +226,17 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     [graph.nodes, sel],
   )
 
+  // ── Handle edge click on canvas → selectEdge ──
+  const handleCanvasEdgeClick = useCallback(
+    (_event: ReactMouseEvent, edge: import("@xyflow/react").Edge) => {
+      const flowEdge = (edge.data as FlowEdgeView | undefined) ?? graph.edges.find(
+        (e) => e.from === edge.source && e.to === edge.target,
+      )
+      if (flowEdge) sel.selectEdge(flowEdge)
+    },
+    [graph.edges, sel],
+  )
+
   // ── Handle pane click → deselect ──
   const handlePaneClick = useCallback(() => {
     sel.closePanel()
@@ -247,12 +258,16 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const layoutOpts: LineageLayoutOptions = useMemo(() => {
     const impactedIds = new Set(impact?.downstream?.map((n) => n.id) ?? [])
     if (impact?.root) impactedIds.add(impact.root.id)
+    const impactEdgeKeys = new Set(
+      (impact?.edges ?? []).map((e) => `${e.from}→${e.to}`),
+    )
     return {
       anchorId: graph.anchorId ?? undefined,
       expandedNodeIds: graph.expanded,
       impactedNodeIds: impactedIds.size > 0 ? impactedIds : undefined,
       selectedNodeId: sel.selectedNode?.id ?? null,
-      dimUnrelated: !!sel.selectedNode,
+      highlightEdgeKeys: impactEdgeKeys.size > 0 ? impactEdgeKeys : undefined,
+      dimUnrelated: !!(sel.selectedNode),
     }
   }, [graph.anchorId, graph.expanded, impact, sel.selectedNode?.id])
 
@@ -401,9 +416,21 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             onRetry={handleRefresh}
             hasData={hasData}
             onNodeClick={handleCanvasNodeClick}
+            onEdgeClick={handleCanvasEdgeClick}
             onPaneClick={onPaneClickForCanvas}
             panelOpen={sel.panelOpen}
-            renderPanel={() => <LineageDetailPanel />}
+            renderPanel={() => (
+              <LineageDetailPanel
+                allNodes={graph.nodes}
+                onEdgeChanged={() => {
+                  if (graph.anchorId) loadAnchor(graph.anchorId)
+                }}
+                onImpactSelectNode={(node) => {
+                  sel.closePanel()
+                  loadAnchor(node.id)
+                }}
+              />
+            )}
             panelStorageKey="dw.lineage.panel-width"
             loadingText={t("loading")}
             emptyText={t("emptyCanvasHint")}

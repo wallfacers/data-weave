@@ -65,6 +65,7 @@ export interface FlowCanvasWithPanelProps {
   // ── 画布交互 ──
   onNodeClick?: (event: ReactMouseEvent, node: Node) => void
   onNodeContextMenu?: (event: ReactMouseEvent, node: Node) => void
+  onEdgeClick?: (event: ReactMouseEvent, edge: Edge) => void
   /** 点画布空白 / Escape 关面板均经此回调（由调用方决定语义）。 */
   onPaneClick?: () => void
   showMiniMap?: boolean
@@ -96,6 +97,7 @@ export function FlowCanvasWithPanel({
   hasData,
   onNodeClick,
   onNodeContextMenu,
+  onEdgeClick,
   onPaneClick,
   showMiniMap = false,
   panelOpen,
@@ -192,6 +194,7 @@ export function FlowCanvasWithPanel({
               showMiniMap={showMiniMap}
               onNodeClick={onNodeClick}
               onNodeContextMenu={onNodeContextMenu}
+              onEdgeClick={onEdgeClick}
               onPaneClick={onPaneClick}
             />
           )}
