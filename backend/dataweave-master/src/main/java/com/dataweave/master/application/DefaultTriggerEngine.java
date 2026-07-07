@@ -151,6 +151,9 @@ public class DefaultTriggerEngine implements TriggerEngine {
                     if (next == null) {
                         continue;
                     }
+                    if (wf.getScheduleEnd() != null && next.isAfter(wf.getScheduleEnd())) {
+                        continue;  // 超出生效期：不回填 next_trigger_time，保持停排（与 advanceNext 一致，防已停排工作流被回填复活）
+                    }
                     wf.setNextTriggerTime(next);
                     wf.setUpdatedAt(now);
                     workflowDefRepository.save(wf);
