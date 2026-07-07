@@ -156,9 +156,15 @@ public class LineageQueryService {
 
     private static GraphNodeView mapNode(Map<String, Object> row) {
         GraphNodeView.NodeType type = GraphNodeView.NodeType.valueOf((String) row.get("type"));
+        String id = (String) row.get("id");
+        String name = (String) row.get("name");
+        // 防御旧 Neo4j 节点缺少 name/id 属性导致的 NPE（MERGE ON CREATE 之前创建的节点）
+        if (name == null) {
+            name = id != null ? id : "unnamed";
+        }
         return new GraphNodeView(
-                (String) row.get("id"), type,
-                (String) row.get("name"),
+                id != null ? id : "unknown", type,
+                name,
                 (String) row.get("layer"),
                 row.get("granularity") != null ? GraphNodeView.Granularity.valueOf((String) row.get("granularity")) : null,
                 (String) row.get("parentId"),
