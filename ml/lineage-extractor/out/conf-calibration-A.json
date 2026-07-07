@@ -1,0 +1,134 @@
+{
+  "n_nonempty": 59,
+  "gold_total": 141,
+  "tier": {
+    "agree": {
+      "n": 23,
+      "precision": 1.0
+    },
+    "sql_qual": {
+      "n": 0,
+      "precision": null
+    },
+    "sql_bare": {
+      "n": 11,
+      "precision": 0.2727272727272727
+    },
+    "model_qual": {
+      "n": 37,
+      "precision": 0.918918918918919
+    },
+    "model_bare": {
+      "n": 84,
+      "precision": 0.6904761904761905
+    }
+  },
+  "apriori_order": [
+    "agree",
+    "sql_bare",
+    "model_qual",
+    "model_bare"
+  ],
+  "calibrated_order": [
+    "agree",
+    "model_qual",
+    "model_bare",
+    "sql_bare"
+  ],
+  "cumulative": [
+    {
+      "upto": "agree",
+      "accept_tiers": [
+        "agree"
+      ],
+      "n_accept": 23,
+      "precision": 1.0,
+      "recall": 0.1702127659574468,
+      "review_per_script": 2.23728813559322
+    },
+    {
+      "upto": "sql_bare",
+      "accept_tiers": [
+        "agree",
+        "sql_bare"
+      ],
+      "n_accept": 34,
+      "precision": 0.7647058823529411,
+      "recall": 0.19148936170212766,
+      "review_per_script": 2.0508474576271185
+    },
+    {
+      "upto": "model_qual",
+      "accept_tiers": [
+        "agree",
+        "sql_bare",
+        "model_qual"
+      ],
+      "n_accept": 71,
+      "precision": 0.8450704225352113,
+      "recall": 0.4326241134751773,
+      "review_per_script": 1.423728813559322
+    },
+    {
+      "upto": "model_bare",
+      "accept_tiers": [
+        "agree",
+        "sql_bare",
+        "model_qual",
+        "model_bare"
+      ],
+      "n_accept": 155,
+      "precision": 0.7612903225806451,
+      "recall": 0.8439716312056738,
+      "review_per_script": 0.0
+    }
+  ],
+  "cumulative_calibrated": [
+    {
+      "upto": "agree",
+      "accept_tiers": [
+        "agree"
+      ],
+      "n_accept": 23,
+      "precision": 1.0,
+      "recall": 0.1702127659574468,
+      "review_per_script": 2.23728813559322
+    },
+    {
+      "upto": "model_qual",
+      "accept_tiers": [
+        "agree",
+        "model_qual"
+      ],
+      "n_accept": 60,
+      "precision": 0.95,
+      "recall": 0.41134751773049644,
+      "review_per_script": 1.6101694915254237
+    },
+    {
+      "upto": "model_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare"
+      ],
+      "n_accept": 144,
+      "precision": 0.7986111111111112,
+      "recall": 0.8226950354609929,
+      "review_per_script": 0.1864406779661017
+    },
+    {
+      "upto": "sql_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare",
+        "sql_bare"
+      ],
+      "n_accept": 155,
+      "precision": 0.7612903225806451,
+      "recall": 0.8439716312056738,
+      "review_per_script": 0.0
+    }
+  ]
+}
