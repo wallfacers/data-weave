@@ -403,3 +403,93 @@ export function fetchTaskCorrections(taskDefId: number) {
 export function postCorrection(req: CorrectionRequest) {
   return post<CorrectionOutcome>(`${BASE}/corrections`, req);
 }
+
+// ─── 053 血缘 AI Agent 配置 ─────────────────────────────────────
+// 契约：specs/053-lineage-llm-agent-schema/contracts/config-api.md
+// 每项目一条 upsert；GET 返回脱敏 VO（apiKeyMasked），PUT 的 apiKey 缺省/空=不改。
+
+/** Agent 通信协议（后端 LlmProtocol 枚举）。 */
+export type AgentProtocol = "ANTHROPIC" | "OPENAI";
+
+/** GET 返回的脱敏配置视图（绝不回明文 apiKey）。 */
+export interface AgentConfigVO {
+  id: number;
+  protocol: AgentProtocol;
+  baseUrl: string;
+  model: string;
+  /** 脱敏形态 `sk-…{末4位}`，仅用于回显「已配置」提示。 */
+  apiKeyMasked: string;
+  enabled: boolean;
+  timeoutMs: number;
+  rateLimitPerMin: number;
+  maxColumns: number;
+}
+
+/** PUT 请求体；apiKey 缺省/空 → 后端保留原密文（PATCH null vs 缺失语义）。 */
+export interface AgentConfigRequest {
+  protocol: AgentProtocol;
+  baseUrl: string;
+  model: string;
+  /** 明文，仅写入时传；undefined/空 = 不改。 */
+  apiKey?: string;
+  enabled: boolean;
+  timeoutMs: number;
+  rateLimitPerMin: number;
+  maxColumns: number;
+}
+
+/** POST /test 连通性探活结果。 */
+export interface AgentTestResult {
+  ok: boolean;
+  latencyMs: number;
+  /** 失败时为本地化原因，成功时为附加说明。 */
+  note: string;
+}
+
+/** PUT 封装（镜像 post：自动附带 projectId + Bearer token）。 */
+async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
+  const url = new URL(path, window.location.origin);
+  const pid = currentProjectId();
+  if (pid != null) {
+    url.searchParams.set("projectId", String(pid));
+  }
+  const token = localStorage.getItem("dw.auth.token") ?? "";
+  const res = await fetch(url.toString(), {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Lineage API ${path} returned ${res.status}`);
+  }
+  return res.json();
+}
+
+/** 业务码非 0 → 抛出后端本地化 message；否则解包 data。 */
+function unwrapAgent<T>(res: ApiResponse<T>): T {
+  if (String(res.code) !== "0") {
+    throw new Error(res.message || "Lineage agent API error");
+  }
+  return res.data;
+}
+
+/** 取当前项目的 Agent 配置（未配置 → null）。 */
+export async function getAgentConfig(): Promise<AgentConfigVO | null> {
+  const res = await get<AgentConfigVO | null>(`${BASE}/agent-config`);
+  return unwrapAgent(res);
+}
+
+/** 创建或更新 Agent 配置（每项目一条 upsert）。 */
+export async function putAgentConfig(req: AgentConfigRequest): Promise<AgentConfigVO> {
+  const res = await put<AgentConfigVO>(`${BASE}/agent-config`, req);
+  return unwrapAgent(res);
+}
+
+/** 用当前（或请求体）配置发一次最小探活外呼；不落库。 */
+export async function testAgentConfig(req: AgentConfigRequest): Promise<AgentTestResult> {
+  const res = await post<AgentTestResult>(`${BASE}/agent-config/test`, req);
+  return unwrapAgent(res);
+}

@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
  * <ul>
  *   <li><b>零阻断</b>（FR-005）：单抽取器异常/超时只损失该通道产物（TIMEOUT/PARSE_FAIL hint 留痕），
  *       本方法绝不外抛；调用方仍按血缘惯例 try-catch 包裹。</li>
- *   <li><b>优先序</b>（FR-009/FR-012）：同 (方向, 表) 键 SCRIPT_SQL &gt; SCRIPT_INFERRED &gt; SCRIPT_MODEL，
+ *   <li><b>优先序</b>（FR-009/FR-012）：同 (方向, 表) 键 SCRIPT_SQL &gt; SCRIPT_INFERRED &gt; SCRIPT_AGENT &gt; SCRIPT_MODEL，
  *       低优先通道不覆盖高优先结果。</li>
  *   <li><b>裁决重放</b>（FR-007）：REMOVED 键过滤不入图；CONFIRMED 键置信度升级。</li>
  *   <li><b>时间预算</b>：整体默认 2s（{@code lineage.script.timeout-ms}），超时收下已完成通道的产物。</li>
@@ -44,9 +44,9 @@ public class ScriptLineageService {
 
     private static final Logger log = LoggerFactory.getLogger(ScriptLineageService.class);
 
-    /** 通道优先序（下标越小越优先）。 */
+    /** 通道优先序（下标越小越优先）。053 插入 SCRIPT_AGENT（云 AI 推断）在规则与小模型之间（FR-004a）。 */
     private static final List<Source> CHANNEL_PRIORITY =
-            List.of(Source.SCRIPT_SQL, Source.SCRIPT_INFERRED, Source.SCRIPT_MODEL);
+            List.of(Source.SCRIPT_SQL, Source.SCRIPT_INFERRED, Source.SCRIPT_AGENT, Source.SCRIPT_MODEL);
 
     /** 抽取专用线程池：守护线程，容量小（push 内同步调用，无并发风暴面）。 */
     private static final ExecutorService POOL = Executors.newFixedThreadPool(2, r -> {

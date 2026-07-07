@@ -33,11 +33,11 @@ class TaskServiceSnapshotTest {
     private TaskService newService() {
         when(taskDefRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(verRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        // 末尾 6 个 null:jdbcTemplate + 5 个血缘依赖(lineageStore/lineageEdgeAssembler/
-        // sqlColumnLineageExtractor/columnLineageCatalog/scriptLineageService)。本测试只覆盖
-        // writeTaskVersionSnapshot/publish,不走 createAndOnline→recordLineage 血缘路径,故血缘依赖传 null 安全。
+        // 末尾 11 个 null:jdbcTemplate + 10 个血缘/数据源依赖(lineageStore/lineageEdgeAssembler/
+        // sqlColumnLineageExtractor/columnLineageCatalog/scriptLineageService + 053 schemaResolver/backfillWriter/datasourceRepository/lineageEnrichmentTrigger + schemaCacheConfig)。
+        // 本测试只覆盖 writeTaskVersionSnapshot/publish,不走 createAndOnline→recordLineage 血缘路径,故血缘依赖传 null 安全。
         return new TaskService(taskDefRepo, verRepo, instRepo, workflowNodeRepo,
-                fleetService, null, null, null, null, null, null);
+                fleetService, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private TaskDef draftTask() {

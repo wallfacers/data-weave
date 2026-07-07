@@ -1038,6 +1038,36 @@
     "filterType": "类型",
     "presetDisconnected": "连接异常"
   },
+  "lineageAgent": {
+    "title": "血缘 AI Agent",
+    "description": "配置用于血缘解析的 LLM Agent 连接",
+    "openBtn": "AI Agent",
+    "loading": "加载中",
+    "cancel": "取消",
+    "savedToast": "配置已保存",
+    "form": {
+      "protocol": "协议",
+      "protocolAnthropic": "Anthropic",
+      "protocolOpenai": "OpenAI 兼容",
+      "baseUrl": "Base URL",
+      "baseUrlPh": "https://api.anthropic.com",
+      "model": "模型",
+      "modelPh": "claude-sonnet-4-5 / gpt-4o",
+      "apiKey": "API Key",
+      "apiKeyMasked": "当前密钥：{masked}",
+      "apiKeyHint": "留空则不修改已保存的密钥",
+      "enabled": "启用",
+      "timeoutMs": "超时(ms)",
+      "rateLimitPerMin": "限速(次/分)",
+      "maxColumns": "最大列数",
+      "testConnection": "连通测试",
+      "testing": "测试中",
+      "save": "保存",
+      "saving": "保存中"
+    },
+    "testOk": "连通正常（{latencyMs}ms）",
+    "testFailed": "连通失败"
+  },
   "lineageView": {
     "actionConfirm": "确认",
     "actionRemove": "剔除",

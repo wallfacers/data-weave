@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Segmented } from "@/components/ui/segmented"
 import { Stepper } from "@/components/ui/stepper"
 import { ViewRefreshControl } from "@/components/workspace/views/view-refresh-control"
+import { AgentConfigPanel } from "@/components/workspace/views/lineage/agent-config-panel"
 
 export interface LineageToolbarProps {
   // ── 方向 ──
@@ -172,6 +173,9 @@ export function LineageToolbar({
           </button>
         )}
       </div>
+
+      {/* 053：血缘 AI Agent 配置入口（自包含触发按钮 + Dialog） */}
+      <AgentConfigPanel />
 
       {/* 刷新 */}
       <div className="ml-auto">

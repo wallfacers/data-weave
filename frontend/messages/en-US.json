@@ -1038,6 +1038,36 @@
     "filterType": "Type",
     "presetDisconnected": "Disconnected"
   },
+  "lineageAgent": {
+    "title": "Lineage AI Agent",
+    "description": "Configure the LLM Agent connection used for lineage extraction",
+    "openBtn": "AI Agent",
+    "loading": "Loading",
+    "cancel": "Cancel",
+    "savedToast": "Configuration saved",
+    "form": {
+      "protocol": "Protocol",
+      "protocolAnthropic": "Anthropic",
+      "protocolOpenai": "OpenAI-compatible",
+      "baseUrl": "Base URL",
+      "baseUrlPh": "https://api.anthropic.com",
+      "model": "Model",
+      "modelPh": "claude-sonnet-4-5 / gpt-4o",
+      "apiKey": "API Key",
+      "apiKeyMasked": "Current key: {masked}",
+      "apiKeyHint": "Leave empty to keep the saved key unchanged",
+      "enabled": "Enabled",
+      "timeoutMs": "Timeout (ms)",
+      "rateLimitPerMin": "Rate limit (req/min)",
+      "maxColumns": "Max columns",
+      "testConnection": "Test connection",
+      "testing": "Testing",
+      "save": "Save",
+      "saving": "Saving"
+    },
+    "testOk": "Connection OK ({latencyMs}ms)",
+    "testFailed": "Connection failed"
+  },
   "lineageView": {
     "actionConfirm": "Confirm",
     "actionRemove": "Remove",

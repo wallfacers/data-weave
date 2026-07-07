@@ -9,8 +9,11 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkflowNode;
 import com.dataweave.master.domain.WorkflowNodeRepository;
+import com.dataweave.master.application.lineage.DatasourceBoundCatalog;
 import com.dataweave.master.application.lineage.LineageEdgeAssembler;
+import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.lineage.LineageStore;
+import com.dataweave.master.infrastructure.lineage.Neo4jColumnBackfillWriter;
 import com.dataweave.master.i18n.BizException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -37,6 +40,11 @@ public class TaskService {
     private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
     private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
     private final com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService;
+    private final DatasourceSchemaResolver schemaResolver;
+    private final Neo4jColumnBackfillWriter backfillWriter;
+    private final DatasourceRepository datasourceRepository;
+    private final com.dataweave.master.application.lineage.agent.LineageEnrichmentTrigger lineageEnrichmentTrigger;
+    private final com.dataweave.master.application.lineage.SchemaCacheConfig schemaCacheConfig;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -48,7 +56,12 @@ public class TaskService {
                        LineageEdgeAssembler lineageEdgeAssembler,
                        SqlColumnLineageExtractor sqlColumnLineageExtractor,
                        com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog,
-                       com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService) {
+                       com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService,
+                       DatasourceSchemaResolver schemaResolver,
+                       Neo4jColumnBackfillWriter backfillWriter,
+                       DatasourceRepository datasourceRepository,
+                       com.dataweave.master.application.lineage.agent.LineageEnrichmentTrigger lineageEnrichmentTrigger,
+                       com.dataweave.master.application.lineage.SchemaCacheConfig schemaCacheConfig) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -60,6 +73,11 @@ public class TaskService {
         this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
         this.columnLineageCatalog = columnLineageCatalog;
         this.scriptLineageService = scriptLineageService;
+        this.schemaResolver = schemaResolver;
+        this.backfillWriter = backfillWriter;
+        this.datasourceRepository = datasourceRepository;
+        this.lineageEnrichmentTrigger = lineageEnrichmentTrigger;
+        this.schemaCacheConfig = schemaCacheConfig;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -485,8 +503,12 @@ public class TaskService {
             // 列级边：019 解析 + 024 声明对账（createAndOnline 不经 FileContract，无声明边）
             java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
             if ("SQL".equalsIgnoreCase(type)) {
+                // 053-US2：构造绑定数据源的组合 catalog（闭包持有 datasourceId，接口签名不变）
+                var catalog = new DatasourceBoundCatalog(
+                        datasourceId, columnLineageCatalog, schemaResolver, backfillWriter, datasourceRepository,
+                        schemaCacheConfig.ttlMs());
                 var colResult = sqlColumnLineageExtractor.extractAndCrossCheck(
-                        content, columnLineageCatalog, java.util.List.of(), 1L, 1L);
+                        content, catalog, java.util.List.of(), 1L, 1L);
                 columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                         colResult,
                         lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
@@ -507,6 +529,10 @@ public class TaskService {
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
                         ioEdges, allColumnEdges, null);
             }
+            // 053 US1：同步确定性血缘记完后异步发 AI 富化请求（携 calciteParsed 判定 + agent 声明；失败不阻断 push）
+            boolean calciteParsed = assembly.ioEdges().stream()
+                    .anyMatch(e -> e.source() == com.dataweave.master.domain.lineage.Source.SQL_PARSED);
+            lineageEnrichmentTrigger.request(1L, 1L, taskDefId, type, calciteParsed, agentReads, agentWrites);
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）
         }
