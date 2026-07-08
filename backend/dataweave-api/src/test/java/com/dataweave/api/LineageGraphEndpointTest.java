@@ -111,4 +111,36 @@ class LineageGraphEndpointTest {
                 .jsonPath("$.code").isEqualTo(400)
                 .jsonPath("$.errorCode").isEqualTo("project.required");
     }
+
+    // ─── 054 US3 分面端点：项目隔离守卫（数据正确性由 LineageFacetTablesIT 覆盖） ───
+
+    @Test
+    void tablesByDatasource_withoutProject_returnsProjectRequired() {
+        // 分面「数据源」端点：无 X-Project-Id → project.required（隔离守卫在 Neo4j 之前）。
+        WebTestClient noProjectClient = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
+        noProjectClient.get().uri("/api/lineage/datasources/ds-a/tables")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400)
+                .jsonPath("$.errorCode").isEqualTo("project.required");
+    }
+
+    @Test
+    void tablesByLayer_withoutProject_returnsProjectRequired() {
+        // 分面「分层」端点：无 X-Project-Id → project.required。
+        WebTestClient noProjectClient = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", JwtTestSupport.bearer(jwtUtil))
+                .build();
+        noProjectClient.get().uri("/api/lineage/tables?layer=DWD")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400)
+                .jsonPath("$.errorCode").isEqualTo("project.required");
+    }
 }

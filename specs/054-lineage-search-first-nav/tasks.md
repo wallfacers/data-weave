@@ -21,7 +21,13 @@ description: "Task list for 054 血缘探索器入口重构"
 **浏览器门已在运行栈实证（2026-07-08 补跑）**：docker compose（pg+redis+neo4j）+ 后端 :8000 + 前端 :4000，neo4j 灌 054 跨库种子（去分号单条保留绑定）+ admin JWT + `dw.project.current=1`。ad-hoc Playwright **9/9 PASS，0 console error**：US1 搜索优先 hero「搜一个资产开始」+ 同名 user 跨库消歧候选（mysql-prod/pg-bi/hive-dw）；US2 图上三数据源徽标（MY/HI/PG）+ 跨库链 `user→dwd_user→dws_user_1d→rpt_user` + 跨源橙边 + 图例新项。截图目视确认真实渲染（非假绿）。
 - 未再复跑 052 全量 6/6 回归门（054 未改 052 语义，主 Claude 评审判定不回退）。
 
-**未做（P3，可裁剪）**：US3 数据源分面浏览（T025–T030）、US4 数据源泳道（T031–T032）。
+**US3 数据源浏览分面已交付（2026-07-08，T025–T030）**——用户要求「保留可关闭嵌入式详情面板」为硬约束，已满足（`LineageDetailPanel` 与分面/图布局正交零改动）：
+- 后端：`LineageQueryService.tablesByDatasource`（`(:Datasource{id})-[:HAS_TABLE]->(:Table)`，修 052 占位——展开数据源出真表而非列）+ `tablesByLayer`（分面「分层」跨数据源聚合）+ 端点 `GET /api/lineage/datasources/{id}/tables`、`GET /api/lineage/tables?layer=`。
+- 前端：`lineage-facets.tsx`（数据源/分层/最近 段控，保留 054 可折叠壳）；修 `lineage-tree` 数据源→真实表（三级树下钻）；`lineage-recent.ts` 会话本地最近；`lineage-view` 接入 + 锚定记最近。
+- 收口门全绿：后端编译 BUILD SUCCESS；真 Neo4j IT `LineageFacetTablesIT` **7/7**；`LineageGraphEndpointTest` h2 **7/7**（+2 分面隔离契约）；前端 typecheck 0、vitest **27/27**、design:lint 0；**运行栈浏览器门 6/6 PASS 0 error**（分面切换 + 数据源出真表 + 分层 + 最近 + **详情面板保留**；截图目视确认）。
+- 设计差异（较 spec）：① 保留现有树作「数据源」分面（非全新重写，用户批准）；② 补 `tablesByLayer` 支撑「分层」分面。
+
+**未做（P3，可裁剪）**：US4 数据源泳道（T031–T032）——US3 交付后由用户决定是否继续。
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -105,12 +111,12 @@ description: "Task list for 054 血缘探索器入口重构"
 
 **Independent Test**: 分面可在 数据源/分层/最近 间切换；「数据源」展开出真实的表（非占位跳级）；「分层」按 ODS/DWD/DWS/ADS；「最近」列会话锚定过的资产。
 
-- [ ] T025 [US3] 改 `backend/.../application/LineageQueryService.java` + `backend/.../api/interfaces/LineageGraphController.java`：加 `tablesByDatasource(tenantId,projectId,dsId,offset,limit)` + `GET /api/lineage/datasources/{id}/tables`（Cypher `MATCH (d:Datasource{id,tenantId,projectId})-[:HAS_TABLE]->(t:Table)`），节点带数据源 attrs。
-- [ ] T026 [P] [US3] 加 IT（`LineageDatasourceProjectionIT` 或新类）断言 `/datasources/{id}/tables` 只返回该库该项目的表、修正占位。
-- [ ] T027 [US3] 新建 `frontend/components/workspace/views/lineage/lineage-facets.tsx` 替换 `lineage-tree.tsx` 主入口地位：分面切换（数据源/分层/最近），复用规范原语；「最近」用会话本地记录（不含 ownership）。
-- [ ] T028 [US3] 改 `frontend/lib/lineage-api.ts` 加 `fetchTablesByDatasource(dsId,offset,limit)`，`lineage-facets` 数据源分面调用它（替换 `fetchColumns` 占位）。
-- [ ] T029 [US3] i18n 补分面键 + 若新增分面切换原语则回填 `frontend/DESIGN.md` 组件目录。
-- [ ] T030 [US3] 浏览器门实证 US3：分面切换 + 数据源展开真实表。
+- [x] T025 [US3] 改 `backend/.../application/LineageQueryService.java` + `backend/.../api/interfaces/LineageGraphController.java`：加 `tablesByDatasource(tenantId,projectId,dsId,offset,limit)` + `GET /api/lineage/datasources/{id}/tables`（Cypher `MATCH (d:Datasource{id,tenantId,projectId})-[:HAS_TABLE]->(t:Table)`），节点带数据源 attrs。
+- [x] T026 [P] [US3] 加 IT（`LineageDatasourceProjectionIT` 或新类）断言 `/datasources/{id}/tables` 只返回该库该项目的表、修正占位。
+- [x] T027 [US3] 新建 `frontend/components/workspace/views/lineage/lineage-facets.tsx` 替换 `lineage-tree.tsx` 主入口地位：分面切换（数据源/分层/最近），复用规范原语；「最近」用会话本地记录（不含 ownership）。
+- [x] T028 [US3] 改 `frontend/lib/lineage-api.ts` 加 `fetchTablesByDatasource(dsId,offset,limit)`，`lineage-facets` 数据源分面调用它（替换 `fetchColumns` 占位）。
+- [x] T029 [US3] i18n 补分面键 + 若新增分面切换原语则回填 `frontend/DESIGN.md` 组件目录。
+- [x] T030 [US3] 浏览器门实证 US3：分面切换 + 数据源展开真实表。
 
 **Checkpoint**: 分面浏览作为辅助入口就绪；裁剪此故事不影响 US1/US2。
 

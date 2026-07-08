@@ -21,7 +21,7 @@ import {
   ColumnInsertIcon,
 } from "@hugeicons/core-free-icons"
 import type { GraphNodeView, NodeType } from "@/lib/lineage-api"
-import { fetchDatasources, fetchColumns } from "@/lib/lineage-api"
+import { fetchDatasources, fetchColumns, fetchTablesByDatasource } from "@/lib/lineage-api"
 import { DwScroll } from "@/components/ui/dw-scroll"
 
 export interface TreeNode {
@@ -84,13 +84,12 @@ export function LineageTree({
     loadRoots()
   }, [loadRoots])
 
-  // 懒加载子节点（展开数据源 → 表；展开表 → 列）
+  // 懒加载子节点（054 US3：三级——数据源 → 表 → 列，沿 path 逐级下钻）
   const toggleExpand = useCallback(async (path: number[]) => {
     if (path.length === 0) return
-    // 简单实现：仅支持两级（root→table→column）
-    const rootIdx = path[0]
     const rootsCopy = [...roots]
-    const node = path.length === 1 ? rootsCopy[rootIdx] : rootsCopy[rootIdx]?.children[path[1]]
+    let node: TreeNode | undefined = rootsCopy[path[0]]
+    for (let i = 1; i < path.length && node; i++) node = node.children[path[i]]
     if (!node) return
 
     if (node.expanded) {
@@ -103,30 +102,37 @@ export function LineageTree({
       node.loading = true
       setRoots([...rootsCopy])
       try {
-        // 数据源 → 加载表       实际从 datasources 接口返回后需扩展：这里简化——点击 datasource 加载 columns（临时）
-        // 正式实现需 018/019 提供 tables-by-datasource 端点。当前用占位逻辑。
-        const res = await fetchColumns(node.id, 0, 200)
+        // 054 US3：三级树按节点类型下钻——数据源→真实表（fetchTablesByDatasource，修 052 占位 bug）；
+        // 表→列（fetchColumns）。表节点 loaded=false 使其可继续展开出列。
+        const res =
+          node.type === "DATASOURCE"
+            ? await fetchTablesByDatasource(node.id, 0, 200)
+            : await fetchColumns(node.id, 0, 200)
         if (res.code === 0 && res.data) {
-          node.children = res.data.map((col: GraphNodeView) => ({
-            id: col.id,
-            type: col.type,
-            name: col.name,
-            layer: col.layer,
-            parentId: col.parentId,
+          node.children = res.data.map((child: GraphNodeView) => ({
+            id: child.id,
+            type: child.type,
+            name: child.name,
+            layer: child.layer,
+            parentId: child.parentId,
             children: [],
             expanded: false,
-            loaded: true,
+            // 表节点仍可下钻列 → loaded=false；列节点无子 → loaded=true
+            loaded: child.type === "COLUMN",
             loading: false,
           }))
           node.loaded = true
         }
       } catch {
-        // 列加载失败 → silent，保持"仅表级"
+        // 子节点加载失败 → silent，保持当前层级
       }
       node.loading = false
     }
     node.expanded = true
-    onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
+    // 仅可锚定的 TABLE/COLUMN 触发选择（DATASOURCE 只作分组展开，不锚图）
+    if (node.type === "TABLE" || node.type === "COLUMN") {
+      onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
+    }
     setRoots([...rootsCopy])
   }, [roots, onSelect])
 

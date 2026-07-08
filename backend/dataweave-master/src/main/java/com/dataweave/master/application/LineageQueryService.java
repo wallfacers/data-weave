@@ -281,6 +281,50 @@ public class LineageQueryService {
         return rows.stream().map(LineageQueryService::mapNode).toList();
     }
 
+    /**
+     * 054 US3：某数据源下的表列表（分面「数据源」——修 052 占位 bug，展开数据源出真实表而非列）。
+     * 走生产结构边 {@code (:Datasource {id})-[:HAS_TABLE]->(:Table)}；表节点复用 {@link #tableAttrsCypher()}
+     * 富化（datasourceId/datasourceName/layer/columnCount…）。只读、恒带 tenant/project 隔离。
+     */
+    public List<GraphNodeView> tablesByDatasource(long tenantId, long projectId, String datasourceId,
+                                                  int offset, int limit) {
+        int l = clampLimit(limit);
+        String cypher = """
+                MATCH (d:Datasource {id:$dsId})-[:HAS_TABLE]->(end:Table)
+                WHERE d.tenantId=$tenantId AND d.projectId=$projectId
+                  AND end.tenantId=$tenantId AND end.projectId=$projectId
+                RETURN end.id AS id, 'TABLE' AS type, end.qualifiedName AS name,
+                       end.layer AS layer, NULL AS granularity, $dsId AS parentId,
+                       """ + tableAttrsCypher() + """
+                 AS attrs
+                ORDER BY end.qualifiedName
+                SKIP $offset LIMIT $limit""";
+        List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,
+                "dsId", datasourceId, "offset", offset, "limit", l));
+        return rows.stream().map(LineageQueryService::mapNode).toList();
+    }
+
+    /**
+     * 054 US3：某分层下的表列表（分面「分层」——ODS/DWD/DWS/ADS 跨数据源聚合）。
+     * 表节点复用 {@link #tableAttrsCypher()} 富化（含 datasourceName，便于同层跨库可辨）。
+     */
+    public List<GraphNodeView> tablesByLayer(long tenantId, long projectId, String layer,
+                                             int offset, int limit) {
+        int l = clampLimit(limit);
+        String cypher = """
+                MATCH (end:Table)
+                WHERE end.tenantId=$tenantId AND end.projectId=$projectId AND end.layer=$layer
+                RETURN end.id AS id, 'TABLE' AS type, end.qualifiedName AS name,
+                       end.layer AS layer, NULL AS granularity, NULL AS parentId,
+                       """ + tableAttrsCypher() + """
+                 AS attrs
+                ORDER BY end.qualifiedName
+                SKIP $offset LIMIT $limit""";
+        List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,
+                "layer", layer, "offset", offset, "limit", l));
+        return rows.stream().map(LineageQueryService::mapNode).toList();
+    }
+
     /** 表的列列表。T015 */
     public List<GraphNodeView> columns(long tenantId, long projectId, String tableId, int offset, int limit) {
         int l = clampLimit(limit);

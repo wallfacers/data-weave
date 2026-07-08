@@ -35,7 +35,7 @@ import {
   type SearchCandidate,
 } from "@/lib/lineage-api"
 import { FlowCanvasWithPanel } from "@/components/workspace/flow-canvas-with-panel"
-import { LineageTree } from "@/components/workspace/views/lineage/lineage-tree"
+import { LineageFacets } from "@/components/workspace/views/lineage/lineage-facets"
 import { LineageToolbar } from "@/components/workspace/views/lineage/lineage-toolbar"
 import { LineageDetailPanel } from "@/components/workspace/views/lineage/lineage-detail-panel"
 import { LineageLegend } from "@/components/workspace/views/lineage/lineage-legend"
@@ -44,6 +44,7 @@ import { lineageNodeTypes } from "@/components/workspace/nodes/lineage-node"
 import { LineageNodeActionsContext, type LineageNodeActions } from "@/components/workspace/nodes/lineage-node-actions-context"
 import { lineageToFlow, type LineageLayoutOptions } from "@/lib/workspace/lineage-layout"
 import { lineageGraphReducer, initialGraphState } from "@/lib/workspace/lineage-graph"
+import { recordRecentAsset } from "@/lib/workspace/lineage-recent"
 import { useLineageSelection } from "@/lib/workspace/lineage-selection-store"
 import { useMinSpin } from "@/hooks/use-min-spin"
 
@@ -147,6 +148,19 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             truncated: data.truncated ?? false,
           })
           setTruncated(data.truncated ?? false)
+          // 054 US3：记入「最近」分面（会话本地；取图内锚点节点的真实名/数据源）
+          const anchorNode = (data.nodes ?? []).find((n) => n.id === nodeId)
+          if (anchorNode) {
+            recordRecentAsset({
+              id: anchorNode.id,
+              name: anchorNode.name,
+              type: anchorNode.type,
+              datasourceName:
+                typeof anchorNode.attrs?.datasourceName === "string"
+                  ? (anchorNode.attrs.datasourceName as string)
+                  : undefined,
+            })
+          }
         }
       } catch {
         setError(t("unavailable"))
@@ -460,7 +474,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
           </button>
         ) : (
           <aside className="relative w-64 shrink-0">
-            <LineageTree onSelect={handleTreeSelect} />
+            <LineageFacets onSelect={handleTreeSelect} />
             <button
               type="button"
               aria-label={t("collapse")}

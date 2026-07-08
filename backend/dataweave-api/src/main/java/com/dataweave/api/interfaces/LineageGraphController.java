@@ -75,6 +75,26 @@ public class LineageGraphController {
         return ApiResponse.ok(lineageQueryService.datasources(tenant(), project(projectId), offset, limit));
     }
 
+    /** 054 US3：某数据源下的表（分面「数据源」——展开数据源出真实表，修 052 占位）。 */
+    @GetMapping("/datasources/{id}/tables")
+    public ApiResponse<List<GraphNodeView>> tablesByDatasource(
+            @RequestParam(required = false) Long projectId,
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "100") int limit) {
+        return ApiResponse.ok(lineageQueryService.tablesByDatasource(tenant(), project(projectId), id, offset, limit));
+    }
+
+    /** 054 US3：某分层下的表（分面「分层」——ODS/DWD/DWS/ADS 跨数据源聚合）。 */
+    @GetMapping("/tables")
+    public ApiResponse<List<GraphNodeView>> tablesByLayer(
+            @RequestParam(required = false) Long projectId,
+            @RequestParam String layer,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "100") int limit) {
+        return ApiResponse.ok(lineageQueryService.tablesByLayer(tenant(), project(projectId), layer, offset, limit));
+    }
+
     /** 表的列列表（三级树第三层）。 */
     @GetMapping("/tables/{id}/columns")
     public ApiResponse<List<GraphNodeView>> columns(

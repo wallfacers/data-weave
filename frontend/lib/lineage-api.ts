@@ -272,6 +272,16 @@ export function fetchColumns(tableId: string, offset = 0, limit = 100) {
   return get<GraphNodeView[]>(`${BASE}/tables/${encodeURIComponent(tableId)}/columns`, { offset, limit });
 }
 
+/** 054 US3：某数据源下的表（分面「数据源」——展开数据源出真实表，修 052 占位）。 */
+export function fetchTablesByDatasource(datasourceId: string, offset = 0, limit = 100) {
+  return get<GraphNodeView[]>(`${BASE}/datasources/${encodeURIComponent(datasourceId)}/tables`, { offset, limit });
+}
+
+/** 054 US3：某分层下的表（分面「分层」——ODS/DWD/DWS/ADS 跨数据源聚合）。 */
+export function fetchTablesByLayer(layer: string, offset = 0, limit = 100) {
+  return get<GraphNodeView[]>(`${BASE}/tables`, { layer, offset, limit });
+}
+
 // ─── 表级上下游 ────────────────────────────────────────────────
 
 /** 表上游（变长路径）。 */
