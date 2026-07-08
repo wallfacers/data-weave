@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: dataweave-postgres
-    command: postgres -c max_connections=200   # 045 cron 并行化：支撑 HikariCP 扩容(双 master×64=128 < 200)
+    command: postgres -c max_connections=200 -c timezone='Asia/Shanghai'   # 045 cron 并行化：支撑 HikariCP 扩容(双 master×64=128 < 200)
     environment:
       TZ: Asia/Shanghai
       POSTGRES_DB: dataweave
