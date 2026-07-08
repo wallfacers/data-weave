@@ -37,9 +37,11 @@ const LAYERS = ["ODS", "DWD", "DWS", "ADS"] as const
 
 export interface LineageFacetsProps {
   onSelect?: (node: GraphNodeView) => void
+  /** 054：点数据源/分层 → 加载该组的一部分子图（表集合的邻域并集）。 */
+  onSelectGroup?: (tables: GraphNodeView[], label: string) => void
 }
 
-export function LineageFacets({ onSelect }: LineageFacetsProps) {
+export function LineageFacets({ onSelect, onSelectGroup }: LineageFacetsProps) {
   const t = useTranslations("lineageView")
   const [facet, setFacet] = useState<Facet>("datasource")
 
@@ -59,8 +61,8 @@ export function LineageFacets({ onSelect }: LineageFacetsProps) {
         />
       </div>
       <div className="min-h-0 flex-1">
-        {facet === "datasource" && <LineageTree onSelect={onSelect} />}
-        {facet === "layer" && <LayerFacet onSelect={onSelect} />}
+        {facet === "datasource" && <LineageTree onSelect={onSelect} onSelectGroup={onSelectGroup} />}
+        {facet === "layer" && <LayerFacet onSelect={onSelect} onSelectGroup={onSelectGroup} />}
         {facet === "recent" && <RecentFacet onSelect={onSelect} />}
       </div>
     </div>
@@ -68,7 +70,7 @@ export function LineageFacets({ onSelect }: LineageFacetsProps) {
 }
 
 /** 分层分面：每层懒加载其表（跨数据源）。 */
-function LayerFacet({ onSelect }: LineageFacetsProps) {
+function LayerFacet({ onSelect, onSelectGroup }: LineageFacetsProps) {
   const t = useTranslations("lineageView")
   const [openLayer, setOpenLayer] = useState<string | null>(null)
   const [tablesByLayer, setTablesByLayer] = useState<Record<string, GraphNodeView[]>>({})
@@ -81,11 +83,13 @@ function LayerFacet({ onSelect }: LineageFacetsProps) {
         return
       }
       setOpenLayer(layer)
-      if (!tablesByLayer[layer]) {
+      let tables = tablesByLayer[layer]
+      if (!tables) {
         setLoading(layer)
         try {
           const res = await fetchTablesByLayer(layer, 0, 200)
           if (res.code === 0 && res.data) {
+            tables = res.data
             setTablesByLayer((prev) => ({ ...prev, [layer]: res.data ?? [] }))
           }
         } catch {
@@ -94,8 +98,10 @@ function LayerFacet({ onSelect }: LineageFacetsProps) {
           setLoading(null)
         }
       }
+      // 展开该层即加载其一部分子图（该层表集合的邻域并集）
+      if (tables && tables.length > 0) onSelectGroup?.(tables, layer)
     },
-    [openLayer, tablesByLayer],
+    [openLayer, tablesByLayer, onSelectGroup],
   )
 
   return (
@@ -110,14 +116,11 @@ function LayerFacet({ onSelect }: LineageFacetsProps) {
               className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/50"
               onClick={() => toggle(layer)}
             >
-              {loading === layer ? (
-                <span className="size-4 shrink-0 animate-spin text-muted-foreground">⟳</span>
-              ) : (
-                <HugeiconsIcon
-                  icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-                  className="size-4 shrink-0 text-muted-foreground"
-                />
-              )}
+              {/* 展开态用 chevron 直示；加载表期间不显示旋转 spinner（去抖动，靠展开态反馈即可） */}
+              <HugeiconsIcon
+                icon={open ? ArrowDown01Icon : ArrowRight01Icon}
+                className="size-4 shrink-0 text-muted-foreground"
+              />
               <HugeiconsIcon icon={Layers01Icon} className="size-4 shrink-0 text-muted-foreground" />
               <span className="font-medium">{layer}</span>
               {open && tables.length > 0 && (

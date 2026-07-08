@@ -50,6 +50,9 @@ import { useMinSpin } from "@/hooks/use-min-spin"
 
 const DEFAULT_DEPTH = 3
 const EXPAND_DEPTH = 1
+// 054：点数据源/分层加载「一部分子图」——组内表封顶张数 + 各表并入的邻域跳数
+const GROUP_TABLE_CAP = 12
+const GROUP_DEPTH = 1
 
 export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const t = useTranslations("lineageView")
@@ -72,6 +75,8 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const [lastRefreshMs, setLastRefreshMs] = useState<number | null>(null)
   const [stale, setStale] = useState(false)
   const [truncated, setTruncated] = useState(false)
+  // 054：当前「组视图」上下文（点数据源/分层加载子图时置位；点单表/列锚定时清空）——供刷新重放
+  const [groupCtx, setGroupCtx] = useState<{ tables: GraphNodeView[]; label: string } | null>(null)
 
   // ── Selection store ──
   const sel = useLineageSelection()
@@ -119,6 +124,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
     async (nodeId: string, d: LineageDirection = direction, dep: number = depth, gran = granularity) => {
       setLoading(true)
       setError(null)
+      setGroupCtx(null) // 单表/列锚定 → 退出组视图
       dispatch({ type: "reset" })
       try {
         let res
@@ -174,6 +180,56 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
       }
     },
     [direction, depth, granularity, t],
+  )
+
+  // ── 054：点数据源/分层 → 加载该组的「一部分子图」──
+  // 后端无「按数据源/层取子图」端点，故取组内表（封顶 GROUP_TABLE_CAP）各自 1 跳邻域并集：
+  // 先把组内表本身播种为节点（纯孤立表也可见），再并入邻域节点/边去重，一次性 load。
+  const loadGroup = useCallback(
+    async (tables: GraphNodeView[], label: string) => {
+      const picked = tables.slice(0, GROUP_TABLE_CAP)
+      if (picked.length === 0) return
+      setLoading(true)
+      setError(null)
+      setGroupCtx({ tables, label })
+      dispatch({ type: "reset" })
+      try {
+        const results = await Promise.all(
+          picked.map((tb) => fetchNeighborhood(tb.id, GROUP_DEPTH, "TABLE").catch(() => null)),
+        )
+        const nodeMap = new Map<string, GraphNodeView>()
+        for (const tb of picked) nodeMap.set(tb.id, tb)
+        const edgeSeen = new Set<string>()
+        const edges: FlowEdgeView[] = []
+        for (const res of results) {
+          if (!res || res.code !== 0 || !res.data) continue
+          for (const n of res.data.nodes ?? []) if (!nodeMap.has(n.id)) nodeMap.set(n.id, n)
+          for (const e of res.data.edges ?? []) {
+            const k = `${e.from}→${e.to}:${e.granularity}`
+            if (!edgeSeen.has(k)) {
+              edgeSeen.add(k)
+              edges.push(e)
+            }
+          }
+        }
+        const capped = tables.length > picked.length
+        dispatch({
+          type: "load",
+          anchorId: picked[0].id,
+          nodes: [...nodeMap.values()],
+          edges,
+          truncated: capped,
+        })
+        setTruncated(capped)
+      } catch {
+        setError(t("unavailable"))
+      } finally {
+        setLoading(false)
+        setLastRefreshMs(Date.now())
+        setStale(false)
+      }
+    },
+    [t],
   )
 
   // ── 054 US1：搜索提交（hero 与工具栏共用，提交/回车触发 research D4）──
@@ -427,8 +483,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
 
   // ── Refresh ──
   const handleRefresh = useCallback(() => {
-    if (graph.anchorId) loadAnchor(graph.anchorId)
-  }, [graph.anchorId, loadAnchor])
+    if (groupCtx) loadGroup(groupCtx.tables, groupCtx.label)
+    else if (graph.anchorId) loadAnchor(graph.anchorId)
+  }, [groupCtx, loadGroup, graph.anchorId, loadAnchor])
   const refreshing = useMinSpin(loading)
 
   // ── Deep link copy ──
@@ -478,7 +535,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
           </button>
         ) : (
           <aside className="relative w-64 shrink-0">
-            <LineageFacets onSelect={handleTreeSelect} />
+            <LineageFacets onSelect={handleTreeSelect} onSelectGroup={loadGroup} />
             <button
               type="button"
               aria-label={t("collapse")}

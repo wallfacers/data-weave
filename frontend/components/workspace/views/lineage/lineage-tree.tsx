@@ -41,8 +41,11 @@ function iconForType(type: NodeType): IconSvgElement {
 
 export function LineageTree({
   onSelect,
+  onSelectGroup,
 }: {
   onSelect?: (node: GraphNodeView) => void
+  /** 054：展开数据源 → 加载该数据源的一部分子图（其表集合的邻域并集）。 */
+  onSelectGroup?: (tables: GraphNodeView[], label: string) => void
 }) {
   const t = useTranslations("lineageView")
   const [roots, setRoots] = useState<TreeNode[]>([])
@@ -128,12 +131,18 @@ export function LineageTree({
       node.loading = false
     }
     node.expanded = true
-    // 仅可锚定的 TABLE/COLUMN 触发选择（DATASOURCE 只作分组展开，不锚图）
     if (node.type === "TABLE" || node.type === "COLUMN") {
+      // 可锚定资产 → 单点锚图
       onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
+    } else if (node.type === "DATASOURCE" && node.children.length > 0) {
+      // 数据源 → 加载其表集合的一部分子图（组视图）
+      onSelectGroup?.(
+        node.children.map((c) => ({ id: c.id, type: c.type, name: c.name, layer: c.layer })),
+        node.name,
+      )
     }
     setRoots([...rootsCopy])
-  }, [roots, onSelect])
+  }, [roots, onSelect, onSelectGroup])
 
   if (loading) return <TreeSkeleton />
   if (error) return <div className="text-sm text-muted-foreground px-4 py-2">{error}</div>
@@ -148,13 +157,11 @@ export function LineageTree({
           style={{ paddingLeft: `${8 + depth * 16}px` }}
           onClick={() => toggleExpand(path)}
         >
-          {node.loading ? (
-            <span className="size-4 animate-spin text-muted-foreground">⟳</span>
-          ) : node.expanded ? (
-            <HugeiconsIcon icon={ArrowDown01Icon} className="size-4 text-muted-foreground shrink-0" />
-          ) : (
-            <HugeiconsIcon icon={ArrowRight01Icon} className="size-4 text-muted-foreground shrink-0" />
-          )}
+          {/* 展开态用 chevron 直示；加载子节点期间不显示旋转 spinner（去抖动，靠 hover/展开态反馈即可） */}
+          <HugeiconsIcon
+            icon={node.expanded ? ArrowDown01Icon : ArrowRight01Icon}
+            className="size-4 text-muted-foreground shrink-0"
+          />
           <HugeiconsIcon icon={Icon} className="size-4 text-muted-foreground shrink-0" />
           <span className="truncate">{node.name}</span>
           {node.layer && (
