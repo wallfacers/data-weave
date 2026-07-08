@@ -18,8 +18,8 @@ description: "Task list for 054 血缘探索器入口重构"
 - 收口门实测：后端 `dataweave-master,dataweave-api` 编译 **BUILD SUCCESS**（mvnd + JDK25 + cache DISABLED）；**真 Neo4j IT `LineageDatasourceProjectionIT` 8/8**（testcontainers，Docker 恢复后补跑）；`LineageGraphEndpointTest` h2 契约 **5/5**；前端 `pnpm typecheck` 0 错；vitest（lineage-layout + datasource-style）**22/22**。
 - 代码评审：`LineageQueryService` 构造签名/`SearchCandidate` 全构造点与 main 兼容；`lineageView.expand/collapse` 键两 bundle 均在位。
 
-**仅剩浏览器门待运行栈复跑（非代码问题，原 worktree 已验 6/6）**：
-- T013/T024/T033/T034 Playwright 浏览器门需同时起后端 :8000 + 前端 :4000 + neo4j；原 worktree 已实证通过，本次未在运行栈复跑。
+**浏览器门已在运行栈实证（2026-07-08 补跑）**：docker compose（pg+redis+neo4j）+ 后端 :8000 + 前端 :4000，neo4j 灌 054 跨库种子（去分号单条保留绑定）+ admin JWT + `dw.project.current=1`。ad-hoc Playwright **9/9 PASS，0 console error**：US1 搜索优先 hero「搜一个资产开始」+ 同名 user 跨库消歧候选（mysql-prod/pg-bi/hive-dw）；US2 图上三数据源徽标（MY/HI/PG）+ 跨库链 `user→dwd_user→dws_user_1d→rpt_user` + 跨源橙边 + 图例新项。截图目视确认真实渲染（非假绿）。
+- 未再复跑 052 全量 6/6 回归门（054 未改 052 语义，主 Claude 评审判定不回退）。
 
 **未做（P3，可裁剪）**：US3 数据源分面浏览（T025–T030）、US4 数据源泳道（T031–T032）。
 
