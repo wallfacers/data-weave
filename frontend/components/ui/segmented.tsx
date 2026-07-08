@@ -72,7 +72,7 @@ export function Segmented({
             )}
           >
             {o.icon && <HugeiconsIcon icon={o.icon} className="size-3.5 shrink-0" />}
-            <span>{o.label}</span>
+            <span className="truncate whitespace-nowrap">{o.label}</span>
           </button>
         )
       })}

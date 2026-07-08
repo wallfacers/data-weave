@@ -22,6 +22,7 @@ import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   GridTableIcon,
+  RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import { Segmented } from "@/components/ui/segmented"
 import { DwScroll } from "@/components/ui/dw-scroll"
@@ -43,13 +44,16 @@ export interface LineageFacetsProps {
 
 export function LineageFacets({ onSelect, onSelectGroup }: LineageFacetsProps) {
   const t = useTranslations("lineageView")
+  const tc = useTranslations("common")
   const [facet, setFacet] = useState<Facet>("datasource")
+  // 刷新：递增 nonce 作为分面内容 key → 强制重挂载重新拉取（各分面挂载时自取数据）
+  const [reloadNonce, setReloadNonce] = useState(0)
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 px-2 pt-2">
+      <div className="flex shrink-0 items-center gap-1 px-2 pt-2">
         <Segmented
-          className="w-full"
+          className="min-w-0 flex-1"
           ariaLabel={t("facetSwitch")}
           value={facet}
           onChange={(v) => setFacet(v as Facet)}
@@ -59,11 +63,24 @@ export function LineageFacets({ onSelect, onSelectGroup }: LineageFacetsProps) {
             { value: "recent", label: t("facetRecent"), icon: Clock01Icon },
           ]}
         />
+        <button
+          type="button"
+          onClick={() => setReloadNonce((n) => n + 1)}
+          title={tc("refresh")}
+          aria-label={tc("refresh")}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <HugeiconsIcon icon={RefreshIcon} className="size-4" />
+        </button>
       </div>
-      <div className="min-h-0 flex-1">
-        {facet === "datasource" && <LineageTree onSelect={onSelect} onSelectGroup={onSelectGroup} />}
-        {facet === "layer" && <LayerFacet onSelect={onSelect} onSelectGroup={onSelectGroup} />}
-        {facet === "recent" && <RecentFacet onSelect={onSelect} />}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {facet === "datasource" && (
+          <LineageTree key={reloadNonce} onSelect={onSelect} onSelectGroup={onSelectGroup} />
+        )}
+        {facet === "layer" && (
+          <LayerFacet key={reloadNonce} onSelect={onSelect} onSelectGroup={onSelectGroup} />
+        )}
+        {facet === "recent" && <RecentFacet key={reloadNonce} onSelect={onSelect} />}
       </div>
     </div>
   )

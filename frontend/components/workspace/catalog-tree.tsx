@@ -925,9 +925,11 @@ export function CatalogTree({
   }
 
   return (
-    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
-      {/* 顶部：标题 + 新建（同一行，标题左、操作右）*/}
-      <div className="flex items-center justify-between gap-2">
+    <div className={`flex min-h-0 flex-col ${className ?? ""}`}>
+      {/* 固定顶部：标题+新建/刷新 + 搜索 + 标签（不随树滚动，搜索框常驻——与血缘树一致）*/}
+      <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-2">
+        {/* 标题 + 新建（同一行，标题左、操作右）*/}
+        <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{t("catalog.title")}</span>
         <div className="flex shrink-0 items-center gap-0.5">
           <button
@@ -992,7 +994,10 @@ export function CatalogTree({
         </div>
       )}
 
-      {/* 树体（容器右键 = 根级菜单：新建根文件夹 / 新建任务 / 新建工作流，均落根/未分类）*/}
+      </div>
+
+      {/* 树体（可滚动区，固定搜索框在上）——容器右键 = 根级菜单：新建根文件夹/任务/工作流，均落根/未分类 */}
+      <DwScroll className="min-h-0 flex-1" innerClassName="px-3 pb-3">
       <ContextMenu>
         <ContextMenuTrigger className="flex min-h-12 flex-col">
           <AnimatePresence initial={false}>
@@ -1028,6 +1033,7 @@ export function CatalogTree({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      </DwScroll>
 
       {/* 就地补数据弹窗：右键叶子触发,预填目标 */}
       <BackfillDialog

@@ -28,6 +28,8 @@ export interface TreeNode {
   type: NodeType
   name: string
   layer?: string
+  /** 数据源节点：其下表数量（后端 attrs.tableCount）——右侧显示，替代冗余的数据源名。 */
+  tableCount?: number
   parentId?: string
   children: TreeNode[]
   expanded: boolean
@@ -68,6 +70,7 @@ export function LineageTree({
         type: ds.type,
         name: ds.name,
         layer: ds.layer,
+        tableCount: typeof ds.attrs?.tableCount === "number" ? (ds.attrs.tableCount as number) : undefined,
         children: [],
         expanded: false,
         loaded: false,
@@ -94,13 +97,15 @@ export function LineageTree({
     for (let i = 1; i < path.length && node; i++) node = node.children[path[i]]
     if (!node) return
 
-    if (node.expanded) {
-      node.expanded = false
-      setRoots(rootsCopy)
+    // 字段（列）是叶子：点击只锚图（列级血缘），不展开——避免其下出现无意义的「仅表级」空态
+    if (node.type === "COLUMN") {
+      onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
       return
     }
 
-    if (!node.loaded) {
+    const willExpand = !node.expanded
+    // 展开且尚未加载 → 懒加载子节点（数据源→真实表；表→列）
+    if (willExpand && !node.loaded) {
       node.loading = true
       setRoots([...rootsCopy])
       try {
@@ -130,9 +135,11 @@ export function LineageTree({
       }
       node.loading = false
     }
-    node.expanded = true
-    if (node.type === "TABLE" || node.type === "COLUMN") {
-      // 可锚定资产 → 单点锚图
+    node.expanded = willExpand
+
+    // 无论展开/折叠，点击即刷新右侧图（保证响应灵敏——此前折叠时 early-return 不刷图致「不灵敏」）
+    if (node.type === "TABLE") {
+      // 表 → 单点锚图
       onSelect?.({ id: node.id, type: node.type, name: node.name, layer: node.layer })
     } else if (node.type === "DATASOURCE" && node.children.length > 0) {
       // 数据源 → 加载其表集合的一部分子图（组视图）
@@ -157,23 +164,35 @@ export function LineageTree({
           style={{ paddingLeft: `${8 + depth * 16}px` }}
           onClick={() => toggleExpand(path)}
         >
-          {/* 展开态用 chevron 直示；加载子节点期间不显示旋转 spinner（去抖动，靠 hover/展开态反馈即可） */}
-          <HugeiconsIcon
-            icon={node.expanded ? ArrowDown01Icon : ArrowRight01Icon}
-            className="size-4 text-muted-foreground shrink-0"
-          />
+          {/* 列是叶子 → 占位对齐不显 chevron；表/数据源展开态用 chevron 直示（不显旋转 spinner，去抖动） */}
+          {node.type === "COLUMN" ? (
+            <span className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <HugeiconsIcon
+              icon={node.expanded ? ArrowDown01Icon : ArrowRight01Icon}
+              className="size-4 text-muted-foreground shrink-0"
+            />
+          )}
           <HugeiconsIcon icon={Icon} className="size-4 text-muted-foreground shrink-0" />
           <span className="truncate">{node.name}</span>
-          {node.layer && (
-            <span className="text-xs text-muted-foreground ml-auto shrink-0">{node.layer}</span>
-          )}
+          {/* 右侧标注：数据源 → 表数量；其它（表/列）→ 明确的所属层级 */}
+          {node.type === "DATASOURCE"
+            ? node.tableCount != null && (
+                <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {node.tableCount}
+                </span>
+              )
+            : node.layer && (
+                <span className="ml-auto shrink-0 text-xs text-muted-foreground">{node.layer}</span>
+              )}
         </button>
         {node.expanded && node.children.length > 0 && (
           <div>
             {node.children.map((child, i) => renderNode(child, depth + 1, [...path, i]))}
           </div>
         )}
-        {node.expanded && node.loaded && node.children.length === 0 && (
+        {/* 空态「仅表级」仅在表节点展开却无列时提示；数据源/列节点不显（列已作叶子不展开） */}
+        {node.type === "TABLE" && node.expanded && node.loaded && node.children.length === 0 && (
           <div
             className="text-xs text-muted-foreground py-1"
             style={{ paddingLeft: `${24 + (depth + 1) * 16}px` }}

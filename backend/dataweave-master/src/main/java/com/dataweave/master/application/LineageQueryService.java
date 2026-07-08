@@ -269,11 +269,15 @@ public class LineageQueryService {
     /** 数据源列表（三级树第一层）。T014 */
     public List<GraphNodeView> datasources(long tenantId, long projectId, int offset, int limit) {
         int l = clampLimit(limit);
+        // 数据源节点：layer 置空（原 d.name AS layer 与 name 冗余，前端右侧重复显示名字），
+        // 改由 attrs.tableCount 携带其下表数量（走生产结构边 HAS_TABLE，与 tablesByDatasource 一致）。
         String cypher = """
                 MATCH (d:Datasource)
                 WHERE d.tenantId=$tenantId AND d.projectId=$projectId
                 RETURN d.id AS id, 'DATASOURCE' AS type, d.name AS name,
-                       d.name AS layer, NULL AS granularity, NULL AS parentId, {} AS attrs
+                       NULL AS layer, NULL AS granularity, NULL AS parentId,
+                       {tableCount: size([(d)-[:HAS_TABLE]->(tb:Table)
+                            WHERE tb.tenantId=$tenantId AND tb.projectId=$projectId | 1])} AS attrs
                 ORDER BY d.name
                 SKIP $offset LIMIT $limit""";
         List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId,

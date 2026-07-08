@@ -1079,6 +1079,7 @@
     "close": "Close",
     "collapse": "Collapse",
     "copyDeepLink": "Copy link",
+    "resizeCatalogPanel": "Drag to resize the catalog panel",
     "correctionDone": "Correction submitted",
     "correctionFailed": "Correction failed",
     "depthLabel": "Depth",

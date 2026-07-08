@@ -6,7 +6,7 @@
  * 从 workflow-canvas-view 抽出 ReactFlow 核心渲染逻辑，保证两处展示 100% 一致。
  * 只读模式下关闭所有编辑交互（拖拽/连线/删除/右键菜单）。
  */
-import { useEffect, type ReactNode, type MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useMemo, useRef, type ReactNode, type MouseEvent as ReactMouseEvent } from "react"
 import {
   ReactFlow,
   Background,
@@ -77,11 +77,29 @@ export function DagRenderer({
   showMiniMap = false,
   children,
 }: DagRendererProps) {
-  // interactiveNodes：readOnly 下仍可拖拽。内部承接拖拽位置，布局 nodes 变化时重新播种。
+  // interactiveNodes：readOnly 下仍可拖拽。内部承接拖拽位置。
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(nodes)
+  // 结构签名（节点 id 集合）：仅当图结构变化时才采用新布局坐标；纯样式/数据更新
+  // （选中/dim/impact 高亮致 layout 重算但 dagre 坐标不变）则保留用户拖拽后的位置，
+  // 只刷新节点 data。否则点击其它节点会把已拖拽节点弹回原位。
+  const structureSig = useMemo(() => nodes.map((n) => n.id).join("|"), [nodes])
+  const prevSigRef = useRef<string | null>(null)
   useEffect(() => {
-    if (interactiveNodes) setInternalNodes(nodes)
-  }, [interactiveNodes, nodes, setInternalNodes])
+    if (!interactiveNodes) return
+    if (prevSigRef.current !== structureSig) {
+      prevSigRef.current = structureSig
+      setInternalNodes(nodes)
+    } else {
+      // 结构未变 → 保位置、换 data/样式
+      setInternalNodes((prev) => {
+        const posById = new Map(prev.map((n) => [n.id, n.position]))
+        return nodes.map((n) => {
+          const pos = posById.get(n.id)
+          return pos ? { ...n, position: pos } : n
+        })
+      })
+    }
+  }, [interactiveNodes, nodes, structureSig, setInternalNodes])
 
   const effectiveNodes = interactiveNodes ? internalNodes : nodes
   const effectiveNodesChange = interactiveNodes

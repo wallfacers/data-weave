@@ -1079,6 +1079,7 @@
     "close": "关闭",
     "collapse": "折叠",
     "copyDeepLink": "复制链接",
+    "resizeCatalogPanel": "拖拽调整类目面板宽度",
     "correctionDone": "裁决已提交",
     "correctionFailed": "裁决提交失败",
     "depthLabel": "深度",

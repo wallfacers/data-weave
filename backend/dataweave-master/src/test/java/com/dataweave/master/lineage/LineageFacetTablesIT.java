@@ -83,6 +83,38 @@ class LineageFacetTablesIT extends Neo4jTestSupport {
     }
 
     @Test
+    void datasources_carryTableCountAndNullLayer() {
+        // 数据源列表右侧标注改为「表数量」（attrs.tableCount）；layer 置空（原冗余 = 数据源名）。
+        List<GraphNodeView> dss = querySvc.datasources(T1, P1, 0, 100);
+        // project1：ds-a(db-a)/ds-b(db-b)/ds-empty(db-empty)，按 name 升序
+        assertThat(dss).extracting(GraphNodeView::name).containsExactly("db-a", "db-b", "db-empty");
+        // layer 不再回填数据源名 → null
+        assertThat(dss).allMatch(n -> n.layer() == null);
+        // tableCount = 该源下 HAS_TABLE 表数（本项目）：db-a=3、db-b=1、db-empty=0
+        var byName = new java.util.HashMap<String, GraphNodeView>();
+        dss.forEach(n -> byName.put(n.name(), n));
+        assertThat(tableCount(byName.get("db-a"))).isEqualTo(3L);
+        assertThat(tableCount(byName.get("db-b"))).isEqualTo(1L);
+        assertThat(tableCount(byName.get("db-empty"))).isEqualTo(0L);
+    }
+
+    @Test
+    void datasources_tableCountDoesNotLeakAcrossProjects() {
+        // project2 的 ds-c 下仅 c_dwd_x（1 表）；project1 查不到 ds-c
+        List<GraphNodeView> p2 = querySvc.datasources(2L, 2L, 0, 100);
+        var dsc = p2.stream().filter(n -> "db-c".equals(n.name())).findFirst().orElseThrow();
+        assertThat(tableCount(dsc)).isEqualTo(1L);
+        assertThat(querySvc.datasources(T1, P1, 0, 100))
+                .extracting(GraphNodeView::name).doesNotContain("db-c");
+    }
+
+    private static long tableCount(GraphNodeView node) {
+        assertThat(node).as("datasource node present").isNotNull();
+        assertThat(node.attrs()).as("attrs present").isNotNull();
+        return ((Number) node.attrs().get("tableCount")).longValue();
+    }
+
+    @Test
     void tablesByDatasource_doesNotLeakAcrossProjects() {
         // ds-a 属 project1；用 project2 查同 id 应空
         assertThat(querySvc.tablesByDatasource(2L, 2L, "ds-a", 0, 100)).isEmpty();

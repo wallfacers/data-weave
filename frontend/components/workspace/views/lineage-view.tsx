@@ -9,11 +9,10 @@
  *
  * 设计约束（DESIGN.md）：语义 token、三栏无分割线、gap-* / size-*、hugeicons、不手写 dark:。
  */
-import { useCallback, useEffect, useMemo, useReducer, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useTranslations } from "next-intl"
 import { type Node } from "@xyflow/react"
-import { HugeiconsIcon } from "@hugeicons/react"
-import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons"
+import { motion, useMotionValue, useTransform } from "motion/react"
 
 import type {
   GraphNodeView,
@@ -53,6 +52,12 @@ const EXPAND_DEPTH = 1
 // 054：点数据源/分层加载「一部分子图」——组内表封顶张数 + 各表并入的邻域跳数
 const GROUP_TABLE_CAP = 12
 const GROUP_DEPTH = 1
+// 左栏类目树面板宽度（右缘分割线拖拽，localStorage 持久化）——与数据开发 workflow-canvas-view 1:1
+const CATALOG_DEFAULT_WIDTH = 256 // = w-64
+// 最小宽度设 224：容纳分面 Segmented（数据源/分层/最近）+ 刷新按钮不换行变形
+const CATALOG_MIN_WIDTH = 224
+const CATALOG_MAX_WIDTH = 480
+const CATALOG_WIDTH_KEY = "dw.lineage.catalogWidth"
 
 export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const t = useTranslations("lineageView")
@@ -97,8 +102,46 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   const [searching, setSearching] = useState(false)
   const [searchCandidates, setSearchCandidates] = useState<SearchCandidate[]>([])
 
-  // ── 054 US1：左侧数据源树可折叠（搜索为主入口，树降级为可选分面；FR-001）──
-  const [treeCollapsed, setTreeCollapsed] = useState(false)
+  // ── 左栏类目树面板宽度（右缘分割线拖拽，localStorage 持久化）——与数据开发 1:1 ──
+  // 与 AgentRail 同模式：motion value 驱动渲染，拖拽过程零 React 提交
+  const [, setCatalogWidth] = useState(CATALOG_DEFAULT_WIDTH)
+  const catalogWidthMotion = useMotionValue(CATALOG_DEFAULT_WIDTH)
+  const [catalogHydrated, setCatalogHydrated] = useState(false)
+  useLayoutEffect(() => {
+    const saved = Number(localStorage.getItem(CATALOG_WIDTH_KEY))
+    if (saved >= CATALOG_MIN_WIDTH && saved <= CATALOG_MAX_WIDTH) {
+      setCatalogWidth(saved)
+      catalogWidthMotion.set(saved)
+    }
+    setCatalogHydrated(true)
+  }, [catalogWidthMotion])
+  const catalogWidthStyle = useTransform(catalogWidthMotion, (v) => `${Math.round(v)}px`)
+  const catalogWidthProp = catalogHydrated ? catalogWidthStyle : "var(--dw-catalog-width, 256px)"
+  const onCatalogResizeDown = useCallback(
+    (e: ReactPointerEvent) => {
+      e.preventDefault()
+      const startX = e.clientX
+      const startW = catalogWidthMotion.get()
+      let current = startW
+      const onMove = (ev: PointerEvent) => {
+        current = Math.min(CATALOG_MAX_WIDTH, Math.max(CATALOG_MIN_WIDTH, startW + (ev.clientX - startX)))
+        catalogWidthMotion.set(current)
+      }
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        document.body.style.cursor = ""
+        document.body.style.userSelect = ""
+        setCatalogWidth(current)
+        localStorage.setItem(CATALOG_WIDTH_KEY, String(current))
+      }
+      document.body.style.cursor = "col-resize"
+      document.body.style.userSelect = "none"
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+    },
+    [catalogWidthMotion],
+  )
 
   // ── 054 US4：按数据源分组泳道开关（FR-010，默认关=徽标视图）──
   const [groupByDatasource, setGroupByDatasource] = useState(false)
@@ -522,33 +565,31 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
 
   return (
     <LineageNodeActionsContext.Provider value={nodeActions}>
-      <div className="flex h-full gap-0">
-        {/* 左侧 catalog 树（054：可折叠——搜索为主入口，数据源树降级为可选分面；FR-001） */}
-        {treeCollapsed ? (
-          <button
-            type="button"
-            aria-label={t("expand")}
-            onClick={() => setTreeCollapsed(false)}
-            className="flex w-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      <div className="flex h-full gap-3 p-3">
+        {/* 左侧 catalog 树（054：可折叠——搜索为主入口，数据源树降级为可选分面；FR-001）
+            数据开发同款 card + 分割线；右侧 pr-1.5 预留给滚动条+分割线，不可拖拽缩放 */}
+        {/* 左侧常驻分面树 —— 数据开发同款 card + 右缘可拖拽分割线（1:1） */}
+        <div className="relative flex shrink-0 flex-col pr-1.5">
+          <motion.div
+            className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg"
+            style={{ width: catalogWidthProp }}
           >
-            <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
-          </button>
-        ) : (
-          <aside className="relative w-64 shrink-0">
             <LineageFacets onSelect={handleTreeSelect} onSelectGroup={loadGroup} />
-            <button
-              type="button"
-              aria-label={t("collapse")}
-              onClick={() => setTreeCollapsed(true)}
-              className="absolute right-0 top-1/2 z-10 flex h-8 w-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <HugeiconsIcon icon={ArrowLeft01Icon} className="size-3.5" />
-            </button>
-          </aside>
-        )}
+          </motion.div>
+          {/* 右缘分割线拖拽 */}
+          <div
+            onPointerDown={onCatalogResizeDown}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("resizeCatalogPanel")}
+            className="group/resize absolute inset-y-3 right-0 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
+          >
+            <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border" />
+          </div>
+        </div>
 
         {/* 中间主区 */}
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
           {/* 工具栏 */}
           <LineageToolbar
             direction={direction}

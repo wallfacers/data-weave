@@ -1350,19 +1350,18 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
           className="flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg"
           style={{ width: catalogWidthProp }}
         >
-          <DwScroll className="min-h-0 flex-1 p-3">
-            <CatalogTree
-              draggableTasksToCanvas
-              enableMove
-              showTagFilter
-              onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
-              onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
-              onDeleteTask={(id) => closeTab(tabKey({ kind: "editor", id, name: "" }))}
-              onDeleteWorkflow={(id) => closeTab(tabKey({ kind: "canvas", id, name: "" }))}
-              onRenameTask={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "editor" && t.id === id ? { ...t, name } : t))}
-              onRenameWorkflow={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "canvas" && t.id === id ? { ...t, name } : t))}
-            />
-          </DwScroll>
+          <CatalogTree
+            className="min-h-0 flex-1"
+            draggableTasksToCanvas
+            enableMove
+            showTagFilter
+            onOpenTask={(id, name) => openTab({ kind: "editor", id, name })}
+            onOpenWorkflow={(id, name) => openTab({ kind: "canvas", id, name })}
+            onDeleteTask={(id) => closeTab(tabKey({ kind: "editor", id, name: "" }))}
+            onDeleteWorkflow={(id) => closeTab(tabKey({ kind: "canvas", id, name: "" }))}
+            onRenameTask={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "editor" && t.id === id ? { ...t, name } : t))}
+            onRenameWorkflow={(id, name) => setTabs((prev) => prev.map((t) => t.kind === "canvas" && t.id === id ? { ...t, name } : t))}
+          />
         </motion.div>
         {/* 右缘分割线拖拽 */}
         <div
