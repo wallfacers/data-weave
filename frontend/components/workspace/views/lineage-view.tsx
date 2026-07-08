@@ -95,6 +95,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
   // ── 054 US1：左侧数据源树可折叠（搜索为主入口，树降级为可选分面；FR-001）──
   const [treeCollapsed, setTreeCollapsed] = useState(false)
 
+  // ── 054 US4：按数据源分组泳道开关（FR-010，默认关=徽标视图）──
+  const [groupByDatasource, setGroupByDatasource] = useState(false)
+
   // ── Escape 关面板 ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -409,8 +412,9 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
       selectedNodeId: sel.selectedNode?.id ?? null,
       highlightEdgeKeys: allHighlightEdges.size > 0 ? allHighlightEdges : undefined,
       dimUnrelated: pathMode || !!(sel.selectedNode) || pathResult != null,
+      groupByDatasource,
     }
-  }, [graph.anchorId, graph.columnsByTable, impact, pathResult, pathMode, sel.selectedNode?.id])
+  }, [graph.anchorId, graph.columnsByTable, graph.columnEdgesByTable, impact, pathResult, pathMode, sel.selectedNode?.id, groupByDatasource])
 
   const layout = useMemo(
     () =>
@@ -505,6 +509,8 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
               setGranularity(v)
               if (graph.anchorId) loadAnchor(graph.anchorId, direction, depth, v)
             }}
+            groupByDatasource={groupByDatasource}
+            onGroupByDatasourceChange={setGroupByDatasource}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onSearchSubmit={runSearch}

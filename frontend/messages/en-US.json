@@ -1101,6 +1101,7 @@
     "granularityColumn": "Column",
     "granularityLabel": "Granularity",
     "granularityTable": "Table",
+    "groupByDatasource": "Group by source",
     "hintsEmpty": "No unresolved hints",
     "hintsTitle": "Unresolved hints",
     "impactDownstream": "{count} downstream nodes",

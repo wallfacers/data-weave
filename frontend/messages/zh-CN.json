@@ -1101,6 +1101,7 @@
     "granularityColumn": "列级",
     "granularityLabel": "粒度",
     "granularityTable": "表级",
+    "groupByDatasource": "按数据源分组",
     "hintsEmpty": "无未解析提示",
     "hintsTitle": "未解析提示",
     "impactDownstream": "下游 {count} 个节点",

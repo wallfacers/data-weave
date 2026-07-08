@@ -8,6 +8,7 @@
  * 右置 ViewRefreshControl。
  */
 import { useTranslations } from "next-intl"
+import { cn } from "@/lib/utils"
 import type { LineageDirection, LineageFilters, NodeType } from "@/lib/lineage-api"
 import { Input } from "@/components/ui/input"
 import { Segmented } from "@/components/ui/segmented"
@@ -27,6 +28,10 @@ export interface LineageToolbarProps {
   // ── 粒度 ──
   granularity: "TABLE" | "COLUMN"
   onGranularityChange: (v: "TABLE" | "COLUMN") => void
+
+  // ── 054 US4：按数据源分组泳道开关 ──
+  groupByDatasource: boolean
+  onGroupByDatasourceChange: (v: boolean) => void
 
   // ── 搜索（US2）──
   searchQuery: string
@@ -60,6 +65,8 @@ export function LineageToolbar({
   onDepthChange,
   granularity,
   onGranularityChange,
+  groupByDatasource,
+  onGroupByDatasourceChange,
   searchQuery,
   onSearchChange,
   onSearchSubmit,
@@ -129,6 +136,22 @@ export function LineageToolbar({
         ariaLabel={t("granularityLabel")}
         disabled={loading || !hasAnchor}
       />
+
+      {/* 054 US4：按数据源分组泳道开关 */}
+      <button
+        type="button"
+        disabled={loading || !hasAnchor}
+        aria-pressed={groupByDatasource}
+        onClick={() => onGroupByDatasourceChange(!groupByDatasource)}
+        className={cn(
+          "rounded px-2 py-1 text-xs transition-colors disabled:opacity-40",
+          groupByDatasource
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        {t("groupByDatasource")}
+      </button>
 
       {/* 操作按钮 */}
       <div className="flex items-center gap-1">

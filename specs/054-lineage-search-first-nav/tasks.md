@@ -27,7 +27,7 @@ description: "Task list for 054 血缘探索器入口重构"
 - 收口门全绿：后端编译 BUILD SUCCESS；真 Neo4j IT `LineageFacetTablesIT` **7/7**；`LineageGraphEndpointTest` h2 **7/7**（+2 分面隔离契约）；前端 typecheck 0、vitest **27/27**、design:lint 0；**运行栈浏览器门 6/6 PASS 0 error**（分面切换 + 数据源出真表 + 分层 + 最近 + **详情面板保留**；截图目视确认）。
 - 设计差异（较 spec）：① 保留现有树作「数据源」分面（非全新重写，用户批准）；② 补 `tablesByLayer` 支撑「分层」分面。
 
-**未做（P3，可裁剪）**：US4 数据源泳道（T031–T032）——US3 交付后由用户决定是否继续。
+**US4 数据源泳道（T031–T032）已交付**（2026-07-08）——用户裁定「分组泳道 + 开关，不做容器折叠」；详情面板硬约束保留。详见 Phase 6 收口块。
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -128,10 +128,15 @@ description: "Task list for 054 血缘探索器入口重构"
 
 **Independent Test**: 横跨多库图开启分组→节点按库进容器、跨库边跨容器；折叠某容器其对外跨库边聚合保留；可关分组回徽标视图。
 
-- [ ] T031 [US4] 改 `frontend/lib/workspace/lineage-layout.ts` + `lineage-view.tsx`：加「按数据源分组」开关，用 ReactFlow group/parent 节点把同 `datasourceId` 节点收进容器泳道，跨库边跨容器；折叠 + 关闭回徽标视图。
-- [ ] T032 [US4] 浏览器门实证 US4：分组/折叠/关闭；i18n 补开关键（两 bundle 对齐）。
+- [x] T031 [US4] 改 `frontend/lib/workspace/lineage-layout.ts` + `lineage-view.tsx` + `lineage-toolbar.tsx` + 新建 `nodes/lineage-group-node.tsx`：加「按数据源分组」开关，用 ReactFlow group/parent 节点把同 `datasourceId` 节点收进容器泳道，跨库边跨容器；关闭回徽标视图。**范围（用户裁定）：分组泳道 + 开关，不做容器折叠。**
+- [x] T032 [US4] 浏览器门实证 US4：分组/关闭/详情面板保留；i18n 补开关键（两 bundle 对齐）。
 
 **Checkpoint**: 泳道深化就绪；可裁剪。
+
+**US4 按数据源分组泳道已交付（2026-07-08，T031–T032）**——用户裁定「分组泳道 + 开关（不做折叠）」；硬约束「保留可关闭嵌入式详情面板」满足（`FlowCanvasWithPanel`/`renderPanel`/`LineageDetailPanel` 零改动，正交）：
+- 前端：`lineage-layout.ts` 加 `groupByDatasource` 选项——dagre 布局后按 `datasourceId` 分桶，每库生成 `lineageGroup` 容器节点（顶部 header 放数据源徽标标签），成员位置转相对父容器 + `parentId`/`extent`，无数据源节点（metric/孤儿）留顶层；容器排成员前（ReactFlow 硬要求）；跨库边不变天然跨容器。新建 `nodes/lineage-group-node.tsx`（背景容器 + 徽标标签，`pointer-events:none` 不吞成员点击/pane 点击）+ 注册 `lineageGroup`。`lineage-toolbar` 加开关按钮（激活态 `bg-primary/10`）；`lineage-view` 加 `groupByDatasource` state 接入 layoutOpts。
+- i18n：`lineageView.groupByDatasource`（按数据源分组 / Group by source），两 bundle 对齐。
+- 收口门全绿：`pnpm typecheck` 0；vitest `lineage-layout` +6 例分组断言（容器生成/parentId/相对位置/顶层豁免/关闭无容器/跨库边跨容器），全量 **123/123**；`design:lint` 0；**运行栈浏览器门 10/10 PASS 0 error**（跨库 seed mysql-prod/hive-dw/pg-bi；锚定 dwd_user→3 泳道容器+标签全名+跨库边跨容器+详情面板保留+关闭回徽标；`gate_us4_on/off.png` 目视确认）。
 
 ---
 

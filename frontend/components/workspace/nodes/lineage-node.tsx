@@ -27,6 +27,7 @@ import type { NodeType } from "@/lib/lineage-api"
 import { datasourceColor, datasourceAbbr } from "@/lib/workspace/lineage-datasource-style"
 import { type LineageNode, layerDotClass } from "./lineage-node-types"
 import { useLineageNodeActions } from "./lineage-node-actions-context"
+import { LineageGroupNode } from "./lineage-group-node"
 
 function iconForType(type: NodeType): IconSvgElement {
   switch (type) {
@@ -160,10 +161,11 @@ export function LineageNode({ id, data }: NodeProps<LineageNode>) {
   )
 }
 
-/** 血缘 nodeTypes 注册（datasource/table/column/metric 统一走 LineageNode）。 */
+/** 血缘 nodeTypes 注册（datasource/table/column/metric 统一走 LineageNode；lineageGroup=US4 泳道容器）。 */
 export const lineageNodeTypes = {
   datasource: LineageNode,
   table: LineageNode,
   column: LineageNode,
   metric: LineageNode,
+  lineageGroup: LineageGroupNode,
 }

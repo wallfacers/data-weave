@@ -186,6 +186,76 @@ describe("054 列级连线（FR-012/013）", () => {
   })
 })
 
+describe("054 US4 按数据源分组泳道（groupByDatasource，FR-010）", () => {
+  function tds(id: string, dsId: string, dsName: string): GraphNodeView {
+    return { id, type: "TABLE", name: id, attrs: { datasourceId: dsId, datasourceName: dsName } }
+  }
+
+  it("开启分组 → 每个数据源生成 group 容器；成员 parentId 指向容器；容器排在成员前", () => {
+    const graph = {
+      nodes: [tds("a", "ds-1", "mysql-prod"), tds("b", "ds-1", "mysql-prod"), tds("c", "ds-2", "hive-dw")],
+      edges: [edge("a", "c")],
+    }
+    const { nodes } = lineageToFlow(graph, { groupByDatasource: true })
+    const groups = nodes.filter((n) => n.type === "lineageGroup")
+    expect(groups).toHaveLength(2)
+    const g1 = groups.find((g) => g.id.includes("ds-1"))!
+    const g2 = groups.find((g) => g.id.includes("ds-2"))!
+    expect(nodes.find((n) => n.id === "a")!.parentId).toBe(g1.id)
+    expect(nodes.find((n) => n.id === "b")!.parentId).toBe(g1.id)
+    expect(nodes.find((n) => n.id === "c")!.parentId).toBe(g2.id)
+    // ReactFlow 硬要求：父容器在成员之前
+    expect(nodes.findIndex((n) => n.id === g1.id)).toBeLessThan(nodes.findIndex((n) => n.id === "a"))
+  })
+
+  it("group 容器携带 datasourceName + 成员数（count）", () => {
+    const graph = { nodes: [tds("a", "ds-1", "mysql-prod"), tds("b", "ds-1", "mysql-prod")], edges: [] }
+    const { nodes } = lineageToFlow(graph, { groupByDatasource: true })
+    const g = nodes.find((n) => n.type === "lineageGroup")!
+    expect(g.data.datasourceName).toBe("mysql-prod")
+    expect(g.data.count).toBe(2)
+  })
+
+  it("成员位置转相对父容器（非负、落在容器尺寸内）", () => {
+    const graph = { nodes: [tds("a", "ds-1", "d"), tds("b", "ds-1", "d")], edges: [edge("a", "b")] }
+    const { nodes } = lineageToFlow(graph, { groupByDatasource: true })
+    const g = nodes.find((n) => n.type === "lineageGroup")!
+    const w = (g.style as { width: number }).width
+    const h = (g.style as { height: number }).height
+    for (const id of ["a", "b"]) {
+      const m = nodes.find((n) => n.id === id)!
+      expect(m.position.x).toBeGreaterThanOrEqual(0)
+      expect(m.position.y).toBeGreaterThanOrEqual(0)
+      expect(m.position.x).toBeLessThanOrEqual(w)
+      expect(m.position.y).toBeLessThanOrEqual(h)
+    }
+  })
+
+  it("无 datasourceId 节点（metric/孤儿）留顶层、不进容器", () => {
+    const metric: GraphNodeView = { id: "m", type: "METRIC", name: "m" }
+    const graph = { nodes: [tds("a", "ds-1", "d"), metric], edges: [edge("a", "m")] }
+    const { nodes } = lineageToFlow(graph, { groupByDatasource: true })
+    expect(nodes.find((n) => n.id === "m")!.parentId).toBeUndefined()
+    expect(nodes.filter((n) => n.type === "lineageGroup")).toHaveLength(1)
+  })
+
+  it("关闭分组（默认）→ 无 group 容器、无 parentId；跨库边仍在", () => {
+    const graph = { nodes: [tds("a", "ds-1", "d"), tds("c", "ds-2", "e")], edges: [edge("a", "c")] }
+    const { nodes, edges } = lineageToFlow(graph)
+    expect(nodes.some((n) => n.type === "lineageGroup")).toBe(false)
+    expect(nodes.every((n) => n.parentId === undefined)).toBe(true)
+    expect(edges).toHaveLength(1)
+  })
+
+  it("开启分组 → 跨库边仍产出且跨容器（source/target 指向成员、warning 描边）", () => {
+    const graph = { nodes: [tds("a", "ds-1", "d"), tds("c", "ds-2", "e")], edges: [edge("a", "c")] }
+    const { edges } = lineageToFlow(graph, { groupByDatasource: true })
+    const ac = edges.find((e) => e.source === "a" && e.target === "c")!
+    expect(ac).toBeTruthy()
+    expect(ac.style?.stroke).toBe("var(--color-warning)")
+  })
+})
+
 describe("054 datasourceColor 确定性（FR-011，详见 lineage-datasource-style.test）", () => {
   it("同 id 同色、返回 chart token、空 → 中性", () => {
     expect(datasourceColor("ds-1")).toBe(datasourceColor("ds-1"))

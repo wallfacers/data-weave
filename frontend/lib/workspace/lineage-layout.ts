@@ -69,6 +69,8 @@ export interface LineageLayoutOptions {
   highlightEdgeKeys?: Set<string>
   /** 是否对非相关节点/边置暗（选中/影响/路径模式）。 */
   dimUnrelated?: boolean
+  /** 054 US4：按数据源分组泳道——同 datasourceId 节点收进带标签容器，跨库边跨容器（FR-010）。 */
+  groupByDatasource?: boolean
 }
 
 export interface LineageLayoutResult {
@@ -90,6 +92,7 @@ export function lineageToFlow(
     selectedNodeId,
     highlightEdgeKeys,
     dimUnrelated,
+    groupByDatasource,
   } = opts
 
   const nodeById = new Map<string, GraphNodeView>()
@@ -253,5 +256,92 @@ export function lineageToFlow(
     }
   }
 
+  // ── 054 US4：按数据源分组泳道（FR-010）──
+  // 同 datasourceId 节点收进带标签容器；无数据源（metric/孤儿）留顶层；跨库边天然跨容器（边引用成员 id 不变）。
+  if (groupByDatasource) {
+    return { nodes: groupNodesByDatasource(nodes, nodeById, columnsByTable), edges }
+  }
+
   return { nodes, edges }
+}
+
+/** 泳道容器头部（标签）高度 + 四周留白。 */
+const GROUP_HEADER_H = 32
+const GROUP_PAD = 16
+
+/**
+ * 054 US4：把已布局节点按 datasourceId 收进 ReactFlow group 容器（泳道）。
+ *
+ * 对每个数据源：算成员绝对包围盒 → 生成容器节点（顶部留 header 放数据源标签）→ 成员
+ * 位置转为相对父容器 + 设 parentId/extent。无 datasourceId 的节点留顶层。容器节点必须
+ * 排在其成员之前（ReactFlow 硬要求）。跨库边不受影响：边仍引用成员 id，天然跨容器。
+ */
+function groupNodesByDatasource(
+  nodes: LineageNode[],
+  nodeById: Map<string, GraphNodeView>,
+  columnsByTable?: Record<string, LineageColumnItem[]>,
+): LineageNode[] {
+  const buckets = new Map<string, LineageNode[]>()
+  const topLevel: LineageNode[] = []
+  for (const n of nodes) {
+    const dsId = n.data.datasourceId
+    if (dsId) {
+      const list = buckets.get(dsId)
+      if (list) list.push(n)
+      else buckets.set(dsId, [n])
+    } else {
+      topLevel.push(n)
+    }
+  }
+  if (buckets.size === 0) return nodes
+
+  const groupNodes: LineageNode[] = []
+  const childNodes: LineageNode[] = []
+  for (const [dsId, members] of buckets) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const m of members) {
+      const { width, height } = nodeSize(nodeById.get(m.id)?.type ?? "TABLE", columnsByTable?.[m.id]?.length ?? 0)
+      minX = Math.min(minX, m.position.x)
+      minY = Math.min(minY, m.position.y)
+      maxX = Math.max(maxX, m.position.x + width)
+      maxY = Math.max(maxY, m.position.y + height)
+    }
+    const originX = minX - GROUP_PAD
+    const originY = minY - GROUP_PAD - GROUP_HEADER_H
+    const width = maxX - minX + GROUP_PAD * 2
+    const height = maxY - minY + GROUP_PAD * 2 + GROUP_HEADER_H
+    const dsName = members.find((m) => m.data.datasourceName)?.data.datasourceName ?? dsId
+    const groupId = `dsgroup:${dsId}`
+
+    groupNodes.push({
+      id: groupId,
+      type: "lineageGroup",
+      position: { x: originX, y: originY },
+      data: {
+        nodeType: "DATASOURCE",
+        name: dsName,
+        datasourceId: dsId,
+        datasourceName: dsName,
+        count: members.length,
+      },
+      style: { width, height, pointerEvents: "none" },
+      selectable: false,
+      draggable: false,
+      connectable: false,
+      zIndex: 0,
+    })
+    for (const m of members) {
+      childNodes.push({
+        ...m,
+        parentId: groupId,
+        extent: "parent",
+        position: { x: m.position.x - originX, y: m.position.y - originY },
+      })
+    }
+  }
+  // 容器 → 成员 → 顶层：保证父在子前
+  return [...groupNodes, ...childNodes, ...topLevel]
 }
