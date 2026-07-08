@@ -6,12 +6,13 @@
  * 从 workflow-canvas-view 抽出 ReactFlow 核心渲染逻辑，保证两处展示 100% 一致。
  * 只读模式下关闭所有编辑交互（拖拽/连线/删除/右键菜单）。
  */
-import type { ReactNode, MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, type ReactNode, type MouseEvent as ReactMouseEvent } from "react"
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  useNodesState,
   type Node,
   type Edge,
   type NodeTypes,
@@ -25,6 +26,14 @@ export interface DagRendererProps {
   edges: Edge[]
   nodeTypes: NodeTypes
   readOnly?: boolean
+  /** 节点是否可拖拽（默认 !readOnly）。血缘图 readOnly 但仍需拖拽时可显式传 true。 */
+  nodesDraggable?: boolean
+  /**
+   * 交互式拖拽（readOnly 也生效）：内部用 useNodesState 承接拖拽位置变化，
+   * 布局 nodes 变化时重新播种。开启后拖动节点会真正移动并保留位置，
+   * 但不启用连线/删除等编辑能力。血缘图用此模式。默认关闭（工作流走原受控路径）。
+   */
+  interactiveNodes?: boolean
   /** 边右键菜单（仅编辑态） */
   onEdgeContextMenu?: (e: ReactMouseEvent, edge: Edge) => void
   onPaneClick?: () => void
@@ -53,6 +62,8 @@ export function DagRenderer({
   edges,
   nodeTypes,
   readOnly = false,
+  nodesDraggable = !readOnly,
+  interactiveNodes = false,
   onEdgeContextMenu,
   onPaneClick,
   onNodeClick,
@@ -66,22 +77,36 @@ export function DagRenderer({
   showMiniMap = false,
   children,
 }: DagRendererProps) {
+  // interactiveNodes：readOnly 下仍可拖拽。内部承接拖拽位置，布局 nodes 变化时重新播种。
+  const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(nodes)
+  useEffect(() => {
+    if (interactiveNodes) setInternalNodes(nodes)
+  }, [interactiveNodes, nodes, setInternalNodes])
+
+  const effectiveNodes = interactiveNodes ? internalNodes : nodes
+  const effectiveNodesChange = interactiveNodes
+    ? onInternalNodesChange
+    : readOnly
+      ? undefined
+      : onNodesChange
+  const effectiveDraggable = interactiveNodes ? true : nodesDraggable
+
   return (
     <ReactFlow
       id={rfId}
-      nodes={nodes}
+      nodes={effectiveNodes}
       edges={edges}
       nodeTypes={nodeTypes}
       fitView
       fitViewOptions={{ padding: 0.2 }}
       proOptions={{ hideAttribution: true }}
-      // 编辑交互 —— 只读时全部关闭
-      nodesDraggable={!readOnly}
+      // 编辑交互 —— 只读时全部关闭（连线/删除）；interactiveNodes 仅解锁拖拽移动
+      nodesDraggable={effectiveDraggable}
       nodesConnectable={!readOnly}
       deleteKeyCode={readOnly ? undefined : ["Backspace", "Delete"]}
       panActivationKeyCode={null}
       // 编辑回调
-      onNodesChange={readOnly ? undefined : onNodesChange}
+      onNodesChange={effectiveNodesChange}
       onEdgesChange={readOnly ? undefined : onEdgesChange}
       onConnect={readOnly ? undefined : onConnect}
       onEdgeContextMenu={readOnly ? undefined : onEdgeContextMenu}

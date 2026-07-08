@@ -12,8 +12,8 @@ import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   ArrowRight02Icon,
-  Table01Icon,
-  ColumnInsertIcon,
+  GridTableIcon,
+  LeftToRightListBulletIcon,
 } from "@hugeicons/core-free-icons"
 import type { GraphNodeView, ImpactResult } from "@/lib/lineage-api"
 
@@ -46,7 +46,7 @@ export function ImpactDetailContent({ impact, selectedId, onSelect }: ImpactDeta
       {impact.root && (
         <div className="rounded-md bg-muted/50 px-3 py-2">
           <div className="flex items-center gap-2 text-sm">
-            <HugeiconsIcon icon={Table01Icon} className="size-4 text-muted-foreground shrink-0" />
+            <HugeiconsIcon icon={GridTableIcon} className="size-4 text-muted-foreground shrink-0" />
             <span className="truncate font-medium">{impact.root.name}</span>
           </div>
           <div className="flex justify-center py-1">
@@ -61,7 +61,7 @@ export function ImpactDetailContent({ impact, selectedId, onSelect }: ImpactDeta
       ) : (
         <div className="space-y-1">
           {impact.downstream.map((node) => {
-            const Icon = node.type === "COLUMN" ? ColumnInsertIcon : Table01Icon
+            const Icon = node.type === "COLUMN" ? LeftToRightListBulletIcon : GridTableIcon
             return (
               <button
                 key={node.id}

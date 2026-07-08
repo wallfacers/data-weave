@@ -12,13 +12,12 @@
 import { useState, useCallback, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
-import { LoadingState } from "@/components/workspace/shared/loading-state"
 import {
-  Database01Icon,
+  Database02Icon,
   ArrowDown01Icon,
   ArrowRight01Icon,
-  Table01Icon,
-  ColumnInsertIcon,
+  GridTableIcon,
+  LeftToRightListBulletIcon,
 } from "@hugeicons/core-free-icons"
 import type { GraphNodeView, NodeType } from "@/lib/lineage-api"
 import { fetchDatasources, fetchColumns, fetchTablesByDatasource } from "@/lib/lineage-api"
@@ -37,7 +36,7 @@ export interface TreeNode {
 }
 
 function iconForType(type: NodeType): IconSvgElement {
-  return type === "DATASOURCE" ? Database01Icon : type === "COLUMN" ? ColumnInsertIcon : Table01Icon
+  return type === "DATASOURCE" ? Database02Icon : type === "COLUMN" ? LeftToRightListBulletIcon : GridTableIcon
 }
 
 export function LineageTree({
@@ -136,7 +135,7 @@ export function LineageTree({
     setRoots([...rootsCopy])
   }, [roots, onSelect])
 
-  if (loading) return <LoadingState active={loading} />
+  if (loading) return <TreeSkeleton />
   if (error) return <div className="text-sm text-muted-foreground px-4 py-2">{error}</div>
 
   const renderNode = (node: TreeNode, depth: number, path: number[]) => {
@@ -186,5 +185,23 @@ export function LineageTree({
       )}
       {roots.map((root, i) => renderNode(root, 0, [i]))}
     </DwScroll>
+  )
+}
+
+/**
+ * 树骨架占位：打开/刷新数据源树时安静显示，替代整屏旋转 spinner。
+ * 沿用仓库骨架惯例（bg-muted + animate-pulse），条宽错落模拟树行，不喧宾夺主。
+ */
+function TreeSkeleton() {
+  const widths = [64, 52, 58, 46, 60, 50]
+  return (
+    <div className="flex flex-col gap-2 px-2 py-2" aria-hidden>
+      {widths.map((w, i) => (
+        <div key={i} className="flex items-center gap-1.5 px-2 py-0.5">
+          <div className="bg-muted size-4 shrink-0 animate-pulse rounded" />
+          <div className="bg-muted h-3.5 animate-pulse rounded-md" style={{ width: `${w}%` }} />
+        </div>
+      ))}
+    </div>
   )
 }

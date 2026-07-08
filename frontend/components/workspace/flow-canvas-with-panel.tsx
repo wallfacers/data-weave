@@ -70,6 +70,8 @@ export interface FlowCanvasWithPanelProps {
   /** 点画布空白 / Escape 关面板均经此回调（由调用方决定语义）。 */
   onPaneClick?: () => void
   showMiniMap?: boolean
+  /** 节点是否可拖拽（默认 !readOnly）。血缘图 readOnly 但仍需拖拽时可显式传 true。 */
+  nodesDraggable?: boolean
 
   // ── 嵌入面板 ──
   panelOpen: boolean
@@ -102,6 +104,7 @@ export function FlowCanvasWithPanel({
   onEdgeClick,
   onPaneClick,
   showMiniMap = false,
+  nodesDraggable,
   panelOpen,
   renderPanel,
   panelStorageKey,
@@ -193,6 +196,9 @@ export function FlowCanvasWithPanel({
               edges={edges}
               nodeTypes={nodeTypes}
               readOnly
+              nodesDraggable={nodesDraggable}
+              // 血缘图 readOnly 但需拖拽移动节点：开 interactiveNodes 让拖拽真正生效并保留位置
+              interactiveNodes={!!nodesDraggable}
               showMiniMap={showMiniMap}
               onNodeClick={onNodeClick}
               onNodeDoubleClick={onNodeDoubleClick}

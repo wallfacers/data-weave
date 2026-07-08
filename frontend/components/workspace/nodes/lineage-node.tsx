@@ -18,9 +18,9 @@ import {
   AnchorIcon,
   ArrowDown01Icon,
   ArrowRight01Icon,
-  ColumnInsertIcon,
-  Database01Icon,
-  Table01Icon,
+  LeftToRightListBulletIcon,
+  Database02Icon,
+  GridTableIcon,
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import type { NodeType } from "@/lib/lineage-api"
@@ -32,13 +32,13 @@ import { LineageGroupNode } from "./lineage-group-node"
 function iconForType(type: NodeType): IconSvgElement {
   switch (type) {
     case "COLUMN":
-      return ColumnInsertIcon
+      return LeftToRightListBulletIcon
     case "DATASOURCE":
-      return Database01Icon
+      return Database02Icon
     case "METRIC":
       return Activity02Icon
     default:
-      return Table01Icon
+      return GridTableIcon
   }
 }
 

@@ -16,12 +16,12 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  Database01Icon,
+  Database02Icon,
   Layers01Icon,
   Clock01Icon,
   ArrowDown01Icon,
   ArrowRight01Icon,
-  Table01Icon,
+  GridTableIcon,
 } from "@hugeicons/core-free-icons"
 import { Segmented } from "@/components/ui/segmented"
 import { DwScroll } from "@/components/ui/dw-scroll"
@@ -52,7 +52,7 @@ export function LineageFacets({ onSelect }: LineageFacetsProps) {
           value={facet}
           onChange={(v) => setFacet(v as Facet)}
           options={[
-            { value: "datasource", label: t("facetDatasource"), icon: Database01Icon },
+            { value: "datasource", label: t("facetDatasource"), icon: Database02Icon },
             { value: "layer", label: t("facetLayer"), icon: Layers01Icon },
             { value: "recent", label: t("facetRecent"), icon: Clock01Icon },
           ]}
@@ -132,7 +132,7 @@ function LayerFacet({ onSelect }: LineageFacetsProps) {
                   className="flex w-full items-center gap-1.5 rounded-md py-1.5 pr-2 pl-8 text-left text-sm transition-colors hover:bg-muted/50"
                   onClick={() => onSelect?.(tb)}
                 >
-                  <HugeiconsIcon icon={Table01Icon} className="size-4 shrink-0 text-muted-foreground" />
+                  <HugeiconsIcon icon={GridTableIcon} className="size-4 shrink-0 text-muted-foreground" />
                   <span className="truncate">{tb.name}</span>
                   {typeof tb.attrs?.datasourceName === "string" && (
                     <span className="ml-auto shrink-0 truncate text-[10px] text-muted-foreground">
@@ -173,7 +173,7 @@ function RecentFacet({ onSelect }: LineageFacetsProps) {
           className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/50"
           onClick={() => onSelect?.({ id: a.id, type: a.type as GraphNodeView["type"], name: a.name })}
         >
-          <HugeiconsIcon icon={Table01Icon} className="size-4 shrink-0 text-muted-foreground" />
+          <HugeiconsIcon icon={GridTableIcon} className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{a.name}</span>
           {a.datasourceName && (
             <span className="ml-auto shrink-0 truncate text-[10px] text-muted-foreground">{a.datasourceName}</span>

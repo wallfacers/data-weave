@@ -615,6 +615,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
             emptyText={t("emptyCanvasHint")}
             retryText={t("retry")}
             showMiniMap
+            nodesDraggable
           >
             {/* 054 US1：未锚定时搜索 hero 为视觉主入口（居中、默认聚焦） */}
             {!graph.anchorId && !loading && !error && (

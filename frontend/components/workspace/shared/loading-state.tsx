@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { RefreshIcon } from "@hugeicons/core-free-icons"
+import { Loading03Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 
 export interface LoadingStateProps {
@@ -90,7 +90,7 @@ export function LoadingState({
       aria-label={label}
     >
       <HugeiconsIcon
-        icon={RefreshIcon}
+        icon={Loading03Icon}
         className={cn(iconSize, "motion-safe:animate-spin")}
       />
       <span className={textSize}>{label}</span>
