@@ -113,13 +113,12 @@ export function ConfigShell() {
         </div>
       </div>
 
-      {/* 右：选中分区内容（圆角卡片；DwScroll 内 max-w-lg 垂直+水平居中，留白 --card-spacing） */}
+      {/* 右：选中分区内容（圆角卡片；顶部对齐 + p-6 留白，分区组件自管宽度/居中） */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
-        <DwScroll
-          className="flex-1"
-          innerClassName="min-h-full flex flex-col justify-center p-(--card-spacing)"
-        >
-          <ActiveComponent />
+        <DwScroll className="flex-1" innerClassName="overflow-y-auto">
+          <div className="p-6">
+            <ActiveComponent />
+          </div>
         </DwScroll>
       </div>
     </div>

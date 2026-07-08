@@ -199,7 +199,7 @@ function LogTabContent({
 }) {
   const t = useTranslations("logPanel")
   // 全部 tab 常驻 SSE 连接（切走也实时），供 tab 圆点显示状态
-  const { events, connected, error, clearEvents } = useEventSource(
+  const { events, connected, error, reconnect } = useEventSource(
     `${API_BASE}/api/ops/instances/${tab.instanceId}/logs/stream`,
   )
 
@@ -231,7 +231,7 @@ function LogTabContent({
         </Badge>
         <div className="flex-1" />
         <button
-          onClick={clearEvents}
+          onClick={reconnect}
           className="rounded p-0.5 text-muted-foreground hover:text-foreground"
           title={t("clear")}
         >

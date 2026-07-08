@@ -865,6 +865,7 @@
     "disconnected": "断开",
     "connecting": "连接中",
     "clear": "清空",
+    "copyId": "点击复制实例 ID",
     "waitingLogs": "等待日志输出",
     "noLogs": "无日志记录",
     "connectingDots": "连接中"

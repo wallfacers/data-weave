@@ -482,7 +482,7 @@ export function PeriodicInstancesPanel({
                     size="icon"
                     variant="ghost"
                     className="size-7"
-                    onClick={() => open("instance-log", { instanceId: r.id })}
+                    onClick={() => open("instance-log", { instanceId: r.id, taskName: r.taskDefName, workflowName: r.workflowName })}
                   >
                     <HugeiconsIcon icon={FileViewIcon} className="size-4" />
                   </Button>

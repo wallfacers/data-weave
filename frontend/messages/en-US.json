@@ -865,6 +865,7 @@
     "disconnected": "Disconnected",
     "connecting": "Connecting",
     "clear": "Clear",
+    "copyId": "Click to copy instance ID",
     "waitingLogs": "Waiting for log output",
     "noLogs": "No log records",
     "connectingDots": "Connecting"

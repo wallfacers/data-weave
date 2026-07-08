@@ -151,12 +151,12 @@ export function AiAgentConfigSection() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg flex flex-col gap-4">
-      {/* 标题 + 全局提示 */}
+    <div className="mx-auto w-full max-w-2xl flex flex-col gap-5">
+      {/* 标题 + 说明 */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <HugeiconsIcon icon={CpuIcon} className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium">{t("title")}</h2>
+          <h2 className="text-base font-medium">{t("title")}</h2>
         </div>
         <p className="text-xs text-muted-foreground">{t("description")}</p>
         <p className="text-xs text-muted-foreground">{t("globalHint")}</p>
@@ -169,52 +169,42 @@ export function AiAgentConfigSection() {
         </div>
       )}
 
-      {/* 表单 */}
-      <div className="grid gap-3">
-        {/* 协议 */}
-        <div className="grid gap-1">
-          <label className="text-sm font-medium">{t("form.protocol")}</label>
-          <DropdownSelect
-            value={protocol}
-            onChange={(v) => {
-              setProtocol(v as AgentProtocol)
-              setTestResult(null)
-            }}
-            options={protocolOptions}
-            triggerClassName="h-9"
-            disableClear
-          />
-        </div>
+      {/* 主字段：标签在左、输入在右（横向表单，结构化填满宽度） */}
+      <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3">
+        <label className="text-sm text-muted-foreground">{t("form.protocol")}</label>
+        <DropdownSelect
+          value={protocol}
+          onChange={(v) => {
+            setProtocol(v as AgentProtocol)
+            setTestResult(null)
+          }}
+          options={protocolOptions}
+          triggerClassName="h-9"
+          disableClear
+        />
 
-        {/* Base URL */}
-        <div className="grid gap-1">
-          <label className="text-sm font-medium">{t("form.baseUrl")}</label>
-          <Input
-            value={baseUrl}
-            onChange={(e) => {
-              setBaseUrl(e.target.value)
-              setTestResult(null)
-            }}
-            placeholder={t("form.baseUrlPh")}
-          />
-        </div>
+        <label className="text-sm text-muted-foreground">{t("form.baseUrl")}</label>
+        <Input
+          value={baseUrl}
+          onChange={(e) => {
+            setBaseUrl(e.target.value)
+            setTestResult(null)
+          }}
+          placeholder={t("form.baseUrlPh")}
+        />
 
-        {/* 模型 */}
-        <div className="grid gap-1">
-          <label className="text-sm font-medium">{t("form.model")}</label>
-          <Input
-            value={model}
-            onChange={(e) => {
-              setModel(e.target.value)
-              setTestResult(null)
-            }}
-            placeholder={t("form.modelPh")}
-          />
-        </div>
+        <label className="text-sm text-muted-foreground">{t("form.model")}</label>
+        <Input
+          value={model}
+          onChange={(e) => {
+            setModel(e.target.value)
+            setTestResult(null)
+          }}
+          placeholder={t("form.modelPh")}
+        />
 
-        {/* API Key（留空=不改；已配置时下方提示脱敏值） */}
-        <div className="grid gap-1">
-          <label className="text-sm font-medium">{t("form.apiKey")}</label>
+        <label className="text-sm text-muted-foreground">{t("form.apiKey")}</label>
+        <div className="flex flex-col gap-1">
           <Input
             type="password"
             value={apiKey}
@@ -231,58 +221,43 @@ export function AiAgentConfigSection() {
           )}
         </div>
 
-        {/* 数值参数三联（大范围 → Input type=number，非 Stepper） */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">{t("form.timeoutMs")}</label>
-            <Input
-              type="number"
-              value={timeoutMs}
-              onChange={(e) => setTimeoutMs(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">{t("form.rateLimitPerMin")}</label>
-            <Input
-              type="number"
-              value={rateLimitPerMin}
-              onChange={(e) => setRateLimitPerMin(Number(e.target.value) || 0)}
-            />
-          </div>
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">{t("form.maxColumns")}</label>
-            <Input
-              type="number"
-              value={maxColumns}
-              onChange={(e) => setMaxColumns(Number(e.target.value) || 0)}
-            />
-          </div>
-        </div>
-
-        {/* 启用开关 */}
-        <div className="flex items-center justify-between rounded-md border px-3 py-2">
-          <label className="text-sm font-medium">{t("form.enabled")}</label>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-        </div>
-
-        {/* 测试结果反馈 */}
-        {testResult && (
-          <div
-            className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${
-              testResult.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-            }`}
-          >
-            <HugeiconsIcon
-              icon={testResult.ok ? CheckmarkCircle01Icon : Cancel01Icon}
-              className="size-4 shrink-0"
-            />
-            <span>{testResult.ok ? t("testOk", { latencyMs: testResult.latencyMs }) : t("testFailed")}</span>
-            {testResult.note && <span className="text-xs opacity-70">{testResult.note}</span>}
-          </div>
-        )}
-
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <label className="text-sm text-muted-foreground">{t("form.enabled")}</label>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
       </div>
+
+      {/* 运行参数三联（大范围 → Input type=number，非 Stepper） */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-1">
+          <label className="text-xs text-muted-foreground">{t("form.timeoutMs")}</label>
+          <Input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value) || 0)} />
+        </div>
+        <div className="grid gap-1">
+          <label className="text-xs text-muted-foreground">{t("form.rateLimitPerMin")}</label>
+          <Input type="number" value={rateLimitPerMin} onChange={(e) => setRateLimitPerMin(Number(e.target.value) || 0)} />
+        </div>
+        <div className="grid gap-1">
+          <label className="text-xs text-muted-foreground">{t("form.maxColumns")}</label>
+          <Input type="number" value={maxColumns} onChange={(e) => setMaxColumns(Number(e.target.value) || 0)} />
+        </div>
+      </div>
+
+      {/* 测试结果反馈 */}
+      {testResult && (
+        <div
+          className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${
+            testResult.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+          }`}
+        >
+          <HugeiconsIcon
+            icon={testResult.ok ? CheckmarkCircle01Icon : Cancel01Icon}
+            className="size-4 shrink-0"
+          />
+          <span>{testResult.ok ? t("testOk", { latencyMs: testResult.latencyMs }) : t("testFailed")}</span>
+          {testResult.note && <span className="text-xs opacity-70">{testResult.note}</span>}
+        </div>
+      )}
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* 操作 */}
       <div className="flex items-center gap-2">
