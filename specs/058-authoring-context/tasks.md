@@ -60,7 +60,7 @@
 - [x] T010 [US1] 实现 `AuthoringContextService.context(...)`：读写表经 `TaskLineageResolver`（共享核）抽取→表级上下游经 `LineageQueryService.upstream/downstream`（BFS 跳距）；三态接地经 `DatasourceBoundCatalog.probeExistence`；列血缘直取抽取产物；广度按 `clampLimit` 截断留痕（FR-001/002/003/018）。单测 3 绿（mock 层）。**收尾细化**：`datasourceSchema` 填充 + neo4j 端到端 IT 见 T006
 - [x] T011 [US1] 实现 `AuthoringContextService.taskDependencies(...)`：合并 `WorkflowEdgeRepository` 声明边 + 推导血缘边 → `TaskDependencyView`（带 origin，FR-006），新增 `TaskDependencyView.java`/`DependencyEdge.java`
 - [ ] T012 [US1] 实现工作副本无状态分析：多草稿跨任务依赖先草稿内解析再回退服务端图谱、草稿覆盖同名已 push（FR-004/019），于 `AuthoringContextService` + 请求装配器
-- [ ] T013 [US1] REST 控制器 `AuthoringContextController`：`POST /api/authoring-context/analyze` + `GET /api/authoring-context/{taskDefId}`（depth/include 参数，租户+项目隔离），于 `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/AuthoringContextController.java`
+- [x] T013 [US1] REST 控制器 `AuthoringContextController`：`POST /api/authoring-context/analyze` + `GET /api/authoring-context/{taskDefId}` + `/{taskDefId}/deps`（depth 参数，ProjectScope 租户+项目隔离），于 `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/AuthoringContextController.java`
 - [ ] T014 [US1] MCP：在 `McpToolRegistry.registerTools()` 注册 `query_authoring_context` + `query_task_deps`（`requireTenant`，复用服务），于 `backend/dataweave-api/src/main/java/com/dataweave/api/application/mcp/McpToolRegistry.java`
 - [ ] T015 [US1] MCP 漂移修正：新增表/列级只读血缘查询承载新面、**保留** `query_lineage` 旧签名不破坏（FR-015，research D4），于 `McpToolRegistry.java`
 - [ ] T016 [P] [US1] CLI：`dw context` + `dw deps` 子命令（收集工作副本草稿→`POST /analyze`→`--json`），于 `cli/main.go` + `cli/context/analyze.go`
