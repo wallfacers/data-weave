@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dataweave/dw/authctx"
 	"github.com/dataweave/dw/client"
 	"github.com/dataweave/dw/run"
 	"github.com/dataweave/dw/sync"
@@ -56,6 +57,10 @@ func main() {
 		cmdDiff(args[1:])
 	case "run":
 		cmdRun(args[1:])
+	case "context":
+		cmdContext(args[1:])
+	case "deps":
+		cmdDeps(args[1:])
 	case "--version", "version":
 		fmt.Println("dw 0.0.1 (DataWeave agent-fabric-m1)")
 	default:
@@ -63,6 +68,68 @@ func main() {
 		usageRoot()
 		os.Exit(2)
 	}
+}
+
+// ---- context / deps 子命令（058 数据开发 LSP，只读接地事实）----
+
+func cmdContext(args []string) {
+	if len(args) == 0 || isHelp(args[0]) {
+		fmt.Println("用法：dw context <taskId> [--depth N] [--json]")
+		return
+	}
+	jsonOut, rest := popJSONFlag(args)
+	depth, rest := popDepthFlag(rest)
+	id := mustArg(rest, "context <taskId> [--depth N]")
+	path := "/api/authoring-context/" + id
+	if depth > 0 {
+		path += "?depth=" + strconv.Itoa(depth)
+	}
+	body := mustGet(path)
+	if jsonOut {
+		printJSON(body)
+		return
+	}
+	out, err := authctx.FormatContext(body)
+	if err != nil {
+		fail("%v", err)
+	}
+	fmt.Print(out)
+}
+
+func cmdDeps(args []string) {
+	if len(args) == 0 || isHelp(args[0]) {
+		fmt.Println("用法：dw deps <taskId> [--json]")
+		return
+	}
+	jsonOut, rest := popJSONFlag(args)
+	id := mustArg(rest, "deps <taskId>")
+	body := mustGet("/api/authoring-context/" + id + "/deps")
+	if jsonOut {
+		printJSON(body)
+		return
+	}
+	out, err := authctx.FormatDeps(body)
+	if err != nil {
+		fail("%v", err)
+	}
+	fmt.Print(out)
+}
+
+// popDepthFlag 摘出 --depth N（缺省 0=服务端多跳）。
+func popDepthFlag(args []string) (int, []string) {
+	var rest []string
+	depth := 0
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--depth" && i+1 < len(args) {
+			if d, err := strconv.Atoi(args[i+1]); err == nil {
+				depth = d
+			}
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	return depth, rest
 }
 
 // ---- task 子命令 ----
@@ -303,6 +370,10 @@ func usageRoot() {
   push    推回服务器（幂等覆盖 + 版本快照）
   diff    只读差异预览（对服务器零写入）
   run     本机真跑任务（dw run <task>）；TEST 提交服务器（dw run --test <task>）
+
+命令（血缘接地创作上下文，数据开发 LSP 058）：
+  context 任务创作上下文（读写表→上下游 + 表/列血缘 + 三态接地）：dw context <taskId> [--depth N]
+  deps    任务依赖视图（声明 DAG + 推导血缘带 origin）：dw deps <taskId>
 
   version 版本
   help    本帮助

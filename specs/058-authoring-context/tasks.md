@@ -63,9 +63,9 @@
 - [x] T013 [US1] REST 控制器 `AuthoringContextController`：`POST /api/authoring-context/analyze` + `GET /api/authoring-context/{taskDefId}` + `/{taskDefId}/deps`（depth 参数，ProjectScope 租户+项目隔离），于 `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/AuthoringContextController.java`
 - [x] T014 [US1] MCP：在 `McpToolRegistry.registerTools()` 注册 `query_authoring_context` + `query_task_deps`（`requireTenant`，复用服务），于 `backend/dataweave-api/src/main/java/com/dataweave/api/application/mcp/McpToolRegistry.java`
 - [x] T015 [US1] MCP 漂移修正：新增表/列级只读血缘查询承载新面、**保留** `query_lineage` 旧签名不破坏（FR-015，research D4），于 `McpToolRegistry.java`
-- [ ] T016 [P] [US1] CLI：`dw context` + `dw deps` 子命令（收集工作副本草稿→`POST /analyze`→`--json`），于 `cli/main.go` + `cli/context/analyze.go`
-- [ ] T017 [P] [US1] CLI 测试：analyze 往返 + 输出契约，于 `cli/context/analyze_test.go`
-- [ ] T018 [US1] Skill 扩展：`.claude/skills/weft-task-authoring/SKILL.md` 教「编辑前 `dw context` 取接地事实」回路
+- [x] T016 [P] [US1] CLI：`dw context` + `dw deps` 子命令（收集工作副本草稿→`POST /analyze`→`--json`），于 `cli/main.go` + `cli/authctx/analyze.go`（目录 authctx 避 stdlib context 冲突）
+- [x] T017 [P] [US1] CLI 测试：analyze 往返 + 输出契约，于 `cli/authctx/analyze_test.go`
+- [x] T018 [US1] Skill 扩展：`.claude/skills/weft-task-authoring/SKILL.md` 教「编辑前 `dw context` 取接地事实」回路
 - [ ] T019 [US1] 双面等价测试：同一已 push 任务 `dw context` 与 MCP `query_authoring_context` 语义一致（SC-006），于 `backend/dataweave-api/src/test/java/com/dataweave/api/AuthoringContextParityIT.java`
 
 **Checkpoint**: US1 完整可用、可独立演示（MVP）。
