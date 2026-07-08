@@ -180,29 +180,29 @@ public class WorkflowService {
      */
     public PageResult search(String keyword, String status, Long catalogNodeId,
                              boolean uncategorized, Long tagId, int page, int size) {
-        StringBuilder where = new StringBuilder("WHERE deleted = 0");
+        StringBuilder where = new StringBuilder("WHERE w.deleted = 0");
         List<Object> params = new ArrayList<>();
         if (keyword != null && !keyword.isBlank()) {
-            where.append(" AND name LIKE ?");
+            where.append(" AND w.name LIKE ?");
             params.add("%" + keyword.trim() + "%");
         }
         if (status != null && !status.isBlank()) {
-            where.append(" AND status = ?");
+            where.append(" AND w.status = ?");
             params.add(status);
         }
         if (uncategorized) {
-            where.append(" AND catalog_node_id IS NULL");
+            where.append(" AND w.catalog_node_id IS NULL");
         } else if (catalogNodeId != null) {
-            where.append(" AND catalog_node_id = ?");
+            where.append(" AND w.catalog_node_id = ?");
             params.add(catalogNodeId);
         }
         if (tagId != null) {
-            where.append(" AND id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'WORKFLOW')");
+            where.append(" AND w.id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'WORKFLOW')");
             params.add(tagId);
         }
 
         Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM workflow_def " + where, Long.class, params.toArray());
+                "SELECT COUNT(*) FROM workflow_def w " + where, Long.class, params.toArray());
         long totalElements = total != null ? total : 0;
         int totalPages = (int) Math.ceil((double) totalElements / size);
 
@@ -210,7 +210,7 @@ public class WorkflowService {
         pageParams.add(size);
         pageParams.add(page * size);
         List<WorkflowDef> content = jdbcTemplate.query(
-                "SELECT * FROM workflow_def " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT w.* FROM workflow_def w LEFT JOIN catalog_node cn ON w.catalog_node_id = cn.id AND cn.deleted = 0 " + where + " ORDER BY cn.path ASC, w.created_at DESC LIMIT ? OFFSET ?",
                 (rs, n) -> mapWorkflow(rs), pageParams.toArray());
 
         return new PageResult(content, totalElements, totalPages, page, size);

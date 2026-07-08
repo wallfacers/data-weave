@@ -150,61 +150,61 @@ public class TaskService {
                              Long catalogNodeId, boolean uncategorized, Long tagId,
                              Long ownerId, Integer frozen, Long datasourceId,
                              int page, int size) {
-        StringBuilder where = new StringBuilder("WHERE deleted = 0");
+        StringBuilder where = new StringBuilder("WHERE t.deleted = 0");
         List<Object> params = new ArrayList<>();
 
         if (keyword != null && !keyword.isBlank()) {
-            where.append(" AND name LIKE ?");
+            where.append(" AND t.name LIKE ?");
             params.add("%" + keyword.trim() + "%");
         }
         if (type != null && !type.isBlank()) {
-            where.append(" AND type = ?");
+            where.append(" AND t.type = ?");
             params.add(type);
         }
         if (status != null && !status.isBlank()) {
-            where.append(" AND status = ?");
+            where.append(" AND t.status = ?");
             params.add(status);
         }
         if (startTime != null) {
-            where.append(" AND created_at >= ?");
+            where.append(" AND t.created_at >= ?");
             params.add(startTime);
         }
         if (endTime != null) {
-            where.append(" AND created_at <= ?");
+            where.append(" AND t.created_at <= ?");
             params.add(endTime);
         }
         if (uncategorized) {
-            where.append(" AND catalog_node_id IS NULL");
+            where.append(" AND t.catalog_node_id IS NULL");
         } else if (catalogNodeId != null) {
-            where.append(" AND catalog_node_id = ?");
+            where.append(" AND t.catalog_node_id = ?");
             params.add(catalogNodeId);
         }
         if (tagId != null) {
-            where.append(" AND id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'TASK')");
+            where.append(" AND t.id IN (SELECT entity_id FROM entity_tag WHERE tag_id = ? AND entity_type = 'TASK')");
             params.add(tagId);
         }
         if (ownerId != null) {
-            where.append(" AND owner_id = ?");
+            where.append(" AND t.owner_id = ?");
             params.add(ownerId);
         }
         if (frozen != null) {
-            where.append(" AND frozen = ?");
+            where.append(" AND t.frozen = ?");
             params.add(frozen);
         }
         if (datasourceId != null) {
-            where.append(" AND datasource_id = ?");
+            where.append(" AND t.datasource_id = ?");
             params.add(datasourceId);
         }
 
         // Count
         Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM task_def " + where, Long.class, params.toArray());
+                "SELECT COUNT(*) FROM task_def t " + where, Long.class, params.toArray());
         long totalElements = total != null ? total : 0;
 
         // Page
         int totalPages = (int) Math.ceil((double) totalElements / size);
         int offset = page * size;
-        String sql = "SELECT * FROM task_def " + where + " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        String sql = "SELECT t.* FROM task_def t LEFT JOIN catalog_node cn ON t.catalog_node_id = cn.id AND cn.deleted = 0 " + where + " ORDER BY cn.path ASC, t.created_at DESC LIMIT ? OFFSET ?";
         List<Object> pageParams = new ArrayList<>(params);
         pageParams.add(size);
         pageParams.add(offset);
