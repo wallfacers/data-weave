@@ -92,7 +92,7 @@ export function ConfigShell() {
   const ActiveComponent = active.component
 
   return (
-    <div className="flex h-full gap-3 p-3">
+    <div className="flex h-full gap-3">
       {/* 左：配置分区导航（可拖拽调宽卡片） */}
       <div className="relative flex shrink-0 flex-col pr-1.5">
         <motion.div
@@ -113,12 +113,13 @@ export function ConfigShell() {
         </div>
       </div>
 
-      {/* 右：选中分区内容（圆角卡片，DwScroll + --card-spacing 留白） */}
+      {/* 右：选中分区内容（圆角卡片；DwScroll 内 max-w-lg 垂直+水平居中，留白 --card-spacing） */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-card shadow-lg">
-        <DwScroll className="flex-1" innerClassName="overflow-y-auto">
-          <div className="p-(--card-spacing)">
-            <ActiveComponent />
-          </div>
+        <DwScroll
+          className="flex-1"
+          innerClassName="min-h-full flex flex-col justify-center p-(--card-spacing)"
+        >
+          <ActiveComponent />
         </DwScroll>
       </div>
     </div>

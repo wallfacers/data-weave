@@ -151,7 +151,7 @@ export function AiAgentConfigSection() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="mx-auto w-full max-w-lg flex flex-col gap-4">
       {/* 标题 + 全局提示 */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
