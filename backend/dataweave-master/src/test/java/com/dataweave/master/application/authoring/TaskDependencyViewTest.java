@@ -91,7 +91,9 @@ class TaskDependencyViewTest {
         when(lineage.downstreamTaskLevels(1L, 1L, 10L)).thenReturn(new LinkedHashMap<>());
 
         var svc = new AuthoringContextService(lineage, mock(ScriptLineageService.class),
-                mock(CatalogGroundingService.class), edges, nodes, mock(TaskDefRepository.class));
+                mock(CatalogGroundingService.class),
+                mock(com.dataweave.master.application.lineage.TaskLineageResolver.class),
+                edges, nodes, mock(TaskDefRepository.class));
 
         var view = svc.taskDependencies(1L, 1L, 10L);
 
@@ -121,7 +123,9 @@ class TaskDependencyViewTest {
         when(lineage.upstreamTaskLevels(1L, 1L, 10L)).thenReturn(derivedUp);
 
         var svc = new AuthoringContextService(lineage, mock(ScriptLineageService.class),
-                mock(CatalogGroundingService.class), edges, nodes, mock(TaskDefRepository.class));
+                mock(CatalogGroundingService.class),
+                mock(com.dataweave.master.application.lineage.TaskLineageResolver.class),
+                edges, nodes, mock(TaskDefRepository.class));
 
         var view = svc.taskDependencies(1L, 1L, 10L);
 
