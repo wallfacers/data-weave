@@ -29,22 +29,23 @@ public class AgentLineageConfigService {
         this.encryptor = encryptor;
     }
 
-    /** 返回前端的脱敏 VO（apiKeyMasked = sk-…末4位，FR-020）。无配置返回 empty。 */
-    public Optional<AgentConfigVo> get(long tenantId, long projectId) {
-        return repo.findActive(tenantId, projectId).map(this::toVo);
+    /** 057：返回前端的脱敏 VO（apiKeyMasked = sk-…末4位，FR-020）。无配置返回 empty。 */
+    public Optional<AgentConfigVo> get(long tenantId) {
+        return repo.findActive(tenantId).map(this::toVo);
     }
 
-    /** 给 enricher/client：取含 apiKeyEnc 的 domain（解密在 client 内即用即弃）。 */
-    public Optional<LineageAgentConfig> getActive(long tenantId, long projectId) {
-        return repo.findActive(tenantId, projectId);
+    /** 057：给 enricher/client：取含 apiKeyEnc 的 domain（解密在 client 内即用即弃）。 */
+    public Optional<LineageAgentConfig> getActive(long tenantId) {
+        return repo.findActive(tenantId);
     }
 
-    public boolean isEnabledFor(long tenantId, long projectId) {
-        return repo.findActive(tenantId, projectId).map(LineageAgentConfig::enabled).orElse(false);
+    /** 057：全局配置是否启用。 */
+    public boolean isEnabledFor(long tenantId) {
+        return repo.findActive(tenantId).map(LineageAgentConfig::enabled).orElse(false);
     }
 
-    /** 创建或更新（每项目一条，upsert）；返回脱敏 VO。 */
-    public AgentConfigVo upsert(long tenantId, long projectId, Long userId, UpsertRequest req) {
+    /** 057：创建或更新（租户级全局单例，upsert）；返回脱敏 VO。 */
+    public AgentConfigVo upsert(long tenantId, Long userId, UpsertRequest req) {
         validate(req);
         boolean enabled = req.enabled() != null && req.enabled();
         int timeoutMs = req.timeoutMs() != null ? req.timeoutMs() : DEFAULT_TIMEOUT_MS;
@@ -55,15 +56,15 @@ public class AgentLineageConfigService {
         String apiKeyEnc = (req.apiKey() != null && !req.apiKey().isEmpty())
                 ? encryptor.encrypt(req.apiKey()) : null;
 
-        Optional<LineageAgentConfig> existing = repo.findActive(tenantId, projectId);
+        Optional<LineageAgentConfig> existing = repo.findActive(tenantId);
         if (existing.isPresent()) {
             repo.update(existing.get().id(), req.protocol(), req.baseUrl(), req.model(), apiKeyEnc,
                     enabled, timeoutMs, rateLimitPerMin, maxColumns, userId);
         } else {
-            repo.insert(tenantId, projectId, req.protocol(), req.baseUrl(), req.model(), apiKeyEnc,
+            repo.insert(tenantId, req.protocol(), req.baseUrl(), req.model(), apiKeyEnc,
                     enabled, timeoutMs, rateLimitPerMin, maxColumns, userId);
         }
-        return repo.findActive(tenantId, projectId).map(this::toVo)
+        return repo.findActive(tenantId).map(this::toVo)
                 .orElseThrow(() -> new IllegalStateException("agent config upsert produced no row"));
     }
 

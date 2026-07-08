@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog"
 import { DataTable } from "@/components/ui/data-table"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ConfigShell } from "./settings/config-shell"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ColumnDef, type FilterDef, type FetchQuery, type PageResult, toQueryParams } from "@/lib/data-table"
 
@@ -62,7 +64,7 @@ interface Project {
   updatedAt?: string
 }
 
-type Tab = "users" | "roles" | "projects"
+type Tab = "users" | "roles" | "projects" | "config"
 
 /* ------------------------------------------------------------------ */
 /*  Dialog state machines                                              */
@@ -725,46 +727,39 @@ function ProjectsTab() {
 /*  Main Settings View                                                 */
 /* ------------------------------------------------------------------ */
 
-const TABS: { key: Tab; labelKey: "tabUsers" | "tabRoles" | "tabProjects" }[] = [
-  { key: "users", labelKey: "tabUsers" },
-  { key: "roles", labelKey: "tabRoles" },
-  { key: "projects", labelKey: "tabProjects" },
-]
-
 export function SettingsView() {
   const t = useTranslations("settingsView")
   const [tab, setTab] = useState<Tab>("users")
 
   return (
-    <div className="flex flex-1 flex-col gap-5 p-5">
-      {/* Tab 条 — 下划线式 */}
-      <div className="flex items-center gap-1 border-b h-11" role="tablist">
-        {TABS.map((tabItem) => {
-          const isActive = tab === tabItem.key
-          return (
-            <button
-              key={tabItem.key}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setTab(tabItem.key)}
-              className={
-                "relative flex items-center gap-1.5 px-3 py-1 text-sm transition-colors " +
-                (isActive
-                  ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary"
-                  : "text-muted-foreground hover:text-foreground")
-              }
-            >
-              {t(tabItem.labelKey)}
-            </button>
-          )
-        })}
-      </div>
+    <div className="flex flex-1 flex-col p-5">
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as Tab)}
+        className="flex min-h-0 flex-1 flex-col gap-5"
+      >
+        {/* Tab 条 — 下划线式（DESIGN：非 closable 子 tab 用 Tabs 组件，禁止手写） */}
+        <TabsList>
+          <TabsTrigger value="users">{t("tabUsers")}</TabsTrigger>
+          <TabsTrigger value="roles">{t("tabRoles")}</TabsTrigger>
+          <TabsTrigger value="projects">{t("tabProjects")}</TabsTrigger>
+          <TabsTrigger value="config">{t("tabConfig")}</TabsTrigger>
+        </TabsList>
 
-      {/* 内容 */}
-      {tab === "users" && <UsersTab />}
-      {tab === "roles" && <RolesTab />}
-      {tab === "projects" && <ProjectsTab />}
+        {/* 内容：各 tab 自管高度；table tab 与 config tab 均 flex-1 填充 */}
+        <TabsContent value="users" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <UsersTab />
+        </TabsContent>
+        <TabsContent value="roles" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <RolesTab />
+        </TabsContent>
+        <TabsContent value="projects" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <ProjectsTab />
+        </TabsContent>
+        <TabsContent value="config" className="min-h-0 flex-1">
+          <ConfigShell />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

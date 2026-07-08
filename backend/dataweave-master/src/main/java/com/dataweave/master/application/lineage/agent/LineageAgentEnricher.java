@@ -158,8 +158,8 @@ public class LineageAgentEnricher {
     }
 
     private void enrich(LineageAgentEnrichmentRequested ev) {
-        // AI 通道激活判定（原 C3 step 1：未启用 / 不该 AI → 不外呼）
-        Optional<LineageAgentConfig> cfgOpt = configService.getActive(ev.tenantId(), ev.projectId());
+        // AI 通道激活判定（原 C3 step 1：未启用 / 不该 AI → 不外呼）。057：配置为租户全局单例。
+        Optional<LineageAgentConfig> cfgOpt = configService.getActive(ev.tenantId());
         boolean aiActive = cfgOpt.isPresent() && cfgOpt.get().enabled()
                 && extractor.shouldEnrich(ev.taskType(), ev.calciteParsed());
 

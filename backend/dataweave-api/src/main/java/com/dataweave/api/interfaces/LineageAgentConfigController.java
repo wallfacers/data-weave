@@ -4,7 +4,6 @@ import java.util.List;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
-import com.dataweave.master.application.ProjectScope;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService.AgentConfigVo;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService.UpsertRequest;
@@ -22,12 +21,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 053 血缘 AI Agent 配置 REST（契约 config-api.md）。
- * 基址 /api/lineage/agent-config（JWT + X-Project-Id/?projectId=，经 {@link ProjectScope#require} 成员校验）。
+ * 057 全局 AI Agent 配置 REST（契约 contracts/system-settings-api.md）。
+ * 基址 /api/settings/agent-config（JWT 鉴权；租户级全局单例，去 projectId）。
+ * 鉴权沿袭既有系统设置端点（/api/users 等）：JwtAuthFilter 校验 JWT，前端按 project:manage 过滤可见性。
  * GET 脱敏返回；PUT 加密 upsert；POST /test 发一次最小探活外呼（不落库、不落日志明文）。
  */
 @RestController
-@RequestMapping("/api/lineage/agent-config")
+@RequestMapping("/api/settings/agent-config")
 public class LineageAgentConfigController {
 
     private static final int DEFAULT_TIMEOUT_MS = 30000;
@@ -36,47 +36,33 @@ public class LineageAgentConfigController {
 
     private final AgentLineageConfigService configService;
     private final LlmAgentClient client;
-    private final ProjectScope projectScope;
     private final AgentConfigRepository agentConfigRepository;
 
     public LineageAgentConfigController(AgentLineageConfigService configService,
                                         LlmAgentClient client,
-                                        ProjectScope projectScope,
                                         AgentConfigRepository agentConfigRepository) {
         this.configService = configService;
         this.client = client;
-        this.projectScope = projectScope;
         this.agentConfigRepository = agentConfigRepository;
     }
 
-    /** projectId 优先取请求显式参数 → 回退 TenantContext → ProjectScope.require 成员校验。 */
-    private long resolveProjectId(Long requestProjectId) {
-        Long pid = requestProjectId != null ? requestProjectId : TenantContext.projectId();
-        return projectScope.require(TenantContext.tenantId(), TenantContext.userId(), pid);
-    }
-
     @GetMapping
-    public ApiResponse<AgentConfigVo> get(@RequestParam(required = false) Long projectId) {
-        long pid = resolveProjectId(projectId);
-        return ApiResponse.ok(configService.get(TenantContext.tenantId(), pid).orElse(null));
+    public ApiResponse<AgentConfigVo> get() {
+        return ApiResponse.ok(configService.get(TenantContext.tenantId()).orElse(null));
     }
 
     @PutMapping
-    public ApiResponse<AgentConfigVo> put(@RequestBody UpsertRequest req,
-                                          @RequestParam(required = false) Long projectId) {
-        long pid = resolveProjectId(projectId);
-        return ApiResponse.ok(configService.upsert(TenantContext.tenantId(), pid, TenantContext.userId(), req));
+    public ApiResponse<AgentConfigVo> put(@RequestBody UpsertRequest req) {
+        return ApiResponse.ok(configService.upsert(TenantContext.tenantId(), TenantContext.userId(), req));
     }
 
     /** 用当前（或请求体覆盖）配置发一次最小探活外呼；不落库、不落日志明文（FR-020）。 */
     @PostMapping("/test")
-    public ApiResponse<TestResult> test(@RequestBody UpsertRequest req,
-                                        @RequestParam(required = false) Long projectId) {
+    public ApiResponse<TestResult> test(@RequestBody UpsertRequest req) {
         long tenantId = TenantContext.tenantId();
-        long pid = resolveProjectId(projectId);
         long userId = TenantContext.userId();
 
-        LineageAgentConfig existing = configService.getActive(tenantId, pid).orElse(null);
+        LineageAgentConfig existing = configService.getActive(tenantId).orElse(null);
         String protocol = req.protocol() != null ? req.protocol()
                 : (existing != null ? existing.protocol() : null);
         String baseUrl = req.baseUrl() != null ? req.baseUrl()
@@ -97,7 +83,7 @@ public class LineageAgentConfigController {
                 : (existing != null ? existing.maxColumns() : DEFAULT_MAX_COLUMNS);
 
         LineageAgentConfig testCfg = new LineageAgentConfig(
-                null, tenantId, pid, protocol, baseUrl, model, apiKeyEnc, true,
+                null, tenantId, protocol, baseUrl, model, apiKeyEnc, true,
                 timeoutMs, rateLimitPerMin, maxColumns, userId, userId, null, null, 0, 0);
         LlmAgentClient.CallResult call = client.test(testCfg);
         boolean ok = call.error() == null;
@@ -108,16 +94,14 @@ public class LineageAgentConfigController {
     public record TestResult(boolean ok, long latencyMs, String note) {}
 
     /**
-     * T034/US4：审计只读端点（FR-021）。查询当前项目最近 N 条外呼审计记录。
-     * 结果脱敏——不含明文 key/脚本内容。
+     * T034/US4：审计只读端点（FR-021）。057：全局配置 → 跨项目查询最近 N 条外呼审计。
+     * 结果脱敏——不含明文 key/脚本内容；CallRecord 含 projectId 供溯源展示。
      */
     @GetMapping("/calls")
     public ApiResponse<List<CallRecord>> calls(@RequestParam(required = false) Long taskDefId,
-                                               @RequestParam(required = false) Long projectId,
                                                @RequestParam(defaultValue = "50") int limit) {
-        long pid = resolveProjectId(projectId);
         int capped = Math.max(1, Math.min(limit, 200));
         return ApiResponse.ok(agentConfigRepository.findCalls(
-                TenantContext.tenantId(), pid, taskDefId, capped));
+                TenantContext.tenantId(), taskDefId, capped));
     }
 }

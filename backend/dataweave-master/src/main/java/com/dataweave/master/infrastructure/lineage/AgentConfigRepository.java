@@ -23,11 +23,11 @@ public class AgentConfigRepository {
         this.jdbc = jdbc;
     }
 
-    /** 取当前生效（deleted=0）配置；无则 empty。 */
-    public Optional<LineageAgentConfig> findActive(long tenantId, long projectId) {
+    /** 057：取当前租户的全局生效（deleted=0）配置；无则 empty。 */
+    public Optional<LineageAgentConfig> findActive(long tenantId) {
         List<LineageAgentConfig> list = jdbc.query(
-                "SELECT * FROM lineage_agent_config WHERE tenant_id = ? AND project_id = ? AND deleted = 0",
-                (rs, n) -> map(rs), tenantId, projectId);
+                "SELECT * FROM lineage_agent_config WHERE tenant_id = ? AND deleted = 0",
+                (rs, n) -> map(rs), tenantId);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
@@ -47,20 +47,19 @@ public class AgentConfigRepository {
                 rateLimitPerMin, maxColumns, userId, id);
     }
 
-    /** 插入新配置；返回新 id（取自 GeneratedKeyHolder，H2/PG 通用，记忆 alert-jdbc-call-identity 教训）。 */
-    public long insert(long tenantId, long projectId, String protocol, String baseUrl, String model,
+    /** 057：插入新配置（租户级全局单例）；返回新 id（取自 GeneratedKeyHolder，H2/PG 通用，记忆 alert-jdbc-call-identity 教训）。 */
+    public long insert(long tenantId, String protocol, String baseUrl, String model,
                        String apiKeyEnc, boolean enabled, int timeoutMs, int rateLimitPerMin, int maxColumns, Long userId) {
         var keyHolder = new GeneratedKeyHolder();
         jdbc.update(con -> {
             var ps = con.prepareStatement(
-                    "INSERT INTO lineage_agent_config (tenant_id, project_id, protocol, base_url, model, " +
+                    "INSERT INTO lineage_agent_config (tenant_id, protocol, base_url, model, " +
                     "    api_key_enc, enabled, timeout_ms, rate_limit_per_min, max_columns, " +
                     "    created_by, updated_by, deleted, version) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,0)",
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0)",
                     new String[]{"id"});
             int i = 0;
             ps.setLong(++i, tenantId);
-            ps.setLong(++i, projectId);
             ps.setString(++i, protocol);
             ps.setString(++i, baseUrl);
             ps.setString(++i, model);
@@ -87,12 +86,12 @@ public class AgentConfigRepository {
                 tenantId, projectId, configId, protocol, taskDefId, latencyMs, status, edgesEmitted, note);
     }
 
-    /** 查询最近 N 条外呼审计记录（FR-021/T034）。按创建时间倒序，脱敏返回（不含明文密钥/脚本）。 */
-    public List<CallRecord> findCalls(long tenantId, long projectId, Long taskDefId, int limit) {
+    /** 057：查询最近 N 条外呼审计（跨项目，全局配置；CallRecord 含 projectId 供溯源展示）。按创建时间倒序，脱敏返回。 */
+    public List<CallRecord> findCalls(long tenantId, Long taskDefId, int limit) {
         StringBuilder sql = new StringBuilder(
                 "SELECT id, tenant_id, project_id, config_id, protocol, task_def_id, " +
                 "latency_ms, status, edges_emitted, note, created_at " +
-                "FROM lineage_agent_call WHERE tenant_id = ? AND project_id = ?");
+                "FROM lineage_agent_call WHERE tenant_id = ?");
         // 动态条件：taskDefId 可选
         if (taskDefId != null) {
             sql.append(" AND task_def_id = ?");
@@ -115,8 +114,8 @@ public class AgentConfigRepository {
                         rs.getObject("created_at", java.time.LocalDateTime.class)));
             }
             return list;
-        }, tenantId, projectId, taskDefId != null ? new Object[]{tenantId, projectId, taskDefId, limit}
-                : new Object[]{tenantId, projectId, limit});
+        }, taskDefId != null ? new Object[]{tenantId, taskDefId, limit}
+                : new Object[]{tenantId, limit});
     }
 
     /** 审计记录 VO（脱敏——不含明文 key/脚本，FR-020）。 */
@@ -129,7 +128,6 @@ public class AgentConfigRepository {
         return new LineageAgentConfig(
                 rs.getLong("id"),
                 rs.getLong("tenant_id"),
-                rs.getLong("project_id"),
                 rs.getString("protocol"),
                 rs.getString("base_url"),
                 rs.getString("model"),

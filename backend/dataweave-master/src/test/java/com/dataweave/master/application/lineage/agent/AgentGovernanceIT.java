@@ -27,10 +27,10 @@ class AgentGovernanceIT {
 
     @BeforeEach
     void setUp() {
-        enabledCfg = new LineageAgentConfig(1L, 1L, 1L, "OPENAI", "https://api.example.com",
+        enabledCfg = new LineageAgentConfig(1L, 1L, "OPENAI", "https://api.example.com",
                 "test-model", "enc-key-12345", true, 30000, 60, 2000,
                 null, null, null, null, 0, 0);
-        disabledCfg = new LineageAgentConfig(2L, 1L, 2L, "ANTHROPIC", "https://api.anthropic.com",
+        disabledCfg = new LineageAgentConfig(2L, 1L, "ANTHROPIC", "https://api.anthropic.com",
                 "claude", "enc-key-67890", false, 30000, 60, 2000,
                 null, null, null, null, 0, 0);
     }

@@ -68,8 +68,8 @@ public class AgentLineageExtractor implements ScriptLineageExtractor {
      * @return 抽取结果；越界列被拒收留痕
      */
     public ScriptExtraction extract(ScriptSource source, Map<String, Set<String>> tableColumns) {
-        // enabled/配置兜底（enricher 已判，extract 自身防误调）
-        LineageAgentConfig cfg = configService.getActive(source.tenantId(), source.projectId())
+        // enabled/配置兜底（enricher 已判，extract 自身防误调）。057：配置为租户全局单例。
+        LineageAgentConfig cfg = configService.getActive(source.tenantId())
                 .filter(LineageAgentConfig::enabled).orElse(null);
         if (cfg == null) return ScriptExtraction.empty(Source.SCRIPT_AGENT);
 
