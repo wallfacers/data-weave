@@ -390,7 +390,8 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 7,
+        // 4 个 size-7 图标按钮（重跑/恢复/终止/查看DAG）需 ~118px，给足宽避免末个被裁
+        widthPct: 10,
         cell: (row: WorkflowInstanceRow) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             <Tooltip>
@@ -519,7 +520,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         selectable
         // 列多（15 列含 3 个 yyyy-MM-dd HH:mm:ss 定宽日期）：窄屏（14"）整表横向滚动，
         // 避免列被压缩后日期/时长被裁；宽屏（>1440，如 27"）无滚动，同现状。
-        minWidthPx={1480}
+        minWidthPx={1540}
         initialSort={initialSort}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
