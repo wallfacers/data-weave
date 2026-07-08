@@ -169,7 +169,7 @@ export function AiAgentConfigSection() {
         </div>
       )}
 
-      {/* 主字段：标签在左、输入在右（横向表单，结构化填满宽度） */}
+      {/* 字段：统一「标签在左、输入在右」横向表单（含运行参数，风格一致） */}
       <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3">
         <label className="text-sm text-muted-foreground">{t("form.protocol")}</label>
         <DropdownSelect
@@ -221,30 +221,38 @@ export function AiAgentConfigSection() {
           )}
         </div>
 
+        <label className="text-sm text-muted-foreground">{t("form.timeoutMs")}</label>
+        <Input
+          type="number"
+          className="max-w-[10rem]"
+          value={timeoutMs}
+          onChange={(e) => setTimeoutMs(Number(e.target.value) || 0)}
+        />
+
+        <label className="text-sm text-muted-foreground">{t("form.rateLimitPerMin")}</label>
+        <Input
+          type="number"
+          className="max-w-[10rem]"
+          value={rateLimitPerMin}
+          onChange={(e) => setRateLimitPerMin(Number(e.target.value) || 0)}
+        />
+
+        <label className="text-sm text-muted-foreground">{t("form.maxColumns")}</label>
+        <Input
+          type="number"
+          className="max-w-[10rem]"
+          value={maxColumns}
+          onChange={(e) => setMaxColumns(Number(e.target.value) || 0)}
+        />
+
         <label className="text-sm text-muted-foreground">{t("form.enabled")}</label>
         <Switch checked={enabled} onCheckedChange={setEnabled} />
-      </div>
-
-      {/* 运行参数三联（大范围 → Input type=number，非 Stepper） */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="grid gap-1">
-          <label className="text-xs text-muted-foreground">{t("form.timeoutMs")}</label>
-          <Input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value) || 0)} />
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-muted-foreground">{t("form.rateLimitPerMin")}</label>
-          <Input type="number" value={rateLimitPerMin} onChange={(e) => setRateLimitPerMin(Number(e.target.value) || 0)} />
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-muted-foreground">{t("form.maxColumns")}</label>
-          <Input type="number" value={maxColumns} onChange={(e) => setMaxColumns(Number(e.target.value) || 0)} />
-        </div>
       </div>
 
       {/* 测试结果反馈 */}
       {testResult && (
         <div
-          className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${
+          className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
             testResult.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
           }`}
         >
