@@ -188,6 +188,7 @@
     "actionSuccess": "{label} 成功",
     "actionFailed": "{label} 失败：{msg}",
     "networkError": "网络错误",
+    "fetchInstancesFailed": "获取实例列表失败（HTTP {status}）",
     "pageInfo": "第 {page}/{totalPages} 页，共 {total} 条",
     "prevPage": "上一页",
     "nextPage": "下一页",

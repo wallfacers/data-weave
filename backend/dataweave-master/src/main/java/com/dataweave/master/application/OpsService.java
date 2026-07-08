@@ -227,11 +227,11 @@ public class OpsService {
     private String instanceOrderByClause(String alias, String sortField, String sortDir) {
         if (sortField == null || sortField.isBlank()) return null;
         String col = switch (sortField) {
-            case "scheduledFireTime" -> alias + ".scheduled_fire_time";
+            case "scheduledFireTime" -> "wi.scheduled_fire_time";
             case "bizDate" -> alias + ".biz_date";
             case "startedAt" -> alias + ".started_at";
             case "finishedAt" -> alias + ".finished_at";
-            case "durationMs" -> alias + ".duration_ms";
+            case "durationMs" -> "EXTRACT(EPOCH FROM (" + alias + ".finished_at - " + alias + ".started_at)) * 1000";
             default -> null;
         };
         if (col == null) return null;
