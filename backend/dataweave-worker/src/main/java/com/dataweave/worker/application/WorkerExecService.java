@@ -188,7 +188,8 @@ public class WorkerExecService {
             if (result.skipped()) {
                 // 完整日志（含 start/end banner + 执行过程）写入 tailLog，
                 // 避免 LogBus 缺失时前端仅看到 [SKIPPED] 摘要而丢失 banner（FR-008/012）。
-                report.onFinished(taskInstanceId, result.exitCode(), "[SKIPPED] " + result.message() + "\n" + tl,
+                // tl 已含 executor 输出的跳过原因 + end banner "Status: Skipped"，无需再加前缀。
+                report.onFinished(taskInstanceId, result.exitCode(), tl,
                         result.statementMetrics());
             } else if (result.success()) {
                 report.onFinished(taskInstanceId, result.exitCode(), tl, result.statementMetrics());
