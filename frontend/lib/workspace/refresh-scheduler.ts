@@ -55,6 +55,9 @@ export function createRefreshScheduler(
   let timer: ReturnType<typeof setInterval> | null = null
   let inFlight: Promise<void> | null = null
   let disposed = false
+  // skipInitialFire 时也跳过首次 enter-running 边沿触发——组件挂载时 DataTable 已自行取数，
+  // 调度器只需起定时器，后续 tab 切换回激活时正常触发立即刷新。
+  let firstActivation = opts.skipInitialFire
 
   function fire(): Promise<void> {
     // 合并：在途则复用同一 promise（不并发、不堆叠）
@@ -110,9 +113,11 @@ export function createRefreshScheduler(
       Object.assign(signals, next)
       const now = running(signals)
       if (now && !was) {
-        // 进入运行边沿：立即刷新一次 + 开始轮询
+        // 进入运行边沿：立即刷新一次 + 开始轮询。
+        // 首次激活（组件刚挂载）跳过——DataTable 已自行取数，避免重复请求。
         startTimer()
-        void fire()
+        if (!firstActivation) void fire()
+        firstActivation = false
       } else if (!now && was) {
         stopTimer()
       }

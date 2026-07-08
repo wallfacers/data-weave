@@ -149,7 +149,7 @@ export function PeriodicWorkflowsPanel() {
   const [autoEnabled, setAutoEnabled] = useState(true)
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
-  const { tickNow } = useRefreshSchedule(onTick, { active: true, enabled: autoEnabled })
+  const { tickNow } = useRefreshSchedule(onTick, { active: true, enabled: autoEnabled, skipInitialFire: true })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
