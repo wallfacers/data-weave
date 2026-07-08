@@ -11,6 +11,7 @@
  */
 import { useState, useCallback, useEffect } from "react"
 import { useTranslations } from "next-intl"
+import { AnimatePresence, motion } from "motion/react"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import {
   Database02Icon,
@@ -40,6 +41,14 @@ export interface TreeNode {
 function iconForType(type: NodeType): IconSvgElement {
   return type === "DATASOURCE" ? Database02Icon : type === "COLUMN" ? LeftToRightListBulletIcon : GridTableIcon
 }
+
+/** motion enter/exit 动画参数：淡入+下滑进、淡出+上滑出，与 catalog-tree 保持一致。 */
+const itemMotion = {
+  initial: { opacity: 0, height: 0, y: -6 },
+  animate: { opacity: 1, height: "auto", y: 0 },
+  exit: { opacity: 0, height: 0, y: -6 },
+  transition: { type: "spring", stiffness: 500, damping: 30, mass: 0.8 },
+} as const
 
 export function LineageTree({
   onSelect,
@@ -157,7 +166,7 @@ export function LineageTree({
   const renderNode = (node: TreeNode, depth: number, path: number[]) => {
     const Icon = iconForType(node.type)
     return (
-      <div key={node.id}>
+      <motion.div key={node.id} layout {...itemMotion}>
         <button
           className="flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded-md
                      hover:bg-muted/50 transition-colors text-left"
@@ -186,11 +195,20 @@ export function LineageTree({
                 <span className="ml-auto shrink-0 text-xs text-muted-foreground">{node.layer}</span>
               )}
         </button>
-        {node.expanded && node.children.length > 0 && (
-          <div>
-            {node.children.map((child, i) => renderNode(child, depth + 1, [...path, i]))}
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {node.expanded && node.children.length > 0 && (
+            <motion.div
+              key={`children-${node.id}`}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
+              className="overflow-hidden"
+            >
+              {node.children.map((child, i) => renderNode(child, depth + 1, [...path, i]))}
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* 空态「仅表级」仅在表节点展开却无列时提示；数据源/列节点不显（列已作叶子不展开） */}
         {node.type === "TABLE" && node.expanded && node.loaded && node.children.length === 0 && (
           <div
@@ -200,7 +218,7 @@ export function LineageTree({
             {t("noColumns")}
           </div>
         )}
-      </div>
+      </motion.div>
     )
   }
 
@@ -209,7 +227,9 @@ export function LineageTree({
       {roots.length === 0 && !loading && (
         <div className="text-sm text-muted-foreground px-4 py-8 text-center">{t("empty")}</div>
       )}
-      {roots.map((root, i) => renderNode(root, 0, [i]))}
+      <AnimatePresence initial={false}>
+        {roots.map((root, i) => renderNode(root, 0, [i]))}
+      </AnimatePresence>
     </DwScroll>
   )
 }
