@@ -33,9 +33,9 @@ public class RecoveryService {
     public boolean resume(UUID workflowInstanceId) {
         LocalDateTime now = LocalDateTime.now();
         int w = jdbc.update(
-                "UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
+                "UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, started_at=?, updated_at=? "
                         + "WHERE id=? AND state='FAILED' AND deleted=0",
-                now, workflowInstanceId);
+                now, now, workflowInstanceId);
         if (w == 0) {
             return false;  // 非失败工作流，不可断点恢复
         }
@@ -49,9 +49,9 @@ public class RecoveryService {
     public boolean rerunAll(UUID workflowInstanceId) {
         LocalDateTime now = LocalDateTime.now();
         int w = jdbc.update(
-                "UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
+                "UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, started_at=?, updated_at=? "
                         + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0",
-                now, workflowInstanceId);
+                now, now, workflowInstanceId);
         if (w == 0) {
             return false;
         }
