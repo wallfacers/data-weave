@@ -93,7 +93,12 @@ public class LineageAgentEnricher {
     /** 全局 kill-switch（FR-014）：默认 true；false 时回退到接地前行为。 */
     private final boolean groundingEnabled;
 
-    /** 每配置令牌桶（FR-023/T033）：config_id → 上次填充纳秒 + 可用令牌数。 */
+    /**
+     * 每配置令牌桶（FR-023/T033）：config_id → 上次填充纳秒 + 可用令牌数。
+     * <p><b>已知限制（P5）</b>：令牌桶是<b>单 master 实例内存态</b>。all-in-one（单 master）下语义正确；
+     * distributed 多 master 下每实例各持一份桶，全局有效外呼速率 ≈ 节点数 × {@code rateLimitPerMin}。
+     * 若需集群级严格限频，应改用 Redis 共享令牌桶（引入分布式状态，非本次「成本不大」范围内，故留此说明）。
+     */
     private final ConcurrentHashMap<Long, TokenBucket> rateLimiters = new ConcurrentHashMap<>();
 
     public LineageAgentEnricher(EventBus eventBus, ObjectMapper objectMapper,

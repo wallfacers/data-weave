@@ -109,6 +109,39 @@ class ProtocolAdapterTest {
         assertThat(req.uri().toString()).isEqualTo("https://api.anthropic.com/v1/messages");
     }
 
+    /**
+     * P1 回归锁：Anthropic 请求体 max_tokens 须足够大，不得回退到会截断 reasoning 模型思维链的 1024。
+     */
+    @Test
+    void anthropicRequestBodyHasGenerousMaxTokens() {
+        LineageExtractionPrompt.LineagePrompt prompt = LineageExtractionPrompt.build("SELECT * FROM user", "SQL");
+        HttpRequest req = new AnthropicProtocolAdapter().buildRequest(cfg("ANTHROPIC", "https://api.anthropic.com"), prompt, "k");
+        String body = bodyOf(req);
+        assertThat(body).contains("\"max_tokens\":8192");
+        assertThat(body).doesNotContain("\"max_tokens\":1024");
+    }
+
+    /** 从 HttpRequest 的 BodyPublisher 同步读回请求体字符串（JDK HttpClient 无内建 getter）。 */
+    private static String bodyOf(HttpRequest req) {
+        var publisher = req.bodyPublisher().orElseThrow();
+        var buf = new StringBuilder();
+        var latch = new java.util.concurrent.CountDownLatch(1);
+        publisher.subscribe(new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>() {
+            @Override public void onSubscribe(java.util.concurrent.Flow.Subscription s) { s.request(Long.MAX_VALUE); }
+            @Override public void onNext(java.nio.ByteBuffer b) {
+                buf.append(java.nio.charset.StandardCharsets.UTF_8.decode(b));
+            }
+            @Override public void onError(Throwable t) { latch.countDown(); }
+            @Override public void onComplete() { latch.countDown(); }
+        });
+        try {
+            latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return buf.toString();
+    }
+
     private static String anthropicBody() {
         return "{\"content\":[{\"type\":\"tool_use\",\"name\":\"emit_lineage\","
                 + "\"input\":{\"reads\":[\"user\"],\"writes\":[\"dw.snap\"],"

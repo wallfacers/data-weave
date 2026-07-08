@@ -70,6 +70,28 @@ class AgentLineageExtractorTest {
     }
 
     @Test
+    void rejectsSubstringOnlyTableMatch() {
+        // P4：脚本仅含复数表 orders，模型幻觉出单数 order —— 旧子串匹配会误命中 orders 而放行；词边界须拒收
+        AgentLineageExtractor ext = new AgentLineageExtractor(
+                clientReturning(new AgentExtraction(List.of("order"), List.of("dw.real"), List.of(), 0.9, "m")),
+                configEnabled());
+        ScriptExtraction r = ext.extract(srcWith("INSERT INTO dw.real SELECT * FROM orders"));
+        assertThat(r.reads()).doesNotContain("order");
+        assertThat(r.hints()).anyMatch(h -> h.kind() == ScriptExtraction.HintKind.PARSE_FAIL);
+    }
+
+    @Test
+    void acceptsQualifiedNameByBareSegment() {
+        // P4：模型返回限定名 app.user，脚本仅含裸名 user —— 末段裸名命中即接受（限定名或裸名任一命中）
+        AgentLineageExtractor ext = new AgentLineageExtractor(
+                clientReturning(new AgentExtraction(List.of("app.user"), List.of("dw.real"), List.of(), 0.9, "m")),
+                configEnabled());
+        ScriptExtraction r = ext.extract(src());
+        assertThat(r.reads()).containsExactly("app.user");
+        assertThat(r.hints()).isEmpty();
+    }
+
+    @Test
     void degradesToEmptyWhenClientErrors() {
         AgentLineageExtractor ext = new AgentLineageExtractor(
                 clientWithError("timeout"), configEnabled());
@@ -170,6 +192,10 @@ class AgentLineageExtractorTest {
 
     private static ScriptSource src() {
         return new ScriptSource(1L, 1L, 1L, "PYTHON", SCRIPT, null, null);
+    }
+
+    private static ScriptSource srcWith(String content) {
+        return new ScriptSource(1L, 1L, 1L, "PYTHON", content, null, null);
     }
 
     private static LlmAgentClient clientReturning(AgentExtraction ex) {
