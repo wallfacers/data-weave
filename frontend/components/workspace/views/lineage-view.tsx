@@ -39,7 +39,7 @@ import { LineageFacets } from "@/components/workspace/views/lineage/lineage-face
 import { LineageToolbar } from "@/components/workspace/views/lineage/lineage-toolbar"
 import { LineageDetailPanel } from "@/components/workspace/views/lineage/lineage-detail-panel"
 import { LineageLegend } from "@/components/workspace/views/lineage/lineage-legend"
-import { LineageSearchHero, LineageSearchCandidates } from "@/components/workspace/views/lineage/lineage-search-hero"
+import { LineageSearchHero, LineageSearchCandidates, SearchCandidatesOverlay } from "@/components/workspace/views/lineage/lineage-search-hero"
 import { lineageNodeTypes } from "@/components/workspace/nodes/lineage-node"
 import { LineageNodeActionsContext, type LineageNodeActions } from "@/components/workspace/nodes/lineage-node-actions-context"
 import { lineageToFlow, type LineageLayoutOptions } from "@/lib/workspace/lineage-layout"
@@ -633,11 +633,11 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
 
           {/* 搜索候选下拉（叠加在画布上方；054 显示数据源标注区分同名跨库，仅已锚定时——未锚定走 hero） */}
           {searchCandidates.length > 0 && graph.anchorId && (
-            <div className="relative z-30 mx-3 -mb-1">
-              <div className="absolute top-0 left-0 right-0 max-h-48 overflow-auto rounded-md border bg-popover shadow-lg">
-                <LineageSearchCandidates candidates={searchCandidates} onSelect={onCandidateSelect} />
-              </div>
-            </div>
+            <SearchCandidatesOverlay
+              candidates={searchCandidates}
+              onSelect={onCandidateSelect}
+              onDismiss={() => setSearchCandidates([])}
+            />
           )}
 
           {/* 画布 + 嵌入面板 */}
@@ -683,6 +683,7 @@ export function LineageView({ params }: { params?: Record<string, unknown> }) {
                 onQueryChange={setSearchQuery}
                 onSubmit={runSearch}
                 onSelect={onCandidateSelect}
+                onDismiss={() => setSearchCandidates([])}
               />
             )}
             {/* 搜索结果无匹配提示（画布层） */}

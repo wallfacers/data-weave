@@ -76,6 +76,11 @@ interface DataTableProps<T> {
   onLoaded?: () => void
   /** Server-mode 初始排序 */
   initialSort?: SortState
+  /**
+   * 列多时的最小表宽（px）：低于此宽度整表横向滚动（表头/表体同步滚，不裁切内容）。
+   * 缺省 = 不设下限，表宽随容器（小屏会按列宽比例压缩，日期等定宽内容可能被裁）。
+   */
+  minWidthPx?: number
 }
 
 const DEFAULT_SIZE = 20
@@ -104,6 +109,7 @@ export function DataTable<T>({
   onLoadingChange,
   onLoaded,
   initialSort,
+  minWidthPx,
 }: DataTableProps<T>) {
   const t = useTranslations("dataTable")
 
@@ -228,9 +234,11 @@ export function DataTable<T>({
             presets={presets}
             onApplyPreset={applyPreset}
             rightSlot={
-              (selectable && bulkActions) || toolbarActions ? (
-                <div className="flex items-center gap-1">
-                  {selectable && bulkActions && (
+              (selectable && bulkActions && selectedIds.length > 0) || toolbarActions ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* 批量动作栏改为「选中才出现」（contextual bar）：未选时不常驻「已选 0 项 + 禁用按钮」，
+                      避免窄屏把工具栏右侧撑成独占一行（分行）。选中后再显示动作。 */}
+                  {selectable && bulkActions && selectedIds.length > 0 && (
                     <>
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {t("selected", { count: selectedIds.length })}
@@ -258,8 +266,14 @@ export function DataTable<T>({
         </div>
       ) : (
         <>
-          {/* 表头表+数据表包成单一 flex 子元素，容器 gap-3 不落在两表之间（否则首行上方多 12px） */}
-          <div className="flex min-h-0 flex-1 flex-col">
+          {/* 表头表+数据表包成单一 flex 子元素，容器 gap-3 不落在两表之间（否则首行上方多 12px）。
+              minWidthPx：给两表设同一最小宽 + 外层横向 DwScroll，窄屏整表同步横滚（表头表体对齐不散）。 */}
+          {(() => {
+          const headerAndBody = (
+          <div
+            className={cn("flex min-h-0 flex-col", minWidthPx ? "h-full" : "flex-1")}
+            style={minWidthPx ? { minWidth: minWidthPx } : undefined}
+          >
             {/* 表头表（固定不滚，与数据表共享 colgroup） */}
             <div className="shrink-0 bg-background">
               <table className="w-full table-fixed border-collapse caption-bottom text-sm font-sans">
@@ -349,6 +363,15 @@ export function DataTable<T>({
               </table>
             </DwScroll>
           </div>
+          )
+          return minWidthPx ? (
+            <DwScroll direction="horizontal" className="min-h-0 flex-1">
+              {headerAndBody}
+            </DwScroll>
+          ) : (
+            headerAndBody
+          )
+          })()}
 
           <div className="shrink-0 px-3 pb-3">
             <Pagination

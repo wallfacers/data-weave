@@ -1136,7 +1136,7 @@
     "pathSelectTo": "Click the target node",
     "pathTitle": "Path",
     "retry": "Retry",
-    "searchPlaceholder": "Search asset name…",
+    "searchPlaceholder": "Search asset name",
     "searchHeroHint": "Search an asset to begin",
     "facetSwitch": "Switch facet",
     "facetDatasource": "Datasource",

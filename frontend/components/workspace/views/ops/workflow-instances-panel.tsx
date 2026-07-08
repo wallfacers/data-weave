@@ -42,7 +42,6 @@ import {
 import { API_BASE, authFetch, type ApiResponse, type WorkflowInstanceRow } from "@/lib/types"
 import { useRefreshSchedule } from "@/lib/workspace/use-api"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
-import { humanizeCron } from "@/lib/cron-format"
 import { useProjectContext } from "@/lib/project-context"
 import { isActionEnabled, isBulkActionEnabled } from "@/lib/instance-actions"
 import { ViewRefreshControl } from "../view-refresh-control"
@@ -224,13 +223,11 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
   // ── 列定义 ──
   const columns = useMemo<ColumnDef<WorkflowInstanceRow>[]>(
     () => {
-      // next-intl 的 t 是字面量 key 类型，包一层适配 humanizeCron 的 CronTranslator
-      const translate = (k: string, p?: Record<string, unknown>) => t(k as never, p as never)
       return [
       {
         key: "id",
         header: t("colInstanceId"),
-        widthPct: 8,
+        widthPct: 6,
         cell: (row: WorkflowInstanceRow) => (
           <button
             className="group inline-flex items-center gap-1 font-mono text-xs tabular-nums cursor-pointer hover:text-primary transition-colors"
@@ -255,7 +252,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "workflowName",
         header: t("colWorkflowName"),
-        widthPct: 10,
+        widthPct: 8,
         cell: (row: WorkflowInstanceRow) => (
           <span className="truncate font-medium">{row.workflowName}</span>
         ),
@@ -283,7 +280,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "bizDate",
         header: t("colBizDate"),
-        widthPct: 9,
+        widthPct: 7,
         sortable: true,
         sortKey: "bizDate",
         cell: (row: WorkflowInstanceRow) => (
@@ -291,19 +288,9 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         ),
       },
       {
-        key: "cronExpression",
-        header: t("colCron"),
-        widthPct: 7,
-        cell: (row: WorkflowInstanceRow) => (
-          <span className="truncate font-mono text-xs tabular-nums" title={row.cronExpression ?? ""}>
-            {humanizeCron(row.cronExpression, translate)}
-          </span>
-        ),
-      },
-      {
         key: "scheduledFireTime",
         header: t("colScheduledFireTime"),
-        widthPct: 16,
+        widthPct: 12,
         sortable: true,
         sortKey: "scheduledFireTime",
         cell: (row: WorkflowInstanceRow) =>
@@ -316,7 +303,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "priority",
         header: t("colPriority"),
-        widthPct: 5,
+        widthPct: 4,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">{row.priority ?? "—"}</span>
         ),
@@ -324,7 +311,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "workflowVersionNo",
         header: t("colVersion"),
-        widthPct: 5,
+        widthPct: 3,
         cell: (row: WorkflowInstanceRow) =>
           row.workflowVersionNo != null ? (
             <span className="font-mono text-sm tabular-nums">v{row.workflowVersionNo}</span>
@@ -335,7 +322,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "state",
         header: t("colState"),
-        widthPct: 7,
+        widthPct: 5,
         cell: (row: WorkflowInstanceRow) => {
           const v = row.state ?? ""
           return (
@@ -348,7 +335,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "totalTasks",
         header: t("colProgress"),
-        widthPct: 5,
+        widthPct: 4,
         cell: (row: WorkflowInstanceRow) => (
           <span className="font-mono text-sm tabular-nums">
             {row.completedTasks}/{row.totalTasks}
@@ -361,7 +348,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 13,
+        widthPct: 12,
         sortable: true,
         sortKey: "startedAt",
         cell: (row: WorkflowInstanceRow) => (
@@ -371,7 +358,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "finishedAt",
         header: t("colFinishedAt"),
-        widthPct: 11,
+        widthPct: 12,
         sortable: true,
         sortKey: "finishedAt",
         cell: (row: WorkflowInstanceRow) =>
@@ -384,7 +371,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "durationMs",
         header: t("colDuration"),
-        widthPct: 4,
+        widthPct: 5,
         sortable: true,
         sortKey: "durationMs",
         cell: (row: WorkflowInstanceRow) => {
@@ -403,7 +390,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 8,
+        widthPct: 7,
         cell: (row: WorkflowInstanceRow) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             <Tooltip>
@@ -530,6 +517,9 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         filters={filters}
         presets={presets}
         selectable
+        // 列多（15 列含 3 个 yyyy-MM-dd HH:mm:ss 定宽日期）：窄屏（14"）整表横向滚动，
+        // 避免列被压缩后日期/时长被裁；宽屏（>1440，如 27"）无滚动，同现状。
+        minWidthPx={1480}
         initialSort={initialSort}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
