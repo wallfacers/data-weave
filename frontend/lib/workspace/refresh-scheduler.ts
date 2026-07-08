@@ -20,6 +20,10 @@ export interface RefreshSignals {
   visible: boolean
 }
 
+export interface SchedulerOptions {
+  skipInitialFire?: boolean
+}
+
 export interface RefreshScheduler {
   /** 更新部分信号；触发边沿计算与 timer 增删 */
   update(signals: Partial<RefreshSignals>): void
@@ -41,6 +45,7 @@ export function createRefreshScheduler(
   onTick: () => void | Promise<void>,
   intervalMs: number,
   initial: Partial<RefreshSignals> = {},
+  opts: SchedulerOptions = {},
 ): RefreshScheduler {
   const signals: RefreshSignals = {
     active: initial.active ?? false,
@@ -91,10 +96,11 @@ export function createRefreshScheduler(
     }
   }
 
-  // 创建时即处于运行态 → 立即一次 + 起轮询（等价于「挂载即激活」边沿）
+  // 创建时即处于运行态 → 立即一次 + 起轮询（等价于「挂载即激活」边沿）。
+  // skipInitialFire：表格视图已有 DataTable 首次取数，跳过创建时的立即触发，仅起定时器。
   if (running(signals)) {
     startTimer()
-    void fire()
+    if (!opts.skipInitialFire) void fire()
   }
 
   return {
