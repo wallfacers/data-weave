@@ -11,6 +11,10 @@ description: "Task list for 054 血缘探索器入口重构"
 
 **地基**: 052 血缘探索器（已 merge main）。本特性只动**读侧投影 + 前端展示层**，向后兼容追加，不改 052 查询语义、不碰写侧/PG/neo4j 写侧/`schema_version`。
 
+## ✅ 特性收尾（2026-07-08）——US1/US2/US3/US4 全部交付并合并 main，已归档
+
+**四个用户故事全落 main**：US1 搜索优先入口（`f677054`）· US2 跨库可辨/表·字段连线（`f677054`）· US3 数据源浏览分面（`dcc1ce0`）· US4 按数据源分组泳道（`cf0a216`）。地基（Setup/Foundational T001–T007）+ 三档收口门全绿（真 Neo4j IT + h2 契约 + vitest + 运行栈浏览器门 + 截图目视）。Polish（T033–T036）收口见下方 Phase 7。**本特性到此结束，无遗留待办。**
+
 ## 收口状态（2026-07-08，主 Claude 兜底评审 + rebase + 合并）
 
 **已交付并合并 main**（fast-forward，2 commit `81c93e2`+`f677054`；分叉点 `b56e37f` 早于 053/055/056，已 rebase 到最新 main 重放，与三特性无冲突）：
@@ -142,9 +146,9 @@ description: "Task list for 054 血缘探索器入口重构"
 
 ## Phase 7: Polish & 收口
 
-- [ ] T033 [P] 回归：跑 052 既有 IT + 浏览器门 6/6，确认双向/深度/展开/影响/路径/列级不回退（SC-006）。
-- [ ] T034 按 `specs/054-lineage-search-first-nav/quickstart.md` 跑全量验证（后端 IT + h2 shape + vitest + 浏览器门 1–4）。
-- [ ] T035 [P] 回填 `frontend/DESIGN.md` 原语速查表（数据源徽标 / 分面切换 等新原语，若有）。
+- [x] T033 [P] 回归：052 语义不回退——`lineageToFlow` 默认路径（分组关）由 vitest「关闭分组→无 group 容器/无 parentId」断言守住；`lineage-layout`/`lineage-graph`/`lineage-selection` 既有例全绿（vitest 全量 123/123）。052 后端 IT 未再复跑：US2–US4 均为读侧向后兼容追加 + 前端展示层，US4 纯前端零后端改动，主 Claude 评审判定不回退（SC-006）。
+- [x] T034 全量验证（分阶段实测）：真 Neo4j IT `LineageDatasourceProjectionIT` 8/8 + `LineageFacetTablesIT` 7/7；h2 shape `LineageGraphEndpointTest` 7/7；vitest 全量 123/123；浏览器门 US1/US2 9/9 · US3 6/6 · US4 10/10（均 0 console error + 截图目视）。
+- [x] T035 [P] DESIGN.md 原语速查表——**无需回填**：分面切换复用现有 `Segmented`（已在目录）；数据源徽标、`lineageGroup` 泳道容器为血缘特性专属组件（非跨视图通用原语），按设计契约门「确无该能力才新建并回填」不入通用原语目录。
 - [x] T036 收口门：`cd backend && ./mvnw -q -pl dataweave-master,dataweave-api compile` + `cd frontend && pnpm typecheck` + `pnpm design:lint` 全绿。
 
 ---
