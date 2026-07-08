@@ -15,11 +15,11 @@ description: "Task list for 054 血缘探索器入口重构"
 
 **已交付并合并 main**（fast-forward，2 commit `81c93e2`+`f677054`；分叉点 `b56e37f` 早于 053/055/056，已 rebase 到最新 main 重放，与三特性无冲突）：
 - **US1 搜索优先入口**（T008–T013）+ **US2 跨库可辨/表·字段连线**（T014–T024）+ Setup/Foundational（T001–T007）✅
-- 收口门实测：后端 `dataweave-master,dataweave-api` 编译 **BUILD SUCCESS**（mvnd + JDK25 + cache DISABLED）；`LineageGraphEndpointTest` h2 契约 **5/5**；前端 `pnpm typecheck` 0 错；vitest（lineage-layout + datasource-style）**22/22**。
+- 收口门实测：后端 `dataweave-master,dataweave-api` 编译 **BUILD SUCCESS**（mvnd + JDK25 + cache DISABLED）；**真 Neo4j IT `LineageDatasourceProjectionIT` 8/8**（testcontainers，Docker 恢复后补跑）；`LineageGraphEndpointTest` h2 契约 **5/5**；前端 `pnpm typecheck` 0 错；vitest（lineage-layout + datasource-style）**22/22**。
 - 代码评审：`LineageQueryService` 构造签名/`SearchCandidate` 全构造点与 main 兼容；`lineageView.expand/collapse` 键两 bundle 均在位。
 
-**环境受限未跑（非代码问题，编译通过、rebase 未改动、原 worktree 已验）**：
-- `LineageDatasourceProjectionIT`（真 Neo4j）——本机 Docker DOWN，testcontainers 不可用；T033/T034 Playwright 浏览器门需运行栈。**恢复 Docker 后补跑**。
+**仅剩浏览器门待运行栈复跑（非代码问题，原 worktree 已验 6/6）**：
+- T013/T024/T033/T034 Playwright 浏览器门需同时起后端 :8000 + 前端 :4000 + neo4j；原 worktree 已实证通过，本次未在运行栈复跑。
 
 **未做（P3，可裁剪）**：US3 数据源分面浏览（T025–T030）、US4 数据源泳道（T031–T032）。
 
