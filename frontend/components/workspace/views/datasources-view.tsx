@@ -273,7 +273,7 @@ export function DatasourcesView() {
         emptyIcon={Database01Icon}
         emptyTitle={t("emptyTitle")}
         emptyHint={t("emptyHint")}
-        key={reloadKey}
+        reloadSignal={reloadKey}
       />
 
       {/* Create/Edit Dialog */}
