@@ -52,7 +52,7 @@
 
 - [ ] T006 [P] [US1] 上下文装配测试：多层链路夹具（A←T1←B←T2）验读写表→上下游 + 列血缘（h2+neo4j），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/AuthoringContextServiceTest.java`
 - [x] T007 [P] [US1] 草稿等价 + 无副作用测试：工作副本草稿与已 push 语义等价，且分析零持久化（FR-004），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/DraftAnalyzeStatelessTest.java`（3 绿：无副作用 never findById + 等价 + 空草稿 partial）
-- [ ] T008 [P] [US1] 防幻觉 + 降级测试：未接地表不虚构上游（SC-005）；某事实源不可用返回部分 + 标注缺失（FR-005），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/AuthoringContextGroundingTest.java`
+- [x] T008 [P] [US1] 防幻觉 + 降级测试：未接地表不虚构上游（SC-005）；某事实源不可用返回部分 + 标注缺失（FR-005），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/AuthoringContextGroundingTest.java`
 - [x] T009 [P] [US1] 依赖合并测试：声明（WorkflowEdge）+ 推导（血缘）合并带 origin（FR-006），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/TaskDependencyViewTest.java`
 
 ### Implementation for User Story 1
@@ -115,7 +115,7 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T029 [P] 更新知识地图：`CLAUDE.md` Knowledge Map 增 authoring-context 行 + 指向 spec
+- [x] T029 [P] 更新知识地图：`CLAUDE.md` Knowledge Map 增 authoring-context 行 + 指向 spec
 - [ ] T030 [P] 性能核验 SC-002：默认深度、数千定义夹具下 analyze < 5s，记录数据于 `specs/058-authoring-context/` 备注
 - [ ] T031 [P] Quickstart 验证：按 `quickstart.md` 端到端真跑（context/deps/reuse/check）
 - [ ] T032 合并前跨特性缝检：复核与 057-system-settings / 054 无共享改面冲突，跑共享面测试（宪法治理）
