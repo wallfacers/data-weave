@@ -302,9 +302,14 @@ public class AuthoringContextService {
         return out;
     }
 
-    /** 租户+项目隔离硬校验（防跨租户/跨项目误读依赖）。 */
+    /**
+     * 租户+项目隔离硬校验（防跨租户/跨项目误读）。
+     * {@code projectId<=0}=租户域（MCP 身份仅绑租户、未绑项目时）：只校验租户；
+     * REST 恒传具体 projectId（经 ProjectScope.require），保持项目级严格。
+     */
     private static boolean scoped(Long nodeTenant, Long nodeProject, long tenantId, long projectId) {
-        return nodeTenant != null && nodeTenant == tenantId
-                && nodeProject != null && nodeProject == projectId;
+        if (nodeTenant == null || nodeTenant != tenantId) return false;
+        if (projectId <= 0) return true;
+        return nodeProject != null && nodeProject == projectId;
     }
 }

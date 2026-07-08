@@ -307,8 +307,9 @@ public class McpToolRegistry {
                     requireTenant(ctx);
                     String taskRef = required(ctx.args(), "taskDefId");
                     Long depth = lng(ctx.args(), "depth");
+                    Long pid = TenantContext.projectId(); // MCP 身份可能未绑项目→0=租户域
                     return authoringContextService.context(
-                            TenantContext.tenantId(), TenantContext.projectId(),
+                            TenantContext.tenantId(), pid != null ? pid : 0L,
                             taskRef, depth != null ? depth.intValue() : 0);
                 });
 
@@ -325,8 +326,9 @@ public class McpToolRegistry {
                     } catch (NumberFormatException e) {
                         return Map.of("found", false, "taskDefId", taskRef);
                     }
+                    Long pid = TenantContext.projectId(); // MCP 身份可能未绑项目→0=租户域
                     return authoringContextService.taskDependencies(
-                            TenantContext.tenantId(), TenantContext.projectId(), taskDefId);
+                            TenantContext.tenantId(), pid != null ? pid : 0L, taskDefId);
                 });
 
         // ---- 只读日志工具（E 新增，租户隔离）----

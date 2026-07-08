@@ -66,7 +66,7 @@
 - [x] T016 [P] [US1] CLI：`dw context` + `dw deps` 子命令（收集工作副本草稿→`POST /analyze`→`--json`），于 `cli/main.go` + `cli/authctx/analyze.go`（目录 authctx 避 stdlib context 冲突）
 - [x] T017 [P] [US1] CLI 测试：analyze 往返 + 输出契约，于 `cli/authctx/analyze_test.go`
 - [x] T018 [US1] Skill 扩展：`.claude/skills/weft-task-authoring/SKILL.md` 教「编辑前 `dw context` 取接地事实」回路
-- [ ] T019 [US1] 双面等价测试：同一已 push 任务 `dw context` 与 MCP `query_authoring_context` 语义一致（SC-006），于 `backend/dataweave-api/src/test/java/com/dataweave/api/AuthoringContextParityIT.java`
+- [x] T019 [US1] 双面等价测试：同一已 push 任务 `dw context` 与 MCP `query_authoring_context` 语义一致（SC-006），于 `backend/dataweave-api/src/test/java/com/dataweave/api/AuthoringContextParityIT.java`
 
 **Checkpoint**: US1 完整可用、可独立演示（MVP）。
 
