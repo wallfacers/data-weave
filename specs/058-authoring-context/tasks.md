@@ -53,12 +53,12 @@
 - [ ] T006 [P] [US1] 上下文装配测试：多层链路夹具（A←T1←B←T2）验读写表→上下游 + 列血缘（h2+neo4j），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/AuthoringContextServiceTest.java`
 - [ ] T007 [P] [US1] 草稿等价 + 无副作用测试：工作副本草稿与已 push 语义等价，且分析零持久化（FR-004），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/DraftAnalyzeStatelessTest.java`
 - [ ] T008 [P] [US1] 防幻觉 + 降级测试：未接地表不虚构上游（SC-005）；某事实源不可用返回部分 + 标注缺失（FR-005），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/AuthoringContextGroundingTest.java`
-- [ ] T009 [P] [US1] 依赖合并测试：声明（WorkflowEdge）+ 推导（血缘）合并带 origin（FR-006），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/TaskDependencyViewTest.java`
+- [x] T009 [P] [US1] 依赖合并测试：声明（WorkflowEdge）+ 推导（血缘）合并带 origin（FR-006），于 `backend/dataweave-master/src/test/java/com/dataweave/master/application/authoring/TaskDependencyViewTest.java`
 
 ### Implementation for User Story 1
 
 - [ ] T010 [US1] 实现 `AuthoringContextService.context(...)`：读写表经 `LineageQueryService.upstream/downstream/neighborhood/columnUpstream/expandColumns`；接地经 `CatalogGroundingService`；深度=调用方参数、默认多跳，广度按 `clampLimit`/邻域截断并标注（FR-001/002/003/018）
-- [ ] T011 [US1] 实现 `AuthoringContextService.taskDependencies(...)`：合并 `WorkflowEdgeRepository` 声明边 + 推导血缘边 → `TaskDependencyView`（带 origin，FR-006），新增 `TaskDependencyView.java`/`DependencyEdge.java`
+- [x] T011 [US1] 实现 `AuthoringContextService.taskDependencies(...)`：合并 `WorkflowEdgeRepository` 声明边 + 推导血缘边 → `TaskDependencyView`（带 origin，FR-006），新增 `TaskDependencyView.java`/`DependencyEdge.java`
 - [ ] T012 [US1] 实现工作副本无状态分析：多草稿跨任务依赖先草稿内解析再回退服务端图谱、草稿覆盖同名已 push（FR-004/019），于 `AuthoringContextService` + 请求装配器
 - [ ] T013 [US1] REST 控制器 `AuthoringContextController`：`POST /api/authoring-context/analyze` + `GET /api/authoring-context/{taskDefId}`（depth/include 参数，租户+项目隔离），于 `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/AuthoringContextController.java`
 - [ ] T014 [US1] MCP：在 `McpToolRegistry.registerTools()` 注册 `query_authoring_context` + `query_task_deps`（`requireTenant`，复用服务），于 `backend/dataweave-api/src/main/java/com/dataweave/api/application/mcp/McpToolRegistry.java`

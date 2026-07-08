@@ -433,6 +433,37 @@ public class LineageQueryService {
         }
     }
 
+    /**
+     * 某任务的血缘上游任务 + BFS 层级（taskDefId → 层级，首层=1，去重去自身，发现顺序）。
+     * {@link #downstreamTaskLevels} 的镜像：沿 {@code :Task-[:READS]->:Table} 反向经
+     * {@code :FLOWS_TO} 变长可达的上游表 → 写这些表的 {@code :Task}（含纯生产源）。
+     * level = 起点 READ 表反向到上游表的最短 FLOWS_TO 跳数 + 1。
+     * 韧性：neo4j 不可达返回空 map（依赖视图降级为只保留声明边，不阻断，对标 FR-005）。
+     */
+    public java.util.LinkedHashMap<Long, Integer> upstreamTaskLevels(long tenantId, long projectId, long taskDefId) {
+        try {
+            String cypher = """
+                    MATCH (start:Task {taskDefId:$taskDefId})
+                    WHERE start.tenantId=$tenantId AND start.projectId=$projectId
+                    MATCH (start)-[:READS]->(rt:Table)
+                    MATCH path = (upTable:Table)-[:FLOWS_TO*0..20]->(rt)
+                    MATCH (ut:Task)-[:WRITES]->(upTable)
+                    WHERE ut.tenantId=$tenantId AND ut.projectId=$projectId AND ut.taskDefId <> $taskDefId
+                    WITH ut, min(length(path)) + 1 AS level
+                    RETURN ut.taskDefId AS taskDefId, level
+                    ORDER BY level, ut.taskDefId""";
+            List<Map<String, Object>> rows = execute(cypher, params(tenantId, projectId, "taskDefId", taskDefId));
+            java.util.LinkedHashMap<Long, Integer> out = new java.util.LinkedHashMap<>();
+            for (Map<String, Object> r : rows) {
+                out.put(((Number) r.get("taskDefId")).longValue(), ((Number) r.get("level")).intValue());
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("upstream task query degraded (neo4j unreachable), returning empty: {}", e.toString());
+            return new java.util.LinkedHashMap<>();
+        }
+    }
+
     // ═════════════════════════════════════════════════════════════
     // US2: 上下游 + 影响面（变长路径）
     // ═════════════════════════════════════════════════════════════
