@@ -68,6 +68,11 @@ def load_clients() -> dict[str, "LlmClient"]:
         print("[warn] M1 DASHSCOPE_API_KEY missing; skip")
     if os.environ.get("ALI_ANTHROPIC_TOKEN") and os.environ.get("ALI_ANTHROPIC_BASE_URL"):
         out["m2"] = LlmClient("m2", _ali_anthropic_backend(), os.environ.get("ALI_ANTHROPIC_MODEL", "qwen3-max"))
+    elif os.environ.get("M2_MODEL") and os.environ.get("DASHSCOPE_API_KEY"):
+        # M2 走 DashScope 同端点上的独立(通常更强/带思维链)模型，与 M1 只差 model 名。
+        # 用 DashScope backend 而非 anthropic：reasoning 模型思维链吃数百 token，
+        # anthropic backend 的 max_tokens=512 会被吃光；dashscope backend 不设上限、模型自决。
+        out["m2"] = LlmClient("m2", _dashscope_backend(), os.environ["M2_MODEL"])
     else:
-        print("[warn] M2 ALI_ANTHROPIC_TOKEN/ALI_ANTHROPIC_BASE_URL missing; skip")
+        print("[warn] M2 missing (need ALI_ANTHROPIC_* or M2_MODEL+DASHSCOPE_API_KEY); skip")
     return out
