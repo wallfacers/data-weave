@@ -69,33 +69,59 @@ public class AuthoringContextService {
         this.taskDefs = taskDefs;
     }
 
+    /** 未 push 草稿输入（工作副本，T012）：不落库来源，字段同 TaskDef 抽取所需。 */
+    public record DraftInput(String taskRef, String type, String content,
+                             Long datasourceId, Long targetDatasourceId) {}
+
     /**
-     * 装配某任务的创作上下文包（US1 / T010 落地真逻辑）。
-     * 骨架阶段返回空壳（depthUsed 回显请求深度），保证编译与三面接线可先行。
+     * 装配某<b>已 push</b>任务的创作上下文包（US1 / T010）。加载 TaskDef（租户+项目隔离）后
+     * 委托共享装配 {@link #assembleContext}。
      */
     public AuthoringContext context(long tenantId, long projectId, String taskRef, int depth) {
-        List<AuthoringContext.MissingNote> partial = new ArrayList<>();
-
         Long taskDefId = parseLong(taskRef);
         TaskDef def = taskDefId != null ? taskDefs.findById(taskDefId).orElse(null) : null;
         if (def == null || !scoped(def.getTenantId(), def.getProjectId(), tenantId, projectId)) {
+            List<AuthoringContext.MissingNote> partial = new ArrayList<>();
             partial.add(new AuthoringContext.MissingNote("task", "未找到任务或非本项目：" + taskRef));
             return new AuthoringContext(taskRef, List.of(), List.of(), List.of(), Map.of(), depth, List.of(), partial);
         }
+        Long writeDs = def.getTargetDatasourceId() != null ? def.getTargetDatasourceId() : def.getDatasourceId();
+        return assembleContext(tenantId, projectId, taskRef, taskDefId,
+                def.getType(), def.getContent(), def.getDatasourceId(), writeDs, depth);
+    }
+
+    /**
+     * 装配<b>工作副本草稿</b>的创作上下文包（US1 / T012 / FR-004）：直接从草稿 content 抽取，
+     * <b>不读 DB、不落库、零持久化</b>；与同名已 push 任务语义等价（同 content→同读写表）。
+     * 草稿覆盖同名已 push（调用方传草稿即用草稿，服务端定义不参与本次抽取）。
+     */
+    public AuthoringContext contextForDraft(long tenantId, long projectId, DraftInput draft, int depth) {
+        if (draft == null || draft.content() == null) {
+            List<AuthoringContext.MissingNote> partial = new ArrayList<>();
+            partial.add(new AuthoringContext.MissingNote("draft", "草稿内容为空"));
+            String ref = draft != null ? draft.taskRef() : null;
+            return new AuthoringContext(ref, List.of(), List.of(), List.of(), Map.of(), depth, List.of(), partial);
+        }
+        Long writeDs = draft.targetDatasourceId() != null ? draft.targetDatasourceId() : draft.datasourceId();
+        // taskDefId=null：草稿未 push，抽取不依赖任务身份（脚本通道以 taskType 为准）
+        return assembleContext(tenantId, projectId, draft.taskRef(), null,
+                draft.type(), draft.content(), draft.datasourceId(), writeDs, depth);
+    }
+
+    /** 读写表→上下游邻居 + 三态接地 + 列血缘的共享装配（已 push 与草稿两路共用，D3 不 fork）。 */
+    private AuthoringContext assembleContext(long tenantId, long projectId, String taskRef, Long taskDefId,
+                                             String type, String content, Long readDs, Long writeDs, int depth) {
+        List<AuthoringContext.MissingNote> partial = new ArrayList<>();
 
         // ① 读写表：复用只读共享核抽取（与 push 同一逻辑，D3 不 fork）
         TaskLineageResolver.ResolvedLineage resolved;
         try {
             resolved = taskLineageResolver.resolve(tenantId, projectId, taskDefId,
-                    def.getType(), def.getContent(), def.getDatasourceId(), def.getTargetDatasourceId(),
-                    List.of(), List.of());
+                    type, content, readDs, writeDs, List.of(), List.of());
         } catch (Exception e) {
             partial.add(new AuthoringContext.MissingNote("extractor", "血缘抽取失败：" + e));
             return new AuthoringContext(taskRef, List.of(), List.of(), List.of(), Map.of(), depth, List.of(), partial);
         }
-
-        Long readDs = def.getDatasourceId();
-        Long writeDs = def.getTargetDatasourceId() != null ? def.getTargetDatasourceId() : def.getDatasourceId();
 
         List<AuthoringContext.TableFact> reads = new ArrayList<>();
         List<AuthoringContext.TableFact> writes = new ArrayList<>();

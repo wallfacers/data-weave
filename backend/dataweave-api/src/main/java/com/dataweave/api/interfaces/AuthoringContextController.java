@@ -63,10 +63,21 @@ public class AuthoringContextController {
     public ApiResponse<AuthoringContext> analyze(@RequestBody AnalyzeRequest req,
                                                  @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
-        return ApiResponse.ok(service.context(
-                TenantContext.tenantId(), pid, req.taskRef(), req.depth() != null ? req.depth() : 0));
+        long tenant = TenantContext.tenantId();
+        int depth = req.depth() != null ? req.depth() : 0;
+        // 带 content=工作副本草稿分析（不落库、零持久化，T012/FR-004）；否则按 taskRef 分析已 push 任务
+        if (req.content() != null) {
+            var draft = new AuthoringContextService.DraftInput(
+                    req.taskRef(), req.type(), req.content(), req.datasourceId(), req.targetDatasourceId());
+            return ApiResponse.ok(service.contextForDraft(tenant, pid, draft, depth));
+        }
+        return ApiResponse.ok(service.context(tenant, pid, req.taskRef(), depth));
     }
 
-    /** analyze 请求体：taskRef=已 push 任务 id 或草稿逻辑名；depth 缺省多跳。 */
-    public record AnalyzeRequest(String taskRef, Integer depth) {}
+    /**
+     * analyze 请求体。带 {@code content}=工作副本草稿（type/datasourceId/targetDatasourceId 随附）；
+     * 仅 {@code taskRef}=分析已 push 任务。depth 缺省多跳。
+     */
+    public record AnalyzeRequest(String taskRef, Integer depth, String type, String content,
+                                 Long datasourceId, Long targetDatasourceId) {}
 }
