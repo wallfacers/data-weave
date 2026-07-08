@@ -1,10 +1,10 @@
 package com.dataweave.api.interfaces.dto;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
  * 周期实例行视图 — 契约① DTO。
+ * 时间字段为 ISO-8601 UTC 字符串（与 workflow-instance 契约一致），前端可直接解析为本地时间。
  */
 public record InstanceRow(
         UUID id,
@@ -15,12 +15,12 @@ public record InstanceRow(
         String runMode,
         String state,
         String bizDate,
-        LocalDateTime startedAt,
-        LocalDateTime finishedAt,
+        String startedAt,
+        String finishedAt,
         Long durationMs,
         String cronExpression,
         String env,
         String workflowName,
-        LocalDateTime scheduledFireTime,
+        String scheduledFireTime,
         String triggerType
 ) {}

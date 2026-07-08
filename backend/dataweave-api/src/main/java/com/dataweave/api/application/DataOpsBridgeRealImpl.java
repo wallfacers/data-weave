@@ -15,9 +15,7 @@ import com.dataweave.master.domain.TaskInstance;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -182,25 +180,16 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 null, // workflowId（workflow_def Long）：master 行携带的是实例 UUID，M1 暂不映射
                 r.workflowInstanceId(),
                 r.runMode(), r.state(), r.bizDate(),
-                parseDt(r.startedAt()), parseDt(r.finishedAt()), r.durationMs(),
+                r.startedAt(), r.finishedAt(), r.durationMs(),
                 r.cronExpression(), r.env(), r.workflowName(),
-                parseDt(r.scheduledFireTime()),
+                r.scheduledFireTime(),
                 r.triggerType());
     }
 
     private static BackfillRun toDtoRun(OpsContracts.BackfillRunView v) {
         return new BackfillRun(v.id(), v.targetType(), v.targetId(), v.targetName(),
                 v.dateStart(), v.dateEnd(), v.parallelism(), v.state(),
-                v.total(), v.success(), v.failed(), v.running(), parseDt(v.createdAt()),
+                v.total(), v.success(), v.failed(), v.running(), v.createdAt(),
                 v.activeDates(), v.heldDates());
-    }
-
-    private static LocalDateTime parseDt(String iso) {
-        if (iso == null || iso.isBlank()) return null;
-        try {
-            return Instant.parse(iso).atZone(ZoneId.systemDefault()).toLocalDateTime();
-        } catch (java.time.format.DateTimeParseException e) {
-            return LocalDateTime.parse(iso);
-        }
     }
 }

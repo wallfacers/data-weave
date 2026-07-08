@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.dataweave.master.application.lineage.ColumnEdge;
@@ -147,9 +148,25 @@ public class AgentLineageExtractor implements ScriptLineageExtractor {
         return new ScriptExtraction(reads, writes, columnEdges, hints, Source.SCRIPT_AGENT, modelVersion);
     }
 
+    /**
+     * 表名是否在脚本文本中「字面且成词」出现（大小写不敏感）。
+     * P4 加固：由子串匹配改为词边界匹配——避免 {@code order} 误命中 {@code orders}、{@code user} 误命中
+     * {@code username}/{@code user_id} 等宽松误报（旧逻辑这类子串命中会放行错表，削弱防幻觉）。
+     * 限定名（含 {@code .}）整体不成词时，回退匹配其末段裸名，兑现「限定名或裸名任一命中」（宁少拒不多阻）。
+     */
     private static boolean locatable(String table, String lowerContent) {
-        return table != null && !table.isBlank()
-                && lowerContent.contains(table.trim().toLowerCase(Locale.ROOT));
+        if (table == null || table.isBlank()) return false;
+        String t = table.trim().toLowerCase(Locale.ROOT);
+        if (wordPresent(t, lowerContent)) return true;
+        int dot = t.lastIndexOf('.');
+        return dot >= 0 && dot < t.length() - 1 && wordPresent(t.substring(dot + 1), lowerContent);
+    }
+
+    /** 词边界匹配：token 前后均非 [a-z0-9_]（限定名内部的 '.' 按字面处理）；content 已小写化。 */
+    private static boolean wordPresent(String token, String lowerContent) {
+        if (token.isEmpty()) return false;
+        return Pattern.compile("(?<![a-z0-9_])" + Pattern.quote(token) + "(?![a-z0-9_])")
+                .matcher(lowerContent).find();
     }
 
     private static boolean present(String s) {

@@ -13,12 +13,20 @@ import { TabStrip, type TabStripItem, type TabContextAction } from "@/components
 import { useNavUiStore } from "@/lib/nav-ui-store"
 import { useProjectPermissions } from "@/lib/project-permissions"
 
-/** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab） */
+/** UUID 取首 8 位 hex 作短 ID，用于 Tab 标题辨识。 */
+function shortId(id: string): string {
+  const hex = id.replace(/-/g, "")
+  return hex.length > 8 ? hex.slice(-8) : hex
+}
+
+/** tab 标签：标题 + params 首值提示（区分同视图不同对象的多个 tab）。UUID 取末 8 位缩短。 */
 function tabLabel(tab: WorkspaceTab, t: (k: string) => string): string {
   const title = t(VIEW_META[tab.view].title)
   if (!tab.params) return title
   const first = Object.values(tab.params)[0]
-  return first != null ? `${title} · ${String(first)}` : title
+  if (first == null) return title
+  const value = typeof first === "string" && first.includes("-") ? shortId(String(first)) : String(first)
+  return `${title} · ${value}`
 }
 
 /** "+" 启动菜单：仅展示入口视图 + 按当前项目权限过滤（FR-041），与左侧导航一致。 */

@@ -157,7 +157,7 @@ export function PeriodicInstancesPanel({
   }, [searchParams])
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
-  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled, skipInitialFire: true })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 
@@ -482,7 +482,7 @@ export function PeriodicInstancesPanel({
                     size="icon"
                     variant="ghost"
                     className="size-7"
-                    onClick={() => open("workflow-instance-detail", { instanceId: r.id })}
+                    onClick={() => open("instance-log", { instanceId: r.id })}
                   >
                     <HugeiconsIcon icon={FileViewIcon} className="size-4" />
                   </Button>
@@ -504,7 +504,11 @@ export function PeriodicInstancesPanel({
     const qs = toQueryParams(query, filters)
     qs.set("projectId", String(projectId))
     const res = await authFetch(`${API_BASE}/api/ops/instances?${qs.toString()}`)
-    if (!res.ok) return { items: [], total: 0, page: query.page, size: query.size }
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => null) as ApiResponse<unknown> | null
+      toast.error(errorBody?.message || t("fetchInstancesFailed", { status: res.status }))
+      return { items: [], total: 0, page: query.page, size: query.size }
+    }
     const json = (await res.json()) as ApiResponse<unknown>
     if (json.code !== 0 || !json.data) return { items: [], total: 0, page: query.page, size: query.size }
     const d = json.data

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -193,8 +194,8 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 ti.getRunMode(),
                 ti.getState(),
                 ti.getBizDate(),
-                ti.getStartedAt(),
-                ti.getFinishedAt(),
+                toIso(ti.getStartedAt()),
+                toIso(ti.getFinishedAt()),
                 durationMs,
                 ti.getCronExpression(),      // 快照列
                 ti.getEnv(),                 // 直接列（之前写死 null）
@@ -202,5 +203,10 @@ public class DataOpsBridgeStub implements DataOpsBridge {
                 null,                        // scheduledFireTime: stub 无此数据
                 null                         // triggerType: stub 无此数据
         );
+    }
+
+    private static String toIso(LocalDateTime dt) {
+        if (dt == null) return null;
+        return dt.atZone(ZoneId.systemDefault()).toInstant().toString();
     }
 }

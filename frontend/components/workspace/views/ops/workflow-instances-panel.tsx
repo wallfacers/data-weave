@@ -128,7 +128,7 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
   }>({ title: "", description: "", destructive: false, onConfirm: () => {} })
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
-  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled, skipInitialFire: true })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 

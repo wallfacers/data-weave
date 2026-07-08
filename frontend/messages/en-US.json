@@ -188,6 +188,7 @@
     "actionSuccess": "{label} succeeded",
     "actionFailed": "{label} failed: {msg}",
     "networkError": "Network error",
+    "fetchInstancesFailed": "Failed to load instances (HTTP {status})",
     "pageInfo": "Page {page}/{totalPages}, {total} total",
     "prevPage": "Prev",
     "nextPage": "Next",

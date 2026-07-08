@@ -227,11 +227,11 @@ public class OpsService {
     private String instanceOrderByClause(String alias, String sortField, String sortDir) {
         if (sortField == null || sortField.isBlank()) return null;
         String col = switch (sortField) {
-            case "scheduledFireTime" -> alias + ".scheduled_fire_time";
+            case "scheduledFireTime" -> "wi.scheduled_fire_time";
             case "bizDate" -> alias + ".biz_date";
             case "startedAt" -> alias + ".started_at";
             case "finishedAt" -> alias + ".finished_at";
-            case "durationMs" -> alias + ".duration_ms";
+            case "durationMs" -> "EXTRACT(EPOCH FROM (" + alias + ".finished_at - " + alias + ".started_at)) * 1000";
             default -> null;
         };
         if (col == null) return null;
@@ -577,8 +577,9 @@ public class OpsService {
                 + "started_at=NULL, log=NULL, updated_at=? WHERE id=? AND deleted=0", now, instanceId);
         UUID wiId = ti.getWorkflowInstanceId();
         if (wiId != null) {
-            int updated = jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, updated_at=? "
-                    + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0", now, wiId);
+            int updated = jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, "
+                    + "started_at=?, updated_at=? "
+                    + "WHERE id=? AND state IN ('SUCCESS','FAILED','STOPPED') AND deleted=0", now, now, wiId);
             if (updated == 1) {
                 // 原生 SQL 绕过 casWorkflowState，未发布 dw:evt：手动补发，避免实例详情视图停留旧态直到下次轮询。
                 eventBus.publish("dw:evt:" + wiId, "{\"workflowState\":\"RUNNING\"}");

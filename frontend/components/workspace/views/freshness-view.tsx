@@ -54,7 +54,7 @@ export function FreshnessView({ active }: ViewProps) {
   const [autoEnabled, setAutoEnabled] = useState(true)
 
   const onTick = useCallback(() => setReloadSignal((n) => n + 1), [])
-  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled })
+  const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled, skipInitialFire: true })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
 

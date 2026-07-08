@@ -41,10 +41,10 @@ public class AgentConfigRepository {
                 "UPDATE lineage_agent_config SET protocol = ?, base_url = ?, model = ?, " +
                 "    api_key_enc = COALESCE(?, api_key_enc), enabled = ?, timeout_ms = ?, " +
                 "    rate_limit_per_min = ?, max_columns = ?, updated_by = ?, " +
-                "    updated_at = CURRENT_TIMESTAMP, version = version + 1 " +
+                "    updated_at = ?, version = version + 1 " +
                 "WHERE id = ? AND deleted = 0",
                 protocol, baseUrl, model, apiKeyEnc, enabled ? 1 : 0, timeoutMs,
-                rateLimitPerMin, maxColumns, userId, id);
+                rateLimitPerMin, maxColumns, userId, LocalDateTime.now(), id);
     }
 
     /** 057：插入新配置（租户级全局单例）；返回新 id（取自 GeneratedKeyHolder，H2/PG 通用，记忆 alert-jdbc-call-identity 教训）。 */

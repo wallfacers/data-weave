@@ -154,9 +154,10 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
 
                 if (result.skipped()) {
                     // SKIPPED（环境缺失）：按「非失败完成」处理，不阻塞下游、不报失败；
-                    // tail 显式带 [SKIPPED] 标记 + 跳过原因，使人/测试/AI 可辨识（FR-008/009/012）。
-                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(),
-                            "[SKIPPED] " + result.message(), List.of());
+                    // 完整日志（含 start/end banner + 执行过程）一并写入，避免 LogBus 缺失时
+                    // 前端仅看到 [SKIPPED] 摘要而丢失 banner（FR-008/009/012）。
+                    // tail 已含 executor 输出的跳过原因 + end banner "Status: Skipped"，无需再加前缀。
+                    reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail, List.of());
                 } else if (result.success()) {
                     reportService.reportFinished(cmd.taskInstanceId(), result.exitCode(), tail,
                             result.statementMetrics());
