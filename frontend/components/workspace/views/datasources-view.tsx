@@ -99,12 +99,19 @@ export function DatasourcesView() {
     }
   }
 
-  const handleSave = async (req: DatasourceCreateRequest) => {
+  const handleSave = async (req: DatasourceCreateRequest, testAfterSave?: boolean) => {
     try {
+      let id: number
       if (editingDs) {
         await updateDatasource(editingDs.id, req)
+        id = editingDs.id
       } else {
-        await createDatasource(req)
+        const created = await createDatasource(req)
+        id = created.id
+      }
+      // 对话框中测试连通性已通过 → 保存后自动探活一次，让状态直接变为「已连接」
+      if (testAfterSave) {
+        await testDatasource(id).catch(() => {})
       }
       setDialogOpen(false)
       reload()
@@ -319,7 +326,7 @@ interface DialogProps {
   onOpenChange: (v: boolean) => void
   editing: DatasourceVO | null
   typesByCategory: Record<string, DatasourceType[]>
-  onSave: (req: DatasourceCreateRequest) => Promise<void>
+  onSave: (req: DatasourceCreateRequest, testAfterSave?: boolean) => Promise<void>
 }
 
 function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave }: DialogProps) {
@@ -426,7 +433,7 @@ function DatasourceDialog({ open, onOpenChange, editing, typesByCategory, onSave
         description: description || null,
         driverJarId,
       }
-      await onSave(req)
+      await onSave(req, testResult?.success === true)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed")
     } finally {
