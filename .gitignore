@@ -83,6 +83,10 @@ ml/lineage-extractor/out/*.preds.jsonl
 ml/lineage-extractor/realeval/teacher_labels/
 ml/lineage-extractor/realeval/pool-b/
 ml/lineage-extractor/realeval/tolabel-b.jsonl
+# 054 fresh-repo 测试集 B：多 teacher 标注 + 巨型离群原始脚本（同上，不入代码仓）
+ml/lineage-extractor/realeval/teacher_labels-b/
+ml/lineage-extractor/realeval/pool-b-oversized/
+ml/lineage-extractor/out/model-preds-B*.jsonl
 ml/lineage-extractor/data/silver.jsonl
 ml/lineage-extractor/data/silver_pool.json
 ml/lineage-extractor/data/out/train-distill.jsonl
