@@ -1,4 +1,12 @@
-"""041-R 大模型薄封装：M1=DashScope(OpenAI 兼容)、M2=阿里云 Anthropic 兼容端点。"""
+"""大模型薄封装：多 teacher 血缘打标后端。
+
+- M1 = DashScope(OpenAI 兼容)，`DASHSCOPE_API_KEY` + `QWEN_MODEL`（默认 qwen-max）。
+- M2 = 独立 DashScope 兼容 key（`QWEN2_API_KEY` + `QWEN2_MODEL`，默认 qwen3.7-max）；
+       无则回退旧路径（`ALI_ANTHROPIC_*` 或 `M2_MODEL`+DASHSCOPE）。
+- M3 = Anthropic 兼容第三方（如 DeepSeek）：`DEEPSEEK_ANTHROPIC_TOKEN` +
+       `DEEPSEEK_ANTHROPIC_BASE_URL` + `DEEPSEEK_MODEL`（默认 deepseek-v4-pro）。
+多 teacher 供 054 fresh-repo 测试集 B 的**一致性 auto-gold**（≥K 方一致才入 gold）。
+"""
 from __future__ import annotations
 import json, os, re
 from pathlib import Path
@@ -37,10 +45,13 @@ class LlmClient:
         except Exception as e:
             return {"reads": [], "writes": [], "_error": f"call:{e}"}
 
-def _dashscope_backend():
+def _dashscope_backend(api_key_env: str = "DASHSCOPE_API_KEY",
+                       base_url_env: str = "DASHSCOPE_BASE_URL"):
+    """OpenAI 兼容(DashScope)后端；api_key/base_url 由环境变量名参数化，
+    支持多个独立 DashScope 兼容 key（m1 与 m2 各自一把）。"""
     from openai import OpenAI
-    cli = OpenAI(api_key=os.environ["DASHSCOPE_API_KEY"],
-                 base_url=os.environ.get("DASHSCOPE_BASE_URL",
+    cli = OpenAI(api_key=os.environ[api_key_env],
+                 base_url=os.environ.get(base_url_env,
                           "https://dashscope.aliyuncs.com/compatible-mode/v1"))
     def call(model, user):
         r = cli.chat.completions.create(model=model, temperature=0.0, timeout=60,
@@ -49,12 +60,14 @@ def _dashscope_backend():
         return _parse_lineage_json(r.choices[0].message.content or "")
     return call
 
-def _ali_anthropic_backend():
+def _anthropic_backend(base_url_env: str, token_env: str, max_tokens: int = 8192):
+    """Anthropic 兼容后端（阿里云 / DeepSeek 等），base_url/token 参数化。
+    max_tokens 放宽到 8192：reasoning 模型（deepseek-v4-pro）思维链吃 output，
+    2048 仍会被思维链吃光、最终 JSON 未吐出致 no_json（实测 155 条中 22 条中招）。"""
     from anthropic import Anthropic
-    cli = Anthropic(base_url=os.environ["ALI_ANTHROPIC_BASE_URL"],
-                    api_key=os.environ["ALI_ANTHROPIC_TOKEN"])
+    cli = Anthropic(base_url=os.environ[base_url_env], api_key=os.environ[token_env])
     def call(model, user):
-        r = cli.messages.create(model=model, max_tokens=512, temperature=0.0, timeout=60,
+        r = cli.messages.create(model=model, max_tokens=max_tokens, temperature=0.0, timeout=120,
               system=SYSTEM_PROMPT, messages=[{"role":"user","content":user}])
         text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text")
         return _parse_lineage_json(text)
@@ -62,17 +75,24 @@ def _ali_anthropic_backend():
 
 def load_clients() -> dict[str, "LlmClient"]:
     out = {}
+    # M1：DashScope qwen-max（现有 key）。
     if os.environ.get("DASHSCOPE_API_KEY"):
         out["m1"] = LlmClient("m1", _dashscope_backend(), os.environ.get("QWEN_MODEL", "qwen-max"))
     else:
         print("[warn] M1 DASHSCOPE_API_KEY missing; skip")
-    if os.environ.get("ALI_ANTHROPIC_TOKEN") and os.environ.get("ALI_ANTHROPIC_BASE_URL"):
-        out["m2"] = LlmClient("m2", _ali_anthropic_backend(), os.environ.get("ALI_ANTHROPIC_MODEL", "qwen3-max"))
+    # M2：优先独立 DashScope 兼容 key（qwen3.7-max）；否则回退旧 ALI_ANTHROPIC / M2_MODEL 路径。
+    if os.environ.get("QWEN2_API_KEY"):
+        out["m2"] = LlmClient("m2", _dashscope_backend("QWEN2_API_KEY", "QWEN2_BASE_URL"),
+                              os.environ.get("QWEN2_MODEL", "qwen3.7-max"))
+    elif os.environ.get("ALI_ANTHROPIC_TOKEN") and os.environ.get("ALI_ANTHROPIC_BASE_URL"):
+        out["m2"] = LlmClient("m2", _anthropic_backend("ALI_ANTHROPIC_BASE_URL", "ALI_ANTHROPIC_TOKEN"),
+                              os.environ.get("ALI_ANTHROPIC_MODEL", "qwen3-max"))
     elif os.environ.get("M2_MODEL") and os.environ.get("DASHSCOPE_API_KEY"):
-        # M2 走 DashScope 同端点上的独立(通常更强/带思维链)模型，与 M1 只差 model 名。
-        # 用 DashScope backend 而非 anthropic：reasoning 模型思维链吃数百 token，
-        # anthropic backend 的 max_tokens=512 会被吃光；dashscope backend 不设上限、模型自决。
         out["m2"] = LlmClient("m2", _dashscope_backend(), os.environ["M2_MODEL"])
     else:
-        print("[warn] M2 missing (need ALI_ANTHROPIC_* or M2_MODEL+DASHSCOPE_API_KEY); skip")
+        print("[warn] M2 missing (need QWEN2_API_KEY / ALI_ANTHROPIC_* / M2_MODEL); skip")
+    # M3：Anthropic 兼容第三方 teacher（DeepSeek）——跨厂商增强一致性 auto-gold 独立性。
+    if os.environ.get("DEEPSEEK_ANTHROPIC_TOKEN") and os.environ.get("DEEPSEEK_ANTHROPIC_BASE_URL"):
+        out["m3"] = LlmClient("m3", _anthropic_backend("DEEPSEEK_ANTHROPIC_BASE_URL", "DEEPSEEK_ANTHROPIC_TOKEN"),
+                              os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"))
     return out

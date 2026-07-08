@@ -1,0 +1,105 @@
+{
+  "n_nonempty": 79,
+  "gold_total": 201,
+  "frozen_order": [
+    "agree",
+    "model_qual",
+    "model_bare",
+    "sql_bare"
+  ],
+  "frozen_accept_set": [
+    "agree",
+    "model_qual"
+  ],
+  "cumulative_frozen_on_b": [
+    {
+      "upto": "agree",
+      "accept_tiers": [
+        "agree"
+      ],
+      "n_accept": 37,
+      "precision": 0.918918918918919,
+      "recall": 0.17412935323383086,
+      "review_per_script": 1.8354430379746836
+    },
+    {
+      "upto": "model_qual",
+      "accept_tiers": [
+        "agree",
+        "model_qual"
+      ],
+      "n_accept": 73,
+      "precision": 0.9315068493150684,
+      "recall": 0.34328358208955223,
+      "review_per_script": 1.379746835443038
+    },
+    {
+      "upto": "model_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare"
+      ],
+      "n_accept": 168,
+      "precision": 0.8630952380952381,
+      "recall": 0.7263681592039801,
+      "review_per_script": 0.17721518987341772
+    },
+    {
+      "upto": "sql_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare",
+        "sql_bare"
+      ],
+      "n_accept": 180,
+      "precision": 0.8388888888888889,
+      "recall": 0.7562189054726368,
+      "review_per_script": 0.02531645569620253
+    }
+  ],
+  "b_frontier": {
+    "upto": "model_qual",
+    "accept_tiers": [
+      "agree",
+      "model_qual"
+    ],
+    "n_accept": 73,
+    "precision": 0.9315068493150684,
+    "recall": 0.34328358208955223,
+    "review_per_script": 1.379746835443038
+  },
+  "b_baseline_agree_only": {
+    "upto": "agree",
+    "accept_tiers": [
+      "agree"
+    ],
+    "n_accept": 37,
+    "precision": 0.918918918918919,
+    "recall": 0.17412935323383086,
+    "review_per_script": 1.8354430379746836
+  },
+  "a_frontier": {
+    "upto": "model_qual",
+    "accept_tiers": [
+      "agree",
+      "model_qual"
+    ],
+    "n_accept": 60,
+    "precision": 0.95,
+    "recall": 0.41134751773049644,
+    "review_per_script": 1.6101694915254237
+  },
+  "a_baseline_agree_only": {
+    "upto": "agree",
+    "accept_tiers": [
+      "agree"
+    ],
+    "n_accept": 23,
+    "precision": 1.0,
+    "recall": 0.1702127659574468,
+    "review_per_script": 2.23728813559322
+  },
+  "thr": 0.95
+}
