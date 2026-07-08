@@ -61,8 +61,8 @@
 - [x] T011 [US1] 实现 `AuthoringContextService.taskDependencies(...)`：合并 `WorkflowEdgeRepository` 声明边 + 推导血缘边 → `TaskDependencyView`（带 origin，FR-006），新增 `TaskDependencyView.java`/`DependencyEdge.java`
 - [ ] T012 [US1] 实现工作副本无状态分析：多草稿跨任务依赖先草稿内解析再回退服务端图谱、草稿覆盖同名已 push（FR-004/019），于 `AuthoringContextService` + 请求装配器
 - [x] T013 [US1] REST 控制器 `AuthoringContextController`：`POST /api/authoring-context/analyze` + `GET /api/authoring-context/{taskDefId}` + `/{taskDefId}/deps`（depth 参数，ProjectScope 租户+项目隔离），于 `backend/dataweave-api/src/main/java/com/dataweave/api/interfaces/AuthoringContextController.java`
-- [ ] T014 [US1] MCP：在 `McpToolRegistry.registerTools()` 注册 `query_authoring_context` + `query_task_deps`（`requireTenant`，复用服务），于 `backend/dataweave-api/src/main/java/com/dataweave/api/application/mcp/McpToolRegistry.java`
-- [ ] T015 [US1] MCP 漂移修正：新增表/列级只读血缘查询承载新面、**保留** `query_lineage` 旧签名不破坏（FR-015，research D4），于 `McpToolRegistry.java`
+- [x] T014 [US1] MCP：在 `McpToolRegistry.registerTools()` 注册 `query_authoring_context` + `query_task_deps`（`requireTenant`，复用服务），于 `backend/dataweave-api/src/main/java/com/dataweave/api/application/mcp/McpToolRegistry.java`
+- [x] T015 [US1] MCP 漂移修正：新增表/列级只读血缘查询承载新面、**保留** `query_lineage` 旧签名不破坏（FR-015，research D4），于 `McpToolRegistry.java`
 - [ ] T016 [P] [US1] CLI：`dw context` + `dw deps` 子命令（收集工作副本草稿→`POST /analyze`→`--json`），于 `cli/main.go` + `cli/context/analyze.go`
 - [ ] T017 [P] [US1] CLI 测试：analyze 往返 + 输出契约，于 `cli/context/analyze_test.go`
 - [ ] T018 [US1] Skill 扩展：`.claude/skills/weft-task-authoring/SKILL.md` 教「编辑前 `dw context` 取接地事实」回路

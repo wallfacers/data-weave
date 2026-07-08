@@ -59,6 +59,7 @@ public class McpToolRegistry {
     private final FleetService fleetService;
     private final MetricService metricService;
     private final LineageService lineageService;
+    private final com.dataweave.master.application.authoring.AuthoringContextService authoringContextService;
     private final GatedActionService gatedActionService;
     private final ApprovalService approvalService;
     private final TaskService taskService;
@@ -77,6 +78,7 @@ public class McpToolRegistry {
                            FleetService fleetService,
                            MetricService metricService,
                            LineageService lineageService,
+                           com.dataweave.master.application.authoring.AuthoringContextService authoringContextService,
                            GatedActionService gatedActionService,
                            ApprovalService approvalService,
                            TaskService taskService,
@@ -92,6 +94,7 @@ public class McpToolRegistry {
         this.fleetService = fleetService;
         this.metricService = metricService;
         this.lineageService = lineageService;
+        this.authoringContextService = authoringContextService;
         this.gatedActionService = gatedActionService;
         this.approvalService = approvalService;
         this.taskService = taskService;
@@ -292,6 +295,38 @@ public class McpToolRegistry {
                                     "exprSql", p.metric().getMeasureExpr(),
                                     "lineage", p.lineage()))
                             .orElse(Map.of("found", false, "code", code));
+                });
+
+        // ---- 058 数据开发 LSP：创作上下文查询（表/列级血缘新面，query_lineage 指标面保留不破，D4）----
+        register("query_authoring_context",
+                "返回任务的创作上下文接地包：读写表→上下游表邻居 + 表/列血缘 + 三态接地（PRESENT/UNGROUNDED/INFERRED），"
+                        + "供 agent 编码前理解意图与链路（纯读、确定性、零 LLM，租户+项目隔离）",
+                schema(req("taskDefId", "string", "已 push 任务定义 id"),
+                        prop("depth", "integer", "上下游遍历深度，缺省多跳")),
+                ctx -> {
+                    requireTenant(ctx);
+                    String taskRef = required(ctx.args(), "taskDefId");
+                    Long depth = lng(ctx.args(), "depth");
+                    return authoringContextService.context(
+                            TenantContext.tenantId(), TenantContext.projectId(),
+                            taskRef, depth != null ? depth.intValue() : 0);
+                });
+
+        register("query_task_deps",
+                "返回任务的依赖视图：声明（工作流 DAG）+ 推导（血缘）合并的上/下游任务边，带 origin 归属"
+                        + "（DECLARED/DERIVED/BOTH），揭示声明与实际血缘的一致或背离（纯读，租户+项目隔离）",
+                schema(req("taskDefId", "string", "任务定义 id")),
+                ctx -> {
+                    requireTenant(ctx);
+                    String taskRef = required(ctx.args(), "taskDefId");
+                    long taskDefId;
+                    try {
+                        taskDefId = Long.parseLong(taskRef.trim());
+                    } catch (NumberFormatException e) {
+                        return Map.of("found", false, "taskDefId", taskRef);
+                    }
+                    return authoringContextService.taskDependencies(
+                            TenantContext.tenantId(), TenantContext.projectId(), taskDefId);
                 });
 
         // ---- 只读日志工具（E 新增，租户隔离）----
