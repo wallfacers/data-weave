@@ -36,15 +36,9 @@ public class TaskService {
     private final FleetService fleetService;
     private final JdbcTemplate jdbcTemplate;
     private final LineageStore lineageStore;
-    private final LineageEdgeAssembler lineageEdgeAssembler;
-    private final SqlColumnLineageExtractor sqlColumnLineageExtractor;
-    private final com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog;
-    private final com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService;
-    private final DatasourceSchemaResolver schemaResolver;
-    private final Neo4jColumnBackfillWriter backfillWriter;
-    private final DatasourceRepository datasourceRepository;
+    // 058 T010（方案 B）：表级+列级抽取收敛到单一只读共享核，push 与 authoring 共用同一逻辑。
+    private final com.dataweave.master.application.lineage.TaskLineageResolver taskLineageResolver;
     private final com.dataweave.master.application.lineage.agent.LineageEnrichmentTrigger lineageEnrichmentTrigger;
-    private final com.dataweave.master.application.lineage.SchemaCacheConfig schemaCacheConfig;
 
     public TaskService(TaskDefRepository taskDefRepository,
                        TaskDefVersionRepository taskDefVersionRepository,
@@ -53,15 +47,8 @@ public class TaskService {
                        FleetService fleetService,
                        JdbcTemplate jdbcTemplate,
                        LineageStore lineageStore,
-                       LineageEdgeAssembler lineageEdgeAssembler,
-                       SqlColumnLineageExtractor sqlColumnLineageExtractor,
-                       com.dataweave.master.application.lineage.ColumnLineageCatalog columnLineageCatalog,
-                       com.dataweave.master.application.lineage.script.ScriptLineageService scriptLineageService,
-                       DatasourceSchemaResolver schemaResolver,
-                       Neo4jColumnBackfillWriter backfillWriter,
-                       DatasourceRepository datasourceRepository,
-                       com.dataweave.master.application.lineage.agent.LineageEnrichmentTrigger lineageEnrichmentTrigger,
-                       com.dataweave.master.application.lineage.SchemaCacheConfig schemaCacheConfig) {
+                       com.dataweave.master.application.lineage.TaskLineageResolver taskLineageResolver,
+                       com.dataweave.master.application.lineage.agent.LineageEnrichmentTrigger lineageEnrichmentTrigger) {
         this.taskDefRepository = taskDefRepository;
         this.taskDefVersionRepository = taskDefVersionRepository;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -69,15 +56,8 @@ public class TaskService {
         this.fleetService = fleetService;
         this.jdbcTemplate = jdbcTemplate;
         this.lineageStore = lineageStore;
-        this.lineageEdgeAssembler = lineageEdgeAssembler;
-        this.sqlColumnLineageExtractor = sqlColumnLineageExtractor;
-        this.columnLineageCatalog = columnLineageCatalog;
-        this.scriptLineageService = scriptLineageService;
-        this.schemaResolver = schemaResolver;
-        this.backfillWriter = backfillWriter;
-        this.datasourceRepository = datasourceRepository;
+        this.taskLineageResolver = taskLineageResolver;
         this.lineageEnrichmentTrigger = lineageEnrichmentTrigger;
-        this.schemaCacheConfig = schemaCacheConfig;
     }
 
     // ─── Records ─────────────────────────────────────────
@@ -497,42 +477,16 @@ public class TaskService {
                               Long datasourceId, Long targetDatasourceId,
                               List<String> agentReads, List<String> agentWrites) {
         try {
-            LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
-                    1L, 1L, type, content, agentReads, agentWrites,
-                    datasourceId, targetDatasourceId);
-            // 列级边：019 解析 + 024 声明对账（createAndOnline 不经 FileContract，无声明边）
-            java.util.List<com.dataweave.master.domain.lineage.ColumnEdge> columnEdges = java.util.List.of();
-            if ("SQL".equalsIgnoreCase(type)) {
-                // 053-US2：构造绑定数据源的组合 catalog（闭包持有 datasourceId，接口签名不变）
-                var catalog = new DatasourceBoundCatalog(
-                        datasourceId, columnLineageCatalog, schemaResolver, backfillWriter, datasourceRepository,
-                        schemaCacheConfig.ttlMs());
-                var colResult = sqlColumnLineageExtractor.extractAndCrossCheck(
-                        content, catalog, java.util.List.of(), 1L, 1L);
-                columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
-                        colResult,
-                        lineageEdgeAssembler.resolveCoord(1L, 1L, datasourceId),
-                        lineageEdgeAssembler.resolveCoord(1L, 1L, targetDatasourceId));
-            }
-            // 041 脚本血缘：PYTHON/SHELL(/SPARK) 并联脚本通道（tenant/project 沿本路径 1L/1L 现状）
-            var ioEdges = new java.util.ArrayList<>(assembly.ioEdges());
-            var allColumnEdges = new java.util.ArrayList<>(columnEdges);
-            if (scriptLineageService.handles(type)) {
-                var scriptResult = scriptLineageService.extract(
-                        new com.dataweave.master.application.lineage.script.ScriptSource(
-                                1L, 1L, taskDefId, type, content, datasourceId, targetDatasourceId));
-                ioEdges.addAll(scriptResult.ioEdges());
-                allColumnEdges.addAll(scriptResult.columnEdges());
-            }
-            if (!ioEdges.isEmpty() || !allColumnEdges.isEmpty()) {
+            // 058 T010（方案 B）：表级+列级抽取委托只读共享核（与 authoring 侧同一逻辑，杜绝抽取漂移）。
+            var resolved = taskLineageResolver.resolve(
+                    1L, 1L, taskDefId, type, content, datasourceId, targetDatasourceId, agentReads, agentWrites);
+            if (!resolved.ioEdges().isEmpty() || !resolved.columnEdges().isEmpty()) {
                 // tenantId/projectId 沿用现状 1L/1L 占位（租户化随上游）
                 lineageStore.recordTaskIo(1L, 1L, taskDefId, 1, taskName,
-                        ioEdges, allColumnEdges, null);
+                        resolved.ioEdges(), resolved.columnEdges(), null);
             }
             // 053 US1：同步确定性血缘记完后异步发 AI 富化请求（携 calciteParsed 判定 + agent 声明；失败不阻断 push）
-            boolean calciteParsed = assembly.ioEdges().stream()
-                    .anyMatch(e -> e.source() == com.dataweave.master.domain.lineage.Source.SQL_PARSED);
-            lineageEnrichmentTrigger.request(1L, 1L, taskDefId, type, calciteParsed, agentReads, agentWrites);
+            lineageEnrichmentTrigger.request(1L, 1L, taskDefId, type, resolved.calciteParsed(), agentReads, agentWrites);
         } catch (Exception e) {
             // 血缘是增强，绝不阻断建任务主链路（FR-007）
         }
