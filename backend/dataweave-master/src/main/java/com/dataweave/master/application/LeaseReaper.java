@@ -7,6 +7,7 @@ import com.dataweave.master.domain.WorkerNodeRepository;
 import com.dataweave.master.domain.signal.AlertSignal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,16 +20,17 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 租约回收器（task 3.6 / design D7 第三层）：定时扫描过期的 DISPATCHED/RUNNING 实例。
+ * 租约回收器（task 3.6 / design D7 第三层 / 060 infra 回收分类）：定时扫描过期的 DISPATCHED/RUNNING 实例。
  *
- * <p>两种失效模式：
+ * <p>两种失效模式（均归 infra，060 不烧 business_attempt、infra_count++、超限→SUSPENDED）：
  * <ul>
- *   <li><b>WORKER_LOST</b>：租约过期且节点离线（心跳超时）</li>
- *   <li><b>WORKER_RESTART</b>：节点在线但 incarnation 已变化（进程重启后旧实例全部失效）</li>
+ *   <li><b>WORKER_LOST</b>：租约过期且节点离线（心跳超时）—— 计入节点熔断（节点死了，FR-003）。</li>
+ *   <li><b>WORKER_RESTART</b>：节点在线但 incarnation 已变化 —— 由 FleetService 节点级即时回收承担主路径，
+ *       此处为兜底扫描；不计熔断（正常重启由稳定窗处置，D4）。</li>
  * </ul>
  *
- * <p>回收动作：CAS 置 FAILED + failure_reason，触发重试（RetryService）或终态。
- * 扫描以 CAS 守卫，竞态安全（如 worker 恰好在此时回报成功）。
+ * <p>060 回收动作：{@link InstanceStateMachine#reclaimInfra}（active→WAITING + infra_count++，不动 business_attempt，
+ * 超限→SUSPENDED）；不再走 RetryService/casTaskTerminal（永不因 infra 判终态 FAILED，FR-008）。
  */
 @Service
 public class LeaseReaper {
@@ -37,29 +39,32 @@ public class LeaseReaper {
 
     private final JdbcTemplate jdbc;
     private final InstanceStateMachine stateMachine;
-    private final RetryService retryService;
+    private final NodeHealthService nodeHealthService;
     private final WorkerNodeRepository nodeRepository;
     private final EventBus eventBus;
     private final SchedulerMetrics metrics;
     private final ApplicationEventPublisher eventPublisher;
     private final WorkflowStateService workflowStateService;
+    private final int infraRedispatchMax;
 
     public LeaseReaper(JdbcTemplate jdbc,
                        InstanceStateMachine stateMachine,
-                       RetryService retryService,
+                       NodeHealthService nodeHealthService,
                        WorkerNodeRepository nodeRepository,
                        EventBus eventBus,
                        SchedulerMetrics metrics,
                        ApplicationEventPublisher eventPublisher,
-                       WorkflowStateService workflowStateService) {
+                       WorkflowStateService workflowStateService,
+                       @Value("${scheduler.infra-redispatch-max:10}") int infraRedispatchMax) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
-        this.retryService = retryService;
+        this.nodeHealthService = nodeHealthService;
         this.nodeRepository = nodeRepository;
         this.eventBus = eventBus;
         this.metrics = metrics;
         this.eventPublisher = eventPublisher;
         this.workflowStateService = workflowStateService;
+        this.infraRedispatchMax = infraRedispatchMax;
     }
 
     /**
@@ -152,51 +157,35 @@ public class LeaseReaper {
     }
 
     /**
-     * CAS 置 FAILED + failure_reason，若仍有重试次数则回队 WAITING。
-     * 使用 casTaskTerminalFromActive（WHERE state IN ('DISPATCHED','RUNNING')）替代
-     * 依赖扫描快照 inst.state 的 casTaskTerminal，闭合扫描→CAS 之间的 TOCTOU 窗口。
+     * 060 infra 回收：{@link InstanceStateMachine#reclaimInfra}（active→WAITING + infra_count++，不动 business_attempt，
+     * 超 infraRedispatchMax → SUSPENDED）。永不判终态 FAILED（FR-008）。
      *
-     * @return true 表示成功回收
+     * <p>节点级熔断：WORKER_LOST（节点死了）→ {@code recordInfraFailure} 计入（FR-003）；
+     * WORKER_RESTART（正常重启）不计——由稳定窗处置（D4），避免滚动重启节点被误隔离。
+     *
+     * @return true 表示本调用赢得回收（reclaimInfra 单赢）
      */
     private boolean failWithRetry(ExpiredInstance inst, String reason) {
-        // 先标记 FAILED（不依赖扫描快照 inst.state，DB 裁决当前是否仍为活跃态）
-        boolean casOk = stateMachine.casTaskTerminalFromActive(inst.id, InstanceStates.FAILED, reason);
-        if (!casOk) {
-            return false; // 竞态：其他 master 或回报已推进状态
+        boolean won = stateMachine.reclaimInfra(inst.id, infraRedispatchMax);
+        if (!won) {
+            return false;  // 竞态：他方已回收/回报推进
         }
-        log.info("[LeaseReaper] 实例 {} 从 {} 回收（{}）", inst.id, inst.state, reason);
+        log.info("[LeaseReaper] 实例 {} 从 {} infra 回收（{}）", inst.id, inst.state, reason);
 
-        // 尝试重试（如果仍有次数）
-        tryRetry(inst, reason);
-        // 重算父流聚合态：无论最终是重试回队 WAITING 还是耗尽留 FAILED，都可能是该流最后一个未完成节点，
-        // 且租约回收不属于 WorkerReportService 回报路径，没有其他事件会顺带重算。
+        // 节点级熔断：仅 WORKER_LOST 计入（WORKER_RESTART 正常重启不计，D4）
+        if ("WORKER_LOST".equals(reason) && inst.workerNodeCode != null) {
+            nodeHealthService.recordInfraFailure(inst.workerNodeCode);
+        }
+        // 重算父流聚合态：infra 回收不属于 WorkerReportService 回报路径，没有其他事件会顺带重算。
         if (inst.workflowInstanceId != null) {
             workflowStateService.computeAndUpdate(inst.workflowInstanceId);
         }
-        metrics.markLeaseReclaim(); // 仅在 casTaskTerminal 成功（真实回收）后计数一次
+        metrics.markLeaseReclaim();  // 仅在真实回收（reclaimInfra 赢）后计数一次
         // 021 alert-engine: publish NODE_OFFLINE for heartbeat timeout
         if ("WORKER_LOST".equals(reason)) {
             publishNodeOffline(inst);
         }
         return true;
-    }
-
-    private void tryRetry(ExpiredInstance inst, String reason) {
-        // 查重试次数
-        Integer retryMax = jdbc.query(
-                "SELECT td.retry_max FROM task_def td " +
-                        "JOIN task_instance ti ON ti.task_id = td.id " +
-                        "WHERE ti.id = ?",
-                (rs, n) -> rs.getObject("retry_max", Integer.class),
-                inst.id).stream().findFirst().orElse(0);
-
-        int attempt = inst.attempt;
-        if (retryMax != null && attempt <= retryMax) {
-            // 仍有重试次数，CAS 回 WAITING
-            stateMachine.casRequeue(inst.id, InstanceStates.FAILED);
-            log.info("[LeaseReaper] 实例 {} 重试回队（attempt={}, retryMax={}）",
-                    inst.id, attempt, retryMax);
-        }
     }
 
     private static final class ExpiredInstance {
