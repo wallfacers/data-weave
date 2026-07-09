@@ -315,6 +315,28 @@ public class InstanceStateMachine {
         return c != null ? c : 0;
     }
 
+    /**
+     * 060 完整 infra 回收编排（FR-007/008/012）：原子 {@code casRequeueInfra}（active→WAITING + infra_count++，
+     * 不动 business_attempt、永不判终态 FAILED）；随后读 infra 重派计数，超 {@code infraMax} → CAS 置 SUSPENDED
+     * + 发 TASK_SUSPENDED 告警（毒任务保护，交人工，不判死）。
+     *
+     * <p>单赢：{@link #casRequeueInfra} 的 WHERE state IN active 由 DB 裁决，恰一个调用方赢得回收。
+     * SUSPENDED 与 reclaim 之间若被认领（WAITING→DISPATCHED），{@code casSuspend(WAITING)} 自然失败——
+     * 实例获重派机会，infra 计数已记，下次 infra 失败再判；无正确性损失。
+     *
+     * @return true=本调用赢得回收（无论最终回 WAITING 还是转 SUSPENDED）；false=输掉竞态（他方已推进）。
+     */
+    public boolean reclaimInfra(UUID id, int infraMax) {
+        if (!casRequeueInfra(id)) {
+            return false;  // 输掉竞态：他方已回收/回报推进
+        }
+        int count = readInfraRedispatchCount(id);
+        if (count > infraMax && casSuspend(id, InstanceStates.WAITING)) {
+            publishInfraSuspendedAlert(id, count);
+        }
+        return true;
+    }
+
     /** 续租：心跳到达时延长租约（仅运行中实例）。 */
     public boolean renewLease(UUID id, LocalDateTime leaseExpireAt) {
         int n = jdbc.update(
@@ -402,6 +424,32 @@ public class InstanceStateMachine {
                     "HIGH", ctx));
         } catch (Exception e) {
             // 告警信号仅作辅助，发布失败不影响状态推进。
+        }
+    }
+
+    /** 060 单实例 infra 重派超限转 SUSPENDED → 发 AlertSignal(TASK_SUSPENDED)（FR-012，仅可见性，不判死）。 */
+    private void publishInfraSuspendedAlert(UUID taskInstanceId, int infraCount) {
+        try {
+            var row = jdbc.queryForMap(
+                    "SELECT ti.tenant_id, ti.task_id, td.name AS task_name " +
+                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id=?",
+                    taskInstanceId);
+            if (row.isEmpty()) return;
+            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
+            Long taskId = (Long) row.get("TASK_ID");
+            String taskName = (String) row.get("TASK_NAME");
+
+            Map<String, Object> ctx = new LinkedHashMap<>();
+            ctx.put("taskInstanceId", taskInstanceId.toString());
+            ctx.put("taskId", taskId);
+            ctx.put("taskName", taskName);
+            ctx.put("infraRedispatchCount", infraCount);
+            ctx.put("failureReason", InstanceStates.INFRA_SUSPENDED);
+
+            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.TASK_SUSPENDED, tenantId,
+                    taskInstanceId.toString(), "HIGH", ctx));
+        } catch (Exception e) {
+            // 告警仅作辅助，失败不影响 SUSPENDED 推进。
         }
     }
 
