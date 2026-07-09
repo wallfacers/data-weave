@@ -68,6 +68,9 @@ public class DatasourceResolver {
             case "SHELL" -> buildShellEnvVars(ds, password);
             case "PYTHON" -> buildPythonConfig(ds, password);
             case "SPARK" -> buildSparkRef(ds);
+            case "FLINK" -> buildEngineRef(ds, "FLINK");
+            case "DATAX" -> buildEngineRef(ds, "DATAX");
+            case "SEATUNNEL" -> buildEngineRef(ds, "SEATUNNEL");
             default -> buildSqlRef(ds, password); // fallback to SQL-style
         };
     }
@@ -229,6 +232,39 @@ public class DatasourceResolver {
         return ResolvedConnection.spark(sparkHome, master, deployMode, queue, conf);
     }
 
+    /**
+     * 通用引擎解析（FLINK/DATAX/SEATUNNEL）：Flink 从绑定数据源 props_json 取集群配置；
+     * DataX/SeaTunnel 从环境变量取 *_HOME（无数据源绑定 → engineHome 从 env）。
+     * 解析失败不抛错——留空字段，执行器判 SKIPPED（零依赖底线）。
+     */
+    @SuppressWarnings("unchecked")
+    private ResolvedConnection buildEngineRef(Datasource ds, String kind) {
+        String engineHome = null;
+        Map<String, String> props = null;
+        String propsJson = ds.getPropsJson();
+        if (propsJson != null && !propsJson.isBlank()) {
+            try {
+                Map<String, Object> root = objectMapper.readValue(propsJson, Map.class);
+                engineHome = asString(root.get("engineHome"));
+                Object confObj = root.get("conf");
+                if (confObj instanceof Map<?, ?> cm) {
+                    props = new LinkedHashMap<>();
+                    for (var entry : cm.entrySet()) {
+                        props.put(String.valueOf(entry.getKey()),
+                                entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
+                    }
+                }
+            } catch (Exception ignored) {
+                // 解析失败：留空字段，执行器判 SKIPPED
+            }
+        }
+        // DataX/SeaTunnel：HOME 优先从环境变量取（ds 可能未绑定，engineHome 为 null → 执行器从 env 探测）
+        if (engineHome == null || engineHome.isBlank()) {
+            engineHome = System.getenv(kind + "_HOME");
+        }
+        return ResolvedConnection.engine(kind, engineHome, props);
+    }
+
     private static String asString(Object o) {
         return o == null ? null : String.valueOf(o);
     }
@@ -260,32 +296,43 @@ public class DatasourceResolver {
             // Python
             String pythonConfigPath,
             // Spark
-            SparkClusterRef spark
+            SparkClusterRef spark,
+            // Engine (FLINK/DATAX/SEATUNNEL)
+            EngineClusterRef engine
     ) {
         public static ResolvedConnection sql(String name, String typeCode, String jdbcUrl,
                                               String username, String password,
                                               Long driverJarId, String driverClass, String storageKey) {
             return new ResolvedConnection(name, typeCode, jdbcUrl, username, password,
-                    driverJarId, driverClass, storageKey, null, null, null);
+                    driverJarId, driverClass, storageKey, null, null, null, null);
         }
 
         public static ResolvedConnection shell(Map<String, String> envVars) {
-            return new ResolvedConnection(null, null, null, null, null, null, null, null, envVars, null, null);
+            return new ResolvedConnection(null, null, null, null, null, null, null, null, envVars, null, null, null);
         }
 
         public static ResolvedConnection python(String configPath) {
-            return new ResolvedConnection(null, null, null, null, null, null, null, null, null, configPath, null);
+            return new ResolvedConnection(null, null, null, null, null, null, null, null, null, configPath, null, null);
         }
 
         public static ResolvedConnection spark(String sparkHome, String master, String deployMode,
                                                String queue, Map<String, String> conf) {
             return new ResolvedConnection(null, null, null, null, null, null, null, null, null, null,
-                    new SparkClusterRef(sparkHome, master, deployMode, queue, conf));
+                    new SparkClusterRef(sparkHome, master, deployMode, queue, conf), null);
+        }
+
+        public static ResolvedConnection engine(String kind, String engineHome, Map<String, String> props) {
+            return new ResolvedConnection(null, null, null, null, null, null, null, null, null, null, null,
+                    new EngineClusterRef(kind, engineHome, props));
         }
 
         /** Spark 集群提交配置（SPARK 数据源解析产物；任务声明的 sparkMode/jar/mainClass 由调用方合入）。 */
         public record SparkClusterRef(String sparkHome, String master, String deployMode,
                                       String queue, Map<String, String> conf) {
+        }
+
+        /** 通用引擎集群配置（FLINK/DATAX/SEATUNNEL 数据源解析产物）。 */
+        public record EngineClusterRef(String kind, String engineHome, Map<String, String> props) {
         }
     }
 }

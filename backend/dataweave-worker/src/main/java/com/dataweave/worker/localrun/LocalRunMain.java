@@ -98,6 +98,7 @@ public class LocalRunMain {
         ExecutionContext.DataSourceRef dsRef = null;
         String pythonConfigPath = null;
         ExecutionContext.SparkSubmitRef sparkRef = null;
+        ExecutionContext.EngineSubmitRef engineRef = null;
         if (args.dsJsonPath() != null && !args.dsJsonPath().isBlank()) {
             if ("SQL".equals(args.type())) {
                 dsRef = readDataSourceRef(args.dsJsonPath());
@@ -112,8 +113,12 @@ public class LocalRunMain {
         if ("SPARK".equals(args.type())) {
             sparkRef = readSparkRef(args);
         }
+        // 通用引擎（FLINK/DATAX/SEATUNNEL）：engineHome 优先从 ds-json，否则从环境变量 *_HOME
+        if ("FLINK".equals(args.type()) || "DATAX".equals(args.type()) || "SEATUNNEL".equals(args.type())) {
+            engineRef = buildEngineRef(args);
+        }
         return new ExecutionContext(args.content(), null, 1, args.timeoutSeconds(),
-                "TEST", args.type(), dsRef, null, pythonConfigPath, sparkRef);
+                "TEST", args.type(), dsRef, null, pythonConfigPath, sparkRef, engineRef);
     }
 
     /** 读 --ds-json 文件 → DataSourceRef（{name,typeCode,jdbcUrl,username,password}）。 */
@@ -138,6 +143,23 @@ public class LocalRunMain {
         return new ExecutionContext.SparkSubmitRef(
                 m.get("sparkHome"), m.get("master"), m.get("deployMode"),
                 m.get("queue"), null, args.sparkMode(), args.jarPath(), args.mainClass());
+    }
+
+    /**
+     * 合成本地 EngineSubmitRef：engineHome 优先从 ds-json 读（绑数据源时），
+     * 否则从环境变量 *_HOME 取；内容形态（flinkMode/jarPath/mainClass）来自 CLI flag。
+     */
+    private ExecutionContext.EngineSubmitRef buildEngineRef(LocalRunArgs args) throws Exception {
+        Map<String, String> m = (args.dsJsonPath() != null && !args.dsJsonPath().isBlank())
+                ? parseFlatKv(Files.readString(Path.of(args.dsJsonPath()), StandardCharsets.UTF_8))
+                : new LinkedHashMap<>();
+        String engineHome = m.get("engineHome");
+        if (engineHome == null || engineHome.isBlank()) {
+            engineHome = System.getenv(args.type() + "_HOME");
+        }
+        return new ExecutionContext.EngineSubmitRef(
+                args.type(), engineHome, args.flinkMode(),
+                args.jarPath(), args.mainClass(), null, null);
     }
 
     /** 扁平 JSON "key":"value" → Map（ds-json 由 Go CLI 生成，扁平无嵌套；conf 等嵌套结构 MVP 不支持）。 */

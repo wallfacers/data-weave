@@ -322,9 +322,19 @@ public class SchedulerKernel {
                 jarRef = jsonStr(pj, "_jarRef");
                 mainClass = jsonStr(pj, "_mainClass");
             }
+            // 通用引擎任务（FLINK/DATAX/SEATUNNEL）：从 params_json 提取 _flinkMode/_jarRef/_mainClass
+            String engineMode = null, engineJarRef = null, engineMainClass = null;
+            if ("FLINK".equalsIgnoreCase(r.taskType) || "DATAX".equalsIgnoreCase(r.taskType)
+                    || "SEATUNNEL".equalsIgnoreCase(r.taskType)) {
+                String pj = paramsJsonOf(r);
+                engineMode = jsonStr(pj, "_flinkMode");
+                engineJarRef = jsonStr(pj, "_jarRef");
+                engineMainClass = jsonStr(pj, "_mainClass");
+            }
             out.add(new DispatchCommand(r.id, p.attempt(), p.workerNodeCode(), r.taskId, r.taskVersionNo,
                     r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
-                    sparkMode, jarRef, mainClass));
+                    sparkMode, jarRef, mainClass,
+                    engineMode, engineJarRef, engineMainClass));
             // DISPATCHED 事件延迟到事务提交后发布(runRound);content 失败实例已被 casFailed 发 FAILED,不再发 DISPATCHED。
             events.add(new InstanceStateMachine.DispatchedEvent(r.id, r.workflowInstanceId));
         }

@@ -121,10 +121,11 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 return;
             }
 
-            // 构建 ExecutionContext（含 Shell 环境变量 / Python 配置路径 / Spark 提交配置）
+            // 构建 ExecutionContext（含 Shell 环境变量 / Python 配置路径 / Spark 提交配置 / 通用引擎提交配置）
             Map<String, String> envVarMap = resolved != null ? resolved.shellEnvVars() : null;
             String pythonConfigPath = resolved != null ? resolved.pythonConfigPath() : null;
             ExecutionContext.SparkSubmitRef sparkRef = buildSparkRef(type, resolved, cmd);
+            ExecutionContext.EngineSubmitRef engineRef = buildEngineRef(type, resolved, cmd);
 
             ExecutionContext ctx = new ExecutionContext(
                     cmd.content(),
@@ -136,7 +137,8 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     dsRef,
                     envVarMap,
                     pythonConfigPath,
-                    sparkRef
+                    sparkRef,
+                    engineRef
             );
 
             try {
@@ -191,11 +193,6 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
     }
 
     /**
-     * SPARK 装配：把解析后的 SparkClusterRef（master 侧，不含 sparkMode/jar）合成为 worker 侧
-     * SparkSubmitRef 入 ExecutionContext。MVP sparkMode 留空 → SparkTaskExecutor 默认 pyspark；
-     * spark-sql/jar 形态的 sparkMode/jarPath/mainClass 在 US3 由 DispatchCommand 扩展传入。
-     */
-    /**
      * 合成 SparkSubmitRef：集群配置（sparkHome/master/...）来自 SPARK 数据源解析，
      * 内容形态（sparkMode/jarRef/mainClass）来自下发指令（任务定义 params）。
      * SPARK 任务即使未绑数据源也建 ref（sparkHome/master 为 null → 执行器判 SKIPPED，而非丢 sparkMode）。
@@ -213,6 +210,27 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 s != null ? s.queue() : null,
                 s != null ? s.conf() : null,
                 cmd.sparkMode(), cmd.jarRef(), cmd.mainClass());
+    }
+
+    /**
+     * 合成 EngineSubmitRef：集群/引擎配置来自 FLINK/DATAX/SEATUNNEL 数据源解析（EngineClusterRef），
+     * 内容形态（engineMode/engineJarRef/engineMainClass）来自下发指令（任务定义 params）。
+     * 仅 FLINK/DATAX/SEATUNNEL 类型建 ref；即使未绑数据源也建（engineHome 为 null → 执行器判 SKIPPED）。
+     */
+    private ExecutionContext.EngineSubmitRef buildEngineRef(String type, ResolvedConnection resolved,
+                                                             DispatchCommand cmd) {
+        if (!"FLINK".equals(type) && !"DATAX".equals(type) && !"SEATUNNEL".equals(type)) {
+            return null;
+        }
+        ResolvedConnection.EngineClusterRef e = resolved != null ? resolved.engine() : null;
+        return new ExecutionContext.EngineSubmitRef(
+                type,  // kind = task type
+                e != null ? e.engineHome() : null,
+                cmd.engineMode(),
+                cmd.engineJarRef(),
+                cmd.engineMainClass(),
+                null,  // configPath 运行期填
+                e != null ? e.props() : null);
     }
 
     /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间（按触发者 locale 渲染）。 */
