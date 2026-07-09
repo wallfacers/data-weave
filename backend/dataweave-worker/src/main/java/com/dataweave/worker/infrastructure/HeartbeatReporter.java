@@ -14,6 +14,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Worker 心跳上报客户端（task 3.5）。
@@ -43,11 +47,24 @@ public class HeartbeatReporter {
     @Value("${dataweave.worker.advertise-host:}")
     private String advertiseHost;
 
+    /** worker 失联自我中止宽限期（ms），必须 ≥ master 租约过期窗口以防止误杀（FR-021）。 */
+    @Value("${scheduler.worker.self-fence-grace-ms:20000}")
+    private long selfFenceGraceMs;
+
+    /** master 租约续约窗（心跳间隔内租约不会过期），用于 self-fence-grace 下限校验。 */
+    @Value("${dataweave.worker.heartbeat.interval-ms:10000}")
+    private long heartbeatIntervalMs;
+
     private final IncarnationManager incarnationManager;
     private final WorkerExecService execService;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
+
+    /** 首次连续心跳失败的时刻（null=当前未在失败序列中）。 */
+    private Instant firstFailureSince;
+    /** 是否已触发自我中止（防重复 abort）。 */
+    private volatile boolean aborted;
 
     public HeartbeatReporter(IncarnationManager incarnationManager, WorkerExecService execService) {
         this.incarnationManager = incarnationManager;
@@ -57,6 +74,10 @@ public class HeartbeatReporter {
     @Scheduled(fixedDelayString = "${dataweave.worker.heartbeat.interval-ms:10000}")
     public void report() {
         if (!enabled) {
+            return;
+        }
+        // 已触发自我中止则不再上报（避免中止后的心跳误导 master）
+        if (aborted) {
             return;
         }
         try {
@@ -70,8 +91,13 @@ public class HeartbeatReporter {
             double loadAvg = m.loadAvg();
 
             long incarnation = incarnationManager.incarnation();
-            // runningInstanceIds 暂传空列表（分布式模式后续通过 WorkerExecService 跟踪）
-            String instanceIdsArray = "[]";
+            // FR-016：真实上报正在运行的实例 ID，使 master renewLease 生效（修复长跑任务被误杀根因）
+            Set<UUID> runningIds = execService.runningInstanceIds();
+            String instanceIdsArray = runningIds.isEmpty()
+                    ? "[]"
+                    : "[" + runningIds.stream()
+                            .map(id -> "\"" + id.toString() + "\"")
+                            .collect(Collectors.joining(",")) + "]";
 
             String json = """
                     {"nodeCode":"%s","host":"%s","capacity":"%s","cpu":%s,"mem":%s,"disk":%s,"loadAvg":%s,"runningTasks":%s,"incarnation":%s,"runningInstanceIds":%s}
@@ -90,9 +116,49 @@ public class HeartbeatReporter {
             log.log(System.Logger.Level.DEBUG,
                     "Heartbeat reported: nodeCode={0}, incarnation={1}, status={2}",
                     nodeCode, incarnation, response.statusCode());
+
+            // 心跳成功 → 复位失败计数器
+            firstFailureSince = null;
         } catch (Exception e) {
             log.log(System.Logger.Level.WARNING,
                     "Heartbeat report failed: {0}", e.getMessage());
+            onHeartbeatFailure();
+        }
+    }
+
+    /**
+     * 累积心跳失败 → 跨过 self-fence-grace 阈值则自我中止（FR-021：防分区物理双跑）。
+     *
+     * <p>不变量断言：self-fence-grace 必须 ≥ 心跳间隔 × 2（给 master 至少两次心跳机会判过期），
+     * 否则一次短暂网络抖动就可能触发误杀。启动时校验，违反则拒绝启动。
+     */
+    private void onHeartbeatFailure() {
+        // 启动时校验不变量：self-fence-grace 必须 ≥ 2× 心跳间隔（给续约两次机会）
+        if (selfFenceGraceMs < heartbeatIntervalMs * 2L) {
+            String msg = "self-fence-grace-ms (" + selfFenceGraceMs
+                    + "ms) 必须 ≥ 2× heartbeat-interval (" + heartbeatIntervalMs
+                    + "ms) = " + (heartbeatIntervalMs * 2L) + "ms，"
+                    + "防止短暂网络抖动误杀运行中任务";
+            log.log(System.Logger.Level.ERROR, msg);
+            throw new IllegalStateException(msg);
+        }
+
+        Instant now = Instant.now();
+        if (firstFailureSince == null) {
+            firstFailureSince = now;
+            log.log(System.Logger.Level.WARNING,
+                    "心跳开始失败（首次 {0}），self-fence-grace={1}ms 后将自我中止",
+                    firstFailureSince, selfFenceGraceMs);
+            return;
+        }
+
+        long failedMs = Duration.between(firstFailureSince, now).toMillis();
+        if (failedMs >= selfFenceGraceMs) {
+            log.log(System.Logger.Level.ERROR,
+                    "心跳连续失败 {0}ms ≥ self-fence-grace {1}ms，触发自我中止",
+                    failedMs, selfFenceGraceMs);
+            aborted = true;
+            execService.abortAll();
         }
     }
 

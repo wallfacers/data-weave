@@ -197,4 +197,97 @@ class WorkerExecServiceTest {
         TaskExecutor.ExecutionResult result = service.executeSync(instanceId, 1, ctx("echo x", null, 1, 10), null);
         assertThat(result).isNull();
     }
+
+    // ─── T025: running 追踪 + abortAll ───────────────────────
+
+    @Test
+    void runningInstanceIds_tracksInFlightTasks() throws Exception {
+        WorkerExecService service = createService();
+        UUID instanceId = UUID.randomUUID();
+
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+
+        service.submit(instanceId, 1, ctx("sleep 2 && echo ok", null, 1, 30), null,
+                new WorkerExecService.ReportCallback() {
+                    @Override public boolean onStarted(UUID id) {
+                        started.countDown();
+                        return true;
+                    }
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
+                        done.countDown();
+                    }
+                    @Override public void onFailed(UUID id, String reason, String tailLog) {
+                        done.countDown();
+                    }
+                }, null);
+
+        // 等待任务进入 running
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // 此时 runningInstanceIds 应包含该实例
+        assertThat(service.runningInstanceIds()).contains(instanceId);
+        assertThat(service.runningInstanceIds()).hasSize(1);
+
+        // 等待任务完成
+        assertThat(done.await(10, TimeUnit.SECONDS)).isTrue();
+
+        // 完成后 runningInstanceIds 应清空
+        // 给 finally 一点时间执行
+        Thread.sleep(200);
+        assertThat(service.runningInstanceIds()).doesNotContain(instanceId);
+    }
+
+    @Test
+    void runningInstanceIds_returnsEmptyWhenIdle() {
+        WorkerExecService service = createService();
+        assertThat(service.runningInstanceIds()).isEmpty();
+    }
+
+    @Test
+    void abortAll_stopsRunningAndClearsInFlight() throws Exception {
+        WorkerExecService service = createService();
+        UUID instanceId = UUID.randomUUID();
+
+        CountDownLatch started = new CountDownLatch(1);
+
+        service.submit(instanceId, 1, ctx("sleep 60", null, 1, 300), null,
+                new WorkerExecService.ReportCallback() {
+                    @Override public boolean onStarted(UUID id) {
+                        started.countDown();
+                        return true;
+                    }
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {}
+                    @Override public void onFailed(UUID id, String reason, String tailLog) {}
+                }, null);
+
+        // 等待任务进入 running
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(service.runningInstanceIds()).contains(instanceId);
+
+        // 执行 abortAll
+        service.abortAll();
+
+        // inFlight 应被清空（幂等键复位，允许重派后 attempt 重新执行）
+        assertThat(service.inFlightCount()).isZero();
+
+        // 给 interrupted 线程一点时间清理
+        Thread.sleep(500);
+
+        // abortAll 后可以接受新任务（pool 已重建）
+        UUID newInstanceId = UUID.randomUUID();
+        CountDownLatch newDone = new CountDownLatch(1);
+        service.submit(newInstanceId, 1, ctx("echo after-abort", null, 1, 10), null,
+                new WorkerExecService.ReportCallback() {
+                    @Override public boolean onStarted(UUID id) { return true; }
+                    @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
+                        newDone.countDown();
+                    }
+                    @Override public void onFailed(UUID id, String reason, String tailLog) {
+                        newDone.countDown();
+                    }
+                }, null);
+
+        assertThat(newDone.await(10, TimeUnit.SECONDS)).isTrue();
+    }
 }

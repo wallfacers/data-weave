@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -47,11 +49,17 @@ public class WorkerExecService {
     private final Messages messages;
     /** 幂等键 → 执行状态（正在执行=true） */
     private final ConcurrentHashMap<String, Boolean> inFlight = new ConcurrentHashMap<>();
-    private final ExecutorService pool = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "worker-exec");
-        t.setDaemon(true);
-        return t;
-    });
+    /** 当前正在运行的实例 ID 集合（submit/executeSync 入口 add、finally remove）。供心跳上报与自我中止。 */
+    private final Set<UUID> running = ConcurrentHashMap.newKeySet();
+    private volatile ExecutorService pool = createPool();
+
+    private static ExecutorService createPool() {
+        return Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "worker-exec");
+            t.setDaemon(true);
+            return t;
+        });
+    }
 
     /** 执行结果回调接口。 */
     public interface ReportCallback {
@@ -98,9 +106,11 @@ public class WorkerExecService {
             return false;
         }
         pool.submit(() -> {
+            running.add(taskInstanceId);
             try {
                 doRun(taskInstanceId, attempt, ctx, lineConsumer, report, locale);
             } finally {
+                running.remove(taskInstanceId);
                 inFlight.remove(key);
             }
         });
@@ -118,6 +128,7 @@ public class WorkerExecService {
         if (inFlight.putIfAbsent(key, true) != null) {
             return null; // 幂等拒绝
         }
+        running.add(taskInstanceId);
         try {
             TaskExecutor executor = resolveExecutor(ctx.taskType());
             if (executor == null) {
@@ -126,6 +137,7 @@ public class WorkerExecService {
             }
             return executor.execute(ctx, lineConsumer);
         } finally {
+            running.remove(taskInstanceId);
             inFlight.remove(key);
         }
     }
@@ -133,6 +145,26 @@ public class WorkerExecService {
     /** 当前正在执行的任务数。 */
     public int inFlightCount() {
         return inFlight.size();
+    }
+
+    /** 当前正在运行的实例 ID 快照（供心跳上报）。 */
+    public Set<UUID> runningInstanceIds() {
+        return Collections.unmodifiableSet(running);
+    }
+
+    /**
+     * 自我中止：销毁进程内在跑子进程，防止网络分区下与 master 重派实例并发物理双跑（FR-021）。
+     *
+     * <p>实现：shutdownNow 中断所有工作线程 → 新建线程池接续后续任务。
+     * 外部托管长驻作业（long_running）的执行不在 worker 进程内，自然不受影响。
+     */
+    public void abortAll() {
+        log.log(System.Logger.Level.WARNING, "自我中止：正在终止 {0} 个运行中任务", running.size());
+        ExecutorService old = pool;
+        pool = createPool();
+        old.shutdownNow();
+        // 清空幂等键，允许重派后的 attempt 重新执行
+        inFlight.clear();
     }
 
     /** 优雅停机：拒绝新任务，等待运行中任务完成。 */
