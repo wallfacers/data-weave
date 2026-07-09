@@ -16,6 +16,7 @@
 --     → 055 血缘目录接地=0.12.0（+lineage_grounding_disposition 目录接地处置审计 1 表；候选表存在性三态裁决留痕）。
 --     → 057 全局 AI Agent 配置统收=0.13.0（lineage_agent_config 去 project_id 改租户级全局单例 UNIQUE(tenant_id,deleted)；lineage_agent_call 审计保留 project_id 溯源）。
 --     → task_instance +task_type 快照列=0.14.0（物化时写入 task_def.type，免查询 JOIN）。
+--     → worker 默认并发上调=0.14.1（worker_nodes.max_concurrent_tasks DEFAULT 10→100；拉高单节点并发上限）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -127,9 +128,11 @@ VALUES ('0.13.0', CURRENT_TIMESTAMP, '057 全局 AI Agent 配置统收：lineage
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.0', CURRENT_TIMESTAMP, 'task_instance +task_type 快照列（物化时写入 task_def.type，免查询 JOIN）');
 INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.14.1', CURRENT_TIMESTAMP, 'worker_nodes.max_concurrent_tasks DEFAULT 10→100（拉高单节点默认并发上限）');
+INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.2', CURRENT_TIMESTAMP, '059 大数据任务类型：task_def/task_def_version content VARCHAR(4000)→TEXT（承载 DataX/SeaTunnel/Flink 真实作业体，原 4000 字符不足，典型 5-50KB）');
 INSERT INTO schema_version (version, applied_at, description)
-VALUES ('0.14.3', CURRENT_TIMESTAMP, '059 content 安全修正：TEXT→VARCHAR(1048576)（1MB DB 硬上限，既满足 DataX/SeaTunnel/Flink 大作业体又防无界 DoS；安全审查 RESOURCE-BOUND）');
+VALUES ('0.14.3', CURRENT_TIMESTAMP, '059 content 安全修正：TEXT→VARCHAR(1048576)（1MB DB 硬上限，既满足大作业体又防无界 DoS；安全审查 RESOURCE-BOUND）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -838,7 +841,7 @@ CREATE TABLE worker_nodes (
     load_avg       NUMERIC(6, 2),
     running_tasks  INTEGER,
     status         VARCHAR(32),
-    max_concurrent_tasks INTEGER DEFAULT 10, -- 单节点最大并发任务数
+    max_concurrent_tasks INTEGER DEFAULT 100, -- 单节点最大并发任务数（默认 10→100，拉高并发上限）
     node_group           VARCHAR(64),        -- 节点分组（如 high-cpu / gpu）
     incarnation          BIGINT,             -- worker 启动纪元号（每次启动递增/换值；变化 → 该节点运行中实例判 WORKER_RESTART）
     reserved_test_slots  INTEGER DEFAULT 1,  -- 预留 TEST 槽数（防试跑被例行任务饿死，可配 0 关闭）

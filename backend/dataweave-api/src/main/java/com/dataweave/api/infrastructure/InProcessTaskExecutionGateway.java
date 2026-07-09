@@ -54,20 +54,25 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
     private final Messages messages;
     /** 按任务 type() 索引的执行器（注入的 Map 以 bean 名为键，这里改建按 type 的映射）。 */
     private final Map<String, TaskExecutor> byType;
-    private final ExecutorService pool = Executors.newFixedThreadPool(
-            Math.max(2, Runtime.getRuntime().availableProcessors()),
-            r -> {
-                Thread t = new Thread(r, "inproc-worker");
-                t.setDaemon(true);
-                return t;
-            });
+    /** all-in-one 执行池：并发运行任务体的上限。原硬编码 max(2,核数)(本机=12) 会成为 all-in-one 下的执行并发瓶颈，
+     *  改为可配（默认 64，对齐 dispatch-executor-threads），避免下发进来后卡在执行池排队。 */
+    private final ExecutorService pool;
 
     public InProcessTaskExecutionGateway(WorkerReportService reportService,
                                          LogBus logBus,
                                          DatasourceRepository datasourceRepository,
                                          DatasourceResolver datasourceResolver,
                                          Messages messages,
-                                         Map<String, TaskExecutor> executors) {
+                                         Map<String, TaskExecutor> executors,
+                                         @org.springframework.beans.factory.annotation.Value(
+                                                 "${scheduler.inproc-worker-threads:64}") int inprocWorkerThreads) {
+        this.pool = Executors.newFixedThreadPool(
+                Math.max(2, inprocWorkerThreads),
+                r -> {
+                    Thread t = new Thread(r, "inproc-worker");
+                    t.setDaemon(true);
+                    return t;
+                });
         this.reportService = reportService;
         this.logBus = logBus;
         this.datasourceRepository = datasourceRepository;
@@ -91,7 +96,13 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
         Locale locale = cmd.locale() != null ? Locale.forLanguageTag(cmd.locale()) : Messages.DEFAULT_LOCALE;
         Instant startInstant = Instant.now();
         try {
-            reportService.reportStarted(cmd.taskInstanceId());
+            // fencing：DISPATCHED→RUNNING CAS 失败说明本实例已非当前派单（被 LeaseReaper 回收重派 / 已终态），
+            // 立即中止，不执行任务体——堵住 isCurrentDispatch 放宽后残留的「回收窗口」双跑。
+            if (!reportService.reportStarted(cmd.taskInstanceId())) {
+                log.info("[InProcExec] 实例 {} attempt={} 非当前派单（reportStarted CAS 让步），中止执行",
+                        cmd.taskInstanceId(), cmd.attempt());
+                return;
+            }
 
             // 逐行日志回调 → LogBus
             Consumer<String> lineConsumer = line -> logBus.append(cmd.taskInstanceId(), line);

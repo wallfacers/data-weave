@@ -133,10 +133,18 @@ public class InstanceStateMachine {
      * (worker 幂等键含 attempt 拦不住)。守卫后残余竞态窗口收窄到毫秒级(彻底闭合需 worker 侧 fencing)。
      */
     public boolean isCurrentDispatch(UUID id, int attempt) {
+        // 正向判定陈旧:只有当 DB 中 attempt 已被推进到严格更高(说明本命令对应的派单已被 LeaseReaper
+        // 回收重派)才判定陈旧、拒发;读到相等/更低即当前派单,照发。行不存在(已删)→拒发,不下发幽灵。
+        //
+        // 关键——不再要求 state='DISPATCHED':046 fire-and-forget 下发在独立线程/连接上执行,守卫可能抢在
+        // 认领事务提交对本连接可见之前读库(读到 pre-claim 的 WAITING/低 attempt 快照);原实现 WHERE
+        // state='DISPATCHED' 此时读空即误判陈旧、丢掉唯一一次合法下发,直到 120s 租约被 LeaseReaper 兜底
+        // 重投——表现为每次调度延迟约 2 分钟。放宽后残留的「回收窗口」双跑由 reportStarted 的
+        // DISPATCHED→RUNNING CAS + InProcessTaskExecutionGateway 的 fencing 收口(worker 侧幂等键含 attempt)。
         Integer current = jdbc.query(
-                "SELECT attempt FROM task_instance WHERE id=? AND state='DISPATCHED' AND deleted=0",
+                "SELECT COALESCE(attempt, 0) FROM task_instance WHERE id=? AND deleted=0",
                 rs -> rs.next() ? (Integer) rs.getObject(1) : null, id);
-        return current != null && current == attempt;
+        return current != null && current <= attempt;
     }
 
     /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。 */

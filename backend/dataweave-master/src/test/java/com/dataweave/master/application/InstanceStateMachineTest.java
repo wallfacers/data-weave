@@ -114,14 +114,28 @@ class InstanceStateMachineTest {
         sm.casDispatchBatch(List.of(
                 new InstanceStateMachine.DispatchPlacement(u, "w1", NOW.plusSeconds(60), 2)), NOW);
         assertThat(sm.isCurrentDispatch(u, 2)).isTrue();
-        assertThat(sm.isCurrentDispatch(u, 1)).isFalse();  // 旧 attempt 滞留命令 → 拒发
+        assertThat(sm.isCurrentDispatch(u, 1)).isFalse();  // 旧 attempt 滞留命令(DB attempt 已推进到 2)→ 拒发
     }
 
     @Test
-    void isCurrentDispatch_nonDispatchedOrMissing_false() {
-        UUID waiting = insertWaiting();  // 仍 WAITING(未派单/已被回收)
-        assertThat(sm.isCurrentDispatch(waiting, 1)).isFalse();
-        assertThat(sm.isCurrentDispatch(UUID.randomUUID(), 1)).isFalse();  // 不存在
+    void isCurrentDispatch_notSupersededEvenIfNotYetDispatched_true() {
+        // 正向判定陈旧修复:异步下发线程可能抢在认领事务提交可见之前读库(读到 pre-claim 的 WAITING/低 attempt
+        // 快照)。只要 DB attempt 未被推进到严格更高(未被 LeaseReaper 回收重派),就是当前派单 → 照发。
+        // 原实现要求 state='DISPATCHED' 才认账 → 读到 WAITING 即假阴性丢首投,是 ~2 分钟调度延迟的根因。
+        UUID freshWaiting = insertWaiting();  // attempt NULL(pre-claim 快照)
+        assertThat(sm.isCurrentDispatch(freshWaiting, 1)).isTrue();
+
+        UUID sameAttempt = UUID.randomUUID();  // 已提交 DISPATCHED attempt=1(正常首投)
+        jdbc.update("INSERT INTO task_instance (id, state, attempt, deleted) VALUES (?, 'DISPATCHED', 1, 0)", sameAttempt);
+        assertThat(sm.isCurrentDispatch(sameAttempt, 1)).isTrue();
+    }
+
+    @Test
+    void isCurrentDispatch_supersededOrMissing_false() {
+        UUID superseded = UUID.randomUUID();  // 已被回收重派:DB attempt=2 > 命令 attempt=1
+        jdbc.update("INSERT INTO task_instance (id, state, attempt, deleted) VALUES (?, 'DISPATCHED', 2, 0)", superseded);
+        assertThat(sm.isCurrentDispatch(superseded, 1)).isFalse();
+        assertThat(sm.isCurrentDispatch(UUID.randomUUID(), 1)).isFalse();  // 不存在 → 拒发(不下发幽灵)
     }
 
     @Test

@@ -60,7 +60,7 @@ public class FleetService {
             // 新注册节点补容量默认（与 schema worker_nodes 默认一致）：否则 INSERT 落 NULL，
             // SlotManager 当 0 槽，distributed 模式下真 worker 永远收不到下发。
             if (node.getMaxConcurrentTasks() == null) {
-                node.setMaxConcurrentTasks(10);
+                node.setMaxConcurrentTasks(100);  // 默认单节点并发 10→100（与 schema worker_nodes DEFAULT 一致）
             }
             if (node.getReservedTestSlots() == null) {
                 node.setReservedTestSlots(1);

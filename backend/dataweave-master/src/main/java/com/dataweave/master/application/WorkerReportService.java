@@ -79,15 +79,23 @@ public class WorkerReportService {
         this.txTemplate = new TransactionTemplate(txManager);
     }
 
-    /** worker 开始执行：DISPATCHED → RUNNING。 */
-    public void reportStarted(UUID taskInstanceId) {
-        if (stateMachine.casTaskState(taskInstanceId, InstanceStates.DISPATCHED, InstanceStates.RUNNING)) {
+    /**
+     * worker 开始执行：DISPATCHED → RUNNING。
+     *
+     * @return CAS 是否成功（true=本次由 DISPATCHED 推进到 RUNNING；false=任务已非 DISPATCHED，
+     *         如已被 LeaseReaper 回收重派 / 已终态）。调用方据此做 fencing：CAS 失败应中止执行，
+     *         避免陈旧下发与重派命令同实例双跑（配合 {@link InstanceStateMachine#isCurrentDispatch} 放宽后的收口）。
+     */
+    public boolean reportStarted(UUID taskInstanceId) {
+        boolean started = stateMachine.casTaskState(taskInstanceId, InstanceStates.DISPATCHED, InstanceStates.RUNNING);
+        if (started) {
             jdbc.update("UPDATE task_instance SET started_at=? WHERE id=? AND started_at IS NULL",
                     LocalDateTime.now(), taskInstanceId);
             // 记录下发延迟（DISPATCHED → RUNNING）
             recordDeliveryLatency(taskInstanceId);
         }
         wake();
+        return started;
     }
 
     /** worker 执行成功：→ SUCCESS，回写日志/退出码，重算工作流聚合态。 */

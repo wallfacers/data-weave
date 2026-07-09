@@ -63,6 +63,21 @@ class WorkerReportServiceTest {
     }
 
     @Test
+    void reportStarted_returnsCasResult_forFencing() {
+        // fencing:reportStarted 透出 DISPATCHED→RUNNING 的 CAS 结果,供 InProcessTaskExecutionGateway 在
+        // CAS 失败(任务已非 DISPATCHED,如被 LeaseReaper 回收重派)时中止执行,堵住守卫放宽后残留的双跑。
+        UUID id = UUID.randomUUID();
+        WorkerReportService svc = newService(mock(LineageStore.class), new SqlTableExtractor(),
+                new LineageEdgeAssembler(new SqlTableExtractor(), mock(JdbcTemplate.class)));
+
+        when(stateMachine.casTaskState(id, InstanceStates.DISPATCHED, InstanceStates.RUNNING)).thenReturn(true);
+        org.assertj.core.api.Assertions.assertThat(svc.reportStarted(id)).isTrue();
+
+        when(stateMachine.casTaskState(id, InstanceStates.DISPATCHED, InstanceStates.RUNNING)).thenReturn(false);
+        org.assertj.core.api.Assertions.assertThat(svc.reportStarted(id)).isFalse();
+    }
+
+    @Test
     void reportFinished_success_recordsSyncedRows_perWriteTable() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
