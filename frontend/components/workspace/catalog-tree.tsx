@@ -47,6 +47,7 @@ import {
   type TaskDef,
   type WorkflowDef,
 } from "@/lib/types"
+import { type TaskType } from "@/components/workspace/shared/params-table"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import {
@@ -103,7 +104,7 @@ type DialogState =
   | { mode: "folder"; parentId: number | null; name: string }
   | { mode: "folder-rename"; id: number; name: string }
   | { mode: "folder-delete"; id: number; name: string }
-  | { mode: "create-task"; parentId: number | null; name: string; taskType: "SQL" | "SHELL" }
+  | { mode: "create-task"; parentId: number | null; name: string; taskType: TaskType }
   | { mode: "create-workflow"; parentId: number | null; name: string }
   | { mode: "rename"; kind: "task" | "workflow"; id: number; name: string }
   | { mode: "delete"; kind: "task" | "workflow"; id: number; name: string }
@@ -579,7 +580,7 @@ export function CatalogTree({
       kind: "task" | "workflow",
       parentId: number | null,
       name: string,
-      taskType: "SQL" | "SHELL",
+      taskType: TaskType,
     ) => {
       if (!name.trim()) return
       const base = kind === "task" ? "tasks" : "workflows"
@@ -1112,12 +1113,18 @@ export function CatalogTree({
               value={dialog.taskType}
               onChange={(v) =>
                 setDialog((d) =>
-                  d.mode === "create-task" ? { ...d, taskType: v as "SQL" | "SHELL" } : d,
+                  d.mode === "create-task" ? { ...d, taskType: v as TaskType } : d,
                 )
               }
               options={[
-                { value: "SQL", label: t("nodeDetail.taskTypeSQL") },
-                { value: "SHELL", label: t("nodeDetail.taskTypeShell") },
+                { value: "SQL", label: t("ops.nodeDetail.taskTypeSQL") },
+                { value: "SHELL", label: t("ops.nodeDetail.taskTypeShell") },
+                { value: "PYTHON", label: t("ops.nodeDetail.taskTypePython") },
+                { value: "SPARK", label: t("ops.nodeDetail.taskTypeSpark") },
+                { value: "HIVE", label: t("ops.nodeDetail.taskTypeHive") },
+                { value: "FLINK", label: t("ops.nodeDetail.taskTypeFlink") },
+                { value: "DATAX", label: t("ops.nodeDetail.taskTypeDataX") },
+                { value: "SEATUNNEL", label: t("ops.nodeDetail.taskTypeSeaTunnel") },
               ]}
               disableClear
             />

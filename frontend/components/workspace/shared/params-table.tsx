@@ -2,6 +2,24 @@
 
 import { useTranslations } from "next-intl"
 
+/**
+ * 平台创建入口暴露的任务类型集合（MVP 全类型）。
+ * `ECHO` 仅测试内部用，不在此暴露；新增类型在此追加即可全链路同步。
+ */
+export const TASK_TYPES = [
+  "SQL",
+  "SHELL",
+  "PYTHON",
+  "SPARK",
+  "HIVE",
+  "FLINK",
+  "DATAX",
+  "SEATUNNEL",
+] as const
+
+/** 任务类型联合（创建入口可选项）。 */
+export type TaskType = (typeof TASK_TYPES)[number]
+
 /** 任务类型 → Shiki lang 映射。未知类型返回 "text"（无高亮）。 */
 export function taskTypeToLang(taskType: string): string {
   const m: Record<string, string> = {
@@ -16,6 +34,10 @@ export function taskTypeToLang(taskType: string): string {
     XML: "html",
     BASH: "bash",
     SPARK: "scala",
+    HIVE: "sql",
+    FLINK: "sql",
+    DATAX: "json",
+    SEATUNNEL: "text",
   }
   return m[taskType.toUpperCase()] || "text"
 }

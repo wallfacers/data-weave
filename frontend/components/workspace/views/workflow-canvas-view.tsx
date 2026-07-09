@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { DropdownSelect } from "@/components/ui/select"
+import { type TaskType } from "@/components/workspace/shared/params-table"
 import {
   Dialog,
   DialogClose,
@@ -1191,7 +1192,7 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
   // 新建任务 Dialog
   const [taskDialog, setTaskDialog] = useState(false)
   const [taskName, setTaskName] = useState("")
-  const [taskType, setTaskType] = useState<"SQL" | "SHELL">("SQL")
+  const [taskType, setTaskType] = useState<TaskType>("SQL")
   const [creating, setCreating] = useState(false)
 
   // 新建工作流 Dialog
@@ -1439,20 +1440,21 @@ function DataDevIdeShell({ initialWorkflowId }: { initialWorkflowId?: number }) 
           />
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{t("type")}</span>
-            <Button
-              size="xs"
-              variant={taskType === "SQL" ? "default" : "outline"}
-              onClick={() => setTaskType("SQL")}
-            >
-              {t("taskTypeSQL")}
-            </Button>
-            <Button
-              size="xs"
-              variant={taskType === "SHELL" ? "default" : "outline"}
-              onClick={() => setTaskType("SHELL")}
-            >
-              {t("taskTypeShell")}
-            </Button>
+            <DropdownSelect
+              value={taskType}
+              onChange={(v) => setTaskType(v as TaskType)}
+              options={[
+                { value: "SQL", label: t("taskTypeSQL") },
+                { value: "SHELL", label: t("taskTypeShell") },
+                { value: "PYTHON", label: t("taskTypePython") },
+                { value: "SPARK", label: t("taskTypeSpark") },
+                { value: "HIVE", label: t("taskTypeHive") },
+                { value: "FLINK", label: t("taskTypeFlink") },
+                { value: "DATAX", label: t("taskTypeDataX") },
+                { value: "SEATUNNEL", label: t("taskTypeSeaTunnel") },
+              ]}
+              disableClear
+            />
           </div>
           <DialogFooter>
             <DialogClose render={<Button variant="ghost" />}>{t("cancel")}</DialogClose>

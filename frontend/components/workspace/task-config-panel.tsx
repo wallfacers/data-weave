@@ -118,6 +118,12 @@ export function TaskConfigPanel({
           <DropdownSelect value={type} onChange={(v) => { setType(v); onDirty() }} options={[
             { value: "SQL", label: t("ops.nodeDetail.taskTypeSQL") },
             { value: "SHELL", label: t("ops.nodeDetail.taskTypeShell") },
+            { value: "PYTHON", label: t("ops.nodeDetail.taskTypePython") },
+            { value: "SPARK", label: t("ops.nodeDetail.taskTypeSpark") },
+            { value: "HIVE", label: t("ops.nodeDetail.taskTypeHive") },
+            { value: "FLINK", label: t("ops.nodeDetail.taskTypeFlink") },
+            { value: "DATAX", label: t("ops.nodeDetail.taskTypeDataX") },
+            { value: "SEATUNNEL", label: t("ops.nodeDetail.taskTypeSeaTunnel") },
           ]} disableClear />
         </div>
         <div className="flex flex-1 flex-col gap-1.5">
