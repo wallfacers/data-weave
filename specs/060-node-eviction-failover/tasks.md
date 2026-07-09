@@ -6,6 +6,17 @@
 
 **Organization**: 按 User Story 分阶段，US1=切片A(MVP) / US2=切片B / US3=切片C。
 
+---
+
+## 收口状态（2026-07-10 定时收口，Claude 全权评审）
+
+- **T001–T038 已实现并提交**（两个外部 agent，commit a53dfc9→543e434）。七条硬红线核验通过：`attempt` 纯栅栏零改动（`isCurrentDispatch` `COALESCE(attempt,0)<=cmd.attempt` 未回退）· `business_attempt` 双拆 · `SlotManager` 单点门 · `FleetService` 节点级即时回收(I1) · `HeartbeatReporter` 真 `runningInstanceIds` + self-fence 不变量断言 · `SUSPENDED` 态 · schema 0.15.0 三处一致。
+- **T040 编译门禁**：master+worker+api `-am compile` 零错误 ✅
+- **T042 回归**：144 项单测/集成测试真跑全绿（禁 build-cache）——SlotManager 8 / NodeHealthService 4 / LeaseReaper 3 / RetryService 3 / WorkerReportService 8 / StuckInstanceSweeper 5 / NodeRecoveryWake 2 / TimeoutSweeper 10 / FleetService 8 / InstanceStateMachine 8+3 / SchedulerKernel* 38 / WorkerExecService 10+4 / FlinkTaskExecutor 30。`isCurrentDispatch` 栅栏 + `attempt` 单调未回退，048/049/051 稳态不退化 ✅
+- **T039 文档**：CLAUDE.md Knowledge Map 补 060 行 ✅
+- **⚠️ T041 证伪式真跑门禁（distributed 2 master+2 worker 端到端 + 故障注入 SC-001~009）未在本次自动收口执行**——需 docker distributed 环境手动跑（`docker compose --profile distributed up`，按 quickstart 注入假节点/停 worker/kill/分区）。代码级栅栏不变量已守（`isCurrentDispatch` 零改动、dispatch 热路径未动，仅 `DispatchException` 错误路径改 infra 语义），但生产前建议补真跑。
+- **⚠️ Flink long_running reattach（T035/T036）为诚实桩**：detached 提交 + JobID 解析完整，REST 轮询/`external_job_handle` 回写/reattach 标 `TODO(060-Foundational)` 返回 `skipped`（不伪装成功/失败）；有界 Flink exit-code/stdout 保真不变（30 测试覆盖）。SC-007 未功能完备，真集成待 059 执行器演进。
+
 ## Format: `[ID] [P?] [Story] Description with file path`
 
 - **[P]**: 可并行（不同文件、无未完成依赖）
