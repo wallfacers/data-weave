@@ -1,6 +1,7 @@
 package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
+import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.signal.AlertSignal;
 import com.dataweave.master.quality.application.TaskSucceededEvent;
 import org.springframework.context.ApplicationEventPublisher;
@@ -255,6 +256,63 @@ public class InstanceStateMachine {
                 LocalDateTime.now(), id, from);
         if (n == 1) publishTaskState(id, "WAITING");
         return n == 1;
+    }
+
+    // ─── 060 节点容错闭环：infra 回收 / 业务重试计数双拆 ───────────
+    // 纪律：attempt 保持「纯下发纪元栅栏」语义零改动（casDispatch 递增、isCurrentDispatch 判定、worker 幂等键）；
+    //       infra 回收（WORKER_LOST/RESTART/下发失败）走 casRequeueInfra —— 不动 business_attempt、永不经 RetryService、
+    //       永不判终态 FAILED；业务重试改由 incrementBusinessAttempt + RetryService 比 business_attempt<=retry_max。
+
+    /**
+     * 060 infra 回收（单赢）：{@code DISPATCHED/RUNNING → WAITING}，清 worker/租约/failure_reason，
+     * {@code infra_redispatch_count+1}（原子），**不动 business_attempt**。
+     *
+     * <p>WHERE state IN ('DISPATCHED','RUNNING')（同 {@link #casTaskTerminalFromActive} 的单赢裁决）——
+     * 不依赖调用方传入的快照态，由 DB 裁决当前是否仍为活跃态，闭合扫描→CAS 的 TOCTOU。
+     * infra 回收永不判终态（FR-008）；是否因 infra 重派超限转 SUSPENDED 由 {@link #reclaimInfra} 编排。
+     */
+    public boolean casRequeueInfra(UUID id) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='WAITING', worker_node_code=NULL, lease_expire_at=NULL, "
+                        + "failure_reason=NULL, infra_redispatch_count=COALESCE(infra_redispatch_count,0)+1, updated_at=? "
+                        + "WHERE id=? AND state IN ('DISPATCHED','RUNNING') AND deleted=0",
+                LocalDateTime.now(), id);
+        if (n == 1) publishTaskState(id, "WAITING");
+        return n == 1;
+    }
+
+    /** 060 单实例保护挂起：CAS {@code from → SUSPENDED}（非终态、不可 claim、不自动判 FAILED）。 */
+    public boolean casSuspend(UUID id, String from) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='SUSPENDED', failure_reason=?, worker_node_code=NULL, "
+                        + "lease_expire_at=NULL, updated_at=? WHERE id=? AND state=? AND deleted=0",
+                InstanceStates.INFRA_SUSPENDED, LocalDateTime.now(), id, from);
+        if (n == 1) publishTaskState(id, "SUSPENDED");
+        return n == 1;
+    }
+
+    /** 060 业务重试计数原子自增（仅"曾进入 RUNNING 后业务失败"调用；FR-009）。 */
+    public void incrementBusinessAttempt(UUID id) {
+        jdbc.update(
+                "UPDATE task_instance SET business_attempt=COALESCE(business_attempt,0)+1, updated_at=? "
+                        + "WHERE id=? AND deleted=0",
+                LocalDateTime.now(), id);
+    }
+
+    /** 060 infra 重派计数原子自增（独立助手；{@link #casRequeueInfra} 已含自增，勿重复调用）。 */
+    public void incrementInfraRedispatch(UUID id) {
+        jdbc.update(
+                "UPDATE task_instance SET infra_redispatch_count=COALESCE(infra_redispatch_count,0)+1, updated_at=? "
+                        + "WHERE id=? AND deleted=0",
+                LocalDateTime.now(), id);
+    }
+
+    /** 060 读 infra 重派计数（供超限→SUSPENDED 判定）。 */
+    public int readInfraRedispatchCount(UUID id) {
+        Integer c = jdbc.query(
+                "SELECT COALESCE(infra_redispatch_count,0) FROM task_instance WHERE id=? AND deleted=0",
+                rs -> rs.next() ? rs.getInt(1) : 0, id);
+        return c != null ? c : 0;
     }
 
     /** 续租：心跳到达时延长租约（仅运行中实例）。 */

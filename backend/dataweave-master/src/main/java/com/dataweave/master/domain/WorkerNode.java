@@ -24,6 +24,10 @@ public class WorkerNode {
     private String nodeGroup;
     private Long incarnation;
     private Integer reservedTestSlots;
+    // 060 节点容错闭环：节点健康三列（原子/单调更新；incarnation_since=FleetService 在纪元变化/新注册时落 now）
+    private LocalDateTime incarnationSince;
+    private Integer consecutiveInfraFailures;
+    private LocalDateTime quarantinedUntil;
     private LocalDateTime lastHeartbeat;
     private Long createdBy;
     private Long updatedBy;
@@ -153,6 +157,33 @@ public class WorkerNode {
 
     public void setReservedTestSlots(Integer reservedTestSlots) {
         this.reservedTestSlots = reservedTestSlots;
+    }
+
+    /** 当前 incarnation 首次观察时刻（060 稳定窗判据）。 */
+    public LocalDateTime getIncarnationSince() {
+        return incarnationSince;
+    }
+
+    public void setIncarnationSince(LocalDateTime incarnationSince) {
+        this.incarnationSince = incarnationSince;
+    }
+
+    /** 近期连续 infra 故障计数（060 熔断）。 */
+    public Integer getConsecutiveInfraFailures() {
+        return consecutiveInfraFailures;
+    }
+
+    public void setConsecutiveInfraFailures(Integer consecutiveInfraFailures) {
+        this.consecutiveInfraFailures = consecutiveInfraFailures;
+    }
+
+    /** 熔断隔离到期时刻（060，GREATEST 只增不减）。 */
+    public LocalDateTime getQuarantinedUntil() {
+        return quarantinedUntil;
+    }
+
+    public void setQuarantinedUntil(LocalDateTime quarantinedUntil) {
+        this.quarantinedUntil = quarantinedUntil;
     }
 
     public LocalDateTime getLastHeartbeat() {

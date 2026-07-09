@@ -29,8 +29,13 @@ public class TaskInstance {
     private String bizDate;
     private String state;
     private Integer attempt;
+    // 060 计数双拆：attempt=纯下发纪元栅栏（casDispatch +1，isCurrentDispatch/worker 幂等键用）；
+    // business_attempt=业务重试计数（仅曾进入 RUNNING 后失败才 +1，与 retry_max 比较）；infra 回收只动 infra_redispatch_count。
+    private Integer businessAttempt;
+    private Integer infraRedispatchCount;
     private String workerNodeCode;
     private LocalDateTime leaseExpireAt;
+    private String externalJobHandle;   // 060 外部托管长驻作业句柄（JobID+REST JSON）；reattach 与实时卡片挂载点
     private String failureReason;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;
@@ -110,11 +115,23 @@ public class TaskInstance {
     public Integer getAttempt() { return attempt; }
     public void setAttempt(Integer attempt) { this.attempt = attempt; }
 
+    /** 060 业务重试计数（仅曾进入 RUNNING 后失败才 +1；与 retry_max 比较）。 */
+    public Integer getBusinessAttempt() { return businessAttempt; }
+    public void setBusinessAttempt(Integer businessAttempt) { this.businessAttempt = businessAttempt; }
+
+    /** 060 单实例连续 infra 重派计数（超 infra-redispatch-max → SUSPENDED）。 */
+    public Integer getInfraRedispatchCount() { return infraRedispatchCount; }
+    public void setInfraRedispatchCount(Integer infraRedispatchCount) { this.infraRedispatchCount = infraRedispatchCount; }
+
     public String getWorkerNodeCode() { return workerNodeCode; }
     public void setWorkerNodeCode(String workerNodeCode) { this.workerNodeCode = workerNodeCode; }
 
     public LocalDateTime getLeaseExpireAt() { return leaseExpireAt; }
     public void setLeaseExpireAt(LocalDateTime leaseExpireAt) { this.leaseExpireAt = leaseExpireAt; }
+
+    /** 060 外部托管长驻作业句柄（JobID+REST JSON）。 */
+    public String getExternalJobHandle() { return externalJobHandle; }
+    public void setExternalJobHandle(String externalJobHandle) { this.externalJobHandle = externalJobHandle; }
 
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }

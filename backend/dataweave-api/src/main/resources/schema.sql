@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.14.3（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.15.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
@@ -17,6 +17,8 @@
 --     → 057 全局 AI Agent 配置统收=0.13.0（lineage_agent_config 去 project_id 改租户级全局单例 UNIQUE(tenant_id,deleted)；lineage_agent_call 审计保留 project_id 溯源）。
 --     → task_instance +task_type 快照列=0.14.0（物化时写入 task_def.type，免查询 JOIN）。
 --     → worker 默认并发上调=0.14.1（worker_nodes.max_concurrent_tasks DEFAULT 10→100；拉高单节点并发上限）。
+--     → 060 节点容错闭环=0.15.0（worker_nodes +incarnation_since/consecutive_infra_failures/quarantined_until；
+--       task_instance +business_attempt/infra_redispatch_count/external_job_handle +SUSPENDED 态；task_def(_version) +long_running）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -133,6 +135,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.2', CURRENT_TIMESTAMP, '059 大数据任务类型：task_def/task_def_version content VARCHAR(4000)→TEXT（承载 DataX/SeaTunnel/Flink 真实作业体，原 4000 字符不足，典型 5-50KB）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.3', CURRENT_TIMESTAMP, '059 content 安全修正：TEXT→VARCHAR(1048576)（1MB DB 硬上限，既满足大作业体又防无界 DoS；安全审查 RESOURCE-BOUND）');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.15.0', CURRENT_TIMESTAMP, '060 节点容错闭环：worker_nodes +incarnation_since/consecutive_infra_failures/quarantined_until；task_instance +business_attempt/infra_redispatch_count/external_job_handle +SUSPENDED 态；task_def/task_def_version +long_running');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -335,6 +339,7 @@ CREATE TABLE task_def (
     params_json         VARCHAR(2000),
     timeout_sec         INTEGER,
     retry_max           INTEGER DEFAULT 0,
+    long_running        BOOLEAN DEFAULT FALSE,  -- 060 外部托管长驻作业标记（Flink 流式=true）；决定 detached+reattach 容错路径与 timeout/自我中止豁免（FR-022/026）
     status              VARCHAR(32) DEFAULT 'DRAFT',
     current_version_no  INTEGER DEFAULT 0,   -- 最后发布版本号（0=未发布）
     has_draft_change    SMALLINT DEFAULT 1,  -- 有未发布改动
@@ -366,6 +371,7 @@ CREATE TABLE task_def_version (
     params_json          VARCHAR(2000),
     timeout_sec          INTEGER,
     retry_max            INTEGER,
+    long_running         BOOLEAN,              -- 060 发布时 long_running 快照（外部托管长驻作业标记；与 task_def 同步）
     priority             INTEGER,              -- 发布时优先级快照
     description          VARCHAR(512),         -- 发布时描述快照
     remark               VARCHAR(512),
@@ -582,11 +588,14 @@ CREATE TABLE task_instance (
     backfill_held        SMALLINT DEFAULT 0,   -- 补数据 bizDate 粒度节流旁路标志（backfill-parallelism-throttle）：1=被持有不可认领，由 BackfillPromoter 完成即晋升 1→0；与认领状态正交（实例仍 WAITING）
     env                  VARCHAR(8) DEFAULT 'PROD',  -- 运行环境：PROD(cron/正式手动) | DEV(画布试跑)；与 run_mode 正交，可空（NULL≡PROD）
     biz_date             VARCHAR(32),          -- 业务日期（注入任务执行环境，幂等钥匙之一）
-    state                VARCHAR(32) DEFAULT 'NOT_RUN',  -- NOT_RUN/WAITING/DISPATCHED/RUNNING/SUCCESS/FAILED/STOPPED/PREEMPTED/PAUSED
-    attempt              INTEGER DEFAULT 0,
+    state                VARCHAR(32) DEFAULT 'NOT_RUN',  -- NOT_RUN/WAITING/DISPATCHED/RUNNING/SUCCESS/FAILED/STOPPED/PREEMPTED/PAUSED/SUSPENDED（SUSPENDED=060 单实例 infra 重派超限保护挂起，非终态）
+    attempt              INTEGER DEFAULT 0,   -- 纯下发纪元栅栏（060）：每次下发 +1、严格单调不回退；isCurrentDispatch/worker 幂等键用之。不再兼作业务重试计数（改用 business_attempt）
+    business_attempt     INTEGER DEFAULT 0,   -- 060 业务重试计数：仅"曾进入 RUNNING（started_at≠null）后业务失败"才 +1，与 task_def.retry_max 比较；与 attempt 相互独立（infra 回收不烧此计数）
+    infra_redispatch_count INTEGER DEFAULT 0, -- 060 单实例连续基础设施重派计数：infra 回收（WORKER_LOST/RESTART/下发失败）每次 +1，超 scheduler.infra-redispatch-max → SUSPENDED（毒任务保护，不判死）；人工 rerun 复位
     worker_node_code     VARCHAR(64),
     lease_expire_at      TIMESTAMP,            -- 下发后的租约到期时刻（心跳续约；过期 → WORKER_LOST 回收）
-    failure_reason       VARCHAR(64),          -- 失败归因：WORKER_RESTART / WORKER_LOST / TIMEOUT / EXIT_NONZERO …
+    external_job_handle  VARCHAR(512),         -- 060 外部托管长驻作业句柄（引擎 JobID + REST/tracking 端点 JSON 编码）；reattach 重连与未来实时任务卡片的统一挂载点（FR-023）
+    failure_reason       VARCHAR(64),          -- 失败归因：WORKER_RESTART / WORKER_LOST / TIMEOUT / EXIT_NONZERO / INFRA_SUSPENDED …
     started_at           TIMESTAMP,
     finished_at          TIMESTAMP,
     log                  TEXT,                  -- 执行日志（不截断）
@@ -845,6 +854,10 @@ CREATE TABLE worker_nodes (
     node_group           VARCHAR(64),        -- 节点分组（如 high-cpu / gpu）
     incarnation          BIGINT,             -- worker 启动纪元号（每次启动递增/换值；变化 → 该节点运行中实例判 WORKER_RESTART）
     reserved_test_slots  INTEGER DEFAULT 1,  -- 预留 TEST 槽数（防试跑被例行任务饿死，可配 0 关闭）
+    -- 060 节点容错闭环：节点健康三列（原子/单调更新，对等 master 并发安全；FR-002/003/006）
+    incarnation_since         TIMESTAMP,         -- 当前 incarnation 首次观察时刻；稳定窗判据 now-incarnation_since >= scheduler.node.stabilization-window-ms（专治抖动假节点/刚重启）
+    consecutive_infra_failures INTEGER DEFAULT 0,-- 近期连续 infra 故障计数（原子自增）；跨 quarantine-threshold → 熔断；成功一次或隔离到期稳定后复位 0
+    quarantined_until         TIMESTAMP,         -- 熔断隔离到期时刻（GREATEST 只增不减）；> now 期间不进派发候选
     last_heartbeat TIMESTAMP,
     created_by     BIGINT,
     updated_by     BIGINT,
