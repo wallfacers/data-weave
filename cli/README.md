@@ -25,7 +25,7 @@ dw logs cat <instanceId>
 | `dw pull <project>` | 拉取项目为本地文件树 + 写 `.weft/state.json` | C `/api/projects/{id}/pull` |
 | `dw push [--force] [--remark R]` | 推回服务器（幂等覆盖 + 版本快照），写回新基线 | C `/api/projects/{id}/push` |
 | `dw diff` | 只读差异预览（added/modified/removed），对服务器零写入 | C `/api/projects/{id}/diff` |
-| `dw run <task>` | 本机真跑任务脚本体（SHELL/SQL/PYTHON），透传退出码 | Java `LocalRunMain`（复用 worker 执行器） |
+| `dw run <task>` | 本机真跑任务脚本体（SHELL/SQL/PYTHON/SPARK/DATAX/SEATUNNEL），透传退出码 | Java `LocalRunMain`（复用 worker 执行器） |
 | `dw run --test <task>` | TEST 模式提交服务器 + 流式日志回传 | `/api/tasks/{id}/run` + 日志 SSE |
 
 `<project>` = 项目 id（数字）或 code（按 code 精确解析）。`<task>` = 相对文件路径（优先）或任务名别名。

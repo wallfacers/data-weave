@@ -42,8 +42,10 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	}
 
 	typeUp := strings.ToUpper(meta.Type)
-	if typeUp != "SHELL" && typeUp != "SQL" && typeUp != "PYTHON" && typeUp != "SPARK" {
-		return client.UsageError("任务类型 %s 本地不支持（MVP 仅 SHELL/SQL/PYTHON/SPARK，FR-007；DATA_SYNC 排除）", meta.Type)
+	// DATAX/SEATUNNEL：无子模式 flag，引擎 home 从环境变量取，透传类型即可
+	if typeUp != "SHELL" && typeUp != "SQL" && typeUp != "PYTHON" && typeUp != "SPARK" &&
+		typeUp != "DATAX" && typeUp != "SEATUNNEL" {
+		return client.UsageError("任务类型 %s 本地不支持（支持 SHELL/SQL/PYTHON/SPARK/DATAX/SEATUNNEL）", meta.Type)
 	}
 
 	// 脚本体：与 .task.yaml 同名、扩展名由 type 决定（B 的 D7 约定）。

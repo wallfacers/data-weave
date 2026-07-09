@@ -8,6 +8,8 @@ import com.dataweave.worker.infrastructure.PythonTaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
 import com.dataweave.worker.infrastructure.SparkTaskExecutor;
 import com.dataweave.worker.infrastructure.SqlTaskExecutor;
+import com.dataweave.worker.infrastructure.DataXTaskExecutor;
+import com.dataweave.worker.infrastructure.SeaTunnelTaskExecutor;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -89,8 +91,10 @@ public class LocalRunMain {
             case "PYTHON" -> new PythonTaskExecutor();
             case "SPARK" -> new SparkTaskExecutor();
             case "ECHO" -> new EchoTaskExecutor();
+            case "DATAX" -> new DataXTaskExecutor();
+            case "SEATUNNEL" -> new SeaTunnelTaskExecutor();
             default -> throw new IllegalArgumentException(
-                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK，FR-010）");
+                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK/DATAX/SEATUNNEL，FR-010）");
         };
     }
 
