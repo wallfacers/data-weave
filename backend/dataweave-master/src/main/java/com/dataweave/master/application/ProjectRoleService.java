@@ -123,6 +123,29 @@ public class ProjectRoleService {
         }
     }
 
+    /**
+     * 057 租户级管理员校验：确认用户在<b>任意项目</b>中持有 ADMIN 角色。
+     *
+     * <p>用于租户级全局设置端点（如 /api/settings/agent-config），避免前端-only 权限过滤。
+     * 与项目级 {@link #requirePermission} 不同：不绑具体 projectId，只要用户在租户内至少
+     * 一个项目中是 ADMIN 即通过。
+     *
+     * <p>越权语义：身份缺失 → {@code project.required}；非任何项目 ADMIN → {@code project.role.forbidden}(403)。
+     */
+    public void requireTenantAdmin(Long tenantId, Long userId) {
+        if (tenantId == null || userId == null) {
+            throw new BizException("project.required");
+        }
+        List<ProjectMember> memberships = memberRepository
+                .findByTenantIdAndUserIdAndDeleted(tenantId, userId, 0);
+        for (ProjectMember m : memberships) {
+            if (roleCode(m.getRoleId()).map(ROLE_ADMIN::equals).orElse(false)) {
+                return;
+            }
+        }
+        throw new BizException("project.role.forbidden").withHttpStatus(403);
+    }
+
     /** 是否项目成员（软校验，不抛异常）。供菜单可见性等非拦截场景。 */
     public boolean isMember(Long tenantId, Long userId, Long projectId) {
         return memberOf(tenantId, userId, projectId).isPresent();

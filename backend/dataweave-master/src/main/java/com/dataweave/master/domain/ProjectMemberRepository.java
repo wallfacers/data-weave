@@ -15,4 +15,7 @@ public interface ProjectMemberRepository extends CrudRepository<ProjectMember, L
 
     /** 036-D 角色/权限解析：取 (tenant, project, user) 的未删除成员行（含 role_id），非成员返回空表。 */
     List<ProjectMember> findByTenantIdAndProjectIdAndUserIdAndDeleted(Long tenantId, Long projectId, Long userId, Integer deleted);
+
+    /** 057 租户级管理员校验：取 (tenant, user) 在所有项目的未删除成员行，非成员返回空表。 */
+    List<ProjectMember> findByTenantIdAndUserIdAndDeleted(Long tenantId, Long userId, Integer deleted);
 }

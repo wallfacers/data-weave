@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.TenantContext;
+import com.dataweave.master.application.ProjectRoleService;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService.AgentConfigVo;
 import com.dataweave.master.application.lineage.agent.AgentLineageConfigService.UpsertRequest;
@@ -22,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 057 全局 AI Agent 配置 REST（契约 contracts/system-settings-api.md）。
- * 基址 /api/settings/agent-config（JWT 鉴权；租户级全局单例，去 projectId）。
- * 鉴权沿袭既有系统设置端点（/api/users 等）：JwtAuthFilter 校验 JWT，前端按 project:manage 过滤可见性。
+ * 基址 /api/settings/agent-config（JWT 鉴权 + 租户管理员校验；租户级全局单例，去 projectId）。
+ * 鉴权：JwtAuthFilter 校验 JWT + {@link ProjectRoleService#requireTenantAdmin} 校验用户在任意项目持有 ADMIN 角色。
  * GET 脱敏返回；PUT 加密 upsert；POST /test 发一次最小探活外呼（不落库、不落日志明文）。
  */
 @RestController
@@ -37,28 +38,34 @@ public class LineageAgentConfigController {
     private final AgentLineageConfigService configService;
     private final LlmAgentClient client;
     private final AgentConfigRepository agentConfigRepository;
+    private final ProjectRoleService projectRoleService;
 
     public LineageAgentConfigController(AgentLineageConfigService configService,
                                         LlmAgentClient client,
-                                        AgentConfigRepository agentConfigRepository) {
+                                        AgentConfigRepository agentConfigRepository,
+                                        ProjectRoleService projectRoleService) {
         this.configService = configService;
         this.client = client;
         this.agentConfigRepository = agentConfigRepository;
+        this.projectRoleService = projectRoleService;
     }
 
     @GetMapping
     public ApiResponse<AgentConfigVo> get() {
+        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
         return ApiResponse.ok(configService.get(TenantContext.tenantId()).orElse(null));
     }
 
     @PutMapping
     public ApiResponse<AgentConfigVo> put(@RequestBody UpsertRequest req) {
+        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
         return ApiResponse.ok(configService.upsert(TenantContext.tenantId(), TenantContext.userId(), req));
     }
 
     /** 用当前（或请求体覆盖）配置发一次最小探活外呼；不落库、不落日志明文（FR-020）。 */
     @PostMapping("/test")
     public ApiResponse<TestResult> test(@RequestBody UpsertRequest req) {
+        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
         long tenantId = TenantContext.tenantId();
         long userId = TenantContext.userId();
 
@@ -100,6 +107,7 @@ public class LineageAgentConfigController {
     @GetMapping("/calls")
     public ApiResponse<List<CallRecord>> calls(@RequestParam(required = false) Long taskDefId,
                                                @RequestParam(defaultValue = "50") int limit) {
+        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
         int capped = Math.max(1, Math.min(limit, 200));
         return ApiResponse.ok(agentConfigRepository.findCalls(
                 TenantContext.tenantId(), taskDefId, capped));
