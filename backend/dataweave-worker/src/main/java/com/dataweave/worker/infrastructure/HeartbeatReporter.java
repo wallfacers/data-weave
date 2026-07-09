@@ -26,7 +26,7 @@ public class HeartbeatReporter {
 
     private static final System.Logger log = System.getLogger(HeartbeatReporter.class.getName());
 
-    @Value("${dataweave.worker.heartbeat.enabled:false}")
+    @Value("${dataweave.worker.heartbeat.enabled:true}")
     private boolean enabled;
 
     @Value("${dataweave.master.url:http://localhost:8000}")
