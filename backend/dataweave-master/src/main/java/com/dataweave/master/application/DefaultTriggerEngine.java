@@ -321,7 +321,10 @@ public class DefaultTriggerEngine implements TriggerEngine {
 
             boolean overdue = fireNow.isAfter(task.due());
             wf.setLastFireTime(task.due());
-            advanceNext(wf, fireNow);
+            // 用 max(fireNow, due) 防时钟偏斜：若 fireNow < due，strategy.next 可能返回 ≤ due，
+            // 导致 next_trigger_time 不回退 → cron_fire UNIQUE 死循环（该点已插过）。
+            LocalDateTime advanceRef = fireNow.isAfter(task.due()) ? fireNow : task.due();
+            advanceNext(wf, advanceRef);
             if (overdue) {
                 metrics.markCronMisfire(true);
             }

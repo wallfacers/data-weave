@@ -845,6 +845,16 @@ public class OpsService {
             where.append("AND wi.scheduled_fire_time <= ? ");
             args.add(java.sql.Timestamp.valueOf(LocalDateTime.parse(q.scheduledFireTimeTo().trim())));
         }
+        if (q.keyword() != null && !q.keyword().isBlank()) {
+            // 单框合一：关键字同时匹配任务流名称(workflow_def_name 物化快照) 与 实例 ID。
+            // id 是 UUID，CAST 成 VARCHAR 再做模糊匹配，H2 + PostgreSQL 双兼容；
+            // 前端只展示后 8 位 …xxxxxxxx，故按片段模糊（用户无需完整 UUID）。
+            where.append("AND (wi.workflow_def_name LIKE CONCAT('%', ?, '%') "
+                    + "OR CAST(wi.id AS VARCHAR) LIKE CONCAT('%', ?, '%')) ");
+            String kw = q.keyword().trim();
+            args.add(kw);
+            args.add(kw);
+        }
 
         Long total = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM workflow_instance wi" + where, Long.class, args.toArray());

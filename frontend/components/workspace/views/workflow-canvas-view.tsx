@@ -37,6 +37,7 @@ import {
   RocketIcon,
   Share08Icon,
   StopIcon,
+  Structure04Icon,
   Task01Icon,
 } from "@hugeicons/core-free-icons"
 
@@ -117,6 +118,7 @@ import { DagRenderer } from "@/components/workspace/dag-renderer"
 // ─── DagView ↔ ReactFlow 映射 ─────────────────────────────
 
 import { dagViewToFlow as toFlow } from "@/lib/workspace/dag-helpers"
+import { autoLayoutWorkflow } from "@/lib/workspace/workflow-layout"
 
 function toPayload(version: number | null, nodes: CanvasNode[], edges: Edge[]): DagPayload {
   const dagNodes: DagNode[] = nodes.map((n) => ({
@@ -431,6 +433,27 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
     ])
     setDirty(true)
   }, [t])
+
+  /** dagre 自动布局：从左到右分层对齐。覆盖所有节点的 posX/posY。 */
+  const autoLayout = useCallback(() => {
+    const layoutNodes = dagNodes.map((n) => ({
+      nodeKey: n.id,
+      nodeType: n.data.nodeType ?? "TASK",
+    }))
+    const layoutEdges = edges.map((e) => ({
+      fromNodeKey: e.source,
+      toNodeKey: e.target,
+    }))
+    const { positions } = autoLayoutWorkflow(layoutNodes, layoutEdges)
+    // 更新 node position（保留其他属性不变）
+    setDagNodes((prev) =>
+      prev.map((n) => {
+        const pos = positions.get(n.id)
+        return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n
+      }),
+    )
+    setDirty(true)
+  }, [dagNodes, edges])
 
   const saveDraft = useCallback(() => {
     setBusy(true)
@@ -843,6 +866,9 @@ function CanvasInner({ workflowId, name }: { workflowId: number; name: string })
               </Button>
             </>
           )}
+          <Button size="sm" variant="outline" onClick={autoLayout} disabled={busy} title={t("autoLayout")}>
+            <HugeiconsIcon icon={Structure04Icon} className="size-4" /> {t("autoLayout")}
+          </Button>
           <Button size="sm" variant="outline" onClick={addVirtualNode} disabled={busy}>
             <HugeiconsIcon icon={CircleIcon} className="size-4" /> {t("virtualNode")}
           </Button>

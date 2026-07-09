@@ -192,6 +192,13 @@ export function WorkflowInstancesPanel({ onViewDag, active }: WorkflowInstancesP
         width: "w-32",
         options: TRIGGER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
       },
+      {
+        key: "keyword",
+        label: t("filterWorkflowName"),
+        kind: "search",
+        width: "w-56",
+        placeholder: t("filterWorkflowName"),
+      },
       { key: "bizDateFrom", label: t("filterBizDateFrom"), kind: "date", width: "w-40" },
       { key: "bizDateTo", label: t("filterBizDateTo"), kind: "date", width: "w-40" },
       {

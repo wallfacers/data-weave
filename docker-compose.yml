@@ -113,6 +113,7 @@ services:
       SPRING_DATASOURCE_USERNAME: dataweave
       SPRING_DATASOURCE_PASSWORD: dataweave
       SPRING_DATA_REDIS_HOST: redis
+      SPRING_SQL_INIT_MODE: never               # PG 已初始化，重启不 DROP/CREATE（否则摧毁所有数据）
       SCHEDULER_MODE: distributed
       EVENTBUS_TYPE: redis
       LOGBUS_TYPE: redis
