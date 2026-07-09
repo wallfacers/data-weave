@@ -166,7 +166,12 @@
       "taskTypeJava": "Java",
       "taskTypeJavaScript": "JavaScript",
       "taskTypeTypeScript": "TypeScript",
-      "taskTypeDataSync": "Data Sync"
+      "taskTypeDataSync": "Data Sync",
+      "taskTypeSpark": "Spark",
+      "taskTypeHive": "Hive",
+      "taskTypeFlink": "Flink",
+      "taskTypeDataX": "DataX",
+      "taskTypeSeaTunnel": "SeaTunnel"
     },
     "testRunLabel": "测试运行",
     "unresolvedParams": "未解析参数",
@@ -756,7 +761,13 @@
     "runScopeOnlyNode": "仅本节点",
     "nodeUnpublished": "未发布",
     "taskTypeSQL": "SQL",
-    "taskTypeShell": "Shell"
+    "taskTypeShell": "Shell",
+    "taskTypePython": "Python",
+    "taskTypeSpark": "Spark",
+    "taskTypeHive": "Hive",
+    "taskTypeFlink": "Flink",
+    "taskTypeDataX": "DataX",
+    "taskTypeSeaTunnel": "SeaTunnel"
   },
   "fleet": {
     "title": "集群机器",

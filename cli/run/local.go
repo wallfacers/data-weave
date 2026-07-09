@@ -44,18 +44,27 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	typeUp := strings.ToUpper(meta.Type)
 	// DATAX/SEATUNNEL：无子模式 flag，引擎 home 从环境变量取，透传类型即可
 	if typeUp != "SHELL" && typeUp != "SQL" && typeUp != "PYTHON" && typeUp != "SPARK" &&
-		typeUp != "DATAX" && typeUp != "SEATUNNEL" {
-		return client.UsageError("任务类型 %s 本地不支持（支持 SHELL/SQL/PYTHON/SPARK/DATAX/SEATUNNEL）", meta.Type)
+		typeUp != "DATAX" && typeUp != "SEATUNNEL" && typeUp != "FLINK" {
+		return client.UsageError("任务类型 %s 本地不支持（支持 SHELL/SQL/PYTHON/SPARK/DATAX/SEATUNNEL/FLINK）", meta.Type)
 	}
 
 	// 脚本体：与 .task.yaml 同名、扩展名由 type 决定（B 的 D7 约定）。
 	// SPARK 按 sparkMode 细分：pyspark→.py / spark-sql→.sql / jar→无脚本体（content 留空）。
+	// FLINK 按 flinkMode 细分：sql→.sql / jar→无脚本体。
 	var content []byte
 	if typeUp == "SPARK" {
 		if sp := ScriptForSparkTask(taskPath, meta.SparkMode); sp != "" {
 			content, err = os.ReadFile(sp)
 			if err != nil {
 				return client.UsageError("读取 Spark 脚本失败（%s）：%v（pyspark/spark-sql 脚本应与 .task.yaml 同目录同名）",
+					sp, err)
+			}
+		}
+	} else if typeUp == "FLINK" {
+		if sp := ScriptForFlinkTask(taskPath, meta.FlinkMode); sp != "" {
+			content, err = os.ReadFile(sp)
+			if err != nil {
+				return client.UsageError("读取 Flink 脚本失败（%s）：%v（sql 脚本应与 .task.yaml 同目录同名）",
 					sp, err)
 			}
 		}
@@ -96,7 +105,11 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	if typeUp == "SPARK" {
 		sparkOpts = &SparkRunOpts{SparkMode: meta.SparkMode, JarPath: meta.JarRef, MainClass: meta.MainClass}
 	}
-	cmd := BuildLocalRunCmd(classpath, typeUp, timeout, dsJSONPath, content, sparkOpts)
+	var flinkOpts *FlinkRunOpts
+	if typeUp == "FLINK" {
+		flinkOpts = &FlinkRunOpts{FlinkMode: meta.FlinkMode, JarPath: meta.JarRef, MainClass: meta.MainClass}
+	}
+	cmd := BuildLocalRunCmd(classpath, typeUp, timeout, dsJSONPath, content, sparkOpts, flinkOpts)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
@@ -130,21 +143,30 @@ type SparkRunOpts struct {
 	MainClass string // jar 形态的 --class 主类
 }
 
+// FlinkRunOpts 是 FLINK 任务的内容形态参数（sql/jar）；非 FLINK 任务传 nil。
+type FlinkRunOpts struct {
+	FlinkMode string // sql / jar
+	JarPath   string // jar 形态的本地 application jar 路径
+	MainClass string // jar 形态的 --class 主类
+}
+
 // BuildLocalRunCmd 构造 java LocalRunMain 子进程命令；脚本体 content 经 stdin 传入。
-// spark 非 nil 时追加 --spark-mode/--jar-path/--main-class（SPARK 三形态注入）。
+// spark 非 nil 时追加 --spark-mode/--jar-path/--main-class（SPARK 三形态注入）；
+// flink 非 nil 时追加 --flink-mode/--jar-path/--main-class（FLINK 两形态注入）。
 //
 // classpath 为 Spring Boot fat jar（*-exec.jar）时，classes 在 BOOT-INF/classes/，无法
 // 直接 `java -cp <jar> <main>`，须用 PropertiesLauncher + -Dloader.main 访问；
 // 普通 classpath（target/classes:deps 列表）则直接 `java -cp <cp> <main>`。
 func BuildLocalRunCmd(classpath, taskType string, timeout int, dsJSONPath string, content []byte,
-	spark *SparkRunOpts) *exec.Cmd {
-	args := buildLocalRunArgs(classpath, taskType, timeout, dsJSONPath, spark)
+	spark *SparkRunOpts, flink *FlinkRunOpts) *exec.Cmd {
+	args := buildLocalRunArgs(classpath, taskType, timeout, dsJSONPath, spark, flink)
 	cmd := exec.Command("java", args...)
 	cmd.Stdin = strings.NewReader(string(content))
 	return cmd
 }
 
-func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath string, spark *SparkRunOpts) []string {
+func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath string, spark *SparkRunOpts,
+	flink *FlinkRunOpts) []string {
 	var head []string
 	if isFatJarClasspath(classpath) {
 		head = []string{"-cp", classpath, "-Dloader.main=" + localRunMainClass, propertiesLauncher}
@@ -167,6 +189,17 @@ func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath strin
 		}
 		if spark.MainClass != "" {
 			args = append(args, "--main-class", spark.MainClass)
+		}
+	}
+	if flink != nil {
+		if flink.FlinkMode != "" {
+			args = append(args, "--flink-mode", flink.FlinkMode)
+		}
+		if flink.JarPath != "" {
+			args = append(args, "--jar-path", flink.JarPath)
+		}
+		if flink.MainClass != "" {
+			args = append(args, "--main-class", flink.MainClass)
 		}
 	}
 	return args

@@ -15,6 +15,7 @@ import (
 var typeExtension = map[string]string{
 	"SQL": ".sql", "SHELL": ".sh", "PYTHON": ".py", "DATA_SYNC": ".json", "ECHO": ".txt", "SPARK": ".py",
 	"DATAX": ".json", "SEATUNNEL": ".conf",
+	"FLINK": ".sql", // 默认 sql 形态；jar 形态无脚本体（由 ScriptForFlinkTask 判定）
 }
 
 // ScriptExtension 返回任务类型对应的脚本扩展名（未知类型默认 .txt）。
@@ -32,8 +33,9 @@ type TaskMeta struct {
 	Datasource string // 逻辑名（SQL/PYTHON/SPARK 查 .weft/datasources.local.yaml）
 	TimeoutSec int
 	SparkMode  string // SPARK 内容形态：pyspark/spark-sql/jar（其它类型空）
-	JarRef     string // SPARK jar 形态的 application jar 引用（本地路径）
-	MainClass  string // SPARK jar 形态的 --class 主类
+	FlinkMode  string // FLINK 内容形态：sql/jar（其它类型空）
+	JarRef     string // SPARK/FLINK jar 形态的 application jar 引用（本地路径）
+	MainClass  string // SPARK/FLINK jar 形态的 --class 主类
 }
 
 // taskFile 对应 <slug>.task.yaml 的字段（与 filecontract TaskDoc 字段名一致）。
@@ -43,6 +45,7 @@ type taskFile struct {
 	Datasource string `yaml:"datasource"`
 	TimeoutSec int    `yaml:"timeoutSec"`
 	SparkMode  string `yaml:"sparkMode"`
+	FlinkMode  string `yaml:"flinkMode"`
 	JarRef     string `yaml:"jarRef"`
 	MainClass  string `yaml:"mainClass"`
 }
@@ -61,7 +64,7 @@ func ParseTaskMeta(path string) (*TaskMeta, error) {
 		return nil, fmt.Errorf("任务定义缺少 type 字段（%s）", path)
 	}
 	return &TaskMeta{Name: tf.Name, Type: tf.Type, Datasource: tf.Datasource, TimeoutSec: tf.TimeoutSec,
-		SparkMode: tf.SparkMode, JarRef: tf.JarRef, MainClass: tf.MainClass}, nil
+		SparkMode: tf.SparkMode, FlinkMode: tf.FlinkMode, JarRef: tf.JarRef, MainClass: tf.MainClass}, nil
 }
 
 // LocateTask 定位任务定义文件（FR-005 / D4）：相对文件路径优先，任务名别名次之。
@@ -134,6 +137,26 @@ func ScriptExtensionForSpark(sparkMode string) string {
 // ScriptForSparkTask 返回 SPARK 任务脚本体路径（jar 形态返回空串=无脚本体）。
 func ScriptForSparkTask(taskPath, sparkMode string) string {
 	ext := ScriptExtensionForSpark(sparkMode)
+	if ext == "" {
+		return ""
+	}
+	return strings.TrimSuffix(taskPath, ".task.yaml") + ext
+}
+
+// ScriptExtensionForFlink 返回 FLINK 任务按 flinkMode 的脚本扩展名（与后端对齐）：
+// sql→.sql、jar→""（无独立脚本体，提交 application jar）。
+func ScriptExtensionForFlink(flinkMode string) string {
+	switch strings.ToLower(flinkMode) {
+	case "jar":
+		return ""
+	default:
+		return ".sql" // sql（默认）
+	}
+}
+
+// ScriptForFlinkTask 返回 FLINK 任务脚本体路径（jar 形态返回空串=无脚本体）。
+func ScriptForFlinkTask(taskPath, flinkMode string) string {
+	ext := ScriptExtensionForFlink(flinkMode)
 	if ext == "" {
 		return ""
 	}

@@ -166,7 +166,12 @@
       "taskTypeJava": "Java",
       "taskTypeJavaScript": "JavaScript",
       "taskTypeTypeScript": "TypeScript",
-      "taskTypeDataSync": "Data Sync"
+      "taskTypeDataSync": "Data Sync",
+      "taskTypeSpark": "Spark",
+      "taskTypeHive": "Hive",
+      "taskTypeFlink": "Flink",
+      "taskTypeDataX": "DataX",
+      "taskTypeSeaTunnel": "SeaTunnel"
     },
     "testRunLabel": "Test Run",
     "unresolvedParams": "Unresolved params",
@@ -756,7 +761,13 @@
     "runScopeOnlyNode": "Only this node",
     "nodeUnpublished": "Unpublished",
     "taskTypeSQL": "SQL",
-    "taskTypeShell": "Shell"
+    "taskTypeShell": "Shell",
+    "taskTypePython": "Python",
+    "taskTypeSpark": "Spark",
+    "taskTypeHive": "Hive",
+    "taskTypeFlink": "Flink",
+    "taskTypeDataX": "DataX",
+    "taskTypeSeaTunnel": "SeaTunnel"
   },
   "fleet": {
     "title": "Cluster Nodes",
