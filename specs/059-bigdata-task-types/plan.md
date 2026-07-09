@@ -23,7 +23,7 @@
 
 **Primary Dependencies**: Spring Boot 4.0 / WebFlux / Spring Data JDBC（backend）；Next.js 16 + shadcn/ui（frontend）；外部引擎二进制由运行环境提供（`SPARK_HOME`/`FLINK_HOME`/`DATAX_HOME`/`SEATUNNEL_HOME`），JDBC 驱动经既有驱动隔离上传机制
 
-**Storage**: PostgreSQL（默认）/ H2（`profiles=h2`）；**原则上不改 DDL**——`task_def.type` 为 `VARCHAR(32)`、`datasource_types` 数据驱动、`target_datasource_id` 已存在；引擎子模式（如 `_flinkMode`）随 `params_json` / 文件契约 `params` map 承载（自动 round-trip）。**唯一例外（G1）**：若 T002a 评估确认 `task_def.content`/`task_def_version.content` 的 `VARCHAR(4000)` 不足以承载 DataX/SeaTunnel/Flink 作业体，则扩为 `TEXT`（**T002a 已裁决并落地**：DataX/SeaTunnel/Flink 真实作业体典型 5-50KB，`VARCHAR(4000)` 不足会截断/写库失败；已扩 `task_def.content`/`task_def_version.content` 为 `TEXT` + `schema_version` 0.14.0→0.14.2，H2 重启验证 DDL 执行通过）
+**Storage**: PostgreSQL（默认）/ H2（`profiles=h2`）；**原则上不改 DDL**——`task_def.type` 为 `VARCHAR(32)`、`datasource_types` 数据驱动、`target_datasource_id` 已存在；引擎子模式（如 `_flinkMode`）随 `params_json` / 文件契约 `params` map 承载（自动 round-trip）。**唯一例外（G1）**：若 T002a 评估确认 `task_def.content`/`task_def_version.content` 的 `VARCHAR(4000)` 不足以承载 DataX/SeaTunnel/Flink 作业体，则扩为 `VARCHAR(1048576)`（**T002a 已裁决并落地**：DataX/SeaTunnel/Flink 真实作业体典型 5-50KB，`VARCHAR(4000)` 不足会截断/写库失败；已扩 `task_def.content`/`task_def_version.content` 为 `VARCHAR(1048576)`=1MB（DB 硬上限，既满足大作业体又防无界 DoS）+ 同步 `TaskMapper.MAX_CONTENT_LENGTH` 4000→1048576（应用层 push/pull 边界一致，否则扩列无效）+ `schema_version` 0.14.0→0.14.3，H2 验证通过）
 
 **Testing**: JUnit 5 + AssertJ（每个执行器：命令构造纯函数 + SKIPPED 判定 + 退出码透传单测；LocalRun parity 测试）；vitest + 浏览器门（前端全类型选择器）
 

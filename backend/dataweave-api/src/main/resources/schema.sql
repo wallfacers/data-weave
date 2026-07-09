@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.14.2（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.14.3（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
@@ -128,6 +128,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.0', CURRENT_TIMESTAMP, 'task_instance +task_type 快照列（物化时写入 task_def.type，免查询 JOIN）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.2', CURRENT_TIMESTAMP, '059 大数据任务类型：task_def/task_def_version content VARCHAR(4000)→TEXT（承载 DataX/SeaTunnel/Flink 真实作业体，原 4000 字符不足，典型 5-50KB）');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.14.3', CURRENT_TIMESTAMP, '059 content 安全修正：TEXT→VARCHAR(1048576)（1MB DB 硬上限，既满足 DataX/SeaTunnel/Flink 大作业体又防无界 DoS；安全审查 RESOURCE-BOUND）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -324,7 +326,7 @@ CREATE TABLE task_def (
     project_id          BIGINT NOT NULL,
     name                VARCHAR(256) NOT NULL,
     type                VARCHAR(32) NOT NULL,
-    content             TEXT,
+    content             VARCHAR(1048576),
     datasource_id       BIGINT,
     target_datasource_id BIGINT,
     params_json         VARCHAR(2000),
@@ -355,7 +357,7 @@ CREATE TABLE task_def_version (
     version_no           INTEGER NOT NULL,
     name                 VARCHAR(256),
     type                 VARCHAR(32),
-    content              TEXT,
+    content              VARCHAR(1048576),
     datasource_id        BIGINT,
     target_datasource_id BIGINT,
     params_json          VARCHAR(2000),

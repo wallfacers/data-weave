@@ -36,8 +36,10 @@ public class TaskMapper {
     );
     private static final String DEFAULT_EXTENSION = ".txt";
 
-    /** Server {@code content} VARCHAR(4000) limit; deserialize rejects (not truncates) longer scripts. */
-    public static final int MAX_CONTENT_LENGTH = 4000;
+    /** Server {@code content} limit; deserialize rejects (not truncates) longer scripts.
+     *  059：VARCHAR(4000)→VARCHAR(1048576)（1MB；承载 DataX/SeaTunnel/Flink 真实作业体，
+     *  DB 与应用层边界一致，防无界 DoS）。 */
+    public static final int MAX_CONTENT_LENGTH = 1048576;
 
     public TaskMapper(DeterministicYaml yaml, ObjectMapper jsonMapper) {
         this.yaml = yaml;
