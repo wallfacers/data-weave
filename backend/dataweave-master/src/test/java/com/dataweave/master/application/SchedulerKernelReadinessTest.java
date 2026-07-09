@@ -54,7 +54,8 @@ class SchedulerKernelReadinessTest {
                 mock(ScheduleParamResolver.class), mock(Messages.class),
                 mock(PlatformTransactionManager.class),
                 50, 120, 200, 5,
-                true); // materialized=true — 启用 unmet_deps=0 过滤
+                true, // materialized=true — 启用 unmet_deps=0 过滤
+                mock(NodeHealthService.class), 10);
     }
 
     @Test

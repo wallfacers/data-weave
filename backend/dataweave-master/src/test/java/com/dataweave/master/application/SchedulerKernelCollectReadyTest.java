@@ -73,7 +73,8 @@ class SchedulerKernelCollectReadyTest {
                 mock(EventBus.class), mock(PreemptionService.class),
                 mock(SchedulerMetrics.class), mock(ParallelDispatcher.class),
                 mock(ScheduleParamResolver.class), mock(Messages.class),
-                mock(PlatformTransactionManager.class), 2, 120, 3, maxWindows, false);
+                mock(PlatformTransactionManager.class), 2, 120, 3, maxWindows, false,
+                mock(NodeHealthService.class), 10);
     }
 
     @SuppressWarnings("unchecked")

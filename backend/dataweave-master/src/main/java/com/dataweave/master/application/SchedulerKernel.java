@@ -65,6 +65,8 @@ public class SchedulerKernel {
     private final int claimCandidateSize;  // 049:放大候选(去 NOT EXISTS 后 Java filter 的余量)；051 物化后缩小
     private final int claimMaxWindows;     // 049-收尾:防饿死游标翻窗上限(有界护栏)；051 物化后废弃
     private final boolean readinessMaterialized;  // 051:门控 unmet_deps=0 过滤
+    private final NodeHealthService nodeHealthService;  // 060:下发失败计节点熔断
+    private final int infraRedispatchMax;  // 060:单实例 infra 重派上限 → SUSPENDED
 
     // 版本键缓存上限:满则整体清空重热(条目随发布版本数缓慢增长,防长期运行无界;不引缓存库)
     private static final int VERSION_CACHE_MAX = 10_000;
@@ -93,7 +95,9 @@ public class SchedulerKernel {
                            @Value("${scheduler.lease-seconds:120}") long leaseSeconds,
                            @Value("${scheduler.claim-candidate-size:200}") int claimCandidateSize,
                            @Value("${scheduler.claim-max-windows:5}") int claimMaxWindows,
-                           @Value("${scheduler.readiness.materialized:false}") boolean readinessMaterialized) {
+                           @Value("${scheduler.readiness.materialized:false}") boolean readinessMaterialized,
+                           NodeHealthService nodeHealthService,
+                           @Value("${scheduler.infra-redispatch-max:10}") int infraRedispatchMax) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.slotManager = slotManager;
@@ -111,6 +115,8 @@ public class SchedulerKernel {
         this.claimCandidateSize = claimCandidateSize;
         this.claimMaxWindows = Math.max(1, claimMaxWindows);
         this.readinessMaterialized = readinessMaterialized;
+        this.nodeHealthService = nodeHealthService;
+        this.infraRedispatchMax = infraRedispatchMax;
     }
 
     @PostConstruct
@@ -181,8 +187,13 @@ public class SchedulerKernel {
             }
             gateway.dispatch(cmd);
         }, (cmd, err) -> {
-            log.warn("[Scheduler] 下发实例 {} 失败，回退 WAITING：{}", cmd.taskInstanceId(), err.getMessage());
-            stateMachine.casRequeue(cmd.taskInstanceId(), InstanceStates.DISPATCHED);
+            // 060（FR-008/010）：下发不可达 = 基础设施回收（不烧 business_attempt；infra_count++，超限→SUSPENDED），
+            // 并计节点熔断（下发不可达归因节点自身，FR-003）。原 casRequeue 烧 attempt 兼职业务重试，已废。
+            log.warn("[Scheduler] 下发实例 {} 失败，infra 回收（不烧业务）：{}", cmd.taskInstanceId(), err.getMessage());
+            stateMachine.reclaimInfra(cmd.taskInstanceId(), infraRedispatchMax);
+            if (cmd.workerNodeCode() != null) {
+                nodeHealthService.recordInfraFailure(cmd.workerNodeCode());
+            }
         });
         metrics.setDispatchQueueSize(dispatcher.queueSize());  // 046:背压观测
         metrics.endRound(roundSample);
