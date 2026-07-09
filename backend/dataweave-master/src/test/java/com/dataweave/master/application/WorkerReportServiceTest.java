@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,17 +39,19 @@ class WorkerReportServiceTest {
 
     private final InstanceStateMachine stateMachine = mock(InstanceStateMachine.class);
     private final TaskInstanceRepository taskInstanceRepository = mock(TaskInstanceRepository.class);
+    private final RetryService retryService = mock(RetryService.class);
 
     private WorkerReportService newService(LineageStore lineageStore,
                                            SqlTableExtractor extractor,
                                            LineageEdgeAssembler assembler) {
         return new WorkerReportService(stateMachine, taskInstanceRepository,
-                mock(WorkflowStateService.class), mock(RetryService.class),
+                mock(WorkflowStateService.class), retryService,
                 mock(SchedulerMetrics.class), mock(SlaService.class),
                 mock(EventBus.class), mock(org.springframework.context.ApplicationEventPublisher.class),
                 mock(JdbcTemplate.class),
                 lineageStore, extractor, assembler,
                 mock(com.dataweave.master.application.readiness.ReadinessSignalWriter.class),
+                mock(NodeHealthService.class),
                 mock(org.springframework.transaction.PlatformTransactionManager.class));
     }
 
@@ -153,5 +156,63 @@ class WorkerReportServiceTest {
 
         verify(lineageStore, never()).recordSynced(anyLong(), anyLong(), any(), any(),
                 anyLong(), any(), any(), any());
+    }
+
+    // ── 060（T012）：reportFailed 业务重试计数门（FR-009 / D2）──
+
+    private TaskInstance failedInstance(UUID id, boolean started) {
+        TaskInstance ti = new TaskInstance();
+        ti.setId(id);
+        ti.setTenantId(1L);
+        ti.setProjectId(1L);
+        ti.setTaskId(99L);
+        ti.setWorkerNodeCode("node-1");
+        ti.setState(InstanceStates.RUNNING);
+        if (started) {
+            ti.setStartedAt(LocalDateTime.now());  // 曾进入 RUNNING
+        }
+        return ti;
+    }
+
+    private WorkerReportService newFailedService() {
+        return newService(mock(LineageStore.class), new SqlTableExtractor(),
+                new LineageEdgeAssembler(new SqlTableExtractor(), mock(JdbcTemplate.class)));
+    }
+
+    @Test
+    void reportFailed_startedAtNull_doesNotIncrementBusinessAttempt() {
+        UUID id = UUID.randomUUID();
+        when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(failedInstance(id, false)));  // started_at=null
+        when(retryService.scheduleRetry(any())).thenReturn(true);
+
+        newFailedService().reportFailed(id, "EXIT_NONZERO", "log");
+
+        // 未进入 RUNNING 的失败不计业务重试（infra 类失败语义；FR-009）
+        verify(stateMachine, never()).incrementBusinessAttempt(id);
+    }
+
+    @Test
+    void reportFailed_startedAtNotNull_incrementsBusinessAttempt() {
+        UUID id = UUID.randomUUID();
+        when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(failedInstance(id, true)));  // started_at≠null
+        when(retryService.scheduleRetry(any())).thenReturn(true);
+
+        newFailedService().reportFailed(id, "EXIT_NONZERO", "log");
+
+        // 曾进入 RUNNING 后的业务失败 → business_attempt+1
+        verify(stateMachine, times(1)).incrementBusinessAttempt(id);
+    }
+
+    @Test
+    void reportFailed_exhausted_marksFailed() {
+        UUID id = UUID.randomUUID();
+        when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(failedInstance(id, true)));
+        when(retryService.scheduleRetry(any())).thenReturn(false);  // 业务重试耗尽
+        when(stateMachine.casTaskTerminalFromActive(eq(id), eq(InstanceStates.FAILED), any())).thenReturn(true);
+
+        newFailedService().reportFailed(id, "EXIT_NONZERO", "log");
+
+        verify(stateMachine, times(1)).incrementBusinessAttempt(id);
+        verify(stateMachine).casTaskTerminalFromActive(eq(id), eq(InstanceStates.FAILED), any());  // 耗尽 → 终态 FAILED
     }
 }

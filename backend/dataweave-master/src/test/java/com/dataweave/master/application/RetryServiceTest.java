@@ -32,12 +32,13 @@ class RetryServiceTest {
         when(stateMachine.casRequeue(any(), any())).thenReturn(true);
     }
 
-    private TaskInstance failed(int attempt) {
+    /** 060：businessAttempt = reportFailed 在 started_at≠null 时自增后的值（调用 scheduleRetry 前已回填 ti）。 */
+    private TaskInstance failed(int businessAttempt) {
         TaskInstance ti = new TaskInstance();
         ti.setId(UUID.randomUUID());
         ti.setTaskId(1L);
         ti.setState(InstanceStates.RUNNING);
-        ti.setAttempt(attempt);
+        ti.setBusinessAttempt(businessAttempt);
         return ti;
     }
 
@@ -48,22 +49,23 @@ class RetryServiceTest {
     }
 
     @Test
-    void retriesWhileAttemptsRemain() {
+    void retriesWhileBusinessAttemptsRemain() {
+        // 060：business_attempt <= retry_max 仍可重试（infra 回收不烧此计数，故不计入）
         retryMax(2);
         assertThat(retryService.scheduleRetry(failed(1))).isTrue();
         assertThat(retryService.scheduleRetry(failed(2))).isTrue();
     }
 
     @Test
-    void stopsWhenRetriesExhausted() {
+    void stopsWhenBusinessRetriesExhausted() {
         retryMax(2);
-        assertThat(retryService.scheduleRetry(failed(3))).isFalse();
+        assertThat(retryService.scheduleRetry(failed(3))).isFalse();  // 3 > 2 → 终态 FAILED
         verify(stateMachine, never()).casRequeue(any(), eq(InstanceStates.RUNNING));
     }
 
     @Test
     void noRetryWhenRetryMaxZero() {
         retryMax(0);
-        assertThat(retryService.scheduleRetry(failed(1))).isFalse();
+        assertThat(retryService.scheduleRetry(failed(1))).isFalse();  // 首次业务失败（businessAttempt=1）即终态
     }
 }

@@ -47,6 +47,7 @@ public class WorkerReportService {
     private final SqlTableExtractor sqlTableExtractor;
     private final LineageEdgeAssembler lineageEdgeAssembler;
     private final ReadinessSignalWriter readinessSignalWriter;
+    private final NodeHealthService nodeHealthService;
     private final TransactionTemplate txTemplate;
 
     public WorkerReportService(InstanceStateMachine stateMachine,
@@ -62,6 +63,7 @@ public class WorkerReportService {
                                SqlTableExtractor sqlTableExtractor,
                                LineageEdgeAssembler lineageEdgeAssembler,
                                ReadinessSignalWriter readinessSignalWriter,
+                               NodeHealthService nodeHealthService,
                                PlatformTransactionManager txManager) {
         this.stateMachine = stateMachine;
         this.taskInstanceRepository = taskInstanceRepository;
@@ -76,6 +78,7 @@ public class WorkerReportService {
         this.sqlTableExtractor = sqlTableExtractor;
         this.lineageEdgeAssembler = lineageEdgeAssembler;
         this.readinessSignalWriter = readinessSignalWriter;
+        this.nodeHealthService = nodeHealthService;
         this.txTemplate = new TransactionTemplate(txManager);
     }
 
@@ -124,6 +127,10 @@ public class WorkerReportService {
         writeLog(taskInstanceId, exitCode, tailLog);          // 事务外（辅助）
         recordTaskCompletion(taskInstanceId, "SUCCESS");      // 事务外（指标）
         recordSyncedRows(ti, statementMetrics);               // 事务外（neo4j 降级零阻断，不应进正确性事务）
+        // 060（FR-004）：节点成功执行一次 → 解除熔断计数复位（成功是节点恢复候选资格的信号）。
+        if (ti.getWorkerNodeCode() != null) {
+            nodeHealthService.clearOnSuccess(ti.getWorkerNodeCode());
+        }
         recomputeWorkflow(ti.getWorkflowInstanceId());        // 事务外（级联 STOPPED + 聚合，长路径）
         wake();
     }
@@ -195,8 +202,14 @@ public class WorkerReportService {
             return;
         }
         writeLog(taskInstanceId, null, tailLog);
+        // 060（FR-009 / D2）：业务重试计数仅当"曾进入 RUNNING（started_at≠null）"才 +1。
+        // infra 回收（租约过期/重启/下发失败）不经此路、不烧 business_attempt。
+        if (ti.getStartedAt() != null) {
+            stateMachine.incrementBusinessAttempt(taskInstanceId);
+            ti.setBusinessAttempt((ti.getBusinessAttempt() == null ? 0 : ti.getBusinessAttempt()) + 1);
+        }
         if (retryService.scheduleRetry(ti)) {
-            log.info("[WorkerReport] task {} 失败重试（attempt={}）", taskInstanceId, ti.getAttempt());
+            log.info("[WorkerReport] task {} 失败重试（businessAttempt={}）", taskInstanceId, ti.getBusinessAttempt());
             wake();
             return;
         }
