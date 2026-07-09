@@ -14,6 +14,7 @@ import (
 // 任务类型 → 脚本扩展名（与 worker TaskMapper.TYPE_EXTENSION 一致，B 的 D7 约定）。
 var typeExtension = map[string]string{
 	"SQL": ".sql", "SHELL": ".sh", "PYTHON": ".py", "DATA_SYNC": ".json", "ECHO": ".txt", "SPARK": ".py",
+	"DATAX": ".json", "SEATUNNEL": ".conf",
 }
 
 // ScriptExtension 返回任务类型对应的脚本扩展名（未知类型默认 .txt）。
