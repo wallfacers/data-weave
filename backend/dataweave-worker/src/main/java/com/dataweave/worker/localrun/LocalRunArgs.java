@@ -16,7 +16,8 @@ import java.nio.charset.StandardCharsets;
  * @param content        脚本体（从 stdin 读取 → {@code ExecutionContext.content}）
  */
 public record LocalRunArgs(String type, int timeoutSeconds, String dsJsonPath, String content,
-                           String sparkMode, String jarPath, String mainClass) {
+                           String sparkMode, String jarPath, String mainClass,
+                           String flinkMode) {
 
     /** 从命令行参数 + stdin 解析（生产 main 入口）。 */
     public static LocalRunArgs parse(String[] args) throws IOException {
@@ -26,6 +27,7 @@ public record LocalRunArgs(String type, int timeoutSeconds, String dsJsonPath, S
         String sparkMode = null;
         String jarPath = null;
         String mainClass = null;
+        String flinkMode = null;
         for (int i = 0; i < args.length; i++) {
             String a = args[i];
             switch (a) {
@@ -35,25 +37,26 @@ public record LocalRunArgs(String type, int timeoutSeconds, String dsJsonPath, S
                 case "--spark-mode" -> sparkMode = requireValue(args, a, ++i);
                 case "--jar-path" -> jarPath = requireValue(args, a, ++i);
                 case "--main-class" -> mainClass = requireValue(args, a, ++i);
+                case "--flink-mode" -> flinkMode = requireValue(args, a, ++i);
                 default -> throw new IllegalArgumentException("未知参数: " + a);
             }
         }
         if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException("缺少 --type（SHELL/SQL/PYTHON/ECHO/SPARK）");
+            throw new IllegalArgumentException("缺少 --type（SHELL/SQL/PYTHON/ECHO/SPARK/FLINK/DATAX/SEATUNNEL）");
         }
         String content = readStdin();
-        return new LocalRunArgs(type, timeout, dsJsonPath, content, sparkMode, jarPath, mainClass);
+        return new LocalRunArgs(type, timeout, dsJsonPath, content, sparkMode, jarPath, mainClass, flinkMode);
     }
 
-    /** 直接构造（测试用，不经命令行/stdin；无 Spark 内容形态）。 */
+    /** 直接构造（测试用，不经命令行/stdin；无子模式）。 */
     public static LocalRunArgs of(String type, int timeoutSeconds, String dsJsonPath, String content) {
-        return new LocalRunArgs(type, timeoutSeconds, dsJsonPath, content, null, null, null);
+        return new LocalRunArgs(type, timeoutSeconds, dsJsonPath, content, null, null, null, null);
     }
 
     /** 直接构造（测试用，SPARK 三形态）。 */
     public static LocalRunArgs ofSpark(String type, int timeoutSeconds, String dsJsonPath, String content,
                                        String sparkMode, String jarPath, String mainClass) {
-        return new LocalRunArgs(type, timeoutSeconds, dsJsonPath, content, sparkMode, jarPath, mainClass);
+        return new LocalRunArgs(type, timeoutSeconds, dsJsonPath, content, sparkMode, jarPath, mainClass, null);
     }
 
     private static String requireValue(String[] args, String flag, int i) {

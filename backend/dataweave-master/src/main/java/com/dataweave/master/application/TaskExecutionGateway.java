@@ -32,10 +32,14 @@ public interface TaskExecutionGateway {
      * @param sparkMode       SPARK 任务内容形态（pyspark / spark-sql / jar）；非 SPARK 任务为 null
      * @param jarRef          SPARK jar 形态的 application jar 引用（本地路径 / 资产标识）；其它形态 null
      * @param mainClass       SPARK jar 形态的 --class 主类；其它形态 null
+     * @param engineMode      通用引擎任务子模式（FLINK: sql|jar；DATAX/SEATUNNEL: null）；非引擎任务为 null
+     * @param engineJarRef    通用引擎 jar 形态的 application jar 引用（FLINK jar 用）；其它形态 null
+     * @param engineMainClass 通用引擎 jar 形态的 --class 主类（FLINK jar 用）；其它形态 null
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
                            Integer taskVersionNo, String runMode, String bizDate, String content,
                            int timeoutSeconds, String taskType, Long datasourceId, String locale,
-                           String sparkMode, String jarRef, String mainClass) {
+                           String sparkMode, String jarRef, String mainClass,
+                           String engineMode, String engineJarRef, String engineMainClass) {
     }
 }

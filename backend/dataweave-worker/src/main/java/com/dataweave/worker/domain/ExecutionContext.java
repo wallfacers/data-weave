@@ -18,29 +18,39 @@ import java.util.Map;
  * @param shellEnvVars    Shell 任务数据源环境变量（DW_DS_* 系列）；null=无数据源注入
  * @param pythonConfigPath Python 任务数据源 JSON 配置文件路径；null=无数据源注入
  * @param spark           Spark 提交配置（SPARK 任务用）；null=非 SPARK 任务或未配置，执行器侧判 SKIPPED
+ * @param engine          通用引擎提交配置（FLINK/DATAX/SEATUNNEL 共用）；null=非引擎任务或未配置
  */
 public record ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
                                String runMode, String taskType, DataSourceRef datasource,
                                Map<String, String> shellEnvVars, String pythonConfigPath,
-                               SparkSubmitRef spark) {
+                               SparkSubmitRef spark, EngineSubmitRef engine) {
 
     /** 向后兼容的精简构造（无数据源/模式信息，SHELL/ECHO 用）。 */
     public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds) {
-        this(content, bizDate, attempt, timeoutSeconds, null, null, null, null, null, null);
+        this(content, bizDate, attempt, timeoutSeconds, null, null, null, null, null, null, null);
     }
 
-    /** 向后兼容构造（有数据源但无 Shell/Python/Spark 注入）。 */
+    /** 向后兼容构造（有数据源但无 Shell/Python/Spark/Engine 注入）。 */
     public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
                            String runMode, String taskType, DataSourceRef datasource) {
-        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource, null, null, null);
+        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource, null, null, null, null);
     }
 
-    /** 向后兼容构造（无 Spark 注入，老调用点 9 参全参 → spark=null）。 */
+    /** 向后兼容构造（无 Spark/Engine 注入，老调用点 9 参 → spark=null, engine=null）。 */
     public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
                            String runMode, String taskType, DataSourceRef datasource,
                            Map<String, String> shellEnvVars, String pythonConfigPath) {
         this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource,
-                shellEnvVars, pythonConfigPath, null);
+                shellEnvVars, pythonConfigPath, null, null);
+    }
+
+    /** 向后兼容构造（含 Spark 但无 Engine 注入，老调用点 10 参全参 → engine=null）。 */
+    public ExecutionContext(String content, String bizDate, int attempt, int timeoutSeconds,
+                           String runMode, String taskType, DataSourceRef datasource,
+                           Map<String, String> shellEnvVars, String pythonConfigPath,
+                           SparkSubmitRef spark) {
+        this(content, bizDate, attempt, timeoutSeconds, runMode, taskType, datasource,
+                shellEnvVars, pythonConfigPath, spark, null);
     }
 
     /**
@@ -80,5 +90,20 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
     public record SparkSubmitRef(String sparkHome, String master, String deployMode, String queue,
                                  Map<String, String> conf, String sparkMode, String jarPath,
                                  String mainClass) {
+    }
+
+    /**
+     * 通用引擎提交配置引用（FLINK/DATAX/SEATUNNEL 共用，data-model §3）。
+     *
+     * @param kind       引擎类型：FLINK | DATAX | SEATUNNEL
+     * @param engineHome 引擎 home 路径（FLINK_HOME / DATAX_HOME / SEATUNNEL_HOME）
+     * @param mode       子模式：Flink sql|jar；DataX/SeaTunnel null
+     * @param jarPath    Flink jar 形态的 application jar 路径（其它形态 null）
+     * @param mainClass  Flink jar 形态的 --class 主类（其它形态 null）
+     * @param configPath 执行器写入的临时作业/配置文件路径（运行期填，构造期 null）
+     * @param props      集群/引擎附加配置（jobmanager/parallelism 等，可空）
+     */
+    public record EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
+                                   String mainClass, String configPath, Map<String, String> props) {
     }
 }

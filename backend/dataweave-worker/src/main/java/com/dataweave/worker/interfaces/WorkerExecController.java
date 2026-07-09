@@ -105,7 +105,7 @@ public class WorkerExecController {
                 "reason", accepted ? "executing" : "duplicate"));
     }
 
-    /** 反序列化 exec body 的 datasource 字段 → 构建 ExecutionContext（SQL DataSourceRef / SHELL env / PYTHON 落盘 / SPARK）。 */
+    /** 反序列化 exec body 的 datasource 字段 → 构建 ExecutionContext（SQL DataSourceRef / SHELL env / PYTHON 落盘 / SPARK / Engine）。 */
     @SuppressWarnings("unchecked")
     static ExecutionContext buildContextFromBody(Map<String, Object> body, String content, String bizDate,
                                                    int attempt, int timeoutSeconds, String taskType) {
@@ -113,6 +113,10 @@ public class WorkerExecController {
         String sparkMode = (String) body.get("sparkMode");
         String jarRef = (String) body.get("jarRef");
         String mainClass = (String) body.get("mainClass");
+        // 通用引擎内容形态（FLINK/DATAX/SEATUNNEL）
+        String engineMode = (String) body.get("engineMode");
+        String engineJarRef = (String) body.get("engineJarRef");
+        String engineMainClass = (String) body.get("engineMainClass");
 
         Object dsObj = body.get("datasource");
         if (!(dsObj instanceof Map)) {
@@ -120,8 +124,13 @@ public class WorkerExecController {
             ExecutionContext.SparkSubmitRef sparkNoDs = "SPARK".equals(taskType)
                     ? new ExecutionContext.SparkSubmitRef(null, null, null, null, null, sparkMode, jarRef, mainClass)
                     : null;
+            // 无数据源：引擎任务仍须带 kind/engineMode（engineHome 缺 → 执行器判 SKIPPED）
+            ExecutionContext.EngineSubmitRef engineNoDs = isEngineTask(taskType)
+                    ? new ExecutionContext.EngineSubmitRef(taskType, null, engineMode, engineJarRef,
+                            engineMainClass, null, null)
+                    : null;
             return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
-                    null, null, null, sparkNoDs);
+                    null, null, null, sparkNoDs, engineNoDs);
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> dsInfo = (Map<String, Object>) dsObj;
@@ -130,6 +139,7 @@ public class WorkerExecController {
         Map<String, String> shellEnvVars = null;
         String pythonConfigPath = null;
         ExecutionContext.SparkSubmitRef spark = null;
+        ExecutionContext.EngineSubmitRef engine = null;
         switch (dsType) {
             case "SQL" -> dsRef = new ExecutionContext.DataSourceRef(
                     (String) dsInfo.get("name"), (String) dsInfo.get("typeCode"), (String) dsInfo.get("jdbcUrl"),
@@ -147,10 +157,20 @@ public class WorkerExecController {
                     (String) dsInfo.get("sparkHome"), (String) dsInfo.get("master"),
                     (String) dsInfo.get("deployMode"), (String) dsInfo.get("queue"),
                     toStringMap(dsInfo.get("conf")), sparkMode, jarRef, mainClass);
+            case "FLINK", "DATAX", "SEATUNNEL" -> engine = new ExecutionContext.EngineSubmitRef(
+                    (String) dsInfo.getOrDefault("engineKind", dsType),
+                    (String) dsInfo.get("engineHome"),
+                    engineMode, engineJarRef, engineMainClass, null,
+                    toStringMap(dsInfo.get("engineProps")));
             default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
         }
         return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
-                dsRef, shellEnvVars, pythonConfigPath, spark);
+                dsRef, shellEnvVars, pythonConfigPath, spark, engine);
+    }
+
+    /** 通用引擎任务类型判定（FLINK/DATAX/SEATUNNEL）。 */
+    private static boolean isEngineTask(String taskType) {
+        return "FLINK".equals(taskType) || "DATAX".equals(taskType) || "SEATUNNEL".equals(taskType);
     }
 
     /** PYTHON over-wire：把 master 序列化的配置 JSON 落盘为 worker 本地 DW_DATASOURCE_CONFIG 文件（600 权限）。 */

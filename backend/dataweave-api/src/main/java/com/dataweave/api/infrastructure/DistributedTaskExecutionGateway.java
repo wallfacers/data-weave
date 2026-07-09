@@ -109,6 +109,16 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
         if (cmd.mainClass() != null) {
             body.put("mainClass", cmd.mainClass());
         }
+        // 通用引擎内容形态（FLINK/DATAX/SEATUNNEL）：顶层透传，worker 合成 EngineSubmitRef
+        if (cmd.engineMode() != null) {
+            body.put("engineMode", cmd.engineMode());
+        }
+        if (cmd.engineJarRef() != null) {
+            body.put("engineJarRef", cmd.engineJarRef());
+        }
+        if (cmd.engineMainClass() != null) {
+            body.put("engineMainClass", cmd.engineMainClass());
+        }
 
         // C4.2：解析数据源 → 序列化连接信息进 body（worker 不新增 DB 依赖）
         Map<String, Object> dsInfo = resolveDatasourceForWire(cmd.datasourceId(), taskType);
@@ -179,6 +189,13 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
                     m.put("deployMode", r.spark().deployMode());
                     m.put("queue", r.spark().queue());
                     m.put("conf", r.spark().conf());
+                }
+            }
+            case "FLINK", "DATAX", "SEATUNNEL" -> {
+                if (r.engine() != null) {
+                    m.put("engineKind", r.engine().kind());
+                    m.put("engineHome", r.engine().engineHome());
+                    m.put("engineProps", r.engine().props());
                 }
             }
             default -> {
