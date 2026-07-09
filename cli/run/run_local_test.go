@@ -128,7 +128,7 @@ func TestLocateTaskNotFound(t *testing.T) {
 
 func TestBuildLocalRunCmdFatJar(t *testing.T) {
 	jar := "/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar"
-	cmd := BuildLocalRunCmd(jar, "SHELL", 600, "/tmp/ds.json", []byte("echo hi"), nil)
+	cmd := BuildLocalRunCmd(jar, "SHELL", 600, "/tmp/ds.json", []byte("echo hi"), nil, nil)
 	want := []string{"java", "-cp", jar, "-Dloader.main=" + localRunMainClass, propertiesLauncher,
 		"--type", "SHELL", "--timeout", "600", "--ds-json", "/tmp/ds.json"}
 	if !reflect.DeepEqual(cmd.Args, want) {
@@ -142,7 +142,7 @@ func TestBuildLocalRunCmdFatJar(t *testing.T) {
 
 func TestBuildLocalRunCmdPlainClasspath(t *testing.T) {
 	cp := "/a/target/classes:/b/deps.jar"
-	cmd := BuildLocalRunCmd(cp, "SQL", 0, "", []byte("select 1"), nil)
+	cmd := BuildLocalRunCmd(cp, "SQL", 0, "", []byte("select 1"), nil, nil)
 	want := []string{"java", "-cp", cp, localRunMainClass, "--type", "SQL"}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("args = %v\nwant %v", cmd.Args, want)
@@ -327,7 +327,7 @@ func TestRunLocalMissingClasspathReturnsUsageError(t *testing.T) {
 
 func TestBuildLocalRunCmdSpark(t *testing.T) {
 	cmd := BuildLocalRunCmd("/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar", "SPARK", 600, "/tmp/ds.json",
-		[]byte("print('x')"), &SparkRunOpts{SparkMode: "pyspark"})
+		[]byte("print('x')"), &SparkRunOpts{SparkMode: "pyspark"}, nil)
 	want := []string{"java", "-cp", "/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar",
 		"-Dloader.main=" + localRunMainClass, propertiesLauncher,
 		"--type", "SPARK", "--timeout", "600", "--ds-json", "/tmp/ds.json", "--spark-mode", "pyspark"}
@@ -338,11 +338,34 @@ func TestBuildLocalRunCmdSpark(t *testing.T) {
 
 func TestBuildLocalRunCmdSparkJar(t *testing.T) {
 	cmd := BuildLocalRunCmd("/a/classes", "SPARK", 0, "",
-		nil, &SparkRunOpts{SparkMode: "jar", JarPath: "/tmp/app.jar", MainClass: "com.x.Main"})
+		nil, &SparkRunOpts{SparkMode: "jar", JarPath: "/tmp/app.jar", MainClass: "com.x.Main"}, nil)
 	want := []string{"java", "-cp", "/a/classes", localRunMainClass,
 		"--type", "SPARK", "--spark-mode", "jar", "--jar-path", "/tmp/app.jar", "--main-class", "com.x.Main"}
 	if !reflect.DeepEqual(cmd.Args, want) {
 		t.Fatalf("spark jar args = %v\nwant %v", cmd.Args, want)
+	}
+}
+
+// ---- FLINK 类型支持（US3，T032）----
+
+func TestBuildLocalRunCmdFlinkSql(t *testing.T) {
+	cmd := BuildLocalRunCmd("/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar", "FLINK", 600, "",
+		[]byte("SELECT 1"), nil, &FlinkRunOpts{FlinkMode: "sql"})
+	want := []string{"java", "-cp", "/repo/dataweave-worker-0.0.1-SNAPSHOT-exec.jar",
+		"-Dloader.main=" + localRunMainClass, propertiesLauncher,
+		"--type", "FLINK", "--timeout", "600", "--flink-mode", "sql"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Fatalf("flink sql args = %v\nwant %v", cmd.Args, want)
+	}
+}
+
+func TestBuildLocalRunCmdFlinkJar(t *testing.T) {
+	cmd := BuildLocalRunCmd("/a/classes", "FLINK", 0, "",
+		nil, nil, &FlinkRunOpts{FlinkMode: "jar", JarPath: "/tmp/app.jar", MainClass: "com.x.Main"})
+	want := []string{"java", "-cp", "/a/classes", localRunMainClass,
+		"--type", "FLINK", "--flink-mode", "jar", "--jar-path", "/tmp/app.jar", "--main-class", "com.x.Main"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Fatalf("flink jar args = %v\nwant %v", cmd.Args, want)
 	}
 }
 

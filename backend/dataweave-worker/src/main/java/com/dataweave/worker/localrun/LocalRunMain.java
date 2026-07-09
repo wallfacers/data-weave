@@ -11,6 +11,7 @@ import com.dataweave.worker.infrastructure.SparkTaskExecutor;
 import com.dataweave.worker.infrastructure.SqlTaskExecutor;
 import com.dataweave.worker.infrastructure.DataXTaskExecutor;
 import com.dataweave.worker.infrastructure.SeaTunnelTaskExecutor;
+import com.dataweave.worker.infrastructure.FlinkTaskExecutor;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -94,10 +95,11 @@ public class LocalRunMain {
             case "ECHO" -> new EchoTaskExecutor();
             case "DATAX" -> new DataXTaskExecutor();
             case "SEATUNNEL" -> new SeaTunnelTaskExecutor();
+            case "FLINK" -> new FlinkTaskExecutor();
             // HiveTaskExecutor extends SqlTaskExecutor，构造需 IsolatedDriverLoader；本地走 DriverManager 分支
             case "HIVE" -> new HiveTaskExecutor(new IsolatedDriverLoader(new NoopDriverJarStorage()));
             default -> throw new IllegalArgumentException(
-                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK/DATAX/SEATUNNEL/HIVE，FR-010）");
+                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK/DATAX/SEATUNNEL/HIVE/FLINK，FR-010）");
         };
     }
 
