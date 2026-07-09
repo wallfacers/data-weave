@@ -108,7 +108,7 @@ class SlotManagerDistributedIT {
                         status);
             }
         };
-        slotManager = new SlotManager(nodeRepository, jdbc);
+        slotManager = new SlotManager(nodeRepository, jdbc, 15000L);
     }
 
     @AfterEach
