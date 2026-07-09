@@ -64,7 +64,7 @@
     "filterState": "状态",
     "filterKeyword": "搜索任务/任务流",
     "filterWorkflowInstanceId": "任务流实例 ID",
-    "filterWorkflowName": "任务流名称",
+    "filterWorkflowName": "任务流名称或实例 ID",
     "filterBizDate": "业务日期",
     "filterAll": "全部",
     "filterRunModePeriodic": "周期",

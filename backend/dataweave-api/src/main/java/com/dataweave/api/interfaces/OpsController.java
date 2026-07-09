@@ -258,6 +258,7 @@ public class OpsController {
             @RequestParam(required = false) String startedAtTo,
             @RequestParam(required = false) String scheduledFireTimeFrom,
             @RequestParam(required = false) String scheduledFireTimeTo,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long projectId,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "1") int page,
@@ -270,7 +271,7 @@ public class OpsController {
                         state, stateIn, triggerType, workflowId, bizDate,
                         bizDateFrom, bizDateTo, startedAtFrom, startedAtTo,
                         scheduledFireTimeFrom, scheduledFireTimeTo,
-                        pid, sf[0], sf[1], page0, size);
+                        pid, sf[0], sf[1], page0, size, keyword);
         var result = dataOpsBridge.queryWorkflowInstances(q);
         return ApiResponse.ok(new Page<>(result.items(), result.total(), page, result.size()));
     }

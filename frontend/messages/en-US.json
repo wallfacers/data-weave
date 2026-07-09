@@ -64,7 +64,7 @@
     "filterState": "State",
     "filterKeyword": "Search task/WF",
     "filterWorkflowInstanceId": "WF Instance ID",
-    "filterWorkflowName": "Workflow Name",
+    "filterWorkflowName": "Workflow name or ID",
     "filterBizDate": "Biz Date",
     "filterAll": "All",
     "filterRunModePeriodic": "Periodic",

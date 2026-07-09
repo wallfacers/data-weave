@@ -154,7 +154,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                         q.startedAtFrom(), q.startedAtTo(),
                         q.scheduledFireTimeFrom(), q.scheduledFireTimeTo(),
                         q.projectId(), q.sortField(), q.sortDir(),
-                        Math.max(0, q.page() - 1), q.size()));
+                        Math.max(0, q.page() - 1), q.size(), q.keyword()));
         return new Page<>(pr.items(), pr.total(), q.page(), q.size());
     }
 

@@ -139,7 +139,8 @@ public final class OpsContracts {
                                          String startedAtFrom, String startedAtTo,
                                          String scheduledFireTimeFrom, String scheduledFireTimeTo,
                                          Long projectId, String sortField, String sortDir,
-                                         int page, int size) {}
+                                         int page, int size,
+                                         String keyword) {}
 
     /** 实例 DAG 节点：DAG 拓扑位置 + 运行时状态叠加。 */
     public record InstanceDagNode(String nodeKey, String taskName, Long taskId, UUID taskInstanceId,

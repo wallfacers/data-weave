@@ -75,6 +75,16 @@ class OpsWorkflowFilterEndpointTest {
                 id, workflowId, state, "2026-06-20", now, now);
     }
 
+    /** 任务流实例列表搜索测试用：带 workflow_def_name 快照名称的实例（名称/ID 模糊匹配的目标列）。 */
+    void insertWorkflowInstanceNamed(UUID id, long workflowId, String state, String name) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update(
+                "INSERT INTO workflow_instance (id, tenant_id, project_id, workflow_id, state, biz_date, "
+                        + "workflow_def_name, created_at, updated_at, deleted, version) "
+                        + "VALUES (?, 1, 1, ?, ?, ?, ?, ?, ?, 0, 0)",
+                id, workflowId, state, "2026-06-20", name, now, now);
+    }
+
     void insertBackfillRun(UUID id, String targetType, long targetId, String targetName,
                            String dateStart, String dateEnd, String state) {
         LocalDateTime now = LocalDateTime.now();
@@ -404,6 +414,41 @@ class OpsWorkflowFilterEndpointTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.items[0].nextTriggerTime").isNotEmpty();
+    }
+
+    // ─── 任务流实例：名称 / 实例 ID 模糊搜索 ──────────────────────
+
+    @Test
+    void workflowInstances_按任务流名称模糊筛选() {
+        insertWorkflowInstanceNamed(uuid(993101), 993101L, "SUCCESS", "wfsales_daily_report");
+        insertWorkflowInstanceNamed(uuid(993102), 993102L, "SUCCESS", "wfsales_hourly_sync");
+
+        client.get().uri(b -> b.path("/api/ops/workflow-instances")
+                        .queryParam("keyword", "daily_report")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(1)
+                .jsonPath("$.data.items[0].workflowName").isEqualTo("wfsales_daily_report")
+                .jsonPath("$.data.total").isEqualTo(1);
+    }
+
+    @Test
+    void workflowInstances_按实例ID片段模糊筛选() {
+        // uuid(993201) → 00000000-0000-7000-8000-000000993201；keyword 输入末段片段 993201，命中 OR 的 ID 分支
+        insertWorkflowInstanceNamed(uuid(993201), 993201L, "RUNNING", "wfidkw_target");
+
+        client.get().uri(b -> b.path("/api/ops/workflow-instances")
+                        .queryParam("keyword", "993201")
+                        .queryParam("page", "1").queryParam("size", "20").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.items.length()").isEqualTo(1)
+                .jsonPath("$.data.items[0].workflowName").isEqualTo("wfidkw_target");
     }
 
     // ─── 鉴权 ──────────────────────
