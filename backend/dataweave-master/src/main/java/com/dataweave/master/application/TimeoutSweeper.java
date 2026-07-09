@@ -24,9 +24,7 @@ import java.util.UUID;
  * {@code timeout_sec}，则经 {@link InstanceStateMachine#casTaskTerminalFromActive}
  * CAS 置 FAILED(TIMEOUT)。
  *
- * <p>外部托管长驻作业（task_def.long_running=true）豁免超时扫除——其存活由外部句柄探测判定。
- * 该列在当前 baseline 尚未落地（060 Foundational 阶段），已预留 JOIN 条件，届时取消注释即可生效。
- *
+ * <p>外部托管长驻作业（task_def.long_running=true）豁免超时扫除——其存活由外部句柄探测判定。</p>
  * <p><b>扫描频率</b>：默认 30s，保守不激进（超时非紧急，且 CAS 单赢无并发风险）。
  */
 @Component
@@ -55,13 +53,13 @@ public class TimeoutSweeper {
      *
      * <p>SQL 逻辑：JOIN task_def 取 timeout_sec；优先 task_def_version（已发布版本快照），
      * 回退 task_def（TEST 草稿）；仅 timeout_sec 非空且 > 0 时生效。
-     * 外部托管长驻作业（long_running）豁免——待 Foundational 列落地后取消注释。
+     * 外部托管长驻作业（long_running）豁免。
      */
     @Scheduled(fixedDelayString = "${scheduler.timeout-sweep-interval-ms:30000}")
     public void sweep() {
         LocalDateTime now = LocalDateTime.now();
         // 查询 RUNNING 且 started_at 非空、timeout_sec 配置非空且 >0 的实例。
-        // long_running 豁免用 LEFT JOIN task_def 并在 WHERE 中过滤——待 Foundational 列落地后取消注释。
+        // long_running 豁免通过 LEFT JOIN task_def 并在 WHERE 中过滤。
         List<TimeoutCandidate> candidates = jdbc.query(
                 """
                 SELECT ti.id, ti.started_at, ti.tenant_id,
@@ -74,8 +72,7 @@ public class TimeoutSweeper {
                   AND ti.deleted = 0
                   AND COALESCE(tdv.timeout_sec, td.timeout_sec) IS NOT NULL
                   AND COALESCE(tdv.timeout_sec, td.timeout_sec) > 0
-                  -- TODO(060-Foundational): 取消下面注释以豁免 long_running 任务
-                  -- AND (td.long_running IS NULL OR td.long_running = FALSE)
+                  AND (td.long_running IS NULL OR td.long_running = FALSE)
                 """,
                 (rs, n) -> {
                     UUID id = rs.getObject("id", UUID.class);

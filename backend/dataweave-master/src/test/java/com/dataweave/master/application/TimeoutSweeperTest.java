@@ -48,11 +48,12 @@ class TimeoutSweeperTest {
                     tenant_id BIGINT DEFAULT 1
                 )
                 """);
-        // task_def 精简表（含 timeout_sec）
+        // task_def 精简表（含 timeout_sec + long_running）
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS task_def (
                     id BIGINT PRIMARY KEY,
-                    timeout_sec INT
+                    timeout_sec INT,
+                    long_running BOOLEAN DEFAULT FALSE
                 )
                 """);
         // task_def_version 精简表
@@ -76,6 +77,13 @@ class TimeoutSweeperTest {
     /** 插入 task_def 并返回 id */
     private long insertTaskDef(int timeoutSec) {
         jdbc.update("INSERT INTO task_def (id, timeout_sec) VALUES (1, ?)", timeoutSec);
+        return 1L;
+    }
+
+    /** 插入 task_def（含 long_running 标记）并返回 id */
+    private long insertTaskDef(int timeoutSec, boolean longRunning) {
+        jdbc.update("INSERT INTO task_def (id, timeout_sec, long_running) VALUES (1, ?, ?)",
+                timeoutSec, longRunning);
         return 1L;
     }
 
@@ -223,5 +231,16 @@ class TimeoutSweeperTest {
         assertThat(stateOf(id1)).isEqualTo("FAILED");
         assertThat(stateOf(id2)).isEqualTo("FAILED");
         assertThat(stateOf(id3)).isEqualTo("RUNNING"); // not yet
+    }
+
+    @Test
+    void sweep_longRunning_exempted() {
+        long taskId = insertTaskDef(10, true); // timeout_sec=10, long_running=true
+        UUID id = insertRunning(taskId, now().minusSeconds(120)); // started 120s ago > timeout_sec=10
+
+        sweeper.sweep();
+
+        // long_running=true → 豁免超时扫除
+        assertThat(stateOf(id)).isEqualTo("RUNNING");
     }
 }

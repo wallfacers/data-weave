@@ -36,6 +36,8 @@ import java.util.stream.StreamSupport;
 @Service
 public class OpsService {
 
+    private static final System.Logger log = System.getLogger(OpsService.class.getName());
+
     private final TaskDefRepository taskDefRepository;
     private final TaskInstanceRepository instanceRepository;
     private final WorkflowInstanceRepository workflowInstanceRepository;
@@ -514,13 +516,16 @@ public class OpsService {
         return instanceRepository.save(ti);
     }
 
-    /** 终止单个任务实例：经状态机 CAS 置 STOPPED（发状态事件），并往其日志流插手动停止行。 */
+    /** 终止单个任务实例：经状态机 CAS 置 STOPPED（发状态事件），并往其日志流插手动停止行。
+     * 对 long_running 且有 external_job_handle 的实例，先尝试取消集群侧作业（FR-027）。 */
     public TaskInstance killTask(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         if (isTerminal(ti.getState())) {
             throw new BizException("ops.kill_task.terminal");
         }
+        // 060 FR-027: long_running + external_job_handle 非空 → 先取消集群侧作业
+        cancelExternalJobIfNeeded(ti);
         if (stateMachine.casTaskTerminal(instanceId, ti.getState(), "STOPPED", "MANUAL_STOP")) {
             appendManualStopLog(instanceId);
             // 手动停单节点可能恰好是父流最后一个未完成节点：无其他后续事件会重算，须在此兜底聚合。
@@ -532,6 +537,69 @@ public class OpsService {
         var latest = instanceRepository.findById(instanceId).orElse(ti);
         audit("KILL_TASK", instanceId, "停止任务实例");
         return latest;
+    }
+
+    /**
+     * 060 FR-027：对 long_running 外部托管长驻作业，按 external_job_handle 取消集群侧作业。
+     * 最佳努力（best-effort）——取消失败不影响主流程的 STOPPED CAS。
+     */
+    private void cancelExternalJobIfNeeded(TaskInstance ti) {
+        if (ti.getTaskId() == null) return;
+        // 读 task_def.long_running
+        Boolean longRunning = jdbc.queryForObject(
+                "SELECT long_running FROM task_def WHERE id=? AND deleted=0",
+                Boolean.class, ti.getTaskId());
+        if (!Boolean.TRUE.equals(longRunning)) return;
+
+        String handle = null;
+        // external_job_handle 可能尚未从 TaskInstance 领域对象加载，直接查 DB
+        try {
+            handle = jdbc.queryForObject(
+                    "SELECT external_job_handle FROM task_instance WHERE id=? AND deleted=0",
+                    String.class, ti.getId());
+        } catch (Exception e) {
+            // 列不存在或查询失败 → 跳过
+            return;
+        }
+        if (handle == null || handle.isBlank()) return;
+
+        // 尝试取消外部集群作业（best-effort，fire-and-forget）
+        try {
+            cancelFlinkJob(handle);
+        } catch (Exception e) {
+            // 取消失败不影响主流程
+            log.log(System.Logger.Level.WARNING,
+                    "killTask: 取消外部集群作业失败 instance={0}: {1}", ti.getId(), e.getMessage());
+        }
+    }
+
+    /** 通过 Flink REST API 取消作业（best-effort）。 */
+    private void cancelFlinkJob(String handleJson) {
+        try {
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var node = mapper.readTree(handleJson);
+            String jobId = node.has("jobId") ? node.get("jobId").asText() : null;
+            String restEndpoint = node.has("restEndpoint") ? node.get("restEndpoint").asText() : null;
+            if (jobId == null || restEndpoint == null) return;
+
+            String url = restEndpoint + "/jobs/" + jobId;
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .method("PATCH", java.net.http.HttpRequest.BodyPublishers.ofString(
+                            "{\"state\":\"CANCELED\"}"))
+                    .header("Content-Type", "application/json")
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(5))
+                    .build();
+            var response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            log.log(System.Logger.Level.INFO,
+                    "killTask: Flink job {0} cancel → HTTP {1}", jobId, response.statusCode());
+        } catch (Exception e) {
+            log.log(System.Logger.Level.WARNING,
+                    "killTask: Flink REST cancel 失败: {0}", e.getMessage());
+        }
     }
 
     // ─── data-ops-center：置成功 / 重跑 / 冻结 / 筛选 ──────────────
@@ -561,20 +629,24 @@ public class OpsService {
     }
 
     /**
-     * 重跑（rerun）：终态实例就地重置 WAITING（清 worker/租约/attempt/归因/时间/日志），发唤醒重新认领。
-     * 节点隶属的工作流若已终态，一并回 RUNNING 让该节点可被认领。非终态拒绝。
+     * 重跑（rerun）：终态/SUSPENDED 实例就地重置 WAITING（清 worker/租约/attempt/归因/时间/日志 + 重置双计数），
+     * 发唤醒重新认领。节点隶属的工作流若已终态，一并回 RUNNING 让该节点可被认领。非终态且非 SUSPENDED 拒绝。
      */
     public TaskInstance rerunInstance(UUID instanceId) {
         TaskInstance ti = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BizException("ops.task_instance.not_found", instanceId));
         rejectDevEnvForTask(ti, "rerun");
-        if (!isTerminal(ti.getState())) {
-            throw new BizException("ops.rerun.not_terminal", ti.getState());
+        String currentState = ti.getState();
+        if (!isTerminal(currentState) && !"SUSPENDED".equals(currentState)) {
+            throw new BizException("ops.rerun.not_terminal", currentState);
         }
         LocalDateTime now = LocalDateTime.now();
-        jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, worker_node_code=NULL, "
-                + "lease_expire_at=NULL, failure_reason=NULL, finished_at=NULL, exit_code=NULL, "
-                + "started_at=NULL, log=NULL, updated_at=? WHERE id=? AND deleted=0", now, instanceId);
+        // 060: 新增重置 business_attempt/infra_redispatch_count/external_job_handle（FR-028）
+        jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, "
+                + "business_attempt=0, infra_redispatch_count=0, external_job_handle=NULL, "
+                + "worker_node_code=NULL, lease_expire_at=NULL, failure_reason=NULL, "
+                + "finished_at=NULL, exit_code=NULL, started_at=NULL, log=NULL, updated_at=? "
+                + "WHERE id=? AND deleted=0", now, instanceId);
         UUID wiId = ti.getWorkflowInstanceId();
         if (wiId != null) {
             int updated = jdbc.update("UPDATE workflow_instance SET state='RUNNING', finished_at=NULL, "
