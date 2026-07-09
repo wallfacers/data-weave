@@ -153,12 +153,14 @@ public class LeaseReaper {
 
     /**
      * CAS 置 FAILED + failure_reason，若仍有重试次数则回队 WAITING。
+     * 使用 casTaskTerminalFromActive（WHERE state IN ('DISPATCHED','RUNNING')）替代
+     * 依赖扫描快照 inst.state 的 casTaskTerminal，闭合扫描→CAS 之间的 TOCTOU 窗口。
      *
      * @return true 表示成功回收
      */
     private boolean failWithRetry(ExpiredInstance inst, String reason) {
-        // 先标记 FAILED
-        boolean casOk = stateMachine.casTaskTerminal(inst.id, inst.state, InstanceStates.FAILED, reason);
+        // 先标记 FAILED（不依赖扫描快照 inst.state，DB 裁决当前是否仍为活跃态）
+        boolean casOk = stateMachine.casTaskTerminalFromActive(inst.id, InstanceStates.FAILED, reason);
         if (!casOk) {
             return false; // 竞态：其他 master 或回报已推进状态
         }

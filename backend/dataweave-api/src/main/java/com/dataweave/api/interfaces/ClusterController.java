@@ -71,8 +71,10 @@ public class ClusterController {
         String event = req.getEvent() != null ? req.getEvent().toLowerCase() : "";
         switch (event) {
             case "started" -> {
-                reportService.reportStarted(taskInstanceId);
-                return ResponseEntity.ok(ApiResponse.ok("reported:started"));
+                boolean started = reportService.reportStarted(taskInstanceId);
+                // 返回 CAS 结果供 worker 侧 fencing：started=true → 当前派单，继续执行；
+                // started=false → 已非当前派单（LeaseReaper 回收/已终态），worker 应中止。
+                return ResponseEntity.ok(ApiResponse.ok(started ? "started" : "stale"));
             }
             case "finished" -> {
                 reportService.reportFinished(taskInstanceId, req.getExitCode(),

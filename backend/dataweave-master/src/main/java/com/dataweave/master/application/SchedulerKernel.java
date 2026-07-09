@@ -302,12 +302,25 @@ public class SchedulerKernel {
         if (placements.isEmpty()) return;
         // 阶段2: 批量 casDispatch(单 SQL UPDATE FROM VALUES,事务内行锁保护必全成功)
         int updateCount = stateMachine.casDispatchBatch(placements, now);
+        // 防御：updateCount < placements.size() 理论不应发生（FOR UPDATE 行锁保护），但若发生则按
+        // DB 真实 DISPATCHED 集合过滤，避免对未成功 CAS 的实例构造 DispatchCommand 造成重复下发。
+        Set<UUID> dispatchedIds;
         if (updateCount < placements.size()) {
-            log.warn("[Scheduler] 批量 casDispatch updateCount={} < placements.size()={}(理论不应发生,FOR UPDATE 行锁保护)",
+            log.warn("[Scheduler] 批量 casDispatch updateCount={} < placements.size()={}，回查 DISPATCHED 集合过滤",
                     updateCount, placements.size());
+            List<UUID> ids = jdbc.query(
+                    "SELECT id FROM task_instance WHERE state='DISPATCHED' AND id = ANY(?) AND deleted=0",
+                    (rs, n) -> rs.getObject("id", UUID.class),
+                    placements.stream().map(InstanceStateMachine.DispatchPlacement::id).toArray(UUID[]::new));
+            dispatchedIds = new HashSet<>(ids);
+        } else {
+            dispatchedIds = null;  // 全成功，免回查开销
         }
         // 阶段3: 后处理(逐个 resolveContent + out.add;content 失败内部已 casFailed,不下发)
         for (InstanceStateMachine.DispatchPlacement p : placements) {
+            if (dispatchedIds != null && !dispatchedIds.contains(p.id())) {
+                continue;  // 批量 CAS 未命中此行，跳过下发（防重复命令）
+            }
             Row r = placementRows.get(p.id());
             String content = resolveContentSafely(r, now);
             if (content == null) {

@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -81,7 +82,7 @@ class WorkerReportServiceTest {
     void reportFinished_success_recordsSyncedRows_perWriteTable() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
-        when(stateMachine.casTaskTerminal(eq(id), any(), any(), any())).thenReturn(true);
+        when(stateMachine.casTaskTerminalFromActive(eq(id), anyString(), any())).thenReturn(true);
 
         LineageStore lineageStore = mock(LineageStore.class);
         WorkerReportService svc = newService(lineageStore,
@@ -103,7 +104,7 @@ class WorkerReportServiceTest {
     void reportFinished_multiTable_eachRecordSynced() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
-        when(stateMachine.casTaskTerminal(any(), any(), any(), any())).thenReturn(true);
+        when(stateMachine.casTaskTerminalFromActive(any(), anyString(), any())).thenReturn(true);
 
         LineageStore lineageStore = mock(LineageStore.class);
         WorkerReportService svc = newService(lineageStore,
@@ -124,7 +125,7 @@ class WorkerReportServiceTest {
     void reportFinished_emptyMetrics_skipsRecordSynced() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
-        when(stateMachine.casTaskTerminal(any(), any(), any(), any())).thenReturn(true);
+        when(stateMachine.casTaskTerminalFromActive(any(), anyString(), any())).thenReturn(true);
 
         LineageStore lineageStore = mock(LineageStore.class);
         WorkerReportService svc = newService(lineageStore,
@@ -141,7 +142,7 @@ class WorkerReportServiceTest {
     void reportFinished_casRace_skipsRecordSynced() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
-        when(stateMachine.casTaskTerminal(any(), any(), any(), any())).thenReturn(false);   // 竞态让步
+        when(stateMachine.casTaskTerminalFromActive(any(), anyString(), any())).thenReturn(false);   // 竞态让步
 
         LineageStore lineageStore = mock(LineageStore.class);
         WorkerReportService svc = newService(lineageStore,

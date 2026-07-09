@@ -65,7 +65,7 @@ class WorkerExecServiceTest {
 
         service.submit(instanceId, 1, ctx("echo hello", "2026-06-12", 1, 10), null,
                 new WorkerExecService.ReportCallback() {
-                    @Override public void onStarted(UUID id) { }
+                    @Override public boolean onStarted(UUID id) { return true; }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                         result.set("FINISHED:" + exitCode);
                         latch.countDown();
@@ -89,7 +89,7 @@ class WorkerExecServiceTest {
         AtomicInteger finishCount = new AtomicInteger(0);
 
         WorkerExecService.ReportCallback cb = new WorkerExecService.ReportCallback() {
-            @Override public void onStarted(UUID id) { }
+            @Override public boolean onStarted(UUID id) { return true; }
             @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                 if (finishCount.incrementAndGet() == 1) {
                     latch.countDown();
@@ -122,7 +122,7 @@ class WorkerExecServiceTest {
         AtomicInteger finishCount = new AtomicInteger(0);
 
         WorkerExecService.ReportCallback cb = new WorkerExecService.ReportCallback() {
-            @Override public void onStarted(UUID id) { }
+            @Override public boolean onStarted(UUID id) { return true; }
             @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                 finishCount.incrementAndGet();
                 latch.countDown();
@@ -151,7 +151,7 @@ class WorkerExecServiceTest {
 
         service.submit(instanceId, 1, ctx("exit 1", null, 1, 10), null,
                 new WorkerExecService.ReportCallback() {
-                    @Override public void onStarted(UUID id) { }
+                    @Override public boolean onStarted(UUID id) { return true; }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) {
                         result.set("FINISHED");
                         latch.countDown();
@@ -188,7 +188,7 @@ class WorkerExecServiceTest {
         CountDownLatch latch = new CountDownLatch(1);
         service.submit(instanceId, 1, ctx("sleep 10", null, 1, 60), null,
                 new WorkerExecService.ReportCallback() {
-                    @Override public void onStarted(UUID id) { }
+                    @Override public boolean onStarted(UUID id) { return true; }
                     @Override public void onFinished(UUID id, int exitCode, String tailLog, List<StatementMetric> statementMetrics) { latch.countDown(); }
                     @Override public void onFailed(UUID id, String reason, String tailLog) { latch.countDown(); }
                 }, null);

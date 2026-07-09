@@ -204,6 +204,8 @@ public class WorkerExecController {
 
     /**
      * 状态回报回调：通过 HTTP 回调 master 的 /api/cluster/report。
+     * onStarted 为同步调用（等待 HTTP 响应并解析 CAS 结果），供 worker 侧 fencing；
+     * onFinished/onFailed 仍为 fire-and-forget（master 侧 casTaskTerminalFromActive 自行裁决）。
      */
     private class ReportCallback implements WorkerExecService.ReportCallback {
         private final UUID taskInstanceId;
@@ -213,8 +215,8 @@ public class WorkerExecController {
         }
 
         @Override
-        public void onStarted(UUID id) {
-            reportToMaster("started", id, null, null, null, null);
+        public boolean onStarted(UUID id) {
+            return reportStartedSync(id);
         }
 
         @Override
@@ -225,6 +227,42 @@ public class WorkerExecController {
         @Override
         public void onFailed(UUID id, String reason, String tailLog) {
             reportToMaster("failed", id, null, tailLog, reason, null);
+        }
+
+        /**
+         * 同步调用 master report/started 并解析 CAS 结果，供 worker 侧 fencing。
+         * @return true=DISPATCHED→RUNNING CAS 成功，当前派单；false=已非当前派单，应中止执行。
+         */
+        private boolean reportStartedSync(UUID id) {
+            try {
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("event", "started");
+                payload.put("taskInstanceId", String.valueOf(id));
+                String json = objectMapper.writeValueAsString(payload);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(masterUrl + "/api/cluster/report"))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer " + clusterToken)
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    // 解析 {"code":0,"data":"started"} vs {"code":0,"data":"stale"}
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> respBody = objectMapper.readValue(response.body(), Map.class);
+                    Object data = respBody.get("data");
+                    return "started".equals(data);
+                }
+                log.warn("[WorkerExec] reportStarted 非 200：status={}, body={}", response.statusCode(), response.body());
+                return false;  // 非 200 → 保守中止，避免 fencing 盲区双跑
+            } catch (Exception e) {
+                log.warn("[WorkerExec] reportStarted 同步调用失败（保守中止）：instance={}, error={}",
+                        id, e.getMessage());
+                return false;  // 网络/序列化失败 → 保守中止（LeaseReaper 兜底重派）
+            }
         }
 
         private void reportToMaster(String event, UUID id, Integer exitCode, String tailLog,

@@ -106,10 +106,11 @@ public class WorkerReportService {
             return;
         }
 
-        // 终态推进 + 信号 append 同事务（R4 no-loss：信号与完成同提交，崩溃不丢）
-        final String fromState = ti.getState();
+        // 终态推进 + 信号 append 同事务（R4 no-loss：信号与完成同提交，崩溃不丢）。
+        // casTaskTerminalFromActive 不依赖外部 fromState 快照——WHERE state IN ('DISPATCHED','RUNNING')
+        // 由 DB 裁决，闭合与 LeaseReaper 的 TOCTOU 竞态（worker 真执行完成不因租约回收假阴性丢回报）。
         boolean ok = Boolean.TRUE.equals(txTemplate.execute(status -> {
-            if (!stateMachine.casTaskTerminal(taskInstanceId, fromState, InstanceStates.SUCCESS, null)) {
+            if (!stateMachine.casTaskTerminalFromActive(taskInstanceId, InstanceStates.SUCCESS, null)) {
                 return false;
             }
             writeTerminalSignal(ti);   // 同事务 INSERT readiness_signal；异常 → 回滚 casTaskTerminal → no-loss
@@ -200,10 +201,11 @@ public class WorkerReportService {
             return;
         }
 
-        // 终态推进 + 信号 append 同事务（FAILED 也是 WEAK 依赖放行终态，同样 no-loss）
-        final String fromState = ti.getState();
+        // 终态推进 + 信号 append 同事务（FAILED 也是 WEAK 依赖放行终态，同样 no-loss）。
+        // casTaskTerminalFromActive 不依赖外部 fromState 快照——WHERE state IN ('DISPATCHED','RUNNING')
+        // 由 DB 裁决，闭合与 LeaseReaper 的 TOCTOU 竞态。
         txTemplate.executeWithoutResult(status -> {
-            if (stateMachine.casTaskTerminal(taskInstanceId, fromState, InstanceStates.FAILED, failureReason)) {
+            if (stateMachine.casTaskTerminalFromActive(taskInstanceId, InstanceStates.FAILED, failureReason)) {
                 writeTerminalSignal(ti);
             }
         });

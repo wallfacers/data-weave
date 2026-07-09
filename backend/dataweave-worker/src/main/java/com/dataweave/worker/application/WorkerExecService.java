@@ -55,8 +55,9 @@ public class WorkerExecService {
 
     /** 执行结果回调接口。 */
     public interface ReportCallback {
-        /** 任务开始执行。 */
-        void onStarted(UUID taskInstanceId);
+        /** 任务开始执行。返回 true 表示 fencing 通过（DISPATCHED→RUNNING CAS 成功），
+         *  false 表示已非当前派单（被 LeaseReaper 回收/已终态），调用方应中止执行。 */
+        boolean onStarted(UUID taskInstanceId);
 
         /** 任务执行完成（含 SKIPPED——非失败完成，不阻塞下游）。statementMetrics = per-statement affected-rows（feature 025）。 */
         void onFinished(UUID taskInstanceId, int exitCode, String tailLog, List<StatementMetric> statementMetrics);
@@ -162,7 +163,15 @@ public class WorkerExecService {
         };
 
         try {
-            report.onStarted(taskInstanceId);
+            // fencing：DISPATCHED→RUNNING CAS。distributed 模式下 worker 通过同步 HTTP 调用
+            // master report/started 确认仍是当前派单；CAS 失败（LeaseReaper 已回收/已终态）则
+            // 立即中止，避免陈旧下发与重派命令同实例双跑。
+            if (!report.onStarted(taskInstanceId)) {
+                log.log(System.Logger.Level.INFO,
+                        "实例 {0} attempt={1} 非当前派单（onStarted fencing 让步），中止执行",
+                        taskInstanceId, attempt);
+                return;
+            }
 
             // DataWorks 风启动 banner
             emitStartBanner(captureLine, loc, ctx);

@@ -90,6 +90,8 @@ class ClusterReportTest {
     @Test
     void reportStarted_returnsOk() {
         UUID instanceId = UUID.randomUUID();
+        // 039 分布式 fencing: reportStarted 返回 CAS 结果——实例不存在则 CAS 失败返回 "stale"，
+        // 而非旧版无条件 "reported:started"。worker 据此判断是否仍是当前派单。
         client.post()
                 .uri("/api/cluster/report")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer dataweave-local-cluster-token")
@@ -99,7 +101,7 @@ class ClusterReportTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data").isEqualTo("reported:started");
+                .jsonPath("$.data").isEqualTo("stale");  // 实例不存在 → CAS 失败 → stale
     }
 
     @Test

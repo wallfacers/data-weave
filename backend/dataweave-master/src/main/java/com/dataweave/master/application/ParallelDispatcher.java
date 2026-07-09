@@ -80,7 +80,9 @@ public class ParallelDispatcher {
             dispatchExecutor.execute(() -> {
                 try {
                     action.accept(item);
-                } catch (Exception e) {
+                } catch (Throwable e) {
+                    // catch Throwable 而非仅 Exception：Error（OOM/NoClassDefFound 等）同样需要
+                    // 触发 onFailure 回退（casRequeue），避免线程静默死亡后实例永久滞留 DISPATCHED。
                     onFailure.accept(item, e);
                 }
             });

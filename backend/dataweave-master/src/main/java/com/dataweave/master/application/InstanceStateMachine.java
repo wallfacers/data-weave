@@ -147,7 +147,45 @@ public class InstanceStateMachine {
         return current != null && current <= attempt;
     }
 
-    /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。 */
+    /**
+     * 从活跃态（DISPATCHED/RUNNING）CAS 推进到终态——免外部读取 fromState，闭合与
+     * LeaseReaper 的 TOCTOU 竞态窗口。worker 回报（reportFinished/reportFailed）和
+     * LeaseReaper 回收均走此方法，避免事务外 stale fromState 导致 CAS 假阴性丢真回报。
+     *
+     * <p>WHERE state IN ('DISPATCHED','RUNNING') 替代 WHERE state=?——不依赖调用方传入的
+     * 快照态，由 DB 裁决当前是否仍为活跃态。已终态/WAITING/STOPPED 的行自然跳过。
+     */
+    public boolean casTaskTerminalFromActive(UUID id, String to, String failureReason) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state=?, failure_reason=?, finished_at=?, updated_at=? "
+                        + "WHERE id=? AND state IN ('DISPATCHED','RUNNING') AND deleted=0",
+                to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id);
+        if (n == 1) {
+            // F1 收口：终态副作用延迟到事务提交后发（同 casTaskTerminal 纪律）。
+            runAfterCommitOrNow(() -> {
+                publishTaskState(id, to);
+                if ("FAILED".equals(to)) {
+                    publishAlertSignalForTask(id, failureReason);
+                } else if ("SUCCESS".equals(to)) {
+                    try {
+                        Long taskId = jdbc.queryForObject(
+                                "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
+                        Long tenantId = jdbc.queryForObject(
+                                "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
+                        if (taskId != null && tenantId != null) {
+                            eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
+                        }
+                    } catch (Exception e) {
+                        // 事件仅作门禁辅助，发布失败不影响状态推进
+                    }
+                }
+            });
+        }
+        return n == 1;
+    }
+
+    /** CAS 置终态并记结束时间/失败归因（to ∈ SUCCESS/FAILED/STOPPED）。保留供 SchedulerKernel
+     * 等事务内已知确切 fromState 的调用方使用。 */
     public boolean casTaskTerminal(UUID id, String from, String to, String failureReason) {
         int n = jdbc.update(
                 "UPDATE task_instance SET state=?, failure_reason=?, finished_at=?, updated_at=? "
