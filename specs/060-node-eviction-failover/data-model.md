@@ -54,10 +54,10 @@ SUSPENDED --人工 rerun--> WAITING (business_attempt=0, infra_redispatch_count=
 * --人工 kill--> STOPPED (+long_running: 按 external_job_handle 取消集群作业)
 ```
 
-**回收判据（LeaseReaper 修正）**：
-- 租约过期 + 节点 `OFFLINE` → `WORKER_LOST`（infra）。
-- 租约过期 + 节点 `ONLINE` 但 incarnation 已变（真比对：dispatch 时纪元快照 ≠ 当前 `worker_nodes.incarnation`）→ `WORKER_RESTART`（infra）。
-- 二者都走 infra 分类（不烧 `business_attempt`，`infra_redispatch_count+1`）。
+**回收判据（两条路径，均归 infra；不烧 `business_attempt`，`infra_redispatch_count+1`）**：
+- **WORKER_RESTART（即时·节点级，首选）**：`FleetService.report` 检测到某节点 incarnation 变化时，直接 CAS 回收该 `worker_node_code` 下**全部** DISPATCHED/RUNNING 实例（节点重启则其上旧实例悉数失效——无需 per-instance 纪元列）。修复现状 `handleWorkerRestart` 空壳。
+- **WORKER_LOST（兜底·租约级）**：`LeaseReaper` 扫描租约过期 + 节点 `OFFLINE` 的 DISPATCHED/RUNNING → 回收。作为心跳/即时路径漏网的兜底。
+- 说明：不引入 `task_instance.dispatch_incarnation` 列——节点级全量回收在语义上等价且更省（重启即全灭），避免 per-instance 纪元比对所需的额外快照列。
 
 ## 3. `task_def`（任务定义）
 
