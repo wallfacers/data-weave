@@ -107,6 +107,29 @@ class AuthoringContextGroundingTest {
     }
 
     @Test
+    void slowProbeIsBoundedByDeadlineAndDegradesToInferred() {
+        var resolver = resolverReadingOdsUser();
+        var cat = mock(DatasourceBoundCatalog.class);
+        when(resolver.catalogFor(any())).thenReturn(cat);
+        // 探测挂起 10s（模拟不可达数据源）——context() 必须在硬截止内返回，不被拖死
+        when(cat.probeExistence(anyLong(), anyLong(), any())).thenAnswer(inv -> {
+            Thread.sleep(10_000);
+            return TableExistence.PRESENT;
+        });
+        var lineage = mock(LineageQueryService.class);
+        when(lineage.upstream(eq(1L), eq(1L), any(), anyInt(), any(), any(), any(), any(), any()))
+                .thenReturn(LineageGraph.empty());
+
+        long start = System.currentTimeMillis();
+        var ctx = service(lineage, resolver, taskDefsWithSql()).context(1L, 1L, "10", 3);
+        long elapsedMs = System.currentTimeMillis() - start;
+
+        assertThat(elapsedMs).as("grounding 硬截止应封顶 context() 响应").isLessThan(6_000L);
+        assertThat(ctx.reads()).singleElement().satisfies(r -> assertThat(r.groundingState()).isEqualTo("INFERRED"));
+        assertThat(ctx.partial()).extracting(AuthoringContext.MissingNote::source).contains("grounding");
+    }
+
+    @Test
     void groundingProbeFailureDegradesToInferred() {
         var resolver = resolverReadingOdsUser();
         when(resolver.catalogFor(any())).thenThrow(new RuntimeException("catalog build failed"));

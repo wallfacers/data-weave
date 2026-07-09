@@ -5,6 +5,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.dataweave.master.application.LineageQueryService;
 import com.dataweave.master.application.lineage.DatasourceBoundCatalog;
@@ -52,6 +56,20 @@ public class AuthoringContextService {
     private final WorkflowEdgeRepository workflowEdges;
     private final WorkflowNodeRepository workflowNodes;
     private final TaskDefRepository taskDefs;
+
+    /**
+     * 接地存在性探测的有界守护线程池 + 硬墙钟截止（T019 收尾）。
+     * <p>{@code probeExistence} 对不可达数据源做实时 JDBC 连接，其 connectTimeout 对 no-route
+     * 主机不可靠封顶、且逐表串行会累加拖慢 context()（违反 SC-002 &lt;5s）。故此处<b>并行预发</b>
+     * 所有探测并设总截止：超时的表降级为 INFERRED + partial 留痕，绝不阻塞创作上下文响应。
+     * 只影响 authoring 只读路径；push 侧接地（055）语义与超时不变。
+     */
+    private static final ExecutorService GROUNDING_POOL = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "authoring-grounding");
+        t.setDaemon(true);
+        return t;
+    });
+    private static final long GROUNDING_DEADLINE_MS = 2500;
 
     public AuthoringContextService(LineageQueryService lineageQuery,
                                    ScriptLineageService scriptLineage,
@@ -127,13 +145,15 @@ public class AuthoringContextService {
         List<AuthoringContext.TableFact> writes = new ArrayList<>();
         List<AuthoringContext.TruncationNote> truncated = new ArrayList<>();
 
+        // ② 接地：并行预发所有存在性探测 + 硬墙钟截止（避免逐表串行累加/不可达源阻塞，SC-002）
+        Map<String, String> groundStates = groundAll(tenantId, projectId, resolved.ioEdges(), readDs, writeDs, partial);
+
         for (IoEdge e : resolved.ioEdges()) {
             TableRef ref = e.table();
             if (ref == null || ref.qualifiedName() == null || ref.qualifiedName().isBlank()) continue;
             boolean isRead = e.direction() == Direction.READS;
-            Long dsId = isRead ? readDs : writeDs;
-            String state = groundingState(tenantId, projectId, ref.qualifiedName(), dsId, partial);
-            // ② 邻居：读表→上游表、写表→下游表（表级图；任务级依赖由 taskDependencies 覆盖，不重叠）
+            String state = groundStates.getOrDefault(probeKey(ref.qualifiedName(), isRead ? readDs : writeDs), "INFERRED");
+            // ③ 邻居：读表→上游表、写表→下游表（表级图；任务级依赖由 taskDependencies 覆盖，不重叠）
             List<AuthoringContext.NodeRef> neighbors =
                     tableNeighbors(tenantId, projectId, ref, depth, isRead, truncated, partial);
             AuthoringContext.TableFact fact = new AuthoringContext.TableFact(
@@ -143,7 +163,7 @@ public class AuthoringContextService {
             (isRead ? reads : writes).add(fact);
         }
 
-        // ③ 列级血缘：直接取抽取产物（确定性、无需图库）
+        // ④ 列级血缘：直接取抽取产物（确定性、无需图库）
         List<AuthoringContext.ColumnEdgeFact> columnLineage = new ArrayList<>();
         for (ColumnEdge c : resolved.columnEdges()) {
             columnLineage.add(new AuthoringContext.ColumnEdgeFact(
@@ -154,21 +174,54 @@ public class AuthoringContextService {
         return new AuthoringContext(taskRef, reads, writes, columnLineage, Map.of(), depth, truncated, partial);
     }
 
-    /** 三态存在性接地：PRESENT→接地；ABSENT→未接地；UNKNOWN/探测失败→推断（不虚构，SC-005）。 */
-    private String groundingState(long tenantId, long projectId, String qualifiedName, Long dsId,
-                                  List<AuthoringContext.MissingNote> partial) {
-        try {
-            DatasourceBoundCatalog catalog = taskLineageResolver.catalogFor(dsId);
-            TableExistence ex = catalog.probeExistence(tenantId, projectId, qualifiedName);
-            return switch (ex) {
-                case PRESENT -> "PRESENT";
-                case ABSENT -> "UNGROUNDED";
-                case UNKNOWN -> "INFERRED";
-            };
-        } catch (Exception e) {
-            partial.add(new AuthoringContext.MissingNote("grounding", "存在性探测降级：" + qualifiedName));
-            return "INFERRED";
+    /** 探测去重键：同一 (限定名, 数据源) 只探一次。 */
+    private static String probeKey(String qualifiedName, Long dsId) {
+        return qualifiedName + "@" + dsId;
+    }
+
+    /**
+     * 并行预发全部读写表的三态存在性探测，共享硬墙钟截止（{@link #GROUNDING_DEADLINE_MS}）。
+     * 未在截止内完成/异常的表降级为 INFERRED + partial 留痕——保证 context() 不因不可达数据源阻塞。
+     * PRESENT→接地；ABSENT→未接地；UNKNOWN/超时/异常→推断（不虚构，SC-005）。
+     */
+    private Map<String, String> groundAll(long tenantId, long projectId, List<IoEdge> ioEdges,
+                                           Long readDs, Long writeDs, List<AuthoringContext.MissingNote> partial) {
+        Map<String, CompletableFuture<TableExistence>> futures = new LinkedHashMap<>();
+        for (IoEdge e : ioEdges) {
+            TableRef ref = e.table();
+            if (ref == null || ref.qualifiedName() == null || ref.qualifiedName().isBlank()) continue;
+            String qn = ref.qualifiedName();
+            Long dsId = e.direction() == Direction.READS ? readDs : writeDs;
+            futures.computeIfAbsent(probeKey(qn, dsId), k -> CompletableFuture.supplyAsync(
+                    () -> taskLineageResolver.catalogFor(dsId).probeExistence(tenantId, projectId, qn),
+                    GROUNDING_POOL));
         }
+
+        Map<String, String> states = new HashMap<>();
+        long deadlineAt = System.currentTimeMillis() + GROUNDING_DEADLINE_MS;
+        boolean degraded = false;
+        for (Map.Entry<String, CompletableFuture<TableExistence>> en : futures.entrySet()) {
+            long remaining = Math.max(0, deadlineAt - System.currentTimeMillis());
+            String state;
+            try {
+                TableExistence ex = en.getValue().get(remaining, TimeUnit.MILLISECONDS);
+                state = switch (ex) {
+                    case PRESENT -> "PRESENT";
+                    case ABSENT -> "UNGROUNDED";
+                    case UNKNOWN -> "INFERRED";
+                };
+            } catch (Exception e) {
+                state = "INFERRED";
+                degraded = true;
+                en.getValue().cancel(true);
+            }
+            states.put(en.getKey(), state);
+        }
+        if (degraded) {
+            partial.add(new AuthoringContext.MissingNote("grounding",
+                    "部分表存在性探测超时/降级（数据源不可达？），标 INFERRED"));
+        }
+        return states;
     }
 
     /** 表级上/下游邻居（读表取上游、写表取下游），BFS 标注跳距，超广度阈值截断并留痕（FR-018）。 */
