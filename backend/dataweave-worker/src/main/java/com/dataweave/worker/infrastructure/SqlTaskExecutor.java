@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -21,7 +23,7 @@ import java.util.function.Consumer;
  * SQL 任务执行器（task-run-decouple，方案 A）。
  *
  * <p>按任务绑定的业务数据源连接执行 SQL，逐行回调诊断日志（连接、开始、每条语句影响/返回行数摘要、耗时）。
- * **本期不打印结果集**（{@code SELECT} 的行数据）——结果集展示对齐 open-db-studio 留作后续变更。
+ * 查询类语句（{@code SELECT} / {@code SHOW TABLES} 等）渲染结果集到日志（表头+数据行，行数/单元格上限截断，FR-011a）。
  *
  * <p>**环境缺失 → SKIPPED（FR-008 / contracts C3）**：未绑定数据源 / 数据源不可用 / 无 JDBC 驱动 /
  * 连接失败 / 隔离加载失败时，返回可辨识的 SKIPPED（不再伪装成功），绝不抛错中断调度——保住
@@ -33,6 +35,11 @@ import java.util.function.Consumer;
  */
 @Component
 public class SqlTaskExecutor extends AbstractTaskExecutor {
+
+    /** 结果集渲染最大行数（contracts C7.2）。 */
+    static final int MAX_RESULT_ROWS = 200;
+    /** 结果集单元格最大字符数，超出截断。 */
+    private static final int MAX_CELL_LENGTH = 100;
 
     private final IsolatedDriverLoader isolatedLoader;
 
@@ -71,7 +78,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
             return ExecutionResult.skippedWithStdout(captured.toString(), "已跳过：未配置可用数据源");
         }
 
-        emitLine.accept("连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + ds.jdbcUrl());
+        emitLine.accept("连接数据源：" + ds.name() + "（" + ds.typeCode() + "） " + maskJdbcUrl(ds.jdbcUrl()));
         long t0 = System.currentTimeMillis();
         try (Connection conn = openConnection(ds)) {
             emitLine.accept("连接成功，开始执行");
@@ -85,9 +92,9 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
                     boolean hasResultSet = st.execute(sql);
                     long cost = System.currentTimeMillis() - s0;
                     if (hasResultSet) {
-                        // 本期不打印结果集，仅汇报有返回（行数据展示留作后续）。
-                        emitLine.accept(String.format("语句 %d/%d 执行完成：返回结果集（本期不展示行数据），耗时 %dms",
-                                idx, statements.size(), cost));
+                        try (ResultSet rs = st.getResultSet()) {
+                            renderResultSet(rs, idx, statements.size(), cost, emitLine);
+                        }
                     } else {
                         int updateCount = st.getUpdateCount();
                         emitLine.accept(String.format("语句 %d/%d 执行完成：影响 %d 行，耗时 %dms",
@@ -152,8 +159,9 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
                 || msg.contains("could not connect") || msg.contains("connect timed out");
     }
 
-    /** 朴素分号切分（本期足够；不处理字符串字面量内分号——后续可换 SQL 解析器）。 */
-    private List<String> splitStatements(String content) {
+    /** 朴素分号切分（本期足够；不处理字符串字面量内分号——后续可换 SQL 解析器）。
+     *  <p>可见性提为 protected 以便 {@code HiveTaskExecutor} 复用 HQL 语句切分。 */
+    protected List<String> splitStatements(String content) {
         List<String> out = new ArrayList<>();
         for (String part : content.split(";")) {
             String s = part.trim();
@@ -170,6 +178,65 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
     private String firstLine(String s) {
         int nl = s.indexOf('\n');
         return nl >= 0 ? s.substring(0, nl) : s;
+    }
+
+    /**
+     * 渲染 ResultSet 到日志（表头 + 数据行），带行数上限与单元格截断（contracts C7.2）。
+     * <p>公开静态方法，供 {@code HiveTaskExecutor} 等复用结果集渲染语义。
+     *
+     * @param rs         已执行的 ResultSet（{@code st.getResultSet()}，hasResultSet==true）
+     * @param idx        语句序号（1-based，仅用于日志标注）
+     * @param totalStmts 总语句数
+     * @param costMs     本条语句耗时 ms
+     * @param emitLine   日志输出回调
+     */
+    public static void renderResultSet(ResultSet rs, int idx, int totalStmts, long costMs,
+                                        Consumer<String> emitLine) throws SQLException {
+        ResultSetMetaData meta = rs.getMetaData();
+        int colCount = meta.getColumnCount();
+
+        // 表头
+        StringBuilder header = new StringBuilder();
+        for (int c = 1; c <= colCount; c++) {
+            if (c > 1) header.append(" | ");
+            header.append(meta.getColumnLabel(c));
+        }
+        emitLine.accept(header.toString());
+        emitLine.accept("-".repeat(Math.min(header.length(), 80)));
+
+        // 数据行
+        int rowCount = 0;
+        while (rs.next() && rowCount < MAX_RESULT_ROWS) {
+            StringBuilder row = new StringBuilder();
+            for (int c = 1; c <= colCount; c++) {
+                if (c > 1) row.append(" | ");
+                String val = rs.getString(c);
+                if (val != null) {
+                    if (val.length() > MAX_CELL_LENGTH) {
+                        val = val.substring(0, MAX_CELL_LENGTH) + "...";
+                    }
+                    row.append(val);
+                } else {
+                    row.append("NULL");
+                }
+            }
+            emitLine.accept(row.toString());
+            rowCount++;
+        }
+
+        // 截断标注
+        if (rs.next()) {
+            emitLine.accept("已截断，仅显示前 " + MAX_RESULT_ROWS + " 行");
+        }
+
+        emitLine.accept(String.format("语句 %d/%d 执行完成：返回 %d 行结果集，耗时 %dms",
+                idx, totalStmts, rowCount, costMs));
+    }
+
+    /** 脱敏 JDBC URL 中的 password 参数（FR-017 / contracts C7.4）。 */
+    static String maskJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl == null) return null;
+        return jdbcUrl.replaceAll("([?&;]password=)[^&;]+", "$1***");
     }
 
 }

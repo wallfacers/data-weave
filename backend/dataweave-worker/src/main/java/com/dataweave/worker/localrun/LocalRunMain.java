@@ -4,6 +4,7 @@ import com.dataweave.master.infrastructure.IsolatedDriverLoader;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import com.dataweave.worker.infrastructure.EchoTaskExecutor;
+import com.dataweave.worker.infrastructure.HiveTaskExecutor;
 import com.dataweave.worker.infrastructure.PythonTaskExecutor;
 import com.dataweave.worker.infrastructure.ShellTaskExecutor;
 import com.dataweave.worker.infrastructure.SparkTaskExecutor;
@@ -93,8 +94,10 @@ public class LocalRunMain {
             case "ECHO" -> new EchoTaskExecutor();
             case "DATAX" -> new DataXTaskExecutor();
             case "SEATUNNEL" -> new SeaTunnelTaskExecutor();
+            // HiveTaskExecutor extends SqlTaskExecutor，构造需 IsolatedDriverLoader；本地走 DriverManager 分支
+            case "HIVE" -> new HiveTaskExecutor(new IsolatedDriverLoader(new NoopDriverJarStorage()));
             default -> throw new IllegalArgumentException(
-                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK/DATAX/SEATUNNEL，FR-010）");
+                    "不支持的任务类型: " + type + "（本地支持 SHELL/SQL/PYTHON/ECHO/SPARK/DATAX/SEATUNNEL/HIVE，FR-010）");
         };
     }
 
@@ -104,7 +107,7 @@ public class LocalRunMain {
         ExecutionContext.SparkSubmitRef sparkRef = null;
         ExecutionContext.EngineSubmitRef engineRef = null;
         if (args.dsJsonPath() != null && !args.dsJsonPath().isBlank()) {
-            if ("SQL".equals(args.type())) {
+            if ("SQL".equals(args.type()) || "HIVE".equals(args.type())) {
                 dsRef = readDataSourceRef(args.dsJsonPath());
             } else if ("PYTHON".equals(args.type())) {
                 // PYTHON 经环境变量 DW_DATASOURCE_CONFIG 读配置文件路径（PythonTaskExecutor 注入）
