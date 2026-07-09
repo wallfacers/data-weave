@@ -21,19 +21,23 @@ import com.dataweave.master.i18n.BizException;
  * 替换是纯函数：只依赖入参（{@code bizDate}、{@code paramsJson}、{@link BuiltInContext}），
  * 无副作用、可独立单测。
  *
- * <h3>平台占位符语法：{@code {{...}}}（双花括号，与 shell/SQL 不冲突）</h3>
- * <p>解析器<strong>只识别 {@code {{...}}}</strong>。任何 {@code ${...}}、{@code $(...)}、裸 {@code $word}、
- * {@code $$}、{@code $1} 等一律原样输出（留给执行 shell），不解析、不抛错。
+ * <h3>平台占位符语法：{@code {{...}}}（双花括号，严格模式）</h3>
+ * <p>未知 / 非法 / 未闭合的 {@code {{...}}} 一律抛 {@link UnresolvedPlaceholderException}。</p>
+ *
+ * <h3>Shell 风格占位符：{@code ${...}}（宽松模式，兼容 DataWorks 迁移）</h3>
+ * <p>已知内置参数 / 日期表达式则解析替换；未知变量<strong>原样输出</strong>（留给 shell 处理）。
+ * 其他 shell 构造（{@code $(...)}、裸 {@code $word}、{@code $$}、{@code $1} 等）同样原样输出。</p>
  *
  * <h3>支持</h3>
  * <ul>
- *   <li>业务日期语法 {@code {{<fmt>}}}：基于 {@code bizDate}（T-1，天精度）格式化，
- *       token 仅 {@code y/m/d}（如 {@code {{yyyymmdd}}}、{@code {{yyyy-mm-dd}}}、{@code {{yyyymm}}}）。</li>
- *   <li>整数偏移 {@code {{<fmt>±N}}}：单位取 fmt 最小单位（dd→天 / mm→月 / yyyy→年），
- *       周用 {@code {{yyyymmdd-7*N}}}。</li>
- *   <li>系统内置参数：{@code {{bizdate}}}、{@code {{bizmonth}}}（跨月特判）、{@code {{gmtdate}}}、
- *       {@code {{jobid}}}、{@code {{nodeid}}}、{@code {{taskid}}}。</li>
- *   <li>自定义参数递归展开：{@code {{name}}} → {@code paramsJson} 中 {@code name} 的值；
+ *   <li>业务日期语法 {@code {{<fmt>}}} / {@code ${<fmt>}}：基于 {@code bizDate}（T-1，天精度）格式化，
+ *       token 仅 {@code y/m/d}（如 {@code {{yyyymmdd}}}、{@code ${yyyy-mm-dd}}、{@code {{yyyymm}}}）。</li>
+ *   <li>整数偏移 {@code {{<fmt>±N}}} / {@code ${<fmt>±N}}：单位取 fmt 最小单位（dd→天 / mm→月 / yyyy→年），
+ *       周用 {@code ${yyyymmdd-7*N}}。</li>
+ *   <li>系统内置参数：{@code {{bizdate}}} / {@code ${bizdate}}、{@code {{bizmonth}}} / {@code ${bizmonth}}
+ *       （跨月特判）、{@code {{gmtdate}}} / {@code ${gmtdate}}、{@code {{jobid}}} / {@code ${jobid}}、
+ *       {@code {{nodeid}}} / {@code ${nodeid}}、{@code {{taskid}}} / {@code ${taskid}}。</li>
+ *   <li>自定义参数递归展开（仅 {@code {{name}}}）：{@code paramsJson} 中 {@code name} 的值；
  *       值若仍含 {@code {{...}}} 继续递归，带访问栈做循环检测。</li>
  * </ul>
  *
@@ -45,7 +49,7 @@ import com.dataweave.master.i18n.BizException;
  *   <li>未定义的 {@code {{name}}}（既非日期格式 / 内置词也非自定义参数）。</li>
  * </ul>
  *
- * <p>无任何 {@code {{} 的 {@code content} 走快速路径原样返回（no-op）。</p>
+ * <p>无任何 {@code {{} 且无任何 {@code ${} 的 {@code content} 走快速路径原样返回（no-op）。</p>
  */
 @Component
 public final class ScheduleParamResolver {
@@ -69,9 +73,7 @@ public final class ScheduleParamResolver {
     private static final Pattern OFFSET = Pattern.compile("^([-+])(\\d+)(?:\\*(\\d+))?$");
 
     /**
-     * 平台调度占位符开标记：{@code {{}}。用于快速判定 content 是否需要解析——
-     * shell/SQL 的 {@code ${...}}、{@code $(...)}、{@code $HOME}、{@code $$} 等一律不算平台占位符，
-     * 不应触发 {@link #parseBizDate}（否则 bizDate 为空时整实例被误判 FAILED）。
+     * 平台调度占位符开标记：{@code {{}}。用于快速判定 content 是否需要解析。
      */
     private static final String PLATFORM_PLACEHOLDER_OPEN = "{{";
 
@@ -83,22 +85,36 @@ public final class ScheduleParamResolver {
     /**
      * 解析 {@code content} 里的所有占位符。无占位符或入参为空时原样返回。
      *
+     * <p>先做 shell 风格 {@code ${...}} → 平台风格 {@code {{...}}} 预转换（仅已知内置参数
+     * / 日期表达式 / 自定义参数），再走正常的 {@code {{...}}} 解析。未知的 {@code ${...}}（shell 变量）
+     * 原样保留。</p>
+     *
      * @param content    任务内容模板（SQL / Shell）
      * @param bizDate    业务日期（{@code yyyy-MM-dd} 或 {@code yyyyMMdd}，T-1）
      * @param paramsJson 自定义参数 JSON（{@code {"name":"expr"}}），可为空
      * @param ctx        内置参数标识 + 当前日期
      * @return 替换后的 {@code content}
-     * @throws UnresolvedPlaceholderException 任一占位符无法解析时
+     * @throws UnresolvedPlaceholderException 任一 {@code {{...}}} 占位符无法解析时
      */
     public String resolve(String content, String bizDate, String paramsJson, BuiltInContext ctx) {
         if (content == null || content.isEmpty()) {
             return content;
         }
+        Map<String, String> params = null;
+
+        // 预转换：已知的 ${expr} → {{expr}}（兼容 DataWorks 迁移）
+        if (content.contains("${")) {
+            params = parseParams(paramsJson);
+            content = convertShellStylePlaceholders(content, params);
+        }
+
         if (!hasPlatformPlaceholder(content)) {
             return content;  // 快速路径：无平台占位符原样返回（放过 bash $(...)、$HOME 等）
         }
         LocalDate biz = parseBizDate(bizDate);
-        Map<String, String> params = parseParams(paramsJson);
+        if (params == null) {
+            params = parseParams(paramsJson);
+        }
         return resolveText(content, biz, params, ctx, new LinkedHashSet<>());
     }
 
@@ -144,6 +160,127 @@ public final class ScheduleParamResolver {
             i = end + 2;  // 跳过结尾的 }}
         }
         return out.toString();
+    }
+
+    /**
+     * 预转换：将已知的 shell 风格占位符 {@code ${expr}} 转为平台风格 {@code {{expr}}}。
+     * 仅转换已知内置参数 / 日期表达式 / paramsJson 中定义的自定义参数；
+     * 未知的 {@code ${expr}}（shell 变量如 {@code ${HOME}}、{@code ${VAR}}）原样保留。
+     */
+    private String convertShellStylePlaceholders(String content, Map<String, String> params) {
+        StringBuilder out = new StringBuilder(content.length() + 16);
+        int n = content.length();
+        int i = 0;
+        while (i < n) {
+            char c = content.charAt(i);
+            if (c == '$' && i + 2 < n && content.charAt(i + 1) == '{') {
+                // 扫描到匹配的 }
+                int end = -1;
+                int depth = 1;
+                for (int j = i + 2; j < n; j++) {
+                    char cj = content.charAt(j);
+                    if (cj == '{') {
+                        depth++;
+                    } else if (cj == '}') {
+                        depth--;
+                        if (depth == 0) {
+                            end = j;
+                            break;
+                        }
+                    }
+                }
+                if (end < 0 || end == i + 2) {
+                    // 无闭合 } 或空 ${}→ 原样输出
+                    out.append(c);
+                    i++;
+                    continue;
+                }
+                String expr = content.substring(i + 2, end).trim();
+                if (expr.isEmpty() || !isConvertibleExpression(expr, params)) {
+                    // 空表达式 / 未知变量 → 原样保留
+                    out.append("${").append(expr).append("}");
+                } else {
+                    // 已知表达式 → 转为 {{canonicalExpr}}（下划线变体映射到规范名）
+                    String canonical = KEYWORD_CANONICAL.getOrDefault(expr, expr);
+                    out.append("{{").append(canonical).append("}}");
+                }
+                i = end + 1;  // 跳过 }
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** 内置关键词集合（含下划线变体，兼容 DataWorks 常见写法）。 */
+    private static final Set<String> BUILT_IN_KEYWORDS = Set.of(
+            "bizdate", "BIZ_DATE",
+            "bizmonth", "BIZ_MONTH",
+            "gmtdate", "GMT_DATE",
+            "jobid", "JOB_ID",
+            "nodeid", "NODE_ID",
+            "taskid", "TASK_ID"
+    );
+
+    /** 下划线变体 → 规范内置词映射（预转换时用）。 */
+    private static final Map<String, String> KEYWORD_CANONICAL = Map.of(
+            "BIZ_DATE", "bizdate",
+            "BIZ_MONTH", "bizmonth",
+            "GMT_DATE", "gmtdate",
+            "JOB_ID", "jobid",
+            "NODE_ID", "nodeid",
+            "TASK_ID", "taskid"
+    );
+
+    /**
+     * 判断 {@code expr} 是否为可转换的已知表达式：日期格式表达式、内置关键词、或 paramsJson 中定义的自定义参数。
+     */
+    private boolean isConvertibleExpression(String expr, Map<String, String> params) {
+        // 日期表达式：含 y/m/d token（复用 tryDateExpr 的 fmt 判断）
+        if (isDateExpression(expr)) {
+            return true;
+        }
+        // 内置关键词（含下划线变体）
+        if (BUILT_IN_KEYWORDS.contains(expr)) {
+            return true;
+        }
+        // 自定义参数
+        if (params != null && params.containsKey(expr)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 判断 expr 是否可能是日期格式表达式（含 y/m/d token，不含 h/s/i 等非日期 token）。
+     * 逻辑与 {@link #tryDateExpr} 一致，但不做实际格式化。
+     */
+    private boolean isDateExpression(String expr) {
+        // 分离 fmt 与 offset：offset 起点是「后跟数字的 +/-」
+        int opIdx = -1;
+        for (int j = 0; j < expr.length(); j++) {
+            char ch = expr.charAt(j);
+            if ((ch == '+' || ch == '-') && j + 1 < expr.length() && Character.isDigit(expr.charAt(j + 1))) {
+                opIdx = j;
+                break;
+            }
+        }
+        String fmt = opIdx > 0 ? expr.substring(0, opIdx) : (opIdx == 0 ? null : expr);
+        if (fmt == null || fmt.isEmpty()) {
+            return false;
+        }
+        boolean hasToken = false;
+        for (int j = 0; j < fmt.length(); j++) {
+            char ch = fmt.charAt(j);
+            if (Character.isLetter(ch)) {
+                if (ch != 'y' && ch != 'm' && ch != 'd') {
+                    return false;  // 含非日期字母（如 h/s/i）→ 非日期表达式
+                }
+                hasToken = true;
+            }
+        }
+        return hasToken;
     }
 
     /** 解析单个 {@code {{expr}}}：先试日期表达式，再试内置词，失败则查自定义参数（递归），都不行则报错。 */
