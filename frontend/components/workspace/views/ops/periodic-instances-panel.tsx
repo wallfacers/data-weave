@@ -376,7 +376,7 @@ export function PeriodicInstancesPanel({
       {
         key: "scheduledFireTime",
         header: t("colScheduledFireTime"),
-        widthPct: 11,
+        widthPct: 13,
         sortable: true,
         sortKey: "scheduledFireTime",
         cell: (r) =>
@@ -386,7 +386,7 @@ export function PeriodicInstancesPanel({
             <span className="text-muted-foreground">—</span>
           ),
       },
-      { key: "bizDate", header: t("colBizDate"), widthPct: 10, sortable: true, sortKey: "bizDate", cellClassName: "tabular-nums text-xs" },
+      { key: "bizDate", header: t("colBizDate"), widthPct: 8, sortable: true, sortKey: "bizDate", cellClassName: "tabular-nums text-xs" },
       {
         key: "startedAt",
         header: t("colStartedAt"),
