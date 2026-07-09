@@ -1,0 +1,105 @@
+{
+  "n_nonempty": 67,
+  "gold_total": 148,
+  "frozen_order": [
+    "agree",
+    "model_qual",
+    "model_bare",
+    "sql_bare"
+  ],
+  "frozen_accept_set": [
+    "agree",
+    "model_qual"
+  ],
+  "cumulative_frozen_on_b": [
+    {
+      "upto": "agree",
+      "accept_tiers": [
+        "agree"
+      ],
+      "n_accept": 34,
+      "precision": 0.9117647058823529,
+      "recall": 0.20945945945945946,
+      "review_per_script": 1.8507462686567164
+    },
+    {
+      "upto": "model_qual",
+      "accept_tiers": [
+        "agree",
+        "model_qual"
+      ],
+      "n_accept": 60,
+      "precision": 0.9,
+      "recall": 0.36486486486486486,
+      "review_per_script": 1.462686567164179
+    },
+    {
+      "upto": "model_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare"
+      ],
+      "n_accept": 147,
+      "precision": 0.8639455782312925,
+      "recall": 0.8581081081081081,
+      "review_per_script": 0.16417910447761194
+    },
+    {
+      "upto": "sql_bare",
+      "accept_tiers": [
+        "agree",
+        "model_qual",
+        "model_bare",
+        "sql_bare"
+      ],
+      "n_accept": 156,
+      "precision": 0.8269230769230769,
+      "recall": 0.8716216216216216,
+      "review_per_script": 0.029850746268656716
+    }
+  ],
+  "b_frontier": {
+    "upto": "model_qual",
+    "accept_tiers": [
+      "agree",
+      "model_qual"
+    ],
+    "n_accept": 60,
+    "precision": 0.9,
+    "recall": 0.36486486486486486,
+    "review_per_script": 1.462686567164179
+  },
+  "b_baseline_agree_only": {
+    "upto": "agree",
+    "accept_tiers": [
+      "agree"
+    ],
+    "n_accept": 34,
+    "precision": 0.9117647058823529,
+    "recall": 0.20945945945945946,
+    "review_per_script": 1.8507462686567164
+  },
+  "a_frontier": {
+    "upto": "model_qual",
+    "accept_tiers": [
+      "agree",
+      "model_qual"
+    ],
+    "n_accept": 60,
+    "precision": 0.95,
+    "recall": 0.41134751773049644,
+    "review_per_script": 1.6101694915254237
+  },
+  "a_baseline_agree_only": {
+    "upto": "agree",
+    "accept_tiers": [
+      "agree"
+    ],
+    "n_accept": 23,
+    "precision": 1.0,
+    "recall": 0.1702127659574468,
+    "review_per_script": 2.23728813559322
+  },
+  "thr": 0.95
+}

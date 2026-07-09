@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -438,10 +439,10 @@ public class SchedulerMetrics {
     public void refreshOldestAge() {
         try {
             Long age = jdbc.queryForObject(
-                    "SELECT (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) "
+                    "SELECT (EXTRACT(EPOCH FROM ?::timestamp) "
                             + "- EXTRACT(EPOCH FROM MIN(updated_at)))::BIGINT "
                             + "FROM task_instance WHERE state='WAITING' AND deleted=0",
-                    Long.class);
+                    Long.class, java.sql.Timestamp.valueOf(LocalDateTime.now()));
             oldestAgeSeconds.set(age != null ? age : 0);
         } catch (Exception e) {
             // 静默吞错

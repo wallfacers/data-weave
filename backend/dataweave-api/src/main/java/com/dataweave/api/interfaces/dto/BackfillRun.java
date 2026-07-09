@@ -1,6 +1,5 @@
 package com.dataweave.api.interfaces.dto;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -19,7 +18,7 @@ public record BackfillRun(
         int success,
         int failed,
         int running,
-        LocalDateTime createdAt,
+        String createdAt,
         int activeDates,        // 节流可观测（backfill-parallelism-throttle）：放行且未全部终态的 bizDate 数
         int heldDates           // 持有待晋升的 bizDate 数（跑完后为 0）
 ) {}

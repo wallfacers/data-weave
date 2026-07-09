@@ -15,7 +15,6 @@ import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "
 import "overlayscrollbars/overlayscrollbars.css"
 
 import { API_BASE } from "@/lib/types"
-import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { TabStrip, type TabStripItem } from "@/components/ui/tab-strip"
 import { useEventSource } from "@/lib/workspace/use-event-source"
 import { deriveRunDotState, parseEndState, runDotColor, type RunDotState } from "@/lib/workspace/run-dot-state"
@@ -130,8 +129,14 @@ export function useRunLogTabs(storageKey: string, defaultHeight = LOG_HEIGHT_DEF
   }
 }
 
+/** UUID 取末 8 位 hex 作短 ID，用于 Tab 标题辨识。 */
+function shortId(instanceId: string): string {
+  const hex = instanceId.replace(/-/g, "")
+  return hex.length > 8 ? hex.slice(-8) : hex
+}
+
 /**
- * 运行日志 Tabs 容器：每个 tab 一条独立实例日志流（命名=任务名/节点名 + 运行时间）。
+ * 运行日志 Tabs 容器：每个 tab 一条独立实例日志流（命名=任务名/节点名 ·实例ID末8位）。
  * 所有 tab 内容常驻挂载（隐藏非激活），保持各自 SSE 连接不因切换而断；预留结果集 tab 占位。
  */
 export function RunLogsTabs({
@@ -158,7 +163,6 @@ export function RunLogsTabs({
 }) {
   const t = useTranslations("taskEditor")
   const ti = useTranslations("instanceTable")
-  const formatDateTime = useFormatDateTime()
   const [dot, setDot] = useState<Record<string, RunDotState>>({})
   const active = activeId ?? (tabs.length ? tabs[tabs.length - 1].instanceId : null)
 
@@ -183,7 +187,7 @@ export function RunLogsTabs({
     const ds = dot[tb.instanceId] ?? "connecting"
     return {
       id: tb.instanceId,
-      label: `${tb.taskName} · ${formatDateTime(tb.startedAt)}`,
+      label: `${tb.taskName} ·${shortId(tb.instanceId)}`,
       icon: DocumentCodeIcon,
       indicator: (
         <span title={dotLabel[ds]} className={cn("mr-1 size-1.5 rounded-full", runDotColor[ds])} />

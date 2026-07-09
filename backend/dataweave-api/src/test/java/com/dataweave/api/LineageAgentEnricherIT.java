@@ -77,10 +77,10 @@ class LineageAgentEnricherIT {
         jdbc.update("DELETE FROM lineage_agent_call");
         jdbc.update("DELETE FROM lineage_agent_config");
         jdbc.update("DELETE FROM task_def WHERE id = ?", TASK_ID);
-        // seed 启用的配置（免鉴权——假 client 不真外呼）
-        jdbc.update("INSERT INTO lineage_agent_config (tenant_id, project_id, protocol, base_url, model, "
+        // seed 启用的全局配置（057：租户级单例；免鉴权——假 client 不真外呼）
+        jdbc.update("INSERT INTO lineage_agent_config (tenant_id, protocol, base_url, model, "
                 + "enabled, timeout_ms, rate_limit_per_min, max_columns, deleted, version) "
-                + "VALUES (1, 1, 'OPENAI', 'https://x', 'm', 1, 30000, 60, 2000, 0, 0)");
+                + "VALUES (1, 'OPENAI', 'https://x', 'm', 1, 30000, 60, 2000, 0, 0)");
         jdbc.update("INSERT INTO task_def (id, tenant_id, project_id, name, type, content, status) "
                 + "VALUES (?, 1, 1, 'etl', 'PYTHON', ?, 'ONLINE')", TASK_ID, SCRIPT);
         EXTRACT_CALLS.set(0);
@@ -112,7 +112,7 @@ class LineageAgentEnricherIT {
     @Test
     @DisplayName("未启用项目零外呼（FR-019 / SC-005）")
     void disabledProjectBypasses() throws Exception {
-        jdbc.update("UPDATE lineage_agent_config SET enabled = 0 WHERE tenant_id = 1 AND project_id = 1");
+        jdbc.update("UPDATE lineage_agent_config SET enabled = 0 WHERE tenant_id = 1");
         trigger.request(1L, 1L, TASK_ID, "PYTHON", false, null, null);
         Thread.sleep(3000);
         assertThat(EXTRACT_CALLS.get()).isEqualTo(0);

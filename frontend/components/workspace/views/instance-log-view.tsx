@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { DocumentCodeIcon, RefreshIcon } from "@hugeicons/core-free-icons"
@@ -23,12 +23,26 @@ interface InstanceLogViewProps {
 export function InstanceLogView({ params }: InstanceLogViewProps) {
   const t = useTranslations("instanceLog")
   const instanceId = params?.instanceId as string | undefined
+  const taskName = params?.taskName as string | undefined
+  const workflowName = params?.workflowName as string | undefined
   const scrollRef = useRef<OverlayScrollbarsComponentRef>(null)
   const autoScrollRef = useRef(true)
 
-  const { events, connected, error, clearEvents } = useEventSource(
+  const { events, connected, error, reconnect } = useEventSource(
     instanceId ? `${API_BASE}/api/ops/instances/${instanceId}/logs/stream` : "",
   )
+
+  const [spinning, setSpinning] = useState(false)
+
+  // 重连成功后停止转圈
+  useEffect(() => {
+    if (connected) setSpinning(false)
+  }, [connected])
+
+  const handleRefresh = useCallback(() => {
+    setSpinning(true)
+    reconnect?.()
+  }, [reconnect])
 
   const getScrollEl = () => scrollRef.current?.getElement()
 
@@ -58,23 +72,39 @@ export function InstanceLogView({ params }: InstanceLogViewProps) {
   const logLines = events.filter((e) => e.type === "log").map((e) => e.data)
   const isEnded = events.some((e) => e.type === "end")
 
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(instanceId).catch(() => {})
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <div className="flex items-center gap-2">
-        <HugeiconsIcon icon={DocumentCodeIcon} className="text-primary" />
-        <h1 className="text-sm font-medium">{t("title")}</h1>
-        <span className="font-mono text-xs text-muted-foreground">#{instanceId}</span>
-        <Badge variant={connected ? "success" : error ? "destructive" : "info"} className="ml-auto">
+      {/* 单行：图标 + 任务名 · 任务流名 + 实例 ID（可复制）+ 状态 + 刷新 */}
+      <div className="flex items-center gap-2 min-w-0">
+        <HugeiconsIcon icon={DocumentCodeIcon} className="text-primary shrink-0" />
+        <h1 className="text-sm font-medium leading-tight truncate">
+          {taskName || t("title")}
+          {workflowName && (
+            <span className="font-normal text-muted-foreground"> · {workflowName}</span>
+          )}
+        </h1>
+        <button
+          onClick={handleCopyId}
+          className="font-mono text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors shrink-0"
+          title={t("copyId")}
+        >
+          #{instanceId}
+        </button>
+        <Badge variant={connected ? "success" : error ? "destructive" : "info"} className="shrink-0">
           {connected ? t("live") : isEnded ? t("ended") : error ? t("disconnected") : t("connecting")}
         </Badge>
         <Button
           variant="ghost"
-          size="sm"
-          onClick={clearEvents}
-          className="size-7 p-0"
+          size="icon"
+          onClick={handleRefresh}
+          className="ml-auto shrink-0 size-7"
           title={t("clear")}
         >
-          <HugeiconsIcon icon={RefreshIcon} className="size-4" />
+          <HugeiconsIcon icon={RefreshIcon} className={spinning ? "size-4 animate-spin" : "size-4"} />
         </Button>
       </div>
 

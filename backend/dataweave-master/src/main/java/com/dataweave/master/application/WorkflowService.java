@@ -313,15 +313,23 @@ public class WorkflowService {
 
     /** 字段级 patch（非空才覆盖），不落库、不改 DAG version；供 {@link #update} 与 {@link #saveDraft} 复用。 */
     private void applyConfigPatch(WorkflowDef wf, WorkflowDef patch) {
+        boolean timingChanged = false;
         if (patch.getName() != null) wf.setName(patch.getName());
         if (patch.getDescription() != null) wf.setDescription(patch.getDescription());
-        if (patch.getScheduleType() != null) wf.setScheduleType(patch.getScheduleType());
-        if (patch.getCron() != null) wf.setCron(patch.getCron());
+        if (patch.getScheduleType() != null) {
+            if (!patch.getScheduleType().equals(wf.getScheduleType())) timingChanged = true;
+            wf.setScheduleType(patch.getScheduleType());
+        }
+        if (patch.getCron() != null) {
+            if (!patch.getCron().equals(wf.getCron())) timingChanged = true;
+            wf.setCron(patch.getCron());
+        }
         if (patch.getScheduleStart() != null) wf.setScheduleStart(patch.getScheduleStart());
         if (patch.getScheduleEnd() != null) wf.setScheduleEnd(patch.getScheduleEnd());
         if (patch.getPriority() != null) wf.setPriority(patch.getPriority());
         if (patch.getPreemptible() != null) wf.setPreemptible(patch.getPreemptible());
         if (patch.getTimeoutSec() != null) wf.setTimeoutSec(patch.getTimeoutSec());
+        if (timingChanged) wf.setNextTriggerTime(null);
         wf.setHasDraftChange(1);
     }
 
@@ -893,13 +901,16 @@ public class WorkflowService {
         }
         saveDag(workflowId, payload);
 
-        // 写回配置字段
+        // 写回配置字段；若 cron/schedule_type 变更则重置 next_trigger_time 让调度器按新表达式重新计算
+        boolean timingChanged = !java.util.Objects.equals(wf.getScheduleType(), ver.getScheduleType())
+                || !java.util.Objects.equals(wf.getCron(), ver.getCron());
         wf.setName(ver.getName());
         wf.setDescription(ver.getDescription());
         wf.setScheduleType(ver.getScheduleType());
         wf.setCron(ver.getCron());
         wf.setHasDraftChange(1);
         wf.setUpdatedAt(LocalDateTime.now());
+        if (timingChanged) wf.setNextTriggerTime(null);
         return workflowDefRepository.save(wf);
     }
 }

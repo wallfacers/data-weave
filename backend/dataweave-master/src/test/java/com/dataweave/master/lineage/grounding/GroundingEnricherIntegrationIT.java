@@ -116,7 +116,7 @@ class GroundingEnricherIntegrationIT {
         dispositionRepository = mock(GroundingDispositionRepository.class);
 
         // AI 通道恒关闭（本 IT 只证 grounding 独立于 AI）
-        when(configService.getActive(anyLong(), anyLong())).thenReturn(Optional.empty());
+        when(configService.getActive(anyLong())).thenReturn(Optional.empty());
         // assembler：确定性 assembly 为空（候选边由脚本通道桩提供），坐标解析可空
         when(assembler.assemble(anyLong(), anyLong(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new LineageEdgeAssembler.Assembly(List.of()));

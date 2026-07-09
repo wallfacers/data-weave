@@ -151,5 +151,5 @@ Multiple agents write this repo at the same time — separate worktrees/branches
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at /home/wallfacers/project/data-weave/specs/056-instance-list-sort-actions/plan.md
+at specs/057-system-settings/plan.md
 <!-- SPECKIT END -->

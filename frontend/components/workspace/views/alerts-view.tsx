@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import {
   Alert02Icon,
   BellIcon,
@@ -51,6 +52,7 @@ interface AlertsBundle {
 
 export function AlertsView({ active }: ViewProps) {
   const t = useTranslations("alerts")
+  const formatDateTime = useFormatDateTime()
   const [tab, setTab] = useState<TabKey>("active")
 
   const fetchJson = useCallback(async (path: string) => {
@@ -195,8 +197,8 @@ export function AlertsView({ active }: ViewProps) {
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 truncate font-mono">{e.fingerprint}</p>
                   <p className="text-xs text-muted-foreground">
-                    {e.firstFiredAt ? new Date(e.firstFiredAt).toLocaleString() : "-"}
-                    {e.resolvedAt && ` → ${new Date(e.resolvedAt).toLocaleString()}`}
+                    {formatDateTime(e.firstFiredAt)}
+                    {e.resolvedAt && ` → ${formatDateTime(e.resolvedAt)}`}
                   </p>
                 </div>
                 {e.state === "FIRING" && (
@@ -269,7 +271,7 @@ export function AlertsView({ active }: ViewProps) {
               <div key={s.id} className="border rounded-lg p-3">
                 <p className="text-sm">{s.reason || t("silences")}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(s.startsAt).toLocaleString()} → {new Date(s.endsAt).toLocaleString()}
+                  {formatDateTime(s.startsAt)} → {formatDateTime(s.endsAt)}
                 </p>
               </div>
             ))}

@@ -96,9 +96,9 @@ export interface ApiState<T> {
  */
 export function useRefreshSchedule(
   onTick: () => void | Promise<void>,
-  opts: { active?: boolean; enabled?: boolean; intervalMs?: number },
+  opts: { active?: boolean; enabled?: boolean; intervalMs?: number; skipInitialFire?: boolean },
 ): { tickNow: () => Promise<void> } {
-  const { active = false, enabled = true, intervalMs = LIVE_REFRESH_INTERVAL_MS } = opts
+  const { active = false, enabled = true, intervalMs = LIVE_REFRESH_INTERVAL_MS, skipInitialFire = false } = opts
 
   const schedulerRef = useRef<RefreshScheduler | null>(null)
   const onTickRef = useRef(onTick)
@@ -123,7 +123,7 @@ export function useRefreshSchedule(
       active: activeRef.current,
       enabled: enabledRef.current,
       visible: initialVisible,
-    })
+    }, { skipInitialFire })
     schedulerRef.current = s
     const onVis = () => s.update({ visible: document.visibilityState !== "hidden" })
     document.addEventListener("visibilitychange", onVis)

@@ -423,9 +423,10 @@ export function postCorrection(req: CorrectionRequest) {
   return post<CorrectionOutcome>(`${BASE}/corrections`, req);
 }
 
-// ─── 053 血缘 AI Agent 配置 ─────────────────────────────────────
-// 契约：specs/053-lineage-llm-agent-schema/contracts/config-api.md
-// 每项目一条 upsert；GET 返回脱敏 VO（apiKeyMasked），PUT 的 apiKey 缺省/空=不改。
+// ─── 057 全局 AI Agent 配置（系统设置）─────────────────────────────
+// 契约：specs/057-system-settings/contracts/system-settings-api.md
+// 057：配置提升为租户级全局单例，端点迁至 /api/settings/agent-config（去 projectId，不带项目作用域）。
+// GET 返回脱敏 VO（apiKeyMasked），PUT 的 apiKey 缺省/空=不改。
 
 /** Agent 通信协议（后端 LlmProtocol 枚举）。 */
 export type AgentProtocol = "ANTHROPIC" | "OPENAI";
@@ -465,25 +466,27 @@ export interface AgentTestResult {
   note: string;
 }
 
-/** PUT 封装（镜像 post：自动附带 projectId + Bearer token）。 */
-async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-  const url = new URL(path, window.location.origin);
-  const pid = currentProjectId();
-  if (pid != null) {
-    url.searchParams.set("projectId", String(pid));
-  }
+/** 057：全局端点基址（无 projectId；与 lineage 项目级端点分离）。 */
+const SETTINGS_BASE = "/api/settings/agent-config";
+
+/** 057：全局 GET（不带 projectId，仅 Bearer token）。 */
+async function agentGet<T>(): Promise<ApiResponse<T>> {
   const token = localStorage.getItem("dw.auth.token") ?? "";
-  const res = await fetch(url.toString(), {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+  const res = await fetch(SETTINGS_BASE, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Settings API ${SETTINGS_BASE} returned ${res.status}`);
+  return res.json();
+}
+
+/** 057：全局 PUT/POST（不带 projectId，仅 Bearer token）。path 空串=基址。 */
+async function agentSend<T>(method: string, path: string, body: unknown): Promise<ApiResponse<T>> {
+  const token = localStorage.getItem("dw.auth.token") ?? "";
+  const url = path ? `${SETTINGS_BASE}${path}` : SETTINGS_BASE;
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    throw new Error(`Lineage API ${path} returned ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Settings API ${url} returned ${res.status}`);
   return res.json();
 }
 
@@ -495,20 +498,17 @@ function unwrapAgent<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
-/** 取当前项目的 Agent 配置（未配置 → null）。 */
+/** 057：取当前租户的全局 Agent 配置（未配置 → null）。 */
 export async function getAgentConfig(): Promise<AgentConfigVO | null> {
-  const res = await get<AgentConfigVO | null>(`${BASE}/agent-config`);
-  return unwrapAgent(res);
+  return unwrapAgent(await agentGet<AgentConfigVO | null>());
 }
 
-/** 创建或更新 Agent 配置（每项目一条 upsert）。 */
+/** 057：创建或更新全局 Agent 配置（租户级单例 upsert）。 */
 export async function putAgentConfig(req: AgentConfigRequest): Promise<AgentConfigVO> {
-  const res = await put<AgentConfigVO>(`${BASE}/agent-config`, req);
-  return unwrapAgent(res);
+  return unwrapAgent(await agentSend<AgentConfigVO>("PUT", "", req));
 }
 
-/** 用当前（或请求体）配置发一次最小探活外呼；不落库。 */
+/** 057：用当前（或请求体）配置发一次最小探活外呼；不落库。 */
 export async function testAgentConfig(req: AgentConfigRequest): Promise<AgentTestResult> {
-  const res = await post<AgentTestResult>(`${BASE}/agent-config/test`, req);
-  return unwrapAgent(res);
+  return unwrapAgent(await agentSend<AgentTestResult>("POST", "/test", req));
 }

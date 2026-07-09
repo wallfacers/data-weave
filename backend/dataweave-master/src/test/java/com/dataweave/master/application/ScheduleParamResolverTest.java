@@ -139,10 +139,11 @@ class ScheduleParamResolverTest {
 
     @Test
     void shellDollarBraceVarPassedThrough() {
-        // ${VAR}：shell 变量，非平台占位符，原样透传（即便 bizDate 为 null 也不解析、不报错）
+        // ${VAR}：shell 变量（非已知内置参数），原样透传
         assertThat(r.resolve("echo ${VAR}", null, null, ctx())).isEqualTo("echo ${VAR}");
+        // ${BIZ_DATE}：已知内置参数（下划线变体），解析为实际值
         assertThat(r.resolve("PARTITION=\"dt=${BIZ_DATE}\"", "2025-03-14", null, ctx()))
-                .isEqualTo("PARTITION=\"dt=${BIZ_DATE}\"");
+                .isEqualTo("PARTITION=\"dt=20250314\"");
     }
 
     @Test
@@ -186,9 +187,11 @@ class ScheduleParamResolverTest {
     @Test
     void realWorldShellSeedPassedThroughWhenNoPlatformPlaceholder() {
         // origin 真实化种子（整段 bash）无平台占位符 → 原样透传，即便 bizDate 为 null/空也不报错（回归用例）
+        // 注：${MY_BIZ_DATE}/${SRC_USER}/${TABLE}/${COUNT} 均为未知 shell 变量（非内置关键词），原样保留；
+        // ${BIZ_DATE} 是下划线变体内置词 → 会被解析；使用未知变量确保测试意图一致
         String shell = "#!/bin/bash\n"
-                + "BIZ_DATE=${bizdate:-$(date -d \"yesterday\" +%Y%m%d)}\n"
-                + "PARTITION=\"dt=${BIZ_DATE}\"\n"
+                + "BIZ_DATE=${MY_BIZ_DATE:-$(date -d \"yesterday\" +%Y%m%d)}\n"
+                + "PARTITION=\"dt=${PARTITION_DATE}\"\n"
                 + "sqoop import --username ${SRC_USER} --table ${TABLE} ${COUNT}\n"
                 + "echo \"[$(date '+%H:%M:%S')] step\"\npid=$$\narg=$1";
         assertThat(r.resolve(shell, null, null, ctx())).isEqualTo(shell);

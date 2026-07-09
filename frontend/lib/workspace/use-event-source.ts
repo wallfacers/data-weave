@@ -16,6 +16,7 @@ export function useEventSource(url: string): EventSourceState {
   })
   const lastEventIdRef = useRef<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const [reconnectKey, setReconnectKey] = useState(0)
 
   const connect = useCallback(() => {
     // 空 URL 不建立连接
@@ -95,13 +96,19 @@ export function useEventSource(url: string): EventSourceState {
   useEffect(() => {
     const cleanup = connect()
     return cleanup
-  }, [connect])
+  }, [connect, reconnectKey])
 
   const clearEvents = useCallback(() => {
     setState((s) => ({ ...s, events: [] }))
   }, [])
 
-  return { ...state, clearEvents }
+  const reconnect = useCallback(() => {
+    lastEventIdRef.current = null
+    setState({ events: [], connected: false, error: false })
+    setReconnectKey((k) => k + 1)
+  }, [])
+
+  return { ...state, clearEvents, reconnect }
 }
 
 export interface EventSourceState {
@@ -109,6 +116,7 @@ export interface EventSourceState {
   connected: boolean
   error: boolean
   clearEvents?: () => void
+  reconnect?: () => void
 }
 
 export interface EventSourceEvent {

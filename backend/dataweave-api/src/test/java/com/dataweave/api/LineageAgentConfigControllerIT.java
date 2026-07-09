@@ -15,18 +15,21 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
- * 053 血缘 AI Agent 配置 REST 契约测试（T019，契约 config-api.md）。
- * PUT 加密 / GET 脱敏 / 完整性校验 / 协议校验 / test 探活 / 非成员 forbidden。
+ * 057 全局 AI Agent 配置 REST 契约测试（契约 contracts/system-settings-api.md）。
+ * 053 原按项目（/api/lineage/agent-config?projectId=），057 提升为租户全局单例（/api/settings/agent-config，去 projectId）。
+ * PUT 加密 / GET 脱敏 / 完整性校验 / 协议校验 / test 探活 / 全局单例语义。
  * 独立 H2 库（防串台），JWT 鉴权，统一 200 + $.code/$.data/$.errorCode 断言。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("h2")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:dataweave-lineage-agent-053;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:dataweave-lineage-agent-057;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
 })
-@DisplayName("Lineage Agent Config HTTP 契约 (053)")
+@DisplayName("Lineage Agent Config HTTP 契约 (057 全局)")
 class LineageAgentConfigControllerIT {
 
     @LocalServerPort
@@ -51,7 +54,7 @@ class LineageAgentConfigControllerIT {
     @Test
     @DisplayName("PUT 加密入库 + GET 脱敏回显（FR-020）")
     void putThenGetReturnsMaskedApiKey() {
-        client.put().uri("/api/lineage/agent-config?projectId=1")
+        client.put().uri("/api/settings/agent-config")
                 .bodyValue(Map.of(
                         "protocol", "OPENAI",
                         "baseUrl", "https://api.openai.com",
@@ -68,7 +71,7 @@ class LineageAgentConfigControllerIT {
                 .jsonPath("$.data.enabled").isEqualTo(true)
                 .jsonPath("$.data.timeoutMs").isEqualTo(45000);
 
-        client.get().uri("/api/lineage/agent-config?projectId=1")
+        client.get().uri("/api/settings/agent-config")
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
@@ -83,7 +86,7 @@ class LineageAgentConfigControllerIT {
     @Test
     @DisplayName("GET 无配置返回 data=null")
     void getReturnsNullWhenNoConfig() {
-        client.get().uri("/api/lineage/agent-config?projectId=1")
+        client.get().uri("/api/settings/agent-config")
                 .exchange().expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
@@ -93,7 +96,7 @@ class LineageAgentConfigControllerIT {
     @Test
     @DisplayName("enabled=true 缺 baseUrl → config_incomplete")
     void putEnabledWithoutBaseUrlIsIncomplete() {
-        client.put().uri("/api/lineage/agent-config?projectId=1")
+        client.put().uri("/api/settings/agent-config")
                 .bodyValue(Map.of("protocol", "OPENAI", "model", "x", "enabled", true))
                 .exchange().expectStatus().isOk()
                 .expectBody()
@@ -103,7 +106,7 @@ class LineageAgentConfigControllerIT {
     @Test
     @DisplayName("protocol 非法 → protocol_invalid")
     void putInvalidProtocol() {
-        client.put().uri("/api/lineage/agent-config?projectId=1")
+        client.put().uri("/api/settings/agent-config")
                 .bodyValue(Map.of("protocol", "GEMINI", "baseUrl", "https://x", "model", "m", "enabled", false))
                 .exchange().expectStatus().isOk()
                 .expectBody()
@@ -114,7 +117,7 @@ class LineageAgentConfigControllerIT {
     @DisplayName("POST /test 不可达端点 → ok=false（不抛、不阻断）")
     void testEndpointReturnsNotOkForUnreachable() {
         // 指向拒绝连接的端口（localhost:1 立即 ConnectException），timeoutMs 短避免拖慢测试
-        client.post().uri("/api/lineage/agent-config/test?projectId=1")
+        client.post().uri("/api/settings/agent-config/test")
                 .bodyValue(Map.of(
                         "protocol", "OPENAI",
                         "baseUrl", "https://localhost:1",
@@ -128,30 +131,38 @@ class LineageAgentConfigControllerIT {
     }
 
     @Test
-    @DisplayName("非项目成员 → project.forbidden（GlobalExceptionHandler 统一 HTTP 200 + code=403）")
-    void nonMemberForbidden() {
-        client.get().uri("/api/lineage/agent-config?projectId=99999")
+    @DisplayName("全局单例：两次 PUT（不同 model）只保留一行租户级全局配置")
+    void putTwiceIsSingletonGlobal() {
+        client.put().uri("/api/settings/agent-config")
+                .bodyValue(Map.of("protocol", "OPENAI", "baseUrl", "https://a",
+                        "model", "m1", "apiKey", "sk-first-1234", "enabled", true))
+                .exchange().expectStatus().isOk();
+        // 二次 PUT（不同 model）= update 同一行，而非 insert 第二行
+        client.put().uri("/api/settings/agent-config")
+                .bodyValue(Map.of("protocol", "OPENAI", "baseUrl", "https://a",
+                        "model", "m2", "enabled", true))
                 .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(403)
-                .jsonPath("$.errorCode").isEqualTo("project.forbidden");
+                .expectBody().jsonPath("$.data.model").isEqualTo("m2");
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM lineage_agent_config WHERE deleted = 0", Integer.class);
+        assertThat(count).isEqualTo(1);   // 057：租户级全局单例（非每项目一行）
     }
 
     @Test
     @DisplayName("PUT apiKey 缺省=不改：二次 PUT 不带 key 保留旧密文")
     void putWithoutApiKeyKeepsExisting() {
         // 首次 PUT 带 key
-        client.put().uri("/api/lineage/agent-config?projectId=1")
+        client.put().uri("/api/settings/agent-config")
                 .bodyValue(Map.of("protocol", "OPENAI", "baseUrl", "https://a",
                         "model", "m", "apiKey", "sk-first-1234", "enabled", true))
                 .exchange().expectStatus().isOk();
         // 二次 PUT 不带 apiKey（只改 model），GET 仍回首次 key 脱敏
-        client.put().uri("/api/lineage/agent-config?projectId=1")
+        client.put().uri("/api/settings/agent-config")
                 .bodyValue(Map.of("protocol", "OPENAI", "baseUrl", "https://a",
                         "model", "m2", "enabled", true))
                 .exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.data.model").isEqualTo("m2");
-        client.get().uri("/api/lineage/agent-config?projectId=1")
+        client.get().uri("/api/settings/agent-config")
                 .exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.data.apiKeyMasked").isEqualTo("sk-…1234");
     }

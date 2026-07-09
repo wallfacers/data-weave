@@ -36,10 +36,10 @@ function StatusDot({ status }: { status: TabConnStatus }) {
   )
 }
 
-/** UUIDv7 时间戳前缀重复、辨识度低 —— 取末 6 位 hex 作短 ID。 */
+/** UUIDv7 时间戳前缀重复、辨识度低 —— 取末 8 位 hex 作短 ID。 */
 function shortInstanceId(instanceId: string): string {
   const hex = instanceId.replace(/-/g, "")
-  return hex.length > 6 ? hex.slice(-6) : hex
+  return hex.length > 8 ? hex.slice(-8) : hex
 }
 
 /** tab 标题：任务名 ·短ID（无任务名退化为「任务 #id」，再退化为纯短 ID）。 */
@@ -199,7 +199,7 @@ function LogTabContent({
 }) {
   const t = useTranslations("logPanel")
   // 全部 tab 常驻 SSE 连接（切走也实时），供 tab 圆点显示状态
-  const { events, connected, error, clearEvents } = useEventSource(
+  const { events, connected, error, reconnect } = useEventSource(
     `${API_BASE}/api/ops/instances/${tab.instanceId}/logs/stream`,
   )
 
@@ -231,7 +231,7 @@ function LogTabContent({
         </Badge>
         <div className="flex-1" />
         <button
-          onClick={clearEvents}
+          onClick={reconnect}
           className="rounded p-0.5 text-muted-foreground hover:text-foreground"
           title={t("clear")}
         >
