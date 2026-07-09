@@ -77,6 +77,10 @@ public class SchedulerMetrics {
     private final AtomicLong slotFragmentation = new AtomicLong(0);
     private final AtomicLong logStreamBacklog = new AtomicLong(0);
     private final AtomicLong sseConnections = new AtomicLong(0);
+    // 060 节点容错闭环 gauge：隔离节点数 / SUSPENDED 实例数 / infra 重派累计（Prometheus 可见，sampleGauges 周期刷新）
+    private final AtomicLong quarantinedNodes = new AtomicLong(0);
+    private final AtomicLong suspendedInstances = new AtomicLong(0);
+    private final AtomicLong infraRedispatchTotal = new AtomicLong(0);
     private final AtomicLong shardWorkflows = new AtomicLong(0);
     private final AtomicLong cronWindowSize = new AtomicLong(0);
     // 045 cron 并行化指标：fireArm/fireExecute 解耦 + 队列背压 + 补偿器
@@ -255,6 +259,17 @@ public class SchedulerMetrics {
 
         Gauge.builder("scheduler.sse.connections", sseConnections, AtomicLong::doubleValue)
                 .description("Active SSE connections")
+                .register(registry);
+
+        // 060 节点容错闭环 gauge（只新增不改既有，遵「指标不可变」）
+        Gauge.builder("scheduler.node.quarantined", quarantinedNodes, AtomicLong::doubleValue)
+                .description("060: Worker nodes currently quarantined (quarantined_until > now)")
+                .register(registry);
+        Gauge.builder("scheduler.instance.suspended", suspendedInstances, AtomicLong::doubleValue)
+                .description("060: Task instances in SUSPENDED state (infra redispatch over limit, poison-task guard)")
+                .register(registry);
+        Gauge.builder("scheduler.infra.redispatch.total", infraRedispatchTotal, AtomicLong::doubleValue)
+                .description("060: Cumulative infra redispatch count across all instances (lease/restart/dispatch reclaim)")
                 .register(registry);
 
         Gauge.builder("dw.cron.shard.workflows", shardWorkflows, AtomicLong::doubleValue)
@@ -511,6 +526,47 @@ public class SchedulerMetrics {
         refreshQueueDepth();
         refreshSlotUtilization();
         refreshFragmentation();
+        refreshNodeFaultToleranceGauges();  // 060：隔离节点/SUSPENDED/infra 重派累计
+    }
+
+    /** 060：刷新节点容错闭环 gauge（隔离节点数 / SUSPENDED 实例数 / infra 重派累计）。各查询吞异常，失败不影响调度。 */
+    public void refreshNodeFaultToleranceGauges() {
+        refreshQuarantinedNodes();
+        refreshSuspendedInstances();
+        refreshInfraRedispatchTotal();
+    }
+
+    private void refreshQuarantinedNodes() {
+        try {
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM worker_nodes WHERE quarantined_until > CURRENT_TIMESTAMP AND deleted=0",
+                    Integer.class);
+            quarantinedNodes.set(c != null ? c : 0);
+        } catch (Exception e) {
+            // 静默吞错（指标降级）
+        }
+    }
+
+    private void refreshSuspendedInstances() {
+        try {
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM task_instance WHERE state='SUSPENDED' AND deleted=0",
+                    Integer.class);
+            suspendedInstances.set(c != null ? c : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
+    }
+
+    private void refreshInfraRedispatchTotal() {
+        try {
+            Long total = jdbc.queryForObject(
+                    "SELECT COALESCE(SUM(infra_redispatch_count), 0) FROM task_instance WHERE deleted=0",
+                    Long.class);
+            infraRedispatchTotal.set(total != null ? total : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
     }
 
     public void refreshFragmentation() {
