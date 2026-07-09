@@ -108,7 +108,6 @@
     "taskTypeDataSync": "Data Sync",
     "taskTypeSpark": "Spark",
     "taskTypeBash": "Bash",
-    "taskTypeEcho": "Echo",
     "rerunAll": "Rerun All",
     "recover": "Recover from Failure",
     "batchSuccess": "Batch operation succeeded",

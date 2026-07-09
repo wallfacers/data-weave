@@ -143,7 +143,6 @@ const TASK_TYPE_LABEL_KEY: Record<string, string> = {
   DATA_SYNC: "taskTypeDataSync",
   SPARK: "taskTypeSpark",
   BASH: "taskTypeBash",
-  ECHO: "taskTypeEcho",
 }
 
 export function PeriodicInstancesPanel({
