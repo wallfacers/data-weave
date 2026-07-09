@@ -336,7 +336,7 @@ export function PeriodicInstancesPanel({
       {
         key: "state",
         header: t("colState"),
-        widthPct: 8,
+        widthPct: 6,
         cell: (r) => {
           const variant = STATE_BADGE_VARIANT[r.state] ?? "outline"
           const labelKey = STATE_I18N[r.state]
@@ -390,7 +390,7 @@ export function PeriodicInstancesPanel({
       {
         key: "startedAt",
         header: t("colStartedAt"),
-        widthPct: 11,
+        widthPct: 13,
         sortable: true,
         sortKey: "startedAt",
         cellClassName: "tabular-nums text-xs",
@@ -418,7 +418,8 @@ export function PeriodicInstancesPanel({
       {
         key: "actions",
         header: t("colActions"),
-        widthPct: 8,
+        // 4 个 size-7 图标按钮（重跑/设成功/终止/查看日志）需 ~118px，给足宽避免末个被裁
+        widthPct: 12,
         cell: (r) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
             <Tooltip>
