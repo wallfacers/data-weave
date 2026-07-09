@@ -667,7 +667,7 @@ public class OpsService {
         List<InstanceRow> items = jdbc.query(
                 "SELECT ti.id, ti.task_id, ti.workflow_instance_id, ti.run_mode, ti.state, ti.biz_date, "
                         + "ti.started_at, ti.finished_at, "
-                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.workflow_def_name, "
+                        + "ti.task_def_name, ti.cron_expression, ti.env, ti.task_type, ti.workflow_def_name, "
                         + "wi.scheduled_fire_time, wi.trigger_type "
                         + "FROM task_instance ti "
                         + "LEFT JOIN workflow_instance wi ON ti.workflow_instance_id = wi.id" + where
@@ -690,7 +690,7 @@ public class OpsService {
                             startedAt != null ? startedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             finishedAt != null ? finishedAt.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             durationMs, rs.getString("cron_expression"),
-                            rs.getString("env"), rs.getString("workflow_def_name"),
+                            rs.getString("env"), rs.getString("task_type"), rs.getString("workflow_def_name"),
                             sft != null ? sft.atZone(ZoneId.systemDefault()).toInstant().toString() : null,
                             rs.getString("trigger_type"));
                 },

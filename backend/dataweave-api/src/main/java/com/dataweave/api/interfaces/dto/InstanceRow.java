@@ -20,6 +20,7 @@ public record InstanceRow(
         Long durationMs,
         String cronExpression,
         String env,
+        String taskType,
         String workflowName,
         String scheduledFireTime,
         String triggerType

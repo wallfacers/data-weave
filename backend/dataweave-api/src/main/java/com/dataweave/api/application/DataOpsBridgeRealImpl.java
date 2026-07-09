@@ -181,7 +181,7 @@ public class DataOpsBridgeRealImpl implements DataOpsBridge {
                 r.workflowInstanceId(),
                 r.runMode(), r.state(), r.bizDate(),
                 r.startedAt(), r.finishedAt(), r.durationMs(),
-                r.cronExpression(), r.env(), r.workflowName(),
+                r.cronExpression(), r.env(), r.taskType(), r.workflowName(),
                 r.scheduledFireTime(),
                 r.triggerType());
     }

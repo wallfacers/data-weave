@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.13.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.14.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
@@ -15,6 +15,7 @@
 --     → 053 云 AI Agent 血缘通道=0.11.0（+lineage_agent_config 配置默认关闭/凭据加密 / +lineage_agent_call 外呼审计 2 表）。
 --     → 055 血缘目录接地=0.12.0（+lineage_grounding_disposition 目录接地处置审计 1 表；候选表存在性三态裁决留痕）。
 --     → 057 全局 AI Agent 配置统收=0.13.0（lineage_agent_config 去 project_id 改租户级全局单例 UNIQUE(tenant_id,deleted)；lineage_agent_call 审计保留 project_id 溯源）。
+--     → task_instance +task_type 快照列=0.14.0（物化时写入 task_def.type，免查询 JOIN）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -123,6 +124,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.12.0', CURRENT_TIMESTAMP, '055 血缘目录接地：+lineage_grounding_disposition（候选表存在性三态裁决处置审计）1 表');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.13.0', CURRENT_TIMESTAMP, '057 全局 AI Agent 配置统收：lineage_agent_config 去 project_id 改租户级全局单例（UNIQUE(tenant_id,deleted)）；lineage_agent_call 审计保留 project_id 溯源不变');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.14.0', CURRENT_TIMESTAMP, 'task_instance +task_type 快照列（物化时写入 task_def.type，免查询 JOIN）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -566,6 +569,7 @@ CREATE TABLE task_instance (
     content_override     TEXT,                 -- TEST 试跑携带的编辑器临时内容（含未保存改动）；非空则覆盖 task_def 草稿，不写 task_def
     params_override      TEXT,                 -- TEST 试跑携带的编辑器临时调度参数 JSON；与 content_override 同源（占位符按编辑器解析）
     type_override        VARCHAR(32),          -- TEST 试跑携带的编辑器临时任务类型（SQL/SHELL/ECHO）；非空则覆盖 task_def.type 选执行器
+    task_type            VARCHAR(32),          -- 快照：task_def.type（物化时写入，免查询 JOIN）；type_override 仅 TEST 试跑时覆盖执行器选择，不影响此列
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试 / BACKFILL 补数据（data-ops-center）
     backfill_run_id      UUID,                 -- 所属补数据批次（run_mode=BACKFILL 时非空；指向 backfill_run.id）
     backfill_held        SMALLINT DEFAULT 0,   -- 补数据 bizDate 粒度节流旁路标志（backfill-parallelism-throttle）：1=被持有不可认领，由 BackfillPromoter 完成即晋升 1→0；与认领状态正交（实例仍 WAITING）

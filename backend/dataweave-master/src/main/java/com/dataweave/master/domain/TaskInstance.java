@@ -21,6 +21,7 @@ public class TaskInstance {
     private String contentOverride;
     private String paramsOverride;
     private String typeOverride;
+    private String taskType;
     private String runMode;
     private UUID backfillRunId;
     private Integer backfillHeld;
@@ -84,6 +85,9 @@ public class TaskInstance {
 
     public String getTypeOverride() { return typeOverride; }
     public void setTypeOverride(String typeOverride) { this.typeOverride = typeOverride; }
+
+    public String getTaskType() { return taskType; }
+    public void setTaskType(String taskType) { this.taskType = taskType; }
 
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }

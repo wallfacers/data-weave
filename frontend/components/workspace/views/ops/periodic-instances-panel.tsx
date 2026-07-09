@@ -60,6 +60,7 @@ interface InstanceRow {
   cronExpression?: string | null
   scheduledFireTime?: string | null
   env?: string  // PROD | DEV
+  taskType?: string  // SQL | SHELL | PYTHON | ...
   workflowName?: string | null
   triggerType?: string | null  // CRON / MANUAL / BACKFILL
 }
@@ -129,6 +130,20 @@ const TRIGGER_TYPE_I18N: Record<string, string> = {
   CRON: "triggerTypeCron",
   MANUAL: "triggerTypeManual",
   BACKFILL: "triggerTypeBackfill",
+}
+
+/** 任务类型 → i18n key；未收录的显示原始值 */
+const TASK_TYPE_LABEL_KEY: Record<string, string> = {
+  SQL: "taskTypeSQL",
+  SHELL: "taskTypeShell",
+  PYTHON: "taskTypePython",
+  JAVA: "taskTypeJava",
+  JAVASCRIPT: "taskTypeJavaScript",
+  TYPESCRIPT: "taskTypeTypeScript",
+  DATA_SYNC: "taskTypeDataSync",
+  SPARK: "taskTypeSpark",
+  BASH: "taskTypeBash",
+  ECHO: "taskTypeEcho",
 }
 
 export function PeriodicInstancesPanel({
@@ -334,14 +349,17 @@ export function PeriodicInstancesPanel({
         },
       },
       {
-        key: "env",
-        header: t("colEnv"),
+        key: "taskType",
+        header: t("colTaskType"),
         widthPct: 5,
-        cell: (r) => (
-          <Badge variant={r.env === "DEV" ? "secondary" : "default"} className="text-xs">
-            {r.env ?? "PROD"}
-          </Badge>
-        ),
+        cell: (r) => {
+          const labelKey = r.taskType ? TASK_TYPE_LABEL_KEY[r.taskType] : null
+          return (
+            <Badge variant="outline" className="text-xs">
+              {labelKey ? t(labelKey as never) : (r.taskType || "—")}
+            </Badge>
+          )
+        },
       },
       {
         key: "triggerType",

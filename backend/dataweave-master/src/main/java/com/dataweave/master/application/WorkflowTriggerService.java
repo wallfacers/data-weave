@@ -247,12 +247,16 @@ public class WorkflowTriggerService {
         wi.setVersion(0L);
         WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
 
-        // 批量预取 task 名称，避免循环内逐条查 taskDef
+        // 批量预取 task 名称+类型，避免循环内逐条查 taskDef
         java.util.Map<Long, String> taskIdToName = new java.util.HashMap<>();
+        java.util.Map<Long, String> taskIdToType = new java.util.HashMap<>();
         for (MatNode m : subNodes) {
             if (m.taskId() != null && !taskIdToName.containsKey(m.taskId())) {
                 taskDefRepository.findById(m.taskId())
-                        .ifPresent(td -> taskIdToName.put(m.taskId(), td.getName()));
+                        .ifPresent(td -> {
+                            taskIdToName.put(m.taskId(), td.getName());
+                            taskIdToType.put(m.taskId(), td.getType());
+                        });
             }
         }
 
@@ -270,6 +274,7 @@ public class WorkflowTriggerService {
             ti.setWorkflowDefName(wf.getName());                // 快照：工作流名称
             ti.setCronExpression(wf.getCron());                 // 快照：调度 cron
             ti.setTaskDefName(m.taskId() != null ? taskIdToName.get(m.taskId()) : null);  // 快照：任务名称
+            ti.setTaskType(m.taskId() != null ? taskIdToType.get(m.taskId()) : null);    // 快照：任务类型
             boolean frozen = frozenClosure.contains(m.nodeKey());
             if ("VIRTUAL".equals(m.nodeType())) {
                 // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽；被冻结则记 SKIPPED。
@@ -442,7 +447,8 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.DEV);                // 试跑落 DEV（开发态，跑草稿）
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
-        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
+        ti.setTaskDefName(task.getName());              // 快照：任务名称
+        ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -471,7 +477,8 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.PROD);               // 正式手动运行落 PROD
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
-        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
+        ti.setTaskDefName(task.getName());              // 快照：任务名称
+        ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -499,7 +506,8 @@ public class WorkflowTriggerService {
         ti.setEnv(Envs.PROD);
         ti.setState(InstanceStates.WAITING);
         ti.setBizDate(bizDate);
-        ti.setTaskDefName(task.getName());              // 快照：任务名称（独立运行，无工作流上下文）
+        ti.setTaskDefName(task.getName());              // 快照：任务名称
+        ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
