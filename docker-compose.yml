@@ -118,12 +118,14 @@ services:
       LOGBUS_TYPE: redis
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       DATAWEAVE_FLEET_SIMULATE: "false"           # 关掉假节点心跳模拟，只认真实注册的 worker
+      DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "false" # master 不注册内嵌 worker（worker-local 由专用 worker 容器承担）
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
       # 045 cron 并行化(极限档:找极限;默认档移除这些 env 让 application.yml 32/40 生效)
+      SPRING_TASK_SCHEDULING_POOL_SIZE: "4"           # 调度线程池扩容，防止 @Scheduled 争抢单线程
       SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"        # 测试加速(继承 044):扫描 15s→2s
-      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"            # 预读窗口 30s→3s
+      SCHEDULER_CRON_LOOKAHEAD_MS: "30000"           # 预读窗口 30s→30s（分钟任务多，需要大窗口覆盖）
       SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
       SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"
@@ -158,13 +160,15 @@ services:
       LOGBUS_TYPE: redis
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       DATAWEAVE_FLEET_SIMULATE: "false"
+      DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "false" # master 不注册内嵌 worker（worker-local 由专用 worker 容器承担）
       SPRING_SQL_INIT_MODE: never                 # 不重建库，避免与 master-1 互相 DROP
       NEO4J_URI: bolt://neo4j:7687                 # 血缘图库（distributed 连 neo4j 容器，非容器内 localhost）
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: dataweave
       # 045 cron 并行化(极限档;与 master-1 对等)
+      SPRING_TASK_SCHEDULING_POOL_SIZE: "4"           # 调度线程池扩容，防止 @Scheduled 争抢单线程
       SCHEDULER_CRON_SCAN_INTERVAL_MS: "2000"
-      SCHEDULER_CRON_LOOKAHEAD_MS: "3000"
+      SCHEDULER_CRON_LOOKAHEAD_MS: "30000"
       SCHEDULER_CRON_FIRE_WORKER_THREADS: "64"
       SCHEDULER_CRON_FIRE_QUEUE_CAPACITY: "8000"
       SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "64"

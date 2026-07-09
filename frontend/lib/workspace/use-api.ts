@@ -12,6 +12,8 @@ import {
   type RefreshScheduler,
 } from "./refresh-scheduler"
 
+import { projectIdHeader } from "@/lib/project-header"
+
 const TOKEN_KEY = "dw.auth.token"
 
 // ─── 常量 ────────────────────────────────────────────────────
@@ -30,6 +32,7 @@ export async function fetchApi<T>(path: string): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null
   const headers: Record<string, string> = {
     "Accept-Language": acceptLanguageHeader(),
+    ...projectIdHeader(),
   }
   if (token) headers["Authorization"] = `Bearer ${token}`
 

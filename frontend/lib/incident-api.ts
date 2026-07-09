@@ -3,9 +3,11 @@
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
+import { projectIdHeader } from "./project-header"
+
 function authHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("dw.auth.token") || "" : ""
-  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...projectIdHeader() }
 }
 
 async function getJson(path: string): Promise<{ code: number; data: unknown; message?: string }> {

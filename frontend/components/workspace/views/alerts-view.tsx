@@ -19,6 +19,7 @@ import {
 import { useLiveData } from "@/lib/workspace/use-api"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { ViewRefreshControl } from "./view-refresh-control"
+import { projectIdHeader } from "@/lib/project-header"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
@@ -57,7 +58,7 @@ export function AlertsView({ active }: ViewProps) {
 
   const fetchJson = useCallback(async (path: string) => {
     const res = await fetch(`${API_BASE}${path}`, {
-      headers: { "Authorization": `Bearer ${localStorage.getItem("dw.auth.token") || ""}` }
+      headers: { "Authorization": `Bearer ${localStorage.getItem("dw.auth.token") || ""}`, ...projectIdHeader() }
     })
     const json = await res.json()
     return json.data
@@ -100,7 +101,8 @@ export function AlertsView({ active }: ViewProps) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${localStorage.getItem("dw.auth.token") || ""}`
+        "Authorization": `Bearer ${localStorage.getItem("dw.auth.token") || ""}`,
+        ...projectIdHeader()
       },
       body: JSON.stringify({ ackedBy: 1 })
     })

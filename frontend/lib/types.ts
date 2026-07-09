@@ -36,7 +36,9 @@ function acceptLanguage(): string {
   return tag === "en-US" || tag === "zh-CN" ? tag : "zh-CN"
 }
 
-/** 自动带 Bearer token + Accept-Language 的 fetch 封装。所有调后端 API 的 fetch 应统一走这个。 */
+import { projectIdHeader } from "./project-header"
+
+/** 自动带 Bearer token + X-Project-Id + Accept-Language 的 fetch 封装。所有调后端 API 的 fetch 应统一走这个。 */
 export function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null
   const headers: Record<string, string> = {
@@ -44,6 +46,10 @@ export function authFetch(path: string, init?: RequestInit): Promise<Response> {
     ...(init?.headers as Record<string, string> | undefined),
   }
   if (token) headers["Authorization"] = `Bearer ${token}`
+  // 036 项目隔离：未显式传 X-Project-Id 时自动注入当前项目
+  if (!headers["X-Project-Id"]) {
+    Object.assign(headers, projectIdHeader())
+  }
   return fetch(path, { ...init, headers })
 }
 

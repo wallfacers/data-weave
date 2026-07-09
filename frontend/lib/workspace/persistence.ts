@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect } from "react"
 
 import { API_BASE, type ApiResponse } from "@/lib/types"
+import { projectIdHeader } from "@/lib/project-header"
 import { useWorkspaceStore, type WorkspaceTab } from "./store"
 import { DEFAULT_VIEWS } from "./views"
 
@@ -69,7 +70,7 @@ export function useWorkspacePersistence() {
     let cancelled = false
 
     const token = localStorage.getItem(TOKEN_KEY)
-    const authHeaders: Record<string, string> = {}
+    const authHeaders: Record<string, string> = { ...projectIdHeader() }
     if (token) authHeaders["Authorization"] = `Bearer ${token}`
 
     // 后端快照：跨设备 / 本地缓存缺失时的兜底；仅当本地仍是纯 Pinned 底座才覆盖，

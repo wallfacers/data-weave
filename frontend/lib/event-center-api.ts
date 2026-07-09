@@ -58,9 +58,11 @@ export interface EventQuery {
   size?: number
 }
 
+import { projectIdHeader } from "./project-header"
+
 function authHeaders(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("dw.auth.token") || "" : ""
-  return { Authorization: `Bearer ${token}` }
+  return { Authorization: `Bearer ${token}`, ...projectIdHeader() }
 }
 
 async function getJson(path: string): Promise<{ code: number; data: unknown; message?: string }> {

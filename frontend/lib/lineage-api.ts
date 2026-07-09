@@ -9,6 +9,7 @@
  */
 
 import { currentProjectId } from "@/lib/project-context";
+import { projectIdHeader } from "@/lib/project-header";
 
 const BASE = "/api/lineage";
 
@@ -230,7 +231,7 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   }
   const token = localStorage.getItem("dw.auth.token") ?? "";
   const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...projectIdHeader() },
   });
   if (!res.ok) {
     throw new Error(`Lineage API ${path} returned ${res.status}`);
@@ -251,6 +252,7 @@ async function post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...projectIdHeader(),
     },
     body: JSON.stringify(body),
   });

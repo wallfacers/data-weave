@@ -128,6 +128,8 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
+import { projectIdHeader } from "./project-header"
+
 /* ------------------------------------------------------------------ */
 /*  Fetch helper — 自动带 Bearer token                                  */
 /* ------------------------------------------------------------------ */
@@ -139,6 +141,7 @@ export function useApi() {
     async (path: string, init?: RequestInit) => {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        ...projectIdHeader(),
         ...(init?.headers as Record<string, string>),
       }
       if (token) {

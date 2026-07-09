@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { SSE_BASE } from "@/lib/types"
+import { readProjectId } from "@/lib/project-header"
 
 /**
  * EventSource 订阅 hook：支持 Last-Event-ID 断线续传、自动重连。
@@ -35,6 +36,8 @@ export function useEventSource(url: string): EventSourceState {
     if (token) {
       fullUrl += `${fullUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
     }
+    // 036 项目隔离：EventSource 不支持自定义 header，通过 query param 传 projectId
+    fullUrl += `${fullUrl.includes("?") ? "&" : "?"}projectId=${readProjectId()}`
     // 带 Last-Event-ID 断线续传
     if (lastEventIdRef.current) {
       fullUrl += `${fullUrl.includes("?") ? "&" : "?"}lastEventId=${encodeURIComponent(lastEventIdRef.current)}`
