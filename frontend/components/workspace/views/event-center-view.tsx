@@ -9,7 +9,6 @@ import {
   BellIcon,
   Delete01Icon,
   PlusSignIcon,
-  RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import { DropdownSelect, type DropdownOption } from "@/components/ui/select"
 import { useWorkspaceStore } from "@/lib/workspace/store"
@@ -24,8 +23,7 @@ import {
   type EventSubscription,
   type HealthEvent,
 } from "@/lib/event-center-api"
-import { useMinSpin } from "@/hooks/use-min-spin"
-import { cn } from "@/lib/utils"
+import { ViewRefreshControl } from "./view-refresh-control"
 
 const EVENT_TYPES = [
   "SLA_BREACH",
@@ -138,9 +136,6 @@ export function EventCenterView() {
     setChannels(c)
   }, [])
 
-  // 刷新按钮旋转：跟随 loading，兜底最短一圈保证可见（同 ViewRefreshControl）。
-  const spinning = useMinSpin(loading)
-
   useEffect(() => {
     if (tab === "events") loadEvents()
     else loadSubs()
@@ -246,15 +241,13 @@ export function EventCenterView() {
               options={severityOptions}
               className="w-36"
             />
-            <button
-              onClick={loadEvents}
-              disabled={spinning}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-            >
-              <HugeiconsIcon icon={RefreshIcon} size={14} className={cn(spinning && "animate-spin")} />
-              {t("refresh")}
-            </button>
             <span className="ml-auto text-xs text-muted-foreground">{t("total", { count: total })}</span>
+            <ViewRefreshControl
+              lastUpdatedAt={null}
+              refreshing={loading}
+              stale={false}
+              onRefresh={loadEvents}
+            />
           </div>
 
           {/* timeline */}
