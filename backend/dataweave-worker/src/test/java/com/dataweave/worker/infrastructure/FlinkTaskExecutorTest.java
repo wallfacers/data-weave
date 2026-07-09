@@ -187,6 +187,131 @@ class FlinkTaskExecutorTest {
         assertThat(FlinkTaskExecutor.resolveEngineHome(ref)).isEqualTo("/custom/flink");
     }
 
+    // ─── T037: long_running detached + JobID 解析 + reattach + 有界保真 ───
+
+    @Test
+    void buildCommand_detachedJar_addsDashD() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "jar", "/tmp/app.jar",
+                "com.example.Main", true);
+        assertThat(cmd).containsExactly("/opt/flink/bin/flink", "run", "-d", "-c",
+                "com.example.Main", "/tmp/app.jar");
+    }
+
+    @Test
+    void buildCommand_detachedSql_addsDashD() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "sql", "/tmp/q.sql",
+                null, true);
+        assertThat(cmd).containsExactly("/opt/flink/bin/sql-client.sh", "-d", "-f", "/tmp/q.sql");
+    }
+
+    @Test
+    void buildCommand_nonDetached_noDashD() {
+        // 有界/批 Flink 不带 -d（constitution III：语义不变）
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "jar", "/tmp/app.jar",
+                "com.example.Main", false);
+        assertThat(cmd).containsExactly("/opt/flink/bin/flink", "run", "-c",
+                "com.example.Main", "/tmp/app.jar");
+    }
+
+    @Test
+    void buildCommand_backwardCompat_noDetached() {
+        // 向后兼容重载（不带 detached 参数）= false
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "sql", "/tmp/q.sql", null);
+        assertThat(cmd).containsExactly("/opt/flink/bin/sql-client.sh", "-f", "/tmp/q.sql");
+        // 不应包含 -d
+        assertThat(cmd).doesNotContain("-d");
+    }
+
+    @Test
+    void parseJobId_standardFormat() {
+        String stdout = "Job has been submitted with JobID: 0123456789abcdef0123456789abcdef";
+        assertThat(FlinkTaskExecutor.parseJobId(stdout))
+                .isEqualTo("0123456789abcdef0123456789abcdef");
+    }
+
+    @Test
+    void parseJobId_mixedCase() {
+        String stdout = "JobID: AbCdEf0123456789AbCdEf0123456789";
+        assertThat(FlinkTaskExecutor.parseJobId(stdout))
+                .isEqualTo("AbCdEf0123456789AbCdEf0123456789");
+    }
+
+    @Test
+    void parseJobId_notFound_returnsNull() {
+        assertThat(FlinkTaskExecutor.parseJobId("")).isNull();
+        assertThat(FlinkTaskExecutor.parseJobId(null)).isNull();
+        assertThat(FlinkTaskExecutor.parseJobId("no job id here")).isNull();
+    }
+
+    @Test
+    void parseJobId_noSpaceAfterColon_stillMatches() {
+        // Flink 1.18+ 格式：JobID:<hex>（无空格）
+        String stdout = "Submitted JobID:abcdef1234567890abcdef1234567890 to cluster";
+        assertThat(FlinkTaskExecutor.parseJobId(stdout))
+                .isEqualTo("abcdef1234567890abcdef1234567890");
+    }
+
+    @Test
+    void execute_longRunning_skippedWhenStub(@TempDir Path tmp) throws IOException {
+        // long_running=true 当前走桩路径（轮询未集成）→ 返回 skipped
+        Path home = fakeFlinkHomeIn(tmp);
+        // long_running sql 模式走 sql-client.sh -d，需覆盖其脚本输出 JobID
+        String script = "#!/bin/bash\necho 'JobID: 0123456789abcdef0123456789abcdef'\nexit 0\n";
+        Path sqlClient = Path.of(home.toString(), "bin", "sql-client.sh");
+        Files.writeString(sqlClient, script);
+        sqlClient.toFile().setExecutable(true);
+
+        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                null, null, true, null); // longRunning=true
+        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref), l -> {});
+        // 桩：返回 skipped（不阻塞、不误报）
+        assertThat(r.skipped()).isTrue();
+        assertThat(r.message()).contains("JobID=0123456789abcdef0123456789abcdef");
+    }
+
+    @Test
+    void execute_reattachWhenHandlePresent_skipsSubmit(@TempDir Path tmp) throws IOException {
+        // external_job_handle 非空 → reattach 模式，不执行 flink run
+        Path home = fakeFlinkHomeIn(tmp);
+        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                null, null, false,
+                "{\"jobId\":\"abcd1234abcd1234abcd1234abcd1234\",\"restEndpoint\":\"http://localhost:8081\"}");
+        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref), l -> {});
+        assertThat(r.skipped()).isTrue();
+        assertThat(r.message()).contains("reattach");
+        assertThat(r.message()).contains("abcd1234abcd1234abcd1234abcd1234");
+    }
+
+    @Test
+    void execute_boundedFlink_unaffectedByLongRunningChanges(@TempDir Path tmp) throws IOException {
+        // constitution III 保真：有界 Flink（long_running=false）exit-code/stdout 语义不变
+        Path home = fakeFlinkHomeIn(tmp);
+        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                null, null, false, null); // longRunning=false, no handle
+        StringBuilder out = new StringBuilder();
+        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref),
+                line -> out.append(line).append('\n'));
+        assertThat(r.exitCode()).isEqualTo(0);
+        assertThat(r.success()).isTrue();
+        assertThat(r.skipped()).isFalse();
+        assertThat(r.stdout()).contains("fake-flink-out");
+        // 不包含 long_running 标记
+        assertThat(r.message()).doesNotContain("long_running");
+        assertThat(r.message()).doesNotContain("reattach");
+    }
+
+    @Test
+    void execute_boundedFlinkFailure_preservesNonZeroExitCode(@TempDir Path tmp) throws IOException {
+        // 有界 Flink 失败 exit-code 忠实透传（constitution III）
+        Path home = fakeFlinkHomeIn(tmp, "3");
+        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                null, null, false, null);
+        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref), l -> {});
+        assertThat(r.exitCode()).isEqualTo(3);
+        assertThat(r.success()).isFalse();
+        assertThat(r.skipped()).isFalse();
+    }
+
     // ---- helpers ----
 
     private static ExecutionContext flinkCtx(String content, EngineSubmitRef ref) {

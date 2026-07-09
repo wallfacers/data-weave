@@ -102,8 +102,16 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
      * @param mainClass  Flink jar 形态的 --class 主类（其它形态 null）
      * @param configPath 执行器写入的临时作业/配置文件路径（运行期填，构造期 null）
      * @param props      集群/引擎附加配置（jobmanager/parallelism 等，可空）
+     * @param longRunning 外部托管长驻作业标记（Flink 流式=true；有界/批=false）—— 060 节点容错闭环
+     * @param externalJobHandle 已持久化的外部作业句柄（reattach 用；null=首次提交）—— 060 节点容错闭环
      */
     public record EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
-                                   String mainClass, String configPath, Map<String, String> props) {
+                                   String mainClass, String configPath, Map<String, String> props,
+                                   boolean longRunning, String externalJobHandle) {
+        /** 向后兼容构造（无 long_running/external_job_handle 字段，默认 false/null）。 */
+        public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
+                              String mainClass, String configPath, Map<String, String> props) {
+            this(kind, engineHome, mode, jarPath, mainClass, configPath, props, false, null);
+        }
     }
 }
