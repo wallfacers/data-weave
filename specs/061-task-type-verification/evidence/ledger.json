@@ -1,75 +1,90 @@
 {
   "feature": "061-task-type-verification",
-  "generated_at": null,
+  "generated_at": "2026-07-11T00:38:00+08:00",
   "overall": "INCOMPLETE",
   "entries": [
     {
       "engine": "STARROCKS",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/STARROCKS/skipped.log"
     },
     {
       "engine": "DORIS",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/DORIS/skipped.log"
     },
     {
       "engine": "CLICKHOUSE",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/CLICKHOUSE/skipped.log"
     },
     {
       "engine": "HIVE",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/HIVE/skipped.log"
     },
     {
       "engine": "DATAX",
       "workflow": "B",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/DATAX/skipped.log"
     },
     {
       "engine": "SEATUNNEL",
       "workflow": "B",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/SEATUNNEL/skipped.log"
     },
     {
       "engine": "SPARK",
       "workflow": "C",
-      "status": "PENDING",
+      "status": "PASS",
       "engine_version": "3.5.4",
-      "run_via": "dw run",
+      "run_via": "dw run (local)",
       "success_evidence": "evidence/SPARK/success.log",
       "fail_evidence": "evidence/SPARK/fail.log",
-      "skipped_evidence": "evidence/SPARK/skipped.log"
+      "skipped_evidence": "evidence/SPARK/skipped.log",
+      "dw_run_vs_server": "consistent"
     },
     {
       "engine": "FLINK",
       "workflow": "C",
-      "status": "PENDING",
+      "status": "PASS",
       "engine_version": "1.20.5",
-      "run_via": "dw run (long_running)",
+      "run_via": "dw run (local + long_running)",
       "success_evidence": "evidence/FLINK/success.log",
       "fail_evidence": "evidence/FLINK/fail.log",
-      "skipped_evidence": "evidence/FLINK/skipped.log"
+      "skipped_evidence": "evidence/FLINK/skipped.log",
+      "dw_run_vs_server": "consistent",
+      "flink_reattach": {
+        "job_id": "a79e2d8244701c88d17250e9c673188b",
+        "handle_written": true,
+        "reattach_polled_terminal": true
+      }
     },
     {
       "engine": "PYTHON",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/PYTHON/skipped.log"
     },
     {
       "engine": "SHELL",
       "workflow": "A",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "",
+      "skipped_evidence": "evidence/SHELL/skipped.log"
     }
   ]
 }
