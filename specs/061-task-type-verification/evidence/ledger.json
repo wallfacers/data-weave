@@ -1,0 +1,67 @@
+{
+  "feature": "061-task-type-verification",
+  "generated_at": null,
+  "overall": "INCOMPLETE",
+  "entries": [
+    {
+      "engine": "STARROCKS",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "DORIS",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "CLICKHOUSE",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "HIVE",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "DATAX",
+      "workflow": "B",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "SEATUNNEL",
+      "workflow": "B",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "SPARK",
+      "workflow": "C",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "FLINK",
+      "workflow": "C",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "PYTHON",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    },
+    {
+      "engine": "SHELL",
+      "workflow": "A",
+      "status": "PENDING",
+      "engine_version": ""
+    }
+  ]
+}

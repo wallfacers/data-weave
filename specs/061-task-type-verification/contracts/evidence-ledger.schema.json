@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weft.dataweave/specs/061/evidence-ledger.schema.json",
+  "title": "061 Verification Ledger",
+  "description": "机读验证台账：8 引擎逐条真跑结论。整体达标 ⟺ 全部 status=PASS。",
+  "type": "object",
+  "required": ["feature", "generated_at", "entries"],
+  "properties": {
+    "feature": { "const": "061-task-type-verification" },
+    "generated_at": { "type": "string", "description": "UTC ISO-8601（真跑后由脚本盖章）" },
+    "overall": {
+      "type": "string",
+      "enum": ["PASS", "INCOMPLETE"],
+      "description": "全部 entries.status=PASS → PASS；任一 BLOCKED/PENDING → INCOMPLETE（不冒充）"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["engine", "workflow", "status", "engine_version"],
+        "properties": {
+          "engine": {
+            "type": "string",
+            "enum": ["STARROCKS", "DORIS", "CLICKHOUSE", "HIVE", "DATAX", "SEATUNNEL", "SPARK", "FLINK", "PYTHON", "SHELL"]
+          },
+          "workflow": { "type": "string", "enum": ["A", "B", "C"] },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "BLOCKED", "PENDING"],
+            "description": "PASS=真跑成功+真失败双证据齐；BLOCKED=起不来(计未达标,附原因);PENDING=未开始"
+          },
+          "engine_version": { "type": "string", "description": "实测镜像:tag 或客户端版本" },
+          "success_evidence": { "type": "string", "description": "evidence/<engine>/success.log 路径" },
+          "fail_evidence": { "type": "string", "description": "evidence/<engine>/fail.log 路径（真实作业失败，非SKIPPED）" },
+          "resultset_rendered": {
+            "type": "boolean",
+            "description": "仅 SQL/HQL：结果集(表头+数据行)是否真出现在日志(SC-004)"
+          },
+          "dw_run_vs_server": {
+            "type": "string",
+            "enum": ["consistent", "n/a", "drift"],
+            "description": "SC-006：本地 dw run 与服务端结果分类一致性"
+          },
+          "flink_reattach": {
+            "type": "object",
+            "description": "仅 FLINK long_running(SC-005)",
+            "properties": {
+              "job_id": { "type": "string" },
+              "handle_written": { "type": "boolean" },
+              "reattach_polled_terminal": { "type": "boolean" }
+            }
+          },
+          "blocked_reason": { "type": "string", "description": "status=BLOCKED 时必填：原因 + 已尝试手段" },
+          "defects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "summary": { "type": "string" },
+                "fix_commit": { "type": "string" },
+                "test_added": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
