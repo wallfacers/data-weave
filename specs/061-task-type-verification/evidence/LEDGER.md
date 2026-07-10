@@ -12,8 +12,8 @@
 | Hive | A | PENDING | — | — | — | — | — | 需上传 hive-jdbc standalone jar |
 | DataX | B | PENDING | — | — | — | n/a | — | streamreader→writer 底线 |
 | SeaTunnel | B | PENDING | — | — | — | n/a | — | FakeSource→Console 底线 |
-| Spark | C | PENDING | — | — | — | n/a | — | pyspark 取一形态 |
-| Flink | C | PENDING | — | — | — | n/a | — | long_running reattach(SC-005) |
+| Spark | C | PENDING | 3.5.4 (apache/spark:3.5) | — | — | n/a | — | **harness 就绪**：compose.compute.yml + install-spark.sh + verify-spark.sh；待真跑取证 |
+| Flink | C | PENDING | 1.20.0 (flink:1.20) | — | — | n/a | — | **harness 就绪**：compose.compute.yml + install-flink.sh + verify-flink-{bounded,longrunning}.sh；T038 已修过期「桩实现」注释→完整实现文档；待真跑取证 SC-005 |
 | Python | A | PENDING | — | — | — | n/a | — | 回归确认 |
 | Shell | A | PENDING | — | — | — | n/a | — | 回归确认 |
 
