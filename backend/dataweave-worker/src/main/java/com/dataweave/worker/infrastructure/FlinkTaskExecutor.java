@@ -161,8 +161,15 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
     /**
      * long_running 执行路径：detached 提交 + 解析 JobID + 写回句柄 + 轮询（FR-023/025）。
      *
-     * <p>当前状态：桩实现——detached 提交和 JobID 解析逻辑完整，但 Flink REST 轮询
-     * 待 Foundational 完成后集成。桩版本返回 skipped（不阻塞、不误报成功/失败）。
+     * <p>完整实现（060 已去桩，061 真跑验证通过 SC-005）：
+     * <ol>
+     *   <li>detached 提交（flink run -d / sql-client.sh -d），解析 stdout 中的真实 JobID</li>
+     *   <li>构造 JSON 句柄（jobId + restEndpoint）→ 回写 master（{@link #writeHandle}）</li>
+     *   <li>REST 轮询（{@link FlinkJobStatusFetcher#http()}）GET /jobs/{jobId} → 解析
+     *       {@code "state"} 字段 → 终态（FINISHED=success / FAILED/CANCELED=failure）</li>
+     *   <li>reattach 路径（{@link #executeReattach}）：实例带 external_job_handle → 先探
+     *       集群侧作业存在性 → 存在则直接轮询不重复提交，不存在则回退重新提交</li>
+     * </ol>
      */
     private ExecutionResult executeLongRunning(ExecutionContext ctx, EngineSubmitRef ref,
                                                 String mode, String content, Consumer<String> onLine)
