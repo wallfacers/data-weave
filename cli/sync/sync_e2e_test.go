@@ -80,6 +80,13 @@ func (m *mockSyncServer) handlePush(w http.ResponseWriter, r *http.Request) {
 	var cmd pushCommand
 	_ = json.Unmarshal(body, &cmd)
 	m.lastPushCmd = cmd
+	// 完整性校验（贴近服务端 ProjectSyncService）：实际文件数 != 声明的 expectedFileCount → incomplete。
+	// 回归 D1：expectedFileCount 曾误用 pull 基线数，新增/删除文件即撞此错。
+	if cmd.ExpectedFileCount > 0 && len(cmd.Files) != cmd.ExpectedFileCount {
+		writeJSON(w, map[string]any{"code": 400, "errorCode": "project.sync.incomplete",
+			"message": "文件不完整"})
+		return
+	}
 	if m.stale && !cmd.Force {
 		writeJSON(w, map[string]any{"code": 409, "errorCode": "project.sync.stale", "message": "基线过期，请先 pull"})
 		return
@@ -274,6 +281,29 @@ func TestPushSendsFilesAndWritesNewBaseline(t *testing.T) {
 	st, _ := LoadState(dir)
 	if st.Baseline != "b-after-push" {
 		t.Fatalf("new baseline not written back: %q", st.Baseline)
+	}
+}
+
+// D1 回归：pull 后新增文件再 push，expectedFileCount 必须是实际文件数（非 pull 基线数），
+// 否则撞服务端 project.sync.incomplete。曾用 state.FileCount（基线）→ 加/删文件永远 push 失败。
+func TestPushAfterAddingFileSendsActualCount(t *testing.T) {
+	initial := map[string]string{"a.txt": "v1"}
+	m, cfg := newMockSyncServer(t, initial)
+	dir := t.TempDir()
+	exitCodeOf(t, RunPull(PullOpts{WorkDir: dir, Project: "12"}, cfg)) // state.FileCount = 1
+
+	// 新增一个文件 → 实际 2 个
+	_ = os.WriteFile(filepath.Join(dir, "b.txt"), []byte("new"), 0o644)
+
+	// 老 bug（发 state.FileCount=1）会被 mock 的完整性校验判 incomplete → 非 0 退出。
+	if code := exitCodeOf(t, RunPush(PushOpts{WorkDir: dir}, cfg)); code != 0 {
+		t.Fatalf("加文件后 push 应成功，实际 exit=%d（回归 D1：expectedFileCount 未随实际文件数）", code)
+	}
+	if m.lastPushCmd.ExpectedFileCount != 2 {
+		t.Fatalf("expectedFileCount = %d，期望 2（实际文件数，非 pull 基线 1）", m.lastPushCmd.ExpectedFileCount)
+	}
+	if _, ok := m.lastPushCmd.Files["b.txt"]; !ok {
+		t.Fatalf("新增文件 b.txt 未上送")
 	}
 }
 
