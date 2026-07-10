@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+ValueError: intentional failure for 061 regression
+061 Python 失败路径：即将抛错
+退出码 1
+dw: 任务执行失败（runner 退出码 1，详见上方输出）

@@ -125,4 +125,26 @@ class ShellTaskExecutorTest {
         assertThat(result.stdout()).contains("stdout");
         assertThat(result.stdout()).contains("stderr");
     }
+
+    /**
+     * D4 回归（061 US1 真跑暴露，与 PythonTaskExecutor 同修）：解释器缺失时诊断信息必须经
+     * onLine 流入实例日志，而非仅进 ExecutionResult.message 字段导致裸 "-1" 静默。
+     */
+    @Test
+    void missingInterpreterSurfacesDiagnosticToLog() {
+        ShellTaskExecutor missing = new ShellTaskExecutor() {
+            @Override
+            protected String interpreterExecutable() {
+                return "bash-definitely-not-installed-xyz";
+            }
+        };
+        ExecutionContext ctx = new ExecutionContext("echo never", null, 1, 10);
+        List<String> lines = new ArrayList<>();
+        TaskExecutor.ExecutionResult result = missing.execute(ctx, lines::add);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.exitCode()).isEqualTo(-1);
+        assertThat(lines).anySatisfy(l -> assertThat(l).contains("无法启动"));
+        assertThat(lines).anySatisfy(l -> assertThat(l).contains("bash-definitely-not-installed-xyz"));
+    }
 }

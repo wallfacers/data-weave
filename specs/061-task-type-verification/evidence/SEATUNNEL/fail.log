@@ -1,0 +1,260 @@
+WARNING: sun.reflect.Reflection.getCallerClass is not supported. This will impact performance.
+2026-07-11 00:35:58,664 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Loading configuration '/home/wallfacers/engines/seatunnel/config/seatunnel.yaml' from System property 'seatunnel.config'
+2026-07-11 00:35:58,666 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Using configuration file at /home/wallfacers/engines/seatunnel/config/seatunnel.yaml
+2026-07-11 00:35:58,668 INFO  [o.a.s.e.c.c.SeaTunnelConfig   ] [main] - seatunnel.home is /tmp/dw-seatunnel-verify
+2026-07-11 00:35:58,709 INFO  [amlSeaTunnelDomConfigProcessor] [main] - Dynamic slot is enabled, the schedule strategy is set to REJECT
+2026-07-11 00:35:58,709 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Loading configuration '/home/wallfacers/engines/seatunnel/config/hazelcast.yaml' from System property 'hazelcast.config'
+2026-07-11 00:35:58,710 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Using configuration file at /home/wallfacers/engines/seatunnel/config/hazelcast.yaml
+2026-07-11 00:35:58,878 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Loading configuration '/home/wallfacers/engines/seatunnel/config/hazelcast-client.yaml' from System property 'hazelcast.client.config'
+2026-07-11 00:35:58,878 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Using configuration file at /home/wallfacers/engines/seatunnel/config/hazelcast-client.yaml
+2026-07-11 00:35:58,890 WARN  [h.i.i.HazelcastInstanceFactory] [main] - Hazelcast is starting in a Java modular environment (Java 9 and newer) but without proper access to required Java packages. Use additional Java arguments to provide Hazelcast access to Java internal API. The internal API access is used to get the best performance results. Arguments to be used:
+ --add-modules java.se --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.management/sun.management=ALL-UNNAMED --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
+2026-07-11 00:35:58,907 WARN  [c.h.i.AddressPicker           ] [main] - [LOCAL] [seatunnel-149926] [5.1] You configured your member address as host name. Please be aware of that your dns can be spoofed. Make sure that your dns configurations are correct.
+2026-07-11 00:35:58,907 INFO  [c.h.i.AddressPicker           ] [main] - [LOCAL] [seatunnel-149926] [5.1] Resolving domain name 'localhost' to address(es): [127.0.0.1]
+2026-07-11 00:35:58,907 INFO  [c.h.i.AddressPicker           ] [main] - [LOCAL] [seatunnel-149926] [5.1] Interfaces is disabled, trying to pick one address from TCP-IP config addresses: [localhost/127.0.0.1]
+2026-07-11 00:35:58,922 INFO  [o.a.s.e.s.SeaTunnelServer     ] [main] - SeaTunnel server start...
+2026-07-11 00:35:58,924 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Based on Hazelcast IMDG version: 5.1.0 (20220228 - 21f20e7)
+2026-07-11 00:35:58,924 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Cluster name: seatunnel-149926
+2026-07-11 00:35:58,924 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] 
+                                                         
+ _____               _____                             _ 
+/  ___|             |_   _|                           | |
+\ `--.   ___   __ _   | |   _   _  _ __   _ __    ___ | |
+ `--. \ / _ \ / _` |  | |  | | | || '_ \ | '_ \  / _ \| |
+/\__/ /|  __/| (_| |  | |  | |_| || | | || | | ||  __/| |
+\____/  \___| \__,_|  \_/   \__,_||_| |_||_| |_| \___||_|
+                                                         
+
+2026-07-11 00:35:58,924 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Copyright © 2021-2024 The Apache Software Foundation. Apache SeaTunnel, SeaTunnel, and its feather logo are trademarks of The Apache Software Foundation.
+2026-07-11 00:35:58,924 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Integrity Checker is disabled. Fail-fast on corrupted executables will not be performed.
+To enable integrity checker do one of the following: 
+  - Change member config using Java API: config.setIntegrityCheckerEnabled(true);
+  - Change XML/YAML configuration property: Set hazelcast.integrity-checker.enabled to true
+  - Add system property: -Dhz.integritychecker.enabled=true (for Hazelcast embedded, works only when loading config via Config.load)
+  - Add environment variable: HZ_INTEGRITYCHECKER_ENABLED=true (recommended when running container image. For Hazelcast embedded, works only when loading config via Config.load)
+2026-07-11 00:35:58,926 INFO  [c.h.system                    ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] The Jet engine is disabled.
+To enable the Jet engine on the members, do one of the following:
+  - Change member config using Java API: config.getJetConfig().setEnabled(true)
+  - Change XML/YAML configuration property: Set hazelcast.jet.enabled to true
+  - Add system property: -Dhz.jet.enabled=true (for Hazelcast embedded, works only when loading config via Config.load)
+  - Add environment variable: HZ_JET_ENABLED=true (recommended when running container image. For Hazelcast embedded, works only when loading config via Config.load)
+2026-07-11 00:35:59,089 INFO  [c.h.s.security                ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Enable DEBUG/FINE log level for log category com.hazelcast.system.security  or use -Dhazelcast.security.recommendations system property to see 🔒 security recommendations and the status of current config.
+2026-07-11 00:35:59,121 INFO  [o.a.s.e.s.SeaTunnelNodeContext] [main] - Using LiteNodeDropOutTcpIpJoiner TCP/IP discovery
+2026-07-11 00:35:59,122 WARN  [c.h.c.CPSubsystem             ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] CP Subsystem is not enabled. CP data structures will operate in UNSAFE mode! Please note that UNSAFE mode will not provide strong consistency guarantees.
+2026-07-11 00:35:59,200 INFO  [.c.c.DefaultClassLoaderService] [main] - start classloader service with cache mode
+2026-07-11 00:35:59,202 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Loading configuration '/home/wallfacers/engines/seatunnel/config/seatunnel.yaml' from System property 'seatunnel.config'
+2026-07-11 00:35:59,202 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Using configuration file at /home/wallfacers/engines/seatunnel/config/seatunnel.yaml
+2026-07-11 00:35:59,206 INFO  [amlSeaTunnelDomConfigProcessor] [main] - Dynamic slot is enabled, the schedule strategy is set to REJECT
+2026-07-11 00:35:59,206 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Loading configuration '/home/wallfacers/engines/seatunnel/config/hazelcast.yaml' from System property 'hazelcast.config'
+2026-07-11 00:35:59,207 INFO  [c.h.i.c.AbstractConfigLocator ] [main] - Using configuration file at /home/wallfacers/engines/seatunnel/config/hazelcast.yaml
+2026-07-11 00:35:59,214 WARN  [o.a.s.e.s.TaskExecutionService] [pool-3-thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] The Node is not ready yet, Node state STARTING,looking forward to the next scheduling
+2026-07-11 00:35:59,214 INFO  [o.a.s.e.s.TaskExecutionService] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Created new BusWork : 263233676
+2026-07-11 00:35:59,227 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:35:59,229 INFO  [o.a.s.e.s.CoordinatorService  ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Start pending job schedule thread
+2026-07-11 00:35:59,315 WARN  [o.a.h.u.NativeCodeLoader      ] [main] - Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+2026-07-11 00:35:59,396 INFO  [o.a.s.e.s.CoordinatorService  ] [pool-7-thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] 
+***********************************************
+     CoordinatorService Thread Pool Status
+***********************************************
+activeCount               :                   1
+corePoolSize              :                  10
+maximumPoolSize           :          2147483647
+poolSize                  :                   1
+completedTaskCount        :                   0
+taskCount                 :                   1
+***********************************************
+
+2026-07-11 00:35:59,400 INFO  [o.a.s.e.s.JettyService        ] [main] - SeaTunnel REST service will start on port 8080
+2026-07-11 00:35:59,405 INFO  [o.a.s.s.o.e.j.u.log           ] [main] - Logging initialized @1151ms to org.apache.seatunnel.shade.org.eclipse.jetty.util.log.Slf4jLog
+2026-07-11 00:35:59,430 WARN  [a.s.s.o.e.j.s.h.ContextHandler] [main] - Empty contextPath
+2026-07-11 00:35:59,449 INFO  [o.a.s.s.o.e.j.s.Server        ] [main] - jetty-9.4.56.v20240826; built: 2024-08-26T17:15:05.868Z; git: ec6782ff5ead824dabdcf47fa98f90a4aedff401; jvm 21.0.11+10-LTS
+2026-07-11 00:35:59,465 INFO  [o.a.s.s.o.e.j.s.session       ] [main] - DefaultSessionIdManager workerName=node0
+2026-07-11 00:35:59,465 INFO  [o.a.s.s.o.e.j.s.session       ] [main] - No SessionScavenger set, using defaults
+2026-07-11 00:35:59,466 INFO  [o.a.s.s.o.e.j.s.session       ] [main] - node0 Scavenging every 660000ms
+2026-07-11 00:35:59,546 INFO  [a.s.s.o.e.j.s.h.ContextHandler] [main] - Started o.a.s.s.o.e.j.s.ServletContextHandler@56d6a1b1{/,null,AVAILABLE}
+2026-07-11 00:35:59,554 INFO  [.s.s.o.e.j.s.AbstractConnector] [main] - Started ServerConnector@69a40b3c{HTTP/1.1, (http/1.1)}{0.0.0.0:8080}
+2026-07-11 00:35:59,554 INFO  [o.a.s.s.o.e.j.s.Server        ] [main] - Started @1301ms
+2026-07-11 00:35:59,577 INFO  [c.h.i.d.Diagnostics           ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Diagnostics disabled. To enable add -Dhazelcast.diagnostics.enabled=true to the JVM arguments.
+2026-07-11 00:35:59,580 INFO  [c.h.c.LifecycleService        ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5801 is STARTING
+2026-07-11 00:36:04,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:09,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:09,683 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-4] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5825 is added to the blacklist.
+2026-07-11 00:36:09,684 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-16] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5820 is added to the blacklist.
+2026-07-11 00:36:09,701 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-3] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5823 is added to the blacklist.
+2026-07-11 00:36:09,712 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-12] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5808 is added to the blacklist.
+2026-07-11 00:36:09,717 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-2] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5821 is added to the blacklist.
+2026-07-11 00:36:09,729 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-11] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5810 is added to the blacklist.
+2026-07-11 00:36:09,741 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-8] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5817 is added to the blacklist.
+2026-07-11 00:36:09,753 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-9] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5806 is added to the blacklist.
+2026-07-11 00:36:09,755 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5827 is added to the blacklist.
+2026-07-11 00:36:09,767 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-7] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5819 is added to the blacklist.
+2026-07-11 00:36:09,781 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-5] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5815 is added to the blacklist.
+2026-07-11 00:36:09,794 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-14] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5802 is added to the blacklist.
+2026-07-11 00:36:09,796 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-6] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5813 is added to the blacklist.
+2026-07-11 00:36:09,814 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-15] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5822 is added to the blacklist.
+2026-07-11 00:36:09,821 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-13] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5829 is added to the blacklist.
+2026-07-11 00:36:09,833 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-10] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5804 is added to the blacklist.
+2026-07-11 00:36:14,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:19,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:19,693 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-4] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5826 is added to the blacklist.
+2026-07-11 00:36:19,701 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-16] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5824 is added to the blacklist.
+2026-07-11 00:36:19,708 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-3] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5814 is added to the blacklist.
+2026-07-11 00:36:19,721 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-12] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5812 is added to the blacklist.
+2026-07-11 00:36:19,735 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-2] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5818 is added to the blacklist.
+2026-07-11 00:36:19,745 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-11] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5816 is added to the blacklist.
+2026-07-11 00:36:19,746 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-8] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5807 is added to the blacklist.
+2026-07-11 00:36:19,756 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-9] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5805 is added to the blacklist.
+2026-07-11 00:36:19,772 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5811 is added to the blacklist.
+2026-07-11 00:36:19,785 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-7] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5809 is added to the blacklist.
+2026-07-11 00:36:19,792 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-5] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5830 is added to the blacklist.
+2026-07-11 00:36:19,806 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-14] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5828 is added to the blacklist.
+2026-07-11 00:36:19,814 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-6] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5803 is added to the blacklist.
+2026-07-11 00:36:24,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:29,297 WARN  [a.s.e.s.s.s.DefaultSlotService] [hz.main.seaTunnel.slotService.thread] - failed send heartbeat to resource manager, will retry later. this address: [localhost]:5801
+2026-07-11 00:36:29,688 INFO  [c.h.i.c.ClusterService        ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] 
+
+Members {size:1, ver:1} [
+	Member [localhost]:5801 - 2c6cff1a-bc28-4186-868a-4f6574791c6d [master node] [active master] this
+]
+
+2026-07-11 00:36:29,694 INFO  [c.h.c.LifecycleService        ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5801 is STARTED
+2026-07-11 00:36:29,700 INFO  [o.a.s.e.s.CoordinatorService  ] [pool-5-thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] This node become a new active master node, begin init coordinator service
+2026-07-11 00:36:29,706 INFO  [.h.i.p.i.PartitionStateManager] [hz.main.cached.thread-20] - [localhost]:5801 [seatunnel-149926] [5.1] Initializing cluster partition table arrangement...
+2026-07-11 00:36:29,706 INFO  [o.a.s.e.s.CoordinatorService  ] [pool-5-thread-1] - [localhost]:5801 [seatunnel-149926] [5.1] Loaded event handlers: [org.apache.seatunnel.api.event.LoggingEventHandler@6e52222e]
+2026-07-11 00:36:29,714 INFO  [.c.i.s.ClientInvocationService] [main] - hz.client_1 [seatunnel-149926] [5.1] Running with 2 response threads, dynamic=true
+2026-07-11 00:36:29,721 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is STARTING
+2026-07-11 00:36:29,721 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is STARTED
+2026-07-11 00:36:29,727 INFO  [.c.i.c.ClientConnectionManager] [main] - hz.client_1 [seatunnel-149926] [5.1] Trying to connect to cluster: seatunnel-149926
+2026-07-11 00:36:29,729 INFO  [.c.i.c.ClientConnectionManager] [main] - hz.client_1 [seatunnel-149926] [5.1] Trying to connect to [localhost]:5801
+2026-07-11 00:36:29,739 INFO  [.p.t.AuthenticationMessageTask] [hz.main.priority-generic-operation.thread-0] - [localhost]:5801 [seatunnel-149926] [5.1] Received auth from Connection[id=1, /127.0.0.1:5801->/127.0.0.1:47293, qualifier=null, endpoint=[127.0.0.1]:47293, remoteUuid=967feba8-c5da-4045-b878-48b2dcc08d43, alive=true, connectionType=JVM, planeIndex=-1], successfully authenticated, clientUuid: 967feba8-c5da-4045-b878-48b2dcc08d43, client name: hz.client_1, client version: 5.1
+2026-07-11 00:36:29,741 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is CLIENT_CONNECTED
+2026-07-11 00:36:29,742 INFO  [.c.i.c.ClientConnectionManager] [main] - hz.client_1 [seatunnel-149926] [5.1] Authenticated with server [localhost]:5801:2c6cff1a-bc28-4186-868a-4f6574791c6d, server version: 5.1, local address: /127.0.0.1:47293
+2026-07-11 00:36:29,743 INFO  [c.h.i.d.Diagnostics           ] [main] - hz.client_1 [seatunnel-149926] [5.1] Diagnostics disabled. To enable add -Dhazelcast.diagnostics.enabled=true to the JVM arguments.
+2026-07-11 00:36:29,749 INFO  [c.h.c.i.s.ClientClusterService] [hz.client_1.event-10] - hz.client_1 [seatunnel-149926] [5.1] 
+
+Members [1] {
+	Member [localhost]:5801 - 2c6cff1a-bc28-4186-868a-4f6574791c6d [master node]
+}
+
+2026-07-11 00:36:29,760 INFO  [.c.i.s.ClientStatisticsService] [main] - Client statistics is enabled with period 5 seconds.
+2026-07-11 00:36:29,780 INFO  [o.a.s.c.s.u.ConfigBuilder     ] [main] - Loading config file from path: /tmp/dw-seatunnel-2469531734295307055.conf
+2026-07-11 00:36:29,831 INFO  [o.a.s.c.s.u.ConfigShadeUtils  ] [main] - Load config shade spi: [base64]
+2026-07-11 00:36:29,850 INFO  [o.a.s.c.s.u.ConfigBuilder     ] [main] - Parsed config file: 
+{
+    "env" : {
+        "parallelism" : 1,
+        "job.mode" : "BATCH"
+    },
+    "source" : [
+        {
+            "url" : "jdbc:mysql://host.docker.internal:3307/dataweave_biz?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+            "driver" : "com.mysql.cj.jdbc.Driver",
+            "user" : "biz",
+            "password" : "******",
+            "query" : "SELECT id, name, val FROM nonexistent_table_xyz",
+            "result_table_name" : "bad_source",
+            "plugin_name" : "Jdbc"
+        }
+    ],
+    "sink" : [
+        {
+            "source_table_name" : "bad_source",
+            "plugin_name" : "Console"
+        }
+    ],
+    "transform" : []
+}
+
+2026-07-11 00:36:29,854 INFO  [p.MultipleTableJobConfigParser] [main] - add common jar in plugins :[]
+2026-07-11 00:36:29,864 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - Load SeaTunnelSink Plugin from /home/wallfacers/engines/seatunnel/connectors
+2026-07-11 00:36:29,867 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - find connector jar and dependency for PluginIdentifier{engineType='seatunnel', pluginType='source', pluginName='Jdbc'}: []
+2026-07-11 00:36:29,871 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - Load SeaTunnelSink Plugin from /home/wallfacers/engines/seatunnel/connectors
+2026-07-11 00:36:29,876 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - Load SeaTunnelSink Plugin from /home/wallfacers/engines/seatunnel/connectors
+2026-07-11 00:36:29,877 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - Discovery plugin jar for: PluginIdentifier{engineType='seatunnel', pluginType='sink', pluginName='Console'} at: [file:/home/wallfacers/engines/seatunnel/connectors/connector-console-2.3.13.jar]
+2026-07-11 00:36:29,877 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - find connector jar and dependency for PluginIdentifier{engineType='seatunnel', pluginType='sink', pluginName='Console'}: [file:/home/wallfacers/engines/seatunnel/connectors/connector-console-2.3.13.jar]
+2026-07-11 00:36:29,879 WARN  [o.a.s.a.c.ReadonlyConfig      ] [main] - Please use the new key 'plugin_output' instead of the deprecated key 'result_table_name'.
+2026-07-11 00:36:29,879 WARN  [o.a.s.a.c.ReadonlyConfig      ] [main] - Please use the new key 'plugin_input' instead of the deprecated key 'source_table_name'.
+2026-07-11 00:36:29,881 WARN  [o.a.s.a.c.u.ConfigUtil        ] [main] - Option 'plugin_input' is a List, and it is recommended to configure it as ["string1","string2"]; we will only use ',' to split the String into a list.
+2026-07-11 00:36:29,881 INFO  [p.MultipleTableJobConfigParser] [main] - start generating all sources.
+2026-07-11 00:36:29,882 WARN  [o.a.s.a.c.ReadonlyConfig      ] [main] - Please use the new key 'plugin_output' instead of the deprecated key 'result_table_name'.
+2026-07-11 00:36:29,891 INFO  [.s.p.d.AbstractPluginDiscovery] [main] - Load SeaTunnelSource Plugin from /home/wallfacers/engines/seatunnel/connectors
+2026-07-11 00:36:29,893 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is SHUTTING_DOWN
+2026-07-11 00:36:29,895 INFO  [c.h.i.s.t.TcpServerConnection ] [hz.main.IO.thread-in-2] - [localhost]:5801 [seatunnel-149926] [5.1] Connection[id=1, /127.0.0.1:5801->/127.0.0.1:47293, qualifier=null, endpoint=[127.0.0.1]:47293, remoteUuid=967feba8-c5da-4045-b878-48b2dcc08d43, alive=false, connectionType=JVM, planeIndex=-1] closed. Reason: Connection closed by the other side
+2026-07-11 00:36:29,895 INFO  [.c.i.c.ClientConnectionManager] [main] - hz.client_1 [seatunnel-149926] [5.1] Removed connection to endpoint: [localhost]:5801:2c6cff1a-bc28-4186-868a-4f6574791c6d, connection: ClientConnection{alive=false, connectionId=1, channel=NioChannel{/127.0.0.1:47293->localhost/127.0.0.1:5801}, remoteAddress=[localhost]:5801, lastReadTime=2026-07-11 00:36:29.813, lastWriteTime=2026-07-11 00:36:29.776, closedTime=2026-07-11 00:36:29.894, connected server version=5.1}
+2026-07-11 00:36:29,895 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is CLIENT_DISCONNECTED
+2026-07-11 00:36:29,896 INFO  [c.h.c.i.ClientEndpointManager ] [hz.main.event-4] - [localhost]:5801 [seatunnel-149926] [5.1] Destroying ClientEndpoint{connection=Connection[id=1, /127.0.0.1:5801->/127.0.0.1:47293, qualifier=null, endpoint=[127.0.0.1]:47293, remoteUuid=967feba8-c5da-4045-b878-48b2dcc08d43, alive=false, connectionType=JVM, planeIndex=-1], clientUuid=967feba8-c5da-4045-b878-48b2dcc08d43, clientName=hz.client_1, authenticated=true, clientVersion=5.1, creationTime=1783701389737, latest clientAttributes=lastStatisticsCollectionTime=1783701389760,enterprise=false,clientType=JVM,clientVersion=5.1,clusterConnectionTimestamp=1783701389731,clientAddress=127.0.0.1,clientName=hz.client_1,credentials.principal=null,os.committedVirtualMemorySize=0,os.freePhysicalMemorySize=4779307008,os.freeSwapSpaceSize=0,os.maxFileDescriptorCount=0,os.openFileDescriptorCount=0,os.processCpuTime=0,os.systemLoadAverage=2.61572265625,os.totalPhysicalMemorySize=37831741440,os.totalSwapSpaceSize=0,runtime.availableProcessors=20,runtime.freeMemory=153086800,runtime.maxMemory=536870912,runtime.totalMemory=268435456,runtime.uptime=31441,runtime.usedMemory=115348656, labels=[]}
+2026-07-11 00:36:29,897 INFO  [c.h.c.LifecycleService        ] [main] - hz.client_1 [seatunnel-149926] [5.1] HazelcastClient 5.1 (20220228 - 21f20e7) is SHUTDOWN
+2026-07-11 00:36:29,897 INFO  [s.c.s.s.c.ClientExecuteCommand] [main] - Closed SeaTunnel client......
+2026-07-11 00:36:29,897 INFO  [c.h.c.LifecycleService        ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5801 is SHUTTING_DOWN
+2026-07-11 00:36:29,900 INFO  [c.h.i.p.i.MigrationManager    ] [hz.main.cached.thread-4] - [localhost]:5801 [seatunnel-149926] [5.1] Shutdown request of Member [localhost]:5801 - 2c6cff1a-bc28-4186-868a-4f6574791c6d [master node] [active master] this is handled
+2026-07-11 00:36:29,902 INFO  [c.h.i.i.Node                  ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Shutting down connection manager...
+2026-07-11 00:36:29,904 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-6] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5830 is added to the blacklist.
+2026-07-11 00:36:29,904 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-14] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5803 is added to the blacklist.
+2026-07-11 00:36:29,904 INFO  [s.j.LiteNodeDropOutTcpIpJoiner] [hz.main.cached.thread-5] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5828 is added to the blacklist.
+2026-07-11 00:36:29,905 INFO  [c.h.i.i.Node                  ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Shutting down node engine...
+2026-07-11 00:36:29,916 INFO  [.s.s.o.e.j.s.AbstractConnector] [main] - Stopped ServerConnector@69a40b3c{HTTP/1.1, (http/1.1)}{0.0.0.0:8080}
+2026-07-11 00:36:29,917 INFO  [o.a.s.s.o.e.j.s.session       ] [main] - node0 Stopped scavenging
+2026-07-11 00:36:29,917 INFO  [a.s.s.o.e.j.s.h.ContextHandler] [main] - Stopped o.a.s.s.o.e.j.s.ServletContextHandler@56d6a1b1{/,null,STOPPED}
+2026-07-11 00:36:29,919 INFO  [.c.c.DefaultClassLoaderService] [main] - close classloader service
+2026-07-11 00:36:29,922 INFO  [o.a.s.e.s.EventService        ] [event-forwarder-0] - Event forward thread interrupted
+2026-07-11 00:36:32,989 INFO  [c.h.i.i.NodeExtension         ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Destroying node NodeExtension.
+2026-07-11 00:36:32,990 INFO  [c.h.i.i.Node                  ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] Hazelcast Shutdown is completed in 3091 ms.
+2026-07-11 00:36:32,990 INFO  [c.h.c.LifecycleService        ] [main] - [localhost]:5801 [seatunnel-149926] [5.1] [localhost]:5801 is SHUTDOWN
+2026-07-11 00:36:32,990 INFO  [s.c.s.s.c.ClientExecuteCommand] [main] - Closed HazelcastInstance ......
+2026-07-11 00:36:32,990 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - 
+
+===============================================================================
+
+
+2026-07-11 00:36:32,990 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - Fatal Error, 
+
+2026-07-11 00:36:32,990 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - Please submit bug report in https://github.com/apache/seatunnel/issues
+
+2026-07-11 00:36:32,990 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - Reason:SeaTunnel job executed failed 
+
+2026-07-11 00:36:32,991 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - Exception StackTrace:org.apache.seatunnel.core.starter.exception.CommandExecuteException: SeaTunnel job executed failed
+	at org.apache.seatunnel.core.starter.seatunnel.command.ClientExecuteCommand.execute(ClientExecuteCommand.java:266)
+	at org.apache.seatunnel.core.starter.SeaTunnel.run(SeaTunnel.java:40)
+	at org.apache.seatunnel.core.starter.seatunnel.SeaTunnelClient.main(SeaTunnelClient.java:40)
+Caused by: org.apache.seatunnel.api.table.factory.FactoryException: ErrorCode:[API-06], ErrorDescription:[Factory initialize failed] - Unable to create a source for identifier 'Jdbc'.
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.restoreAndPrepareSource(FactoryUtil.java:168)
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.createAndPrepareSource(FactoryUtil.java:86)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.parseSource(MultipleTableJobConfigParser.java:397)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.parse(MultipleTableJobConfigParser.java:247)
+	at org.apache.seatunnel.engine.client.job.ClientJobExecutionEnvironment.getLogicalDag(ClientJobExecutionEnvironment.java:122)
+	at org.apache.seatunnel.engine.client.job.ClientJobExecutionEnvironment.execute(ClientJobExecutionEnvironment.java:190)
+	at org.apache.seatunnel.core.starter.seatunnel.command.ClientExecuteCommand.execute(ClientExecuteCommand.java:204)
+	... 2 more
+Caused by: java.lang.RuntimeException: Plugin PluginIdentifier{engineType='seatunnel', pluginType='source', pluginName='Jdbc'} not found.
+	at org.apache.seatunnel.plugin.discovery.AbstractPluginDiscovery.createPluginInstance(AbstractPluginDiscovery.java:270)
+	at org.apache.seatunnel.plugin.discovery.AbstractPluginDiscovery.createPluginInstance(AbstractPluginDiscovery.java:209)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.lambda$parseSource$3(MultipleTableJobConfigParser.java:380)
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.restoreAndPrepareSource(FactoryUtil.java:113)
+	... 8 more
+ 
+2026-07-11 00:36:32,991 ERROR [o.a.s.c.s.SeaTunnel           ] [main] - 
+===============================================================================
+
+
+
+Exception in thread "main" org.apache.seatunnel.core.starter.exception.CommandExecuteException: SeaTunnel job executed failed
+	at org.apache.seatunnel.core.starter.seatunnel.command.ClientExecuteCommand.execute(ClientExecuteCommand.java:266)
+	at org.apache.seatunnel.core.starter.SeaTunnel.run(SeaTunnel.java:40)
+	at org.apache.seatunnel.core.starter.seatunnel.SeaTunnelClient.main(SeaTunnelClient.java:40)
+Caused by: org.apache.seatunnel.api.table.factory.FactoryException: ErrorCode:[API-06], ErrorDescription:[Factory initialize failed] - Unable to create a source for identifier 'Jdbc'.
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.restoreAndPrepareSource(FactoryUtil.java:168)
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.createAndPrepareSource(FactoryUtil.java:86)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.parseSource(MultipleTableJobConfigParser.java:397)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.parse(MultipleTableJobConfigParser.java:247)
+	at org.apache.seatunnel.engine.client.job.ClientJobExecutionEnvironment.getLogicalDag(ClientJobExecutionEnvironment.java:122)
+	at org.apache.seatunnel.engine.client.job.ClientJobExecutionEnvironment.execute(ClientJobExecutionEnvironment.java:190)
+	at org.apache.seatunnel.core.starter.seatunnel.command.ClientExecuteCommand.execute(ClientExecuteCommand.java:204)
+	... 2 more
+Caused by: java.lang.RuntimeException: Plugin PluginIdentifier{engineType='seatunnel', pluginType='source', pluginName='Jdbc'} not found.
+	at org.apache.seatunnel.plugin.discovery.AbstractPluginDiscovery.createPluginInstance(AbstractPluginDiscovery.java:270)
+	at org.apache.seatunnel.plugin.discovery.AbstractPluginDiscovery.createPluginInstance(AbstractPluginDiscovery.java:209)
+	at org.apache.seatunnel.engine.core.parse.MultipleTableJobConfigParser.lambda$parseSource$3(MultipleTableJobConfigParser.java:380)
+	at org.apache.seatunnel.api.table.factory.FactoryUtil.restoreAndPrepareSource(FactoryUtil.java:113)
+	... 8 more
+退出码 1
+dw: 任务执行失败（runner 退出码 1，详见上方输出）

@@ -1,0 +1,129 @@
+
+DataX (DATAX-OPENSOURCE-3.0), From Alibaba !
+Copyright (C) 2010-2017, Alibaba Group. All Rights Reserved.
+
+
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by com.alibaba.fastjson2.util.JDKUtils (file:/home/wallfacers/engines/datax/lib/fastjson2-2.0.23.jar)
+WARNING: Please consider reporting this to the maintainers of class com.alibaba.fastjson2.util.JDKUtils
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+2026-07-10 23:56:54.776 [main] INFO  MessageSource - JVM TimeZone: GMT+08:00, Locale: zh_CN
+2026-07-10 23:56:54.777 [main] INFO  MessageSource - use Locale: zh_CN timeZone: sun.util.calendar.ZoneInfo[id="GMT+08:00",offset=28800000,dstSavings=0,useDaylight=false,transitions=0,lastRule=null]
+2026-07-10 23:56:54.796 [main] INFO  VMInfo - VMInfo# operatingSystem class => com.sun.management.internal.OperatingSystemImpl
+2026-07-10 23:56:54.801 [main] INFO  Engine - the machine info  => 
+
+	osInfo:	Linux amd64 6.6.87.2-microsoft-standard-WSL2
+	jvmInfo:	Eclipse Adoptium 25 25.0.3+9-LTS
+	cpu num:	20
+
+	totalPhysicalMemory:	-0.00G
+	freePhysicalMemory:	-0.00G
+	maxFileDescriptorCount:	-1
+	currentOpenFileDescriptorCount:	-1
+
+	GC Names	[G1 Young Generation, G1 Old Generation, G1 Concurrent GC]
+
+	MEMORY_NAME                    | allocation_size                | init_size                      
+	CodeHeap 'profiled nmethods'   | 116.38MB                       | 2.44MB                         
+	G1 Old Gen                     | 1,024.00MB                     | 973.00MB                       
+	G1 Survivor Space              | -0.00MB                        | 0.00MB                         
+	CodeHeap 'non-profiled nmethods' | 116.38MB                       | 2.44MB                         
+	Compressed Class Space         | 1,024.00MB                     | 0.00MB                         
+	Metaspace                      | -0.00MB                        | 0.00MB                         
+	G1 Eden Space                  | -0.00MB                        | 51.00MB                        
+	CodeHeap 'non-nmethods'        | 7.25MB                         | 2.44MB                         
+
+
+2026-07-10 23:56:54.807 [main] INFO  Engine - 
+{
+	"content":[
+		{
+			"reader":{
+				"name":"streamreader",
+				"parameter":{
+					"column":[
+						{
+							"type":"string",
+							"value":"hello-datax"
+						},
+						{
+							"type":"long",
+							"value":42
+						},
+						{
+							"type":"string",
+							"value":"success"
+						}
+					],
+					"sliceRecordCount":5
+				}
+			},
+			"writer":{
+				"name":"streamwriter",
+				"parameter":{
+					"encoding":"UTF-8",
+					"print":true
+				}
+			}
+		}
+	],
+	"setting":{
+		"speed":{
+			"channel":1
+		}
+	}
+}
+
+2026-07-10 23:56:54.818 [main] INFO  PerfTrace - PerfTrace traceId=job_-1, isEnable=false
+2026-07-10 23:56:54.818 [main] INFO  JobContainer - DataX jobContainer starts job.
+2026-07-10 23:56:54.818 [main] INFO  JobContainer - Set jobId = 0
+2026-07-10 23:56:54.824 [job-0] INFO  JobContainer - jobContainer starts to do prepare ...
+2026-07-10 23:56:54.824 [job-0] INFO  JobContainer - DataX Reader.Job [streamreader] do prepare work .
+2026-07-10 23:56:54.825 [job-0] INFO  JobContainer - DataX Writer.Job [streamwriter] do prepare work .
+2026-07-10 23:56:54.825 [job-0] INFO  JobContainer - jobContainer starts to do split ...
+2026-07-10 23:56:54.825 [job-0] INFO  JobContainer - Job set Channel-Number to 1 channels.
+2026-07-10 23:56:54.825 [job-0] INFO  JobContainer - DataX Reader.Job [streamreader] splits to [1] tasks.
+2026-07-10 23:56:54.825 [job-0] INFO  JobContainer - DataX Writer.Job [streamwriter] splits to [1] tasks.
+2026-07-10 23:56:54.846 [job-0] INFO  JobContainer - jobContainer starts to do schedule ...
+2026-07-10 23:56:54.848 [job-0] INFO  JobContainer - Scheduler starts [1] taskGroups.
+2026-07-10 23:56:54.848 [job-0] INFO  JobContainer - Running by standalone Mode.
+2026-07-10 23:56:54.851 [taskGroup-0] INFO  TaskGroupContainer - taskGroupId=[0] start [1] channels for [1] tasks.
+2026-07-10 23:56:54.853 [taskGroup-0] INFO  Channel - Channel set byte_speed_limit to -1, No bps activated.
+2026-07-10 23:56:54.853 [taskGroup-0] INFO  Channel - Channel set record_speed_limit to -1, No tps activated.
+2026-07-10 23:56:54.859 [taskGroup-0] INFO  TaskGroupContainer - taskGroup[0] taskId[0] attemptCount[1] is started
+hello-datax	42	success
+hello-datax	42	success
+hello-datax	42	success
+hello-datax	42	success
+hello-datax	42	success
+2026-07-10 23:56:54.960 [taskGroup-0] INFO  TaskGroupContainer - taskGroup[0] taskId[0] is successed, used[101]ms
+2026-07-10 23:56:54.960 [taskGroup-0] INFO  TaskGroupContainer - taskGroup[0] completed it's tasks.
+2026-07-10 23:57:04.944 [job-0] INFO  StandAloneJobContainerCommunicator - Total 5 records, 100 bytes | Speed 10B/s, 0 records/s | Error 0 records, 0 bytes |  All Task WaitWriterTime 0.000s |  All Task WaitReaderTime 0.000s | Percentage 100.00%
+2026-07-10 23:57:04.944 [job-0] INFO  AbstractScheduler - Scheduler accomplished all tasks.
+2026-07-10 23:57:04.944 [job-0] INFO  JobContainer - DataX Writer.Job [streamwriter] do post work.
+2026-07-10 23:57:04.944 [job-0] INFO  JobContainer - DataX Reader.Job [streamreader] do post work.
+2026-07-10 23:57:04.944 [job-0] INFO  JobContainer - DataX jobId [0] completed successfully.
+2026-07-10 23:57:04.945 [job-0] INFO  HookInvoker - No hook invoked, because base dir not exists or is a file: /home/wallfacers/engines/datax/hook
+2026-07-10 23:57:04.946 [job-0] INFO  JobContainer - 
+	 [total cpu info] => 
+		averageCpu                     | maxDeltaCpu                    | minDeltaCpu                    
+		-1.00%                         | -1.00%                         | -1.00%
+                        
+
+	 [total gc info] => 
+		 NAME                 | totalGCCount       | maxDeltaGCCount    | minDeltaGCCount    | totalGCTime        | maxDeltaGCTime     | minDeltaGCTime     
+		 G1 Young Generation  | 0                  | 0                  | 0                  | 0.000s             | 0.000s             | 0.000s             
+		 G1 Old Generation    | 0                  | 0                  | 0                  | 0.000s             | 0.000s             | 0.000s             
+		 G1 Concurrent GC     | 0                  | 0                  | 0                  | 0.000s             | 0.000s             | 0.000s             
+
+2026-07-10 23:57:04.946 [job-0] INFO  JobContainer - PerfTrace not enable!
+2026-07-10 23:57:04.947 [job-0] INFO  StandAloneJobContainerCommunicator - Total 5 records, 100 bytes | Speed 10B/s, 0 records/s | Error 0 records, 0 bytes |  All Task WaitWriterTime 0.000s |  All Task WaitReaderTime 0.000s | Percentage 100.00%
+2026-07-10 23:57:04.947 [job-0] INFO  JobContainer - 
+任务启动时刻                    : 2026-07-10 23:56:54
+任务结束时刻                    : 2026-07-10 23:57:04
+任务总计耗时                    :                 10s
+任务平均流量                    :               10B/s
+记录写入速度                    :              0rec/s
+读出记录总数                    :                   5
+读写失败总数                    :                   0
+

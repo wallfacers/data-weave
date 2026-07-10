@@ -1,0 +1,29 @@
+# dw run --test 提交输出
+TEST 实例已提交：019f4d0f-7014-7711-ac4f-2b140a3af537
+
+# 服务端 TEST 实例执行日志
+=========== DataWeave Task Run ===========
+Run mode: NORMAL | Type: SQL | Datasource: dw061-starrocks (STARROCKS)
+Start time: 2026-07-10 17:24:45
+=========================================
+连接数据源：dw061-starrocks（STARROCKS） jdbc:mysql://192.168.1.5:9030/information_schema
+连接成功，开始执行
+语句 1/5 执行完成：影响 0 行，耗时 2ms
+语句 2/5 执行完成：影响 0 行，耗时 2ms
+语句 3/5 执行完成：影响 3 行，耗时 267ms
+Tables_in_dwverify
+------------------
+t_orders
+语句 4/5 执行完成：返回 1 行结果集，耗时 2ms
+city | cnt | total
+------------------
+Beijing | 4 | 301.50
+Shanghai | 2 | 400.00
+语句 5/5 执行完成：返回 2 行结果集，耗时 22ms
+全部语句执行完成，共 5 条，总耗时 1573ms
+=========== Execution Finished ===========
+Status: Success | Exit code: 0
+Duration: 1s
+End time: 2026-07-10 17:24:46
+===============================
+

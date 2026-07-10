@@ -6,14 +6,30 @@
     {
       "engine": "STARROCKS",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "starrocks/allin1-ubuntu:3.3-latest (StarRocks 3.3.22-753696f)",
+      "run_via": "dw run + server --test",
+      "success_evidence": "evidence/STARROCKS/success.log",
+      "fail_evidence": "evidence/STARROCKS/fail.log",
+      "skipped_evidence": "evidence/STARROCKS/skipped.log",
+      "server_success_evidence": "evidence/STARROCKS/server_success.log",
+      "resultset_rendered": true,
+      "dw_run_vs_server": "consistent",
+      "notes": "本地dw run三态齐(SUCCESS exit0结果集/FAIL exit6 StarRocks原生analyzing error Unknown table/SKIPPED exit0连接失败已跳过)+服务端--test SUCCESS(192.168.1.5:9030 SHOW TABLES+SELECT聚合结果集渲染,Status:Success);MySQL协议+内置mysql驱动免上传;宿主9030"
     },
     {
       "engine": "DORIS",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "apache/doris:doris-all-in-one-2.1.0 (doris-2.1.0-rc11-91efb6a43d)",
+      "run_via": "dw run + server --test",
+      "success_evidence": "evidence/DORIS/success.log",
+      "fail_evidence": "evidence/DORIS/fail.log",
+      "skipped_evidence": "evidence/DORIS/skipped.log",
+      "server_success_evidence": "evidence/DORIS/server_success.log",
+      "resultset_rendered": true,
+      "dw_run_vs_server": "consistent",
+      "notes": "本地dw run三态齐(SUCCESS exit0结果集/FAIL exit6 Doris原生errCode=2 Unknown table/SKIPPED exit0连接失败已跳过)+服务端--test SUCCESS(192.168.1.5:9031 SHOW TABLES+SELECT聚合结果集渲染,Status:Success);MySQL5.7协议+worker内置mysql驱动免上传"
     },
     {
       "engine": "CLICKHOUSE",
@@ -32,8 +48,16 @@
     {
       "engine": "HIVE",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "apache/hive:4.0.0 (Apache Hive 4.0.0, HS2内嵌Derby)",
+      "run_via": "dw run (LOADER_PATH=uber jar) + server test-connection(上传驱动隔离加载)",
+      "success_evidence": "evidence/HIVE/success.log",
+      "fail_evidence": "evidence/HIVE/fail.log",
+      "skipped_evidence": "evidence/HIVE/skipped.log",
+      "server_success_evidence": "evidence/HIVE/server_driver_upload.log",
+      "resultset_rendered": true,
+      "dw_run_vs_server": "本地dw run真跑三态齐;服务端test-connection上传驱动隔离加载SUCCESS(证机制);服务端任务执行在分布式worker上契约正确SKIPPED(D5:028已知限制无isolatedLoader+LOCAL存储jar不可达)",
+      "notes": "唯一需上传驱动的引擎:hive-jdbc-4.0.0-standalone缺DelegationTokenIssuer→自组含hadoop-common的uber jar(103MB,driverClass自动检出HiveDriver);本地dw run SUCCESS(6语句真跑:CREATE PARTITIONED TABLE+INSERT PARTITION x2+SHOW PARTITIONS→dt=2026-07-10/11分区语义+SELECT聚合结果集渲染)/FAILURE(exit6 Hive原生SemanticException Table not found)/SKIPPED(无驱动→No suitable driver已跳过);服务端test-connection连接成功(上传驱动,Apache Hive 4.0.0,690ms)"
     },
     {
       "engine": "DATAX",
@@ -49,8 +73,25 @@
     {
       "engine": "SEATUNNEL",
       "workflow": "B",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "seatunnel-2.3.13",
+      "run_via": "dw run",
+      "success_evidence": "evidence/SEATUNNEL/success.log",
+      "fail_evidence": "evidence/SEATUNNEL/fail.log",
+      "skipped_evidence": "evidence/SEATUNNEL/skipped.log",
+      "dw_run_vs_server": "consistent",
+      "defects": [
+        {
+          "summary": "buildCommand 缺 --master local 标志(默认连远程集群致超时)",
+          "fix_commit": "pending",
+          "test_added": true
+        },
+        {
+          "summary": "JDK 25 不兼容(Hazelcast getSubject 移除→NPE)；executor 新增 JAVA_HOME→PATH 转发以支持 JDK 21 旁路",
+          "fix_commit": "pending",
+          "test_added": true
+        }
+      ]
     },
     {
       "engine": "SPARK",
@@ -67,14 +108,29 @@
     {
       "engine": "PYTHON",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "host python 3.12.3 (059 PythonTaskExecutor, worker/LocalRun 共享实现)",
+      "run_via": "dw run",
+      "success_evidence": "evidence/PYTHON/success.log",
+      "fail_evidence": "evidence/PYTHON/fail.log",
+      "skipped_evidence": null,
+      "resultset_rendered": false,
+      "dw_run_vs_server": "executor代码本地↔服务端同实现;但服务端worker(Alpine)缺python3→真跑暴露D4观测性缺陷(见server_missing_python.log)已修",
+      "notes": "回归确认:本地dw run SUCCESS(exit0 python3.12.3 sum=55 RESULT_OK)+FAILURE(exit6 原生Traceback ValueError,退出码1透传);解释器恒在无SKIPPED场景;真跑暴露并修D4(缺python3诊断信息未经onLine流日志→裸-1静默)"
     },
     {
       "engine": "SHELL",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "host bash 5.2.21 / server alpine bash 5.3.3 (059 ShellTaskExecutor)",
+      "run_via": "dw run + server --test",
+      "success_evidence": "evidence/SHELL/success.log",
+      "fail_evidence": "evidence/SHELL/fail.log",
+      "skipped_evidence": null,
+      "server_success_evidence": "evidence/SHELL/server_success.log",
+      "resultset_rendered": false,
+      "dw_run_vs_server": "consistent",
+      "notes": "回归确认:本地dw run SUCCESS(exit0 bash5.2.21 RESULT_OK)+FAILURE(exit6 退出码7透传)+服务端--test SUCCESS(Alpine bash5.3.3 RESULT_OK exit0);D4观测性修复一并覆盖Shell"
     }
   ]
 }

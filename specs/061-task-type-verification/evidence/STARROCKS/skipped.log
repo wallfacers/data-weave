@@ -1,0 +1,7 @@
+连接数据源：dw061-starrocks-dead（STARROCKS） jdbc:mysql://localhost:19998/information_schema?connectTimeout=3000
+数据源连接失败，已跳过：Communications link failure
+
+The last packet sent successfully to the server was 0 milliseconds ago. The driver has not received any packets from the server.
+已跳过：数据源连接失败（Communications link failure
+
+The last packet sent successfully to the server was 0 milliseconds ago. The driver has not received any packets from the server.）

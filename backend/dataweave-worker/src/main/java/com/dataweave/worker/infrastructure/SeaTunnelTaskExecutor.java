@@ -88,6 +88,7 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
 
     /**
      * 构造 seatunnel.sh 命令（可单测纯函数）。
+     * 默认 Zeta local 模式（-m local），无需外部集群。
      *
      * @param engineHome SEATUNNEL_HOME 路径
      * @param configPath 配置文件路径
@@ -95,6 +96,8 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
     static List<String> buildCommand(String engineHome, String configPath) {
         List<String> cmd = new ArrayList<>();
         cmd.add(Path.of(engineHome, "bin", "seatunnel.sh").toString());
+        cmd.add("--master");
+        cmd.add("local");
         cmd.add("--config");
         cmd.add(configPath);
         return cmd;
@@ -118,6 +121,14 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
         pb.environment().put("DW_ATTEMPT", String.valueOf(ctx.attempt()));
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
+        }
+        // SeaTunnel 2.3.x requires JDK 17/21 (JDK 25+ removes javax.security.auth.Subject.getSubject
+        // causing Hazelcast NPE in CheckpointService init). If caller sets JAVA_HOME to a compatible JDK,
+        // prepend it to PATH so seatunnel.sh picks it up.
+        String stJavaHome = pb.environment().get("JAVA_HOME");
+        if (stJavaHome != null && !stJavaHome.isBlank()) {
+            String path = pb.environment().getOrDefault("PATH", "");
+            pb.environment().put("PATH", stJavaHome + "/bin:" + path);
         }
         pb.redirectErrorStream(true);
 

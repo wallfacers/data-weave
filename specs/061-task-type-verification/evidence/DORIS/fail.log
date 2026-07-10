@@ -1,0 +1,5 @@
+连接数据源：dw061-doris（DORIS） jdbc:mysql://localhost:9031/information_schema
+连接成功，开始执行
+SQL 执行失败：errCode = 2, detailMessage = Unknown table 'no_such_table_xyz'
+SQL 执行失败
+dw: 任务执行失败（runner 退出码 255，详见上方输出）

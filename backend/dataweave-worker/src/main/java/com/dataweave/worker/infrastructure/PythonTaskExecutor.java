@@ -41,6 +41,11 @@ public class PythonTaskExecutor extends AbstractTaskExecutor {
         return "PYTHON";
     }
 
+    /** 解释器可执行名——抽为 seam 便于测试缺失解释器（IOException）路径。 */
+    protected String interpreterExecutable() {
+        return "python3";
+    }
+
     @Override
     protected ExecutionResult doExecute(ExecutionContext ctx, Consumer<String> onLine) throws Exception {
         if (ctx.content() == null || ctx.content().isBlank()) {
@@ -53,7 +58,7 @@ public class PythonTaskExecutor extends AbstractTaskExecutor {
         // SyntaxError 或隐藏字符。统一转 \n。
         String script = ctx.content().replace("\r\n", "\n").replace('\r', '\n');
 
-        ProcessBuilder pb = new ProcessBuilder("python3", "-c", script);
+        ProcessBuilder pb = new ProcessBuilder(interpreterExecutable(), "-c", script);
         pb.environment().put("DW_ATTEMPT", String.valueOf(ctx.attempt()));
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
@@ -68,9 +73,15 @@ public class PythonTaskExecutor extends AbstractTaskExecutor {
         try {
             process = pb.start();
         } catch (IOException e) {
-            return new ExecutionResult(false, -1, "", "", false, false,
-                    "[PYTHON] 无法启动 python3 进程: " + e.getMessage()
-                            + "（请确认本机已安装 python3 且在 PATH，FR-007）");
+            // 解释器缺失（如 worker 容器未装 python3）→ 诊断信息必须经 onLine 流入实例日志，
+            // 否则操作者只见框架的裸 "-1"、无从判因（061 US1 真跑暴露：Alpine worker 无 python3
+            // 时静默 -1）。message 字段仅供上层记录，不等于日志可见。
+            String diag = "[PYTHON] 无法启动 " + interpreterExecutable() + " 进程: " + e.getMessage()
+                    + "（请确认本机已安装 python3 且在 PATH，FR-007）";
+            if (onLine != null) {
+                onLine.accept(diag);
+            }
+            return new ExecutionResult(false, -1, "", "", false, false, diag);
         }
 
         // 读输出线程：独立运行，避免 readLine() 阻塞超时判定。
