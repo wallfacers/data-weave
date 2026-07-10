@@ -77,6 +77,7 @@ priority: 5
 timeoutSec: 3600
 datasource: flink-local
 flinkMode: sql
+longRunning: true
 params:
   _flinkMode: sql
   _longRunning: "true"
@@ -87,9 +88,26 @@ EOF
 RAWLOG="${HERE}/../tmp/flink-streaming-raw.log"
 mkdir -p "$(dirname "${RAWLOG}")"
 
-echo "[verify-flink-lr] dw run --test ${SLUG} (long_running 需服务端调度)..."
+# 0. 本地 dw run long_running 路径（新增：Go CLI 已支持 --long-running flag，061 去限制）
+echo ""
+echo "[verify-flink-lr] 步骤0: dw run 本地 long_running（验证 Go CLI --long-running → LocalRunMain → EngineSubmitRef.longRunning）..."
+set +e
+"${DW}" run "${SLUG}" > "${RAWLOG}.local" 2>&1
+EXIT_LOCAL=$?
+set -e
+echo "[verify-flink-lr] dw run local exit=${EXIT_LOCAL}"
+if grep -qi "JobID\|external_job_handle\|轮询\|pollUntilTerminal\|FINISHED\|RUNNING\|CANCELED" "${RAWLOG}.local" 2>/dev/null; then
+    echo "[verify-flink-lr] ✅ 本地 dw run 已进入 long_running 路径（检测到 JobID/REST 轮询关键字）"
+else
+    echo "[verify-flink-lr] ⚠️ 本地 dw run 未检测到 long_running 路径关键字（检查 FLINK_HOME 或任务内容）"
+fi
+# 提取 JobID（若成功）
+LOCAL_JOB_ID=$(grep -oP 'JobID[=:]\s*\K[0-9a-fA-F]{32}' "${RAWLOG}.local" 2>/dev/null | head -1 || echo "")
+if [ -n "${LOCAL_JOB_ID}" ]; then
+    echo "[verify-flink-lr] 本地 dw run JobID=${LOCAL_JOB_ID}"
+fi
 
-# 1. 首先用 flink run -d 手动提交，拿到真实 JobID（对照标准）
+# 1. 手动 flink run -d 提交，拿到真实 JobID（对照标准）
 echo ""
 echo "[verify-flink-lr] 步骤1: 手动 detached 提交获取真实 JobID..."
 TMP_SQL="$(mktemp /tmp/dw-flink-lr-XXXXXX.sql)"

@@ -168,7 +168,8 @@ public class LocalRunMain {
         }
         return new ExecutionContext.EngineSubmitRef(
                 args.type(), engineHome, args.flinkMode(),
-                args.jarPath(), args.mainClass(), null, null);
+                args.jarPath(), args.mainClass(), null, null,
+                args.longRunning(), null);
     }
 
     /** 扁平 JSON "key":"value" → Map（ds-json 由 Go CLI 生成，扁平无嵌套；conf 等嵌套结构 MVP 不支持）。 */
