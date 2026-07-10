@@ -112,10 +112,12 @@ def build_record(chash, content, task_type, m1, m2, synth_pool) -> dict | None:
 
 
 def build(pool_dir, labels_dir, gold_paths, synth_pool: set[str],
-          empty_ratio: float = 0.20, seed: int = SEED) -> list[dict]:
+          empty_ratio: float = 0.20, seed: int = SEED,
+          pair: tuple[str, str] = ("m1", "m2")) -> list[dict]:
+    """pair：取交集的两 teacher 名（059 bulk 用 m_flash,m1 跨厂商；默认 m1,m2 兼容旧调用）。"""
     labels_dir = Path(labels_dir)
-    m1 = _load_labels(labels_dir / "m1.jsonl")
-    m2 = _load_labels(labels_dir / "m2.jsonl")
+    m1 = _load_labels(labels_dir / f"{pair[0]}.jsonl")
+    m2 = _load_labels(labels_dir / f"{pair[1]}.jsonl")
     gold_hs = _gold_hashes(gold_paths)
 
     nonempty, empty = [], []
@@ -153,20 +155,23 @@ def main(argv=None) -> int:
     ap.add_argument("--pool", required=True)
     ap.add_argument("--labels", default="realeval/teacher_labels")
     ap.add_argument("--exclude-gold", nargs="*", default=[
-        "realeval/gold/real.jsonl", "realeval/gold/real-jvm.jsonl", "realeval/gold/real-b.jsonl"])
+        "realeval/gold/real.jsonl", "realeval/gold/real-jvm.jsonl",
+        "realeval/gold/real-b.jsonl", "realeval/gold/real-c.jsonl"])
     ap.add_argument("--empty-ratio", type=float, default=0.20)
+    ap.add_argument("--pair", default="m1,m2", help="取交集的两 teacher（059 bulk 用 m_flash,m1）")
     ap.add_argument("--out", default="data/silver.jsonl")
     args = ap.parse_args(argv)
 
     synth = _load_synth_pool()
-    recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio)
+    pair = tuple(args.pair.split(","))
+    recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio, pair=pair)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:
         for r in recs:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     ne = sum(1 for r in recs if not r["is_empty"])
-    print(f"build_silver: total={len(recs)} nonempty={ne} empty={len(recs)-ne} "
+    print(f"build_silver: pair={pair} total={len(recs)} nonempty={ne} empty={len(recs)-ne} "
           f"empty_ratio={(len(recs)-ne)/max(1,len(recs)):.3f} synth_pool={len(synth)}")
     return 0
 

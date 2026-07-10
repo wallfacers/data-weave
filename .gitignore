@@ -94,3 +94,10 @@ ml/lineage-extractor/data/out/train-distill.jsonl
 ml/lineage-extractor/out/model-preds-*.jsonl
 ml/lineage-extractor/out/teacher-smoke.txt
 ml/lineage-extractor/*.exit
+
+# 059 语料扩增：真实脚本池 / teacher 标注 / 银标 / 预测——大体量真实语料，走 HF 不入库
+ml/lineage-extractor/realeval/pool-c*/
+ml/lineage-extractor/realeval/teacher_labels-c*/
+ml/lineage-extractor/data/out/*059*.jsonl
+ml/lineage-extractor/data/reasoning-corpus-059.jsonl
+ml/lineage-extractor/out/preds-c-*.jsonl
