@@ -57,9 +57,12 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
     private static final int MAX_CAPTURED_LINES = 5000;
     private static final int DEFAULT_TIMEOUT_SECONDS = 3600;
 
-    /** Flink detached 提交后 stdout 中的 JobID 模式：JobID: <hex>（32 hex chars，大小写不敏感）。 */
+    /** Flink detached 提交后 stdout 中的 JobID 模式。
+     * 兼容两种格式：{@code flink run -d} 输出 {@code JobID: <hex>}（紧凑），
+     * 以及 {@code sql-client.sh} 输出 {@code Job ID: <hex>}（带空格）。
+     * 32 hex chars，大小写不敏感。 */
     private static final Pattern JOB_ID_PATTERN = Pattern.compile(
-            "JobID:\\s*([0-9a-fA-F]{32})");
+            "Job\\s*ID[=:]\\s*([0-9a-fA-F]{32})");
 
     private final ExternalJobHandleWriter handleWriter;
 
@@ -429,9 +432,9 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
             }
             default -> { // sql
                 cmd.add(Path.of(engineHome, "bin", "sql-client.sh").toString());
-                if (detached) {
-                    cmd.add("-d");
-                }
+                // 不传 -d：Flink 1.20 sql-client.sh 的 -d 是 --define（会话变量），
+                // 而非 detached（仅 flink run 支持 -d）。sql-client.sh -f 本身对
+                // streaming query 提交后即返回，JobID 在 stdout 中可解析（061 真跑验证）。
                 cmd.add("-f");
                 cmd.add(submitTarget);
             }

@@ -43,13 +43,21 @@
       "engine": "SPARK",
       "workflow": "C",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "3.5.4",
+      "run_via": "dw run",
+      "success_evidence": "evidence/SPARK/success.log",
+      "fail_evidence": "evidence/SPARK/fail.log",
+      "skipped_evidence": "evidence/SPARK/skipped.log"
     },
     {
       "engine": "FLINK",
       "workflow": "C",
       "status": "PENDING",
-      "engine_version": ""
+      "engine_version": "1.20.5",
+      "run_via": "dw run (long_running)",
+      "success_evidence": "evidence/FLINK/success.log",
+      "fail_evidence": "evidence/FLINK/fail.log",
+      "skipped_evidence": "evidence/FLINK/skipped.log"
     },
     {
       "engine": "PYTHON",

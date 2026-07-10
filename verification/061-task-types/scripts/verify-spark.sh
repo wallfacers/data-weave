@@ -7,7 +7,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JOBS="${HERE}/jobs"
 SCRIPTS="${HERE}/scripts"
-REPO="$(cd "${HERE}/../../.." && pwd)"
+REPO="$(git -C "${HERE}" rev-parse --show-toplevel 2>/dev/null)""
 DW="${REPO}/cli/dw"
 VER="${1:-3.5.4}"  # Spark 版本
 
