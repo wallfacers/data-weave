@@ -8,14 +8,18 @@
 |---|---|---|---|---|---|---|---|---|
 | StarRocks | A | PENDING | — | — | — | — | — | |
 | Doris | A | PENDING | — | — | — | — | — | 宿主端口 9031（与 StarRocks 9030 错开）|
-| ClickHouse | A | PENDING | — | — | — | — | — | 驱动 worker 内置，免上传 |
+| ClickHouse | A | **PASS** | clickhouse-server:24.3 (24.3.18.7) | ✅ success.log | ✅ fail.log | ✅ | consistent | 本地dw run+服务端--test双SUCCESS；三态齐(SUCCESS exit0/FAIL exit6 UNKNOWN_TABLE/SKIPPED exit0连接失败)；SHOW TABLES+SELECT结果集表头+数据行真现于日志 |
 | Hive | A | PENDING | — | — | — | — | — | 需上传 hive-jdbc standalone jar |
-| DataX | B | PENDING | — | — | — | n/a | — | streamreader→writer 底线 |
+| DataX | B | **PASS** | datax_v202309 | ✅ success.log | ✅ fail.log | n/a | consistent | streamreader→writer 底线：5记录/0错误/原生统计透出；fail=mysqlreader→不存在表(DataX原生报错)；SKIPPED=确认真·引擎在位vs缺引擎三态可辨 |
 | SeaTunnel | B | PENDING | — | — | — | n/a | — | FakeSource→Console 底线 |
 | Spark | C | PENDING | — | — | — | n/a | — | pyspark 取一形态 |
 | Flink | C | PENDING | — | — | — | n/a | — | long_running reattach(SC-005) |
 | Python | A | PENDING | — | — | — | n/a | — | 回归确认 |
 | Shell | A | PENDING | — | — | — | n/a | — | 回归确认 |
+
+## 真跑暴露的缺陷（FR-011）
+
+- **D1（009 CLI sync 路径，非 061 执行器）**：`dw push` 的完整性校验用 pull 基线文件数当 `expectedFileCount`（`cli/sync/push.go:39` 发 `state.FileCount`），任何**新增/删除文件**都会撞 `project.sync.incomplete`（服务端 `ProjectSyncService.java:635` `files.size() != expectedFileCount`）→ 正常「加任务再 push」被拒。正确修法：该行改 `len(files)`（push.go:63 成功后本就写 `state.FileCount=len(files)`）。**当前 workaround**：push 前把 `.weft/state.json.fileCount` 对齐为实际文件数。属 009 sibling 缺陷，是否并入 061 或另开修复待定，不阻塞 ClickHouse 真跑取证（本地 dw run 无需 push）。
 
 ## 三态判据
 

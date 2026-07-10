@@ -18,8 +18,16 @@
     {
       "engine": "CLICKHOUSE",
       "workflow": "A",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "clickhouse/clickhouse-server:24.3 (24.3.18.7)",
+      "run_via": "server --test",
+      "success_evidence": "evidence/CLICKHOUSE/success.log",
+      "fail_evidence": "evidence/CLICKHOUSE/fail.log",
+      "skipped_evidence": "evidence/CLICKHOUSE/skipped.log",
+      "server_success_evidence": "evidence/CLICKHOUSE/server_success.log",
+      "resultset_rendered": true,
+      "dw_run_vs_server": "consistent",
+      "notes": "本地dw run+服务端--test双SUCCESS;三态齐(SUCCESS exit0/FAIL exit6 UNKNOWN_TABLE/SKIPPED exit0连接失败);SHOW TABLES+SELECT结果集渲染"
     },
     {
       "engine": "HIVE",
@@ -30,8 +38,13 @@
     {
       "engine": "DATAX",
       "workflow": "B",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "datax_v202309",
+      "run_via": "dw run",
+      "success_evidence": "evidence/DATAX/success.log",
+      "fail_evidence": "evidence/DATAX/fail.log",
+      "skipped_evidence": "evidence/DATAX/skipped.log",
+      "dw_run_vs_server": "consistent"
     },
     {
       "engine": "SEATUNNEL",

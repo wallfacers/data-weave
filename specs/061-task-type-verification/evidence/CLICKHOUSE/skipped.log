@@ -1,0 +1,3 @@
+连接数据源：dw061-clickhouse（CLICKHOUSE） jdbc:clickhouse://localhost:8123/dwverify
+数据源连接失败，已跳过：Connect to http://localhost:8123 failed: Connect timed out, server ClickHouseNode [uri=http://localhost:8123/dwverify]@-888314712
+已跳过：数据源连接失败（Connect to http://localhost:8123 failed: Connect timed out, server ClickHouseNode [uri=http://localhost:8123/dwverify]@-888314712）
