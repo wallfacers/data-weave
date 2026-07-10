@@ -1,0 +1,21 @@
+{
+  "all": {
+    "precision": 0.316,
+    "recall": 0.6583333333333333,
+    "f1": 0.42702702702702705,
+    "hallucination": 0.164,
+    "direction_acc": 0.5833333333333334,
+    "invalid": 12
+  },
+  "nonempty": {
+    "precision": 0.5808823529411765,
+    "recall": 0.6583333333333333,
+    "f1": 0.6171875,
+    "hallucination": 0.022058823529411766,
+    "direction_acc": 0.5833333333333334,
+    "invalid": 3
+  },
+  "n": 153,
+  "n_nonempty": 49,
+  "model": "out/run-059-reason/merged"
+}

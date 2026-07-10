@@ -1,0 +1,43 @@
+{
+  "cal": {
+    "n_scripts": 30,
+    "per_teacher": {
+      "m_flash": {
+        "model": "deepseek-v4-flash",
+        "n": 30,
+        "in": 45364,
+        "out": 17761,
+        "err": 1,
+        "max_out": 2048,
+        "reasoning_chars": 0
+      },
+      "m1": {
+        "model": "qwen-max",
+        "n": 30,
+        "in": 41618,
+        "out": 1948,
+        "err": 0,
+        "max_out": 310,
+        "reasoning_chars": 0
+      },
+      "m3": {
+        "model": "deepseek-v4-pro",
+        "n": 30,
+        "in": 1972,
+        "out": 25633,
+        "err": 0,
+        "max_out": 3027,
+        "reasoning_chars": 98949
+      }
+    }
+  },
+  "bulk": [
+    "m_flash",
+    "m1"
+  ],
+  "reasoning": [
+    "m3"
+  ],
+  "full_total": 2900,
+  "reason_total": 1500
+}

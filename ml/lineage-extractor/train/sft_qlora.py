@@ -33,23 +33,51 @@ SYSTEM_PROMPT = (
 )
 
 
-def to_messages(row: dict) -> dict:
+# 059 推理蒸馏：assistant 目标 = 思维链 + 最终答案。用显式分隔符 </think>，推理侧无花括号
+# 干扰最终 JSON 的解析（eval 取 </think> 之后的 JSON；无分隔符时回退整串末尾 JSON）。
+THINK_CLOSE = "</think>"
+
+
+def _answer_json(row: dict) -> str:
     labels = {
         "reads": sorted(row["labels"]["reads"], key=lambda x: x["table"]),
         "writes": sorted(row["labels"]["writes"], key=lambda x: x["table"]),
     }
+    return json.dumps(labels, ensure_ascii=False)
+
+
+def to_messages(row: dict) -> dict:
     return {
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"task_type: {row['task_type']}\nscript:\n{row['content']}"},
-            {"role": "assistant", "content": json.dumps(labels, ensure_ascii=False)},
+            {"role": "assistant", "content": _answer_json(row)},
+        ]
+    }
+
+
+def to_messages_reasoning(row: dict) -> dict:
+    """推理语料行 → 想后答目标：`<think>\\n{reasoning}\\n</think>\\n{json}`。
+    教小模型先复述 pro 的推理再吐答案（punch #1）。"""
+    think = (row.get("reasoning") or "").strip()
+    assistant = f"<think>\n{think}\n{THINK_CLOSE}\n{_answer_json(row)}"
+    return {
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"task_type: {row['task_type']}\nscript:\n{row['content']}"},
+            {"role": "assistant", "content": assistant},
         ]
     }
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default="data/out/train.jsonl")
+    ap.add_argument("--data", default="data/out/train.jsonl",
+                    help="扩语料 plain 银标（答案-only SFT，punch #2）")
+    ap.add_argument("--reasoning-data", default=None,
+                    help="推理语料（想后答，punch #1）；与 --data 混合训练")
+    ap.add_argument("--reasoning-only", action="store_true",
+                    help="消融：只用 --reasoning-data 训练（不混 plain 银标）")
     ap.add_argument("--out", default="out/run1")
     ap.add_argument("--epochs", type=float, default=2.0)
     ap.add_argument("--max-len", type=int, default=2048)
@@ -60,9 +88,22 @@ def main() -> None:
     args = ap.parse_args()
     base_model = args.base_model
 
-    rows = [json.loads(l) for l in Path(args.data).read_text(encoding="utf-8").splitlines() if l.strip()]
-    ds = Dataset.from_list([to_messages(r) for r in rows])
-    print(f"train rows: {len(ds)}")
+    def _read(p):
+        return [json.loads(l) for l in Path(p).read_text(encoding="utf-8").splitlines() if l.strip()]
+
+    examples = []
+    if not args.reasoning_only:
+        plain = _read(args.data)
+        examples += [to_messages(r) for r in plain]
+        print(f"plain silver rows: {len(plain)}")
+    if args.reasoning_data:
+        reasoning = _read(args.reasoning_data)
+        examples += [to_messages_reasoning(r) for r in reasoning]
+        print(f"reasoning rows: {len(reasoning)}")
+    if not examples:
+        raise SystemExit("no training rows (检查 --data / --reasoning-data)")
+    ds = Dataset.from_list(examples)
+    print(f"train rows total: {len(ds)}")
 
     peft_config = LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",

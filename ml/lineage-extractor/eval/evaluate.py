@@ -42,8 +42,9 @@ SYSTEM_PROMPT = (
 )
 
 
-def predict(model, tok, row: dict) -> dict:
-    """真实模型推理（惰性 import torch，避免拖累 run_eval 的无 torch 单测）。"""
+def predict(model, tok, row: dict, max_new_tokens: int = 512) -> dict:
+    """真实模型推理（惰性 import torch，避免拖累 run_eval 的无 torch 单测）。
+    max_new_tokens=512：推理蒸馏模型先吐思维链再答，256 会截断最终 JSON。"""
     import torch
 
     messages = [
@@ -53,9 +54,13 @@ def predict(model, tok, row: dict) -> dict:
     inputs = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=True,
                                      return_dict=True, return_tensors="pt").to(model.device)
     with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=256, do_sample=False,
+        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False,
                              pad_token_id=tok.pad_token_id or tok.eos_token_id)
     text = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
+    # 059：推理蒸馏模型输出 `<think>…</think>{json}`；取 </think> 之后的最终答案再解析，
+    # 避免思维链里的花括号污染贪婪 JSON 匹配。plain 模型无 </think>，行为不变。
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
         return {"reads": [], "writes": [], "_invalid": True}

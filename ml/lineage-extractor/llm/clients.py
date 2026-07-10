@@ -3,9 +3,11 @@
 - M1 = DashScope(OpenAI 兼容)，`DASHSCOPE_API_KEY` + `QWEN_MODEL`（默认 qwen-max）。
 - M2 = 独立 DashScope 兼容 key（`QWEN2_API_KEY` + `QWEN2_MODEL`，默认 qwen3.7-max）；
        无则回退旧路径（`ALI_ANTHROPIC_*` 或 `M2_MODEL`+DASHSCOPE）。
-- M3 = Anthropic 兼容第三方（如 DeepSeek）：`DEEPSEEK_ANTHROPIC_TOKEN` +
-       `DEEPSEEK_ANTHROPIC_BASE_URL` + `DEEPSEEK_MODEL`（默认 deepseek-v4-pro）。
-多 teacher 供 054 fresh-repo 测试集 B 的**一致性 auto-gold**（≥K 方一致才入 gold）。
+- M3 = Anthropic 兼容第三方（如 DeepSeek pro）：`DEEPSEEK_ANTHROPIC_TOKEN` +
+       `DEEPSEEK_ANTHROPIC_BASE_URL` + `DEEPSEEK_MODEL`（默认 deepseek-v4-pro）；开 capture_reasoning。
+- M_FLASH = deepseek-v4-flash 便宜档（`DEEPSEEK_FLASH_MODEL`），059 bulk 一致投票用。
+多 teacher 供一致性 auto-gold（≥K 方一致才入 gold）；每次调用回传 `_usage`（token 用量）供成本校准，
+pro 回传 `_reasoning`（思维链）供 059 推理蒸馏。
 """
 from __future__ import annotations
 import json, os, re
@@ -57,20 +59,37 @@ def _dashscope_backend(api_key_env: str = "DASHSCOPE_API_KEY",
         r = cli.chat.completions.create(model=model, temperature=0.0, timeout=60,
               messages=[{"role":"system","content":SYSTEM_PROMPT},
                         {"role":"user","content":user}])
-        return _parse_lineage_json(r.choices[0].message.content or "")
+        out = _parse_lineage_json(r.choices[0].message.content or "")
+        u = getattr(r, "usage", None)
+        if u is not None:  # 059 预算门：抓真实 token 用量供成本校准
+            out["_usage"] = {"in": getattr(u, "prompt_tokens", 0) or 0,
+                             "out": getattr(u, "completion_tokens", 0) or 0}
+        return out
     return call
 
-def _anthropic_backend(base_url_env: str, token_env: str, max_tokens: int = 8192):
+def _anthropic_backend(base_url_env: str, token_env: str, max_tokens: int = 8192,
+                       capture_reasoning: bool = False):
     """Anthropic 兼容后端（阿里云 / DeepSeek 等），base_url/token 参数化。
     max_tokens 放宽到 8192：reasoning 模型（deepseek-v4-pro）思维链吃 output，
-    2048 仍会被思维链吃光、最终 JSON 未吐出致 no_json（实测 155 条中 22 条中招）。"""
+    2048 仍会被思维链吃光、最终 JSON 未吐出致 no_json（实测 155 条中 22 条中招）。
+    capture_reasoning=True 时保留思维链文本（供 059 推理蒸馏）；抓 usage 供成本校准。"""
     from anthropic import Anthropic
     cli = Anthropic(base_url=os.environ[base_url_env], api_key=os.environ[token_env])
     def call(model, user):
-        r = cli.messages.create(model=model, max_tokens=max_tokens, temperature=0.0, timeout=120,
+        r = cli.messages.create(model=model, max_tokens=max_tokens, temperature=0.0, timeout=180,
               system=SYSTEM_PROMPT, messages=[{"role":"user","content":user}])
         text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text")
-        return _parse_lineage_json(text)
+        out = _parse_lineage_json(text)
+        if capture_reasoning:
+            # DeepSeek anthropic 兼容：思维链可能落 type=="thinking" 块(.thinking)；收下供蒸馏。
+            think = "".join(getattr(b, "thinking", "") or "" for b in r.content
+                            if getattr(b, "type", "") == "thinking")
+            out["_reasoning"] = think or None
+        u = getattr(r, "usage", None)
+        if u is not None:  # 059 预算门：抓真实 token 用量
+            out["_usage"] = {"in": getattr(u, "input_tokens", 0) or 0,
+                             "out": getattr(u, "output_tokens", 0) or 0}
+        return out
     return call
 
 def load_clients() -> dict[str, "LlmClient"]:
@@ -91,8 +110,15 @@ def load_clients() -> dict[str, "LlmClient"]:
         out["m2"] = LlmClient("m2", _dashscope_backend(), os.environ["M2_MODEL"])
     else:
         print("[warn] M2 missing (need QWEN2_API_KEY / ALI_ANTHROPIC_* / M2_MODEL); skip")
-    # M3：Anthropic 兼容第三方 teacher（DeepSeek）——跨厂商增强一致性 auto-gold 独立性。
+    # M3：DeepSeek pro——跨厂商增强一致性 auto-gold；兼作 059 推理老师（capture_reasoning 留思维链）。
     if os.environ.get("DEEPSEEK_ANTHROPIC_TOKEN") and os.environ.get("DEEPSEEK_ANTHROPIC_BASE_URL"):
-        out["m3"] = LlmClient("m3", _anthropic_backend("DEEPSEEK_ANTHROPIC_BASE_URL", "DEEPSEEK_ANTHROPIC_TOKEN"),
+        out["m3"] = LlmClient("m3", _anthropic_backend("DEEPSEEK_ANTHROPIC_BASE_URL", "DEEPSEEK_ANTHROPIC_TOKEN",
+                                                       capture_reasoning=True),
                               os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"))
+        # m_flash：deepseek-v4-flash 便宜档，059 bulk 一致投票用。flash 默认亦走思考模式，
+        # max_tokens=4096 防思维链吃光 JSON（校准实测 2048 时 1/30 no_json 截断）。
+        out["m_flash"] = LlmClient("m_flash",
+                                   _anthropic_backend("DEEPSEEK_ANTHROPIC_BASE_URL", "DEEPSEEK_ANTHROPIC_TOKEN",
+                                                      max_tokens=4096),
+                                   os.environ.get("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"))
     return out
