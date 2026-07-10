@@ -94,14 +94,22 @@ INSERT INTO task_def_version (id, tenant_id, project_id, task_id, version_no, na
 (4, 1, 1, 4, 1, '实时流量统计', 'SQL', 'select count(*) from access_log', 1, NULL, NULL, 300, 1, '首次发布', 1, TIMESTAMP '2026-06-10 00:00:00', TIMESTAMP '2026-06-10 00:00:00');
 
 INSERT INTO workflow_def (id, tenant_id, project_id, name, description, schedule_type, cron, schedule_start, schedule_end, status, current_version_no, has_draft_change, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
-(1, 1, 1, '每日 GMV 工作流', '仅用户画像（GMV 统计/订单宽表加工 已移除）', 'CRON', '0 0 2 * * ?', TIMESTAMP '2026-06-06 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0),
+(1, 1, 1, '每日 GMV 工作流', '仅用户画像（GMV 统计/订单宽表加工 已移除）', 'CRON', '0 0 2 * * ?', TIMESTAMP '2026-06-06 00:00:00', NULL, 'ONLINE', 2, 0, 1, 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00', 0, 0),
 (2, 1, 1, '下游日报工作流', '依赖「每日 GMV 工作流」今日成功后出日报', 'DEPENDENCY', '0 0 5 * * ?', TIMESTAMP '2026-06-07 00:00:00', NULL, 'ONLINE', 1, 0, 1, 1, TIMESTAMP '2026-06-07 00:00:00', TIMESTAMP '2026-06-07 00:00:00', 0, 0);
 
--- 任务流已发布版本快照（v1，dag_snapshot_json 冻结整张 DAG）
+-- 任务流已发布版本快照（dag_snapshot_json 冻结整张 DAG）。
+-- 工作流 1 演示「发布后编辑删节点再晋级」的真实版本演进：
+--   v1（id=1，3 节点）= 历史首次发布，三个历史实例 01910000-0001/0002/0003 即钉死此版（DAG 读此快照）；
+--   v2（id=7，1 节点）= 当前线上版，移除 GMV 统计/订单宽表加工 后重新晋级，current_version_no=2。
+-- 这样历史实例的 DAG 视图能完整呈现其当时跑过的全部节点（含失败节点），与 workflow_instance.state 自洽，
+-- 不再出现「v1 快照只剩 1 节点却挂着 3 个 task_instance」的脏数据矛盾（真实发布按版本不可变，本 seed 此前错误地把两版压成一版）。
 INSERT INTO workflow_def_version (id, tenant_id, project_id, workflow_id, version_no, name, description, schedule_type, cron, dag_snapshot_json, remark, published_by, published_at, created_at) VALUES
-(1, 1, 1, 1, 1, '每日 GMV 工作流', '仅用户画像', 'CRON', '0 0 2 * * ?',
-  '{"nodes":[{"nodeKey":"n3","nodeType":"TASK","taskId":3,"taskVersionNo":1,"name":"用户画像聚合","posX":300,"posY":160}],"edges":[]}',
+(1, 1, 1, 1, 1, '每日 GMV 工作流', '首次发布(3节点)', 'CRON', '0 0 2 * * ?',
+  '{"nodes":[{"nodeKey":"n1","nodeType":"TASK","taskId":2,"taskVersionNo":1,"name":"订单宽表加工","posX":50,"posY":160},{"nodeKey":"n2","nodeType":"TASK","taskId":1,"taskVersionNo":1,"name":"GMV 统计","posX":350,"posY":80},{"nodeKey":"n3","nodeType":"TASK","taskId":3,"taskVersionNo":1,"name":"用户画像聚合","posX":350,"posY":240}],"edges":[{"fromNodeKey":"n1","toNodeKey":"n2","strength":"STRONG"},{"fromNodeKey":"n1","toNodeKey":"n3","strength":"STRONG"}]}',
   '首次发布', 1, TIMESTAMP '2026-06-06 00:00:00', TIMESTAMP '2026-06-06 00:00:00'),
+(7, 1, 1, 1, 2, '每日 GMV 工作流', '仅用户画像（GMV 统计/订单宽表加工 已移除）', 'CRON', '0 0 2 * * ?',
+  '{"nodes":[{"nodeKey":"n3","nodeType":"TASK","taskId":3,"taskVersionNo":1,"name":"用户画像聚合","posX":300,"posY":160}],"edges":[]}',
+  '移除 GMV 统计/订单宽表加工', 1, TIMESTAMP '2026-06-08 00:00:00', TIMESTAMP '2026-06-08 00:00:00'),
 (2, 1, 1, 2, 1, '下游日报工作流', '依赖上游 GMV 工作流', 'CRON', '0 0 5 * * ?',
   '{"nodes":[],"edges":[],"dependsOn":[{"workflowId":1,"dateOffset":"CURRENT_DAY"}]}',
   '首次发布', 1, TIMESTAMP '2026-06-07 00:00:00', TIMESTAMP '2026-06-07 00:00:00');
