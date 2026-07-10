@@ -2,6 +2,7 @@ package com.dataweave.worker.application;
 
 import com.dataweave.master.domain.lineage.StatementMetric;
 import com.dataweave.master.i18n.Messages;
+import com.dataweave.worker.domain.CurrentExecution;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import org.springframework.stereotype.Component;
@@ -107,9 +108,11 @@ public class WorkerExecService {
         }
         pool.submit(() -> {
             running.add(taskInstanceId);
+            CurrentExecution.bind(taskInstanceId);   // 060: Flink 句柄回写用（execute 期间保持）
             try {
                 doRun(taskInstanceId, attempt, ctx, lineConsumer, report, locale);
             } finally {
+                CurrentExecution.clear();
                 running.remove(taskInstanceId);
                 inFlight.remove(key);
             }
@@ -129,6 +132,7 @@ public class WorkerExecService {
             return null; // 幂等拒绝
         }
         running.add(taskInstanceId);
+        CurrentExecution.bind(taskInstanceId);   // 060: Flink 句柄回写用
         try {
             TaskExecutor executor = resolveExecutor(ctx.taskType());
             if (executor == null) {
@@ -137,6 +141,7 @@ public class WorkerExecService {
             }
             return executor.execute(ctx, lineConsumer);
         } finally {
+            CurrentExecution.clear();
             running.remove(taskInstanceId);
             inFlight.remove(key);
         }

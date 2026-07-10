@@ -34,6 +34,10 @@ import static org.mockito.Mockito.mock;
 @DisplayName("SchedulerKernelReadiness")
 class SchedulerKernelReadinessTest {
 
+    /** 单调唯一 node id 生成器（避免 currentTimeMillis 同毫秒撞主键；基点带时间保跨运行唯一）。 */
+    private static final java.util.concurrent.atomic.AtomicLong SEED_NODE_ID =
+            new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+
     private JdbcTemplate jdbc;
     private SchedulerKernel kernel;
 
@@ -202,7 +206,9 @@ class SchedulerKernelReadinessTest {
     private UUID seedWaitingInstance(int unmetDeps) {
         UUID id = UUID.randomUUID();
         UUID wiId = UUID.randomUUID();
-        long nodeId = System.currentTimeMillis(); // unique node id
+        // 唯一 node id：原用 System.currentTimeMillis()，同毫秒内多次 seed（casDispatchNoDoubleDispatch
+        // 循环）会撞 workflow_node.id 主键 → 高负载下 DuplicateKeyException flake。改用单调计数器保确定唯一。
+        long nodeId = SEED_NODE_ID.incrementAndGet();
         jdbc.update("INSERT INTO workflow_def (tenant_id, project_id, name) VALUES (1,1,CONCAT('wf',?))", nodeId);
         jdbc.update("INSERT INTO workflow_node (id, tenant_id, project_id, workflow_id, node_key, name) " +
                 "VALUES (?,1,1,1,CONCAT('n',?),CONCAT('node',?))", nodeId, nodeId, nodeId);

@@ -75,8 +75,11 @@ class LeaseReaperTest {
     }
 
     @Test
-    void reap_noRetryMax_staysFailed() {
-        // 准备：ONLINE 节点 + 过期租约的 DISPATCHED 实例（retry_max=0）
+    void reap_workerRestart_infraRequeue_notFailed_regardlessOfRetryMax() {
+        // 060 硬不变量（FR-008）：WORKER_RESTART 是 infra 回收，永不判终态 FAILED、不烧 business_attempt——
+        // 即便 retry_max=0（业务无重试预算）也回 WAITING（infra 计数与业务重试彻底解耦）。
+        // 本用例原名 reap_noRetryMax_staysFailed，断言旧 attempt 混用语义（attempt>retry_max→FAILED），
+        // 060 计数双拆后该前提已废除，改断言正确的 infra 回收语义。
         String nodeCode = "test-restart-" + System.currentTimeMillis();
         fleetService.report(nodeCode, "host1", "4C/8G", 0.1, 0.2, 0.3, 0.4, 0,
                 null, null, 120);
@@ -90,17 +93,25 @@ class LeaseReaperTest {
                         "VALUES (?, 1, 1, 99998, 'DISPATCHED', 1, ?, ?, 'NORMAL', 0, 0)",
                 instanceId.toString(), nodeCode, LocalDateTime.now().minusSeconds(300));
 
-        // 执行回收（节点 ONLINE 但租约过期 → WORKER_RESTART）
+        // 执行回收（节点 ONLINE 但租约过期 → WORKER_RESTART → infra 回收）
         leaseReaper.reap();
 
-        // retry_max=0, attempt=1 > 0 → 终态 FAILED
+        // 060：infra 回收 → WAITING（非终态），infra_redispatch_count+1，清 worker，business_attempt 不变
         String state = jdbc.queryForObject(
                 "SELECT state FROM task_instance WHERE id=?", String.class, instanceId.toString());
-        assertThat(state).isEqualTo("FAILED");
+        assertThat(state).isEqualTo("WAITING");
 
-        String reason = jdbc.queryForObject(
-                "SELECT failure_reason FROM task_instance WHERE id=?", String.class, instanceId.toString());
-        assertThat(reason).isEqualTo("WORKER_RESTART");
+        Integer infraCount = jdbc.queryForObject(
+                "SELECT infra_redispatch_count FROM task_instance WHERE id=?", Integer.class, instanceId.toString());
+        assertThat(infraCount).isEqualTo(1);
+
+        Integer businessAttempt = jdbc.queryForObject(
+                "SELECT business_attempt FROM task_instance WHERE id=?", Integer.class, instanceId.toString());
+        assertThat(businessAttempt).isEqualTo(0);   // infra 回收不烧业务重试
+
+        String workerNode = jdbc.queryForObject(
+                "SELECT worker_node_code FROM task_instance WHERE id=?", String.class, instanceId.toString());
+        assertThat(workerNode).isNull();            // 清 worker，可转移到健康节点
 
         // 清理
         jdbc.update("DELETE FROM task_instance WHERE id=?", instanceId.toString());

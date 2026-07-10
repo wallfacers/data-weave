@@ -1,9 +1,12 @@
 package com.dataweave.worker.infrastructure;
 
 import com.dataweave.worker.domain.AbstractTaskExecutor;
+import com.dataweave.worker.domain.CurrentExecution;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.ExecutionContext.EngineSubmitRef;
 import com.dataweave.worker.domain.ExternalJobHandleWriter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
@@ -14,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -59,19 +63,26 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
 
     private final ExternalJobHandleWriter handleWriter;
 
+    /** Flink 作业状态抓取（可测试注入；默认真 HTTP）。 */
+    FlinkJobStatusFetcher statusFetcher = FlinkJobStatusFetcher.http();
+
+    /** long_running 轮询间隔（ms，可配；测试注入小值避免慢测）。 */
+    @Value("${scheduler.flink.poll-interval-ms:5000}")
+    long pollIntervalMs = 5000;
+
+    /** 轮询连续失败上限 → 判失败交兜底（可配）。 */
+    @Value("${scheduler.flink.max-poll-errors:60}")
+    int maxPollErrors = 60;
+
+    /** 本地 {@code dw run}/localrun 用：无 Spring，句柄回写 no-op（本地无 master）。 */
     public FlinkTaskExecutor() {
         this(ExternalJobHandleWriter.noop());
     }
 
-    /** 可注入 ExternalJobHandleWriter（测试用；生产由 Spring 构造后 set）。 */
-    FlinkTaskExecutor(ExternalJobHandleWriter handleWriter) {
+    /** Spring 注入 {@link HttpExternalJobHandleWriter}（生产回写 external_job_handle 到 master）。 */
+    @Autowired
+    public FlinkTaskExecutor(ExternalJobHandleWriter handleWriter) {
         this.handleWriter = handleWriter;
-    }
-
-    // ---- FlinkTaskExecutor 专属（测试/生产注入）----
-
-    void setHandleWriter(ExternalJobHandleWriter w) {
-        // 仅用于测试替换桩，生产由 Spring 管理
     }
 
     @Override
@@ -95,13 +106,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
 
         // ── reattach 路径：external_job_handle 非空 → 按句柄重连（FR-024）──
         if (ref.externalJobHandle() != null && !ref.externalJobHandle().isBlank()) {
-            emit(onLine, "[FLINK] external_job_handle 非空，进入 reattach 模式（不重新提交）");
-            emit(onLine, "[FLINK] handle=" + ref.externalJobHandle());
-            // TODO(060-Foundational): 实现 Flink REST 轮询 reattach。
-            // 当前桩：回显句柄并返回 skipped（不阻塞，不误报成功/失败）。
-            // 真集成时改为：解析 handle → GET /jobs/{jobId} → 驱动 RUNNING/续约/终态。
-            return ExecutionResult.skipped(
-                    "[FLINK] reattach 模式（桩）：handle=" + ref.externalJobHandle());
+            return executeReattach(ctx, ref, mode, content, onLine);
         }
 
         // ── long_running 分支：detached 提交（FR-023）──
@@ -242,20 +247,134 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
             String handle = "{\"jobId\":\"" + jobId + "\",\"restEndpoint\":\""
                     + resolveRestEndpoint(ref) + "\"}";
             emit(onLine, "[FLINK] external_job_handle=" + handle);
-            // TODO(060-Foundational): 从 WorkerExecService 层调用 handleWriter.write(instanceId, handle)
-            // instanceId 由 WorkerExecService.doRun 持有，通过新增的 TaskExecutor 回调传入。
+            // 提交成功即回写 master（failover reattach / 人工 kill cancel 的依据）——须在轮询前，
+            // 这样即使本 worker 随即宕机，master 也已持有句柄可 reattach 而非重复提交（FR-023/024）。
+            writeHandle(handle, onLine);
 
-            // TODO(060-Foundational): 实现 Flink REST 轮询（替换下面的 skipped 返回）。
-            // 轮询逻辑：GET {restEndpoint}/jobs/{jobId} → 状态 RUNNING → 持续轮询+续约；
-            // 终态（FINISHED/FAILED/CANCELED）→ 映射到 task_instance 终态。
-            // 当前桩：返回 skipped（不阻塞、不误报成功/失败）。
-            return ExecutionResult.skipped(
-                    "[FLINK] long_running 已提交（桩，轮询待 Foundational）：JobID=" + jobId);
+            // 轮询 Flink REST 驱动状态，直至终态（不套 DEFAULT_TIMEOUT_SECONDS；FR-025）。
+            return pollUntilTerminal(resolveRestEndpoint(ref), jobId, onLine);
         } finally {
             if (sqlFile != null) {
                 cleanup(sqlFile);
             }
         }
+    }
+
+    /**
+     * reattach 执行路径（FR-024）：实例已有 external_job_handle → 先探测集群侧作业是否存在，
+     * 存在则直接轮询驱动状态（<b>不 flink run，不重复提交</b>）；不存在（集群侧已消失）则按业务重试
+     * 重新 detached 提交（回到 {@link #executeLongRunning}，写新句柄）。
+     */
+    private ExecutionResult executeReattach(ExecutionContext ctx, EngineSubmitRef ref,
+                                            String mode, String content, Consumer<String> onLine)
+            throws Exception {
+        String handle = ref.externalJobHandle();
+        String jobId = parseHandleField(handle, "jobId");
+        String restEndpoint = parseHandleField(handle, "restEndpoint");
+        if (jobId == null || restEndpoint == null || restEndpoint.isBlank()) {
+            restEndpoint = (restEndpoint == null || restEndpoint.isBlank()) ? resolveRestEndpoint(ref) : restEndpoint;
+        }
+        emit(onLine, "[FLINK] reattach 模式：handle=" + handle);
+        if (jobId == null) {
+            emit(onLine, "[FLINK] 句柄无 jobId，回退重新提交");
+            return executeLongRunning(ctx, ref, mode, content, onLine);
+        }
+        // 探测作业是否存在
+        String state;
+        try {
+            state = statusFetcher.fetchState(restEndpoint, jobId);
+        } catch (IOException e) {
+            emit(onLine, "[FLINK] reattach 探测失败（" + e.getMessage() + "），进入轮询等待恢复");
+            return pollUntilTerminal(restEndpoint, jobId, onLine);
+        }
+        if (state == null) {
+            emit(onLine, "[FLINK] 集群侧作业不存在（JobID=" + jobId + "），按业务重试重新提交");
+            return executeLongRunning(ctx, ref, mode, content, onLine);
+        }
+        emit(onLine, "[FLINK] reattach 命中：JobID=" + jobId + " 当前状态=" + state + "，继续监控（不重新提交）");
+        return pollUntilTerminal(restEndpoint, jobId, onLine);
+    }
+
+    /**
+     * 轮询 Flink REST 直至作业终态（FR-025）。可中断（worker 优雅停机）；连续抓取失败超上限判失败交兜底。
+     * 状态映射：FINISHED→success；FAILED/FAILING→failure；CANCELED/CANCELLING→failure（人工 kill 已置 STOPPED，
+     * 此失败不覆盖终态，benign）；其余（RUNNING/RESTARTING/CREATED/…）→ 继续轮询。
+     */
+    private ExecutionResult pollUntilTerminal(String restEndpoint, String jobId, Consumer<String> onLine) {
+        int consecutiveErrors = 0;
+        while (!Thread.currentThread().isInterrupted()) {
+            String state;
+            try {
+                state = statusFetcher.fetchState(restEndpoint, jobId);
+                consecutiveErrors = 0;
+            } catch (IOException e) {
+                consecutiveErrors++;
+                emit(onLine, "[FLINK] 轮询失败(" + consecutiveErrors + "/" + maxPollErrors + "): " + e.getMessage());
+                if (consecutiveErrors >= maxPollErrors) {
+                    return new ExecutionResult(false, -1, "", "", false, false,
+                            "[FLINK] REST 轮询连续失败 " + consecutiveErrors + " 次，判失败交兜底 JobID=" + jobId);
+                }
+                if (!sleepPoll()) break;
+                continue;
+            }
+            if (state == null) {
+                return new ExecutionResult(false, -1, "", "", false, false,
+                        "[FLINK] 作业不存在（JobID=" + jobId + "）");
+            }
+            switch (state.toUpperCase()) {
+                case "FINISHED" -> {
+                    emit(onLine, "[FLINK] 作业完成 JobID=" + jobId);
+                    return new ExecutionResult(true, 0, "", "", false, false, "[FLINK] 作业完成");
+                }
+                case "FAILED", "FAILING" -> {
+                    return new ExecutionResult(false, 1, "", "", false, false,
+                            "[FLINK] 作业失败 state=" + state + " JobID=" + jobId);
+                }
+                case "CANCELED", "CANCELLING" -> {
+                    return new ExecutionResult(false, -1, "", "", false, false,
+                            "[FLINK] 作业已取消 state=" + state + " JobID=" + jobId);
+                }
+                default -> {
+                    emit(onLine, "[FLINK] state=" + state + "，继续轮询 JobID=" + jobId);
+                    if (!sleepPoll()) break;
+                }
+            }
+        }
+        return new ExecutionResult(false, -1, "", "", false, false,
+                "[FLINK] 轮询被中断（worker 停机）JobID=" + jobId);
+    }
+
+    /** 轮询间隔休眠；被中断返回 false（触发轮询循环退出）。 */
+    private boolean sleepPoll() {
+        try {
+            Thread.sleep(pollIntervalMs);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** 通过绑定的实例 id 回写 external_job_handle 到 master（best-effort，失败不断执行）。 */
+    private void writeHandle(String handle, Consumer<String> onLine) {
+        UUID instanceId = CurrentExecution.currentInstanceId();
+        if (instanceId == null) {
+            emit(onLine, "[FLINK] 无实例绑定（本地 dw run？），external_job_handle 未回写");
+            return;
+        }
+        try {
+            handleWriter.write(instanceId, handle);
+            emit(onLine, "[FLINK] external_job_handle 已回写 instance=" + instanceId);
+        } catch (Exception e) {
+            emit(onLine, "[FLINK] external_job_handle 回写失败: " + e.getMessage());
+        }
+    }
+
+    /** 从句柄 JSON 提取字段（jobId/restEndpoint）——正则，零 Jackson 依赖。 */
+    static String parseHandleField(String handleJson, String field) {
+        if (handleJson == null) return null;
+        Matcher m = Pattern.compile("\"" + field + "\"\\s*:\\s*\"([^\"]+)\"").matcher(handleJson);
+        return m.find() ? m.group(1) : null;
     }
 
     // ---- public static 方法（可单测，无副作用）----

@@ -46,9 +46,11 @@ class SchedulerPreemptionTest {
         //    demand 争唯一槽并占住 RUNNING,使 demand 永远认领不到。
         jdbc.update("UPDATE worker_nodes SET status='OFFLINE'");
         jdbc.update("UPDATE task_instance SET deleted=1 WHERE state='WAITING' AND deleted=0");
+        // 060：SlotManager 节点可用性门要求 last_heartbeat 新鲜（心跳 null 的节点视为不可用被排除）。
+        // 本 seed 模拟活节点须带新鲜心跳，否则抢占腾槽后 demand 无可用节点认领。
         jdbc.update("INSERT INTO worker_nodes (node_code, status, max_concurrent_tasks, reserved_test_slots, "
-                + "created_at, updated_at, deleted, version) VALUES ('node-pre','ONLINE',1,0,?,?,0,0)",
-                LocalDateTime.now(), LocalDateTime.now());
+                + "last_heartbeat, created_at, updated_at, deleted, version) VALUES ('node-pre','ONLINE',1,0,?,?,?,0,0)",
+                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
 
         // 2) preemptible 工作流 + 低优(priority=8)运行实例占满唯一槽（attempt=2）
         long preemptibleWf = 900001L;

@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -252,34 +253,122 @@ class FlinkTaskExecutorTest {
     }
 
     @Test
-    void execute_longRunning_skippedWhenStub(@TempDir Path tmp) throws IOException {
-        // long_running=true 当前走桩路径（轮询未集成）→ 返回 skipped
+    void execute_longRunning_submitsDetached_writesHandle_pollsUntilFinished(@TempDir Path tmp) throws IOException {
+        // long_running=true：detached 提交解析 JobID → 回写句柄 → 轮询 REST 直至 FINISHED → success
         Path home = fakeFlinkHomeIn(tmp);
-        // long_running sql 模式走 sql-client.sh -d，需覆盖其脚本输出 JobID
         String script = "#!/bin/bash\necho 'JobID: 0123456789abcdef0123456789abcdef'\nexit 0\n";
         Path sqlClient = Path.of(home.toString(), "bin", "sql-client.sh");
         Files.writeString(sqlClient, script);
         sqlClient.toFile().setExecutable(true);
 
-        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
-                null, null, true, null); // longRunning=true
-        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref), l -> {});
-        // 桩：返回 skipped（不阻塞、不误报）
-        assertThat(r.skipped()).isTrue();
-        assertThat(r.message()).contains("JobID=0123456789abcdef0123456789abcdef");
+        // 捕获回写的句柄
+        java.util.Map<UUID, String> written = new java.util.concurrent.ConcurrentHashMap<>();
+        FlinkTaskExecutor exec = new FlinkTaskExecutor((id, handle) -> written.put(id, handle));
+        // 前 2 次轮询 RUNNING，第 3 次 FINISHED
+        int[] calls = {0};
+        exec.statusFetcher = (rest, jobId) -> (++calls[0] < 3) ? "RUNNING" : "FINISHED";
+        exec.pollIntervalMs = 1;
+
+        UUID inst = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        com.dataweave.worker.domain.CurrentExecution.bind(inst);
+        try {
+            EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                    null, java.util.Map.of("restEndpoint", "http://fake:8081"), true, null);
+            ExecutionResult r = exec.execute(flinkCtx("SELECT 1", ref), l -> {});
+            assertThat(r.success()).isTrue();
+            assertThat(r.skipped()).isFalse();
+            // 句柄已回写，含解析出的 JobID
+            assertThat(written).containsKey(inst);
+            assertThat(written.get(inst)).contains("0123456789abcdef0123456789abcdef");
+            assertThat(calls[0]).isGreaterThanOrEqualTo(3);
+        } finally {
+            com.dataweave.worker.domain.CurrentExecution.clear();
+        }
     }
 
     @Test
-    void execute_reattachWhenHandlePresent_skipsSubmit(@TempDir Path tmp) throws IOException {
-        // external_job_handle 非空 → reattach 模式，不执行 flink run
+    void execute_longRunning_pollFailed_returnsFailure(@TempDir Path tmp) throws IOException {
         Path home = fakeFlinkHomeIn(tmp);
+        String script = "#!/bin/bash\necho 'JobID: 0123456789abcdef0123456789abcdef'\nexit 0\n";
+        Path sqlClient = Path.of(home.toString(), "bin", "sql-client.sh");
+        Files.writeString(sqlClient, script);
+        sqlClient.toFile().setExecutable(true);
+
+        FlinkTaskExecutor exec = new FlinkTaskExecutor((id, h) -> {});
+        exec.statusFetcher = (rest, jobId) -> "FAILED";
+        exec.pollIntervalMs = 1;
+
         EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
-                null, null, false,
-                "{\"jobId\":\"abcd1234abcd1234abcd1234abcd1234\",\"restEndpoint\":\"http://localhost:8081\"}");
-        ExecutionResult r = executor.execute(flinkCtx("SELECT 1", ref), l -> {});
-        assertThat(r.skipped()).isTrue();
-        assertThat(r.message()).contains("reattach");
-        assertThat(r.message()).contains("abcd1234abcd1234abcd1234abcd1234");
+                null, null, true, null);
+        ExecutionResult r = exec.execute(flinkCtx("SELECT 1", ref), l -> {});
+        assertThat(r.success()).isFalse();
+        assertThat(r.skipped()).isFalse();
+        assertThat(r.message()).contains("失败").contains("FAILED");
+    }
+
+    @Test
+    void execute_reattach_existingJob_pollsWithoutResubmit(@TempDir Path tmp) throws IOException {
+        // external_job_handle 非空且集群侧作业存在 → reattach 轮询，不执行 flink run（脚本不产 JobID 也能成功）
+        Path home = fakeFlinkHomeIn(tmp);
+        FlinkTaskExecutor exec = new FlinkTaskExecutor((id, h) -> {});
+        int[] calls = {0};
+        exec.statusFetcher = (rest, jobId) -> {
+            assertThat(jobId).isEqualTo("abcd1234abcd1234abcd1234abcd1234");
+            return (++calls[0] < 2) ? "RUNNING" : "FINISHED";
+        };
+        exec.pollIntervalMs = 1;
+
+        EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                null, null, true,
+                "{\"jobId\":\"abcd1234abcd1234abcd1234abcd1234\",\"restEndpoint\":\"http://fake:8081\"}");
+        StringBuilder out = new StringBuilder();
+        ExecutionResult r = exec.execute(flinkCtx("SELECT 1", ref), l -> out.append(l).append('\n'));
+        assertThat(r.success()).isTrue();
+        assertThat(out.toString()).contains("reattach 命中");
+        // 未跑 fake flink（无 fake-flink-out 标记）
+        assertThat(out.toString()).doesNotContain("fake-flink-out");
+    }
+
+    @Test
+    void execute_reattach_jobGone_resubmits(@TempDir Path tmp) throws IOException {
+        // 集群侧作业不存在（fetch 返回 null）→ 按业务重试重新提交（走 detached，产 JobID）
+        Path home = fakeFlinkHomeIn(tmp);
+        String script = "#!/bin/bash\necho 'JobID: fedcba9876543210fedcba9876543210'\nexit 0\n";
+        Path sqlClient = Path.of(home.toString(), "bin", "sql-client.sh");
+        Files.writeString(sqlClient, script);
+        sqlClient.toFile().setExecutable(true);
+
+        java.util.Map<UUID, String> written = new java.util.concurrent.ConcurrentHashMap<>();
+        FlinkTaskExecutor exec = new FlinkTaskExecutor((id, h) -> written.put(id, h));
+        // 首次探测 null（作业消失），重新提交后轮询 FINISHED
+        int[] calls = {0};
+        exec.statusFetcher = (rest, jobId) -> (++calls[0] == 1) ? null : "FINISHED";
+        exec.pollIntervalMs = 1;
+
+        UUID inst = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        com.dataweave.worker.domain.CurrentExecution.bind(inst);
+        try {
+            EngineSubmitRef ref = new EngineSubmitRef("FLINK", home.toString(), "sql", null, null,
+                    null, null, true,
+                    "{\"jobId\":\"abcd1234abcd1234abcd1234abcd1234\",\"restEndpoint\":\"http://fake:8081\"}");
+            StringBuilder out = new StringBuilder();
+            ExecutionResult r = exec.execute(flinkCtx("SELECT 1", ref), l -> out.append(l).append('\n'));
+            assertThat(r.success()).isTrue();
+            assertThat(out.toString()).contains("重新提交");
+            // 重新提交产生了新 JobID 并回写
+            assertThat(written.get(inst)).contains("fedcba9876543210fedcba9876543210");
+        } finally {
+            com.dataweave.worker.domain.CurrentExecution.clear();
+        }
+    }
+
+    @Test
+    void parseHandleField_extractsJobIdAndRest() {
+        String h = "{\"jobId\":\"abc123\",\"restEndpoint\":\"http://x:8081\"}";
+        assertThat(FlinkTaskExecutor.parseHandleField(h, "jobId")).isEqualTo("abc123");
+        assertThat(FlinkTaskExecutor.parseHandleField(h, "restEndpoint")).isEqualTo("http://x:8081");
+        assertThat(FlinkTaskExecutor.parseHandleField(null, "jobId")).isNull();
+        assertThat(FlinkTaskExecutor.parseHandleField("{}", "jobId")).isNull();
     }
 
     @Test

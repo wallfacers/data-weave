@@ -64,10 +64,11 @@ public class AlertSignalListener {
 
     private String mapSignalSource(AlertSignal.Type type) {
         return switch (type) {
-            case TASK_FAILED, TASK_TIMEOUT -> "TASK_INSTANCE";
+            case TASK_FAILED, TASK_TIMEOUT, TASK_SUSPENDED -> "TASK_INSTANCE";
             case SLA_BREACH -> "SLA_BREACH";
             case WORKFLOW_STATE -> "WORKFLOW_INSTANCE";
             case NODE_OFFLINE -> "NODE_OFFLINE";
+            case NODE_STARVATION -> "NODE_STARVATION";
             case METRIC_BREACH -> "METRIC";
             case QUALITY_FAILED -> "QUALITY_FAILED";
         };

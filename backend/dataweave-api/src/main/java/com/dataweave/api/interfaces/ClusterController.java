@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -92,5 +93,27 @@ public class ClusterController {
                 throw new BizException("cluster.event.unknown", req.getEvent());
             }
         }
+    }
+
+    /**
+     * 060 FR-023：Worker 回写 Flink 外部作业句柄（JobID+REST 端点）到 task_instance.external_job_handle。
+     *
+     * <p>请求头 {@code Authorization: Bearer <token>}；body=句柄 JSON。仅活跃态实例落库。
+     * failover 时新 worker 据此 reattach（不重复提交）；人工 kill 据此取消集群作业。
+     */
+    @PostMapping("/instances/{id}/external-job-handle")
+    public ResponseEntity<ApiResponse<String>> recordExternalJobHandle(
+            @RequestHeader(value = "Authorization", required = false) String auth,
+            @PathVariable UUID id,
+            @RequestBody String handle) {
+        if (clusterToken != null && !clusterToken.isBlank()) {
+            String expected = "Bearer " + clusterToken;
+            if (!expected.equals(auth)) {
+                log.warn("[ClusterController] external-job-handle 鉴权失败");
+                throw new BizException("cluster.auth_failed").withHttpStatus(401);
+            }
+        }
+        boolean recorded = reportService.recordExternalJobHandle(id, handle);
+        return ResponseEntity.ok(ApiResponse.ok(recorded ? "recorded" : "ignored"));
     }
 }

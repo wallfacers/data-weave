@@ -51,7 +51,7 @@ class NodeDetailEndpointTest {
                 .jsonPath("$.data.nodeKey").isEqualTo("n1")
                 .jsonPath("$.data.taskId").isEqualTo(10)
                 .jsonPath("$.data.taskName").isEqualTo("抽取-拉取订单分区")
-                .jsonPath("$.data.taskType").isEqualTo("ECHO")  // wf3 演示节点用 ECHO(沙箱可执行,见 data.sql 注释)
+                .jsonPath("$.data.taskType").isEqualTo("SHELL")  // 3a0f8e8 起 wf3 演示节点 ECHO→SHELL（与「订单 SHELL 流水线」对齐）
                 .jsonPath("$.data.versionNo").isEqualTo(1)
                 .jsonPath("$.data.hasCode").isEqualTo(true)
                 .jsonPath("$.data.deleted").isEqualTo(false)

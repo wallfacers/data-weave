@@ -101,6 +101,25 @@ public class WorkerReportService {
         return started;
     }
 
+    /**
+     * 060 FR-023：worker 侧 Flink detached 提交流式作业后，回写 external_job_handle（JobID+REST 端点）。
+     *
+     * <p>仅对活跃态（DISPATCHED/RUNNING）实例落库——防止终态/回收后的迟到回写复活句柄。
+     * failover 时新 worker 据此 reattach 不重复提交；人工 kill 据此取消集群作业（{@code OpsService.killTask}）。
+     *
+     * @return true=已落库（实例活跃）；false=实例非活跃/不存在（回写被忽略）
+     */
+    public boolean recordExternalJobHandle(UUID taskInstanceId, String handle) {
+        if (taskInstanceId == null || handle == null || handle.isBlank()) {
+            return false;
+        }
+        int n = jdbc.update(
+                "UPDATE task_instance SET external_job_handle=?, updated_at=? "
+                        + "WHERE id=? AND deleted=0 AND state IN ('DISPATCHED','RUNNING')",
+                handle, LocalDateTime.now(), taskInstanceId);
+        return n == 1;
+    }
+
     /** worker 执行成功：→ SUCCESS，回写日志/退出码，重算工作流聚合态。 */
     public void reportFinished(UUID taskInstanceId, Integer exitCode, String tailLog,
                                List<StatementMetric> statementMetrics) {

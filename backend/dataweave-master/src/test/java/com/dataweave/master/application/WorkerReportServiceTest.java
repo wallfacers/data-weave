@@ -82,6 +82,34 @@ class WorkerReportServiceTest {
     }
 
     @Test
+    void recordExternalJobHandle_activeInstance_persists_elseIgnoredOrGuarded() {
+        // 060 FR-023：Flink detached 提交回写句柄——仅活跃态实例落库；null/blank/无 id 直接 false 不触 jdbc。
+        UUID id = UUID.randomUUID();
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        WorkerReportService svc = new WorkerReportService(stateMachine, taskInstanceRepository,
+                mock(WorkflowStateService.class), retryService,
+                mock(SchedulerMetrics.class), mock(SlaService.class),
+                mock(EventBus.class), mock(org.springframework.context.ApplicationEventPublisher.class),
+                jdbc, mock(LineageStore.class), new SqlTableExtractor(),
+                new LineageEdgeAssembler(new SqlTableExtractor(), mock(JdbcTemplate.class)),
+                mock(com.dataweave.master.application.readiness.ReadinessSignalWriter.class),
+                mock(NodeHealthService.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
+
+        String handle = "{\"jobId\":\"abc\",\"restEndpoint\":\"http://x:8081\"}";
+        // 活跃态 → 落库 1 行 → true
+        when(jdbc.update(anyString(), any(), any(), any())).thenReturn(1);
+        org.assertj.core.api.Assertions.assertThat(svc.recordExternalJobHandle(id, handle)).isTrue();
+        // 非活跃/不存在 → 0 行 → false（迟到回写不复活句柄）
+        when(jdbc.update(anyString(), any(), any(), any())).thenReturn(0);
+        org.assertj.core.api.Assertions.assertThat(svc.recordExternalJobHandle(id, handle)).isFalse();
+        // 守卫：null id / null / blank handle 直接 false，不触 jdbc
+        org.assertj.core.api.Assertions.assertThat(svc.recordExternalJobHandle(null, handle)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(svc.recordExternalJobHandle(id, null)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(svc.recordExternalJobHandle(id, "  ")).isFalse();
+    }
+
+    @Test
     void reportFinished_success_recordsSyncedRows_perWriteTable() {
         UUID id = UUID.randomUUID();
         when(taskInstanceRepository.findById(id)).thenReturn(Optional.of(successInstance(id)));
