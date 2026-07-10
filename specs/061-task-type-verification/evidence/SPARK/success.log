@@ -1,0 +1,385 @@
+=== SPARK SUCCESS dw run (exit=0) ===
+26/07/11 00:29:36 WARN Utils: Your hostname, CHINAMI-0PP96OJ resolves to a loopback address: 127.0.1.1; using 10.255.255.254 instead (on interface lo)
+26/07/11 00:29:36 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+[SPARK_SUCCESS] 启动 SparkSession...
+26/07/11 00:29:37 INFO SparkContext: Running Spark version 3.5.4
+26/07/11 00:29:37 INFO SparkContext: OS info Linux, 6.6.87.2-microsoft-standard-WSL2, amd64
+26/07/11 00:29:37 INFO SparkContext: Java version 21.0.11
+26/07/11 00:29:37 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+26/07/11 00:29:37 INFO ResourceUtils: ==============================================================
+26/07/11 00:29:37 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/07/11 00:29:37 INFO ResourceUtils: ==============================================================
+26/07/11 00:29:37 INFO SparkContext: Submitted application: dw061-spark-success
+26/07/11 00:29:37 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/07/11 00:29:37 INFO ResourceProfile: Limiting resource is cpu
+26/07/11 00:29:37 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/07/11 00:29:37 INFO SecurityManager: Changing view acls to: wallfacers
+26/07/11 00:29:37 INFO SecurityManager: Changing modify acls to: wallfacers
+26/07/11 00:29:37 INFO SecurityManager: Changing view acls groups to: 
+26/07/11 00:29:37 INFO SecurityManager: Changing modify acls groups to: 
+26/07/11 00:29:37 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: wallfacers; groups with view permissions: EMPTY; users with modify permissions: wallfacers; groups with modify permissions: EMPTY
+26/07/11 00:29:37 INFO Utils: Successfully started service 'sparkDriver' on port 45035.
+26/07/11 00:29:37 INFO SparkEnv: Registering MapOutputTracker
+26/07/11 00:29:37 INFO SparkEnv: Registering BlockManagerMaster
+26/07/11 00:29:37 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/07/11 00:29:37 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/07/11 00:29:37 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/07/11 00:29:37 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-1b50827b-c288-4435-a0a0-d6f319848fbe
+26/07/11 00:29:37 INFO MemoryStore: MemoryStore started with capacity 434.4 MiB
+26/07/11 00:29:37 INFO SparkEnv: Registering OutputCommitCoordinator
+26/07/11 00:29:37 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/07/11 00:29:37 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+26/07/11 00:29:37 INFO Executor: Starting executor ID driver on host 10.255.255.254
+26/07/11 00:29:37 INFO Executor: OS info Linux, 6.6.87.2-microsoft-standard-WSL2, amd64
+26/07/11 00:29:37 INFO Executor: Java version 21.0.11
+26/07/11 00:29:37 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''
+26/07/11 00:29:37 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@3aa23162 for default.
+26/07/11 00:29:37 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 44959.
+26/07/11 00:29:37 INFO NettyBlockTransferService: Server created on 10.255.255.254:44959
+26/07/11 00:29:37 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+26/07/11 00:29:37 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, 10.255.255.254, 44959, None)
+26/07/11 00:29:37 INFO BlockManagerMasterEndpoint: Registering block manager 10.255.255.254:44959 with 434.4 MiB RAM, BlockManagerId(driver, 10.255.255.254, 44959, None)
+26/07/11 00:29:37 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, 10.255.255.254, 44959, None)
+26/07/11 00:29:37 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, 10.255.255.254, 44959, None)
+[SPARK_SUCCESS] master=local[*]
+[SPARK_SUCCESS] version=3.5.4
+26/07/11 00:29:38 INFO SharedState: Setting hive.metastore.warehouse.dir ('null') to the value of spark.sql.warehouse.dir.
+26/07/11 00:29:38 INFO SharedState: Warehouse path is 'file:/tmp/tmp.vpDqZyu3DU/spark-warehouse'.
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 153.649471 ms
+26/07/11 00:29:40 INFO DAGScheduler: Registering RDD 3 (count at NativeMethodAccessorImpl.java:0) as input to shuffle 0
+26/07/11 00:29:40 INFO DAGScheduler: Got map stage job 0 (count at NativeMethodAccessorImpl.java:0) with 20 output partitions
+26/07/11 00:29:40 INFO DAGScheduler: Final stage: ShuffleMapStage 0 (count at NativeMethodAccessorImpl.java:0)
+26/07/11 00:29:40 INFO DAGScheduler: Parents of final stage: List()
+26/07/11 00:29:40 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:40 INFO DAGScheduler: Submitting ShuffleMapStage 0 (MapPartitionsRDD[3] at count at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_0 stored as values in memory (estimated size 14.5 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_0_piece0 stored as bytes in memory (estimated size 7.0 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO BlockManagerInfo: Added broadcast_0_piece0 in memory on 10.255.255.254:44959 (size: 7.0 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO SparkContext: Created broadcast 0 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:40 INFO DAGScheduler: Submitting 20 missing tasks from ShuffleMapStage 0 (MapPartitionsRDD[3] at count at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Adding task set 0.0 with 20 tasks resource profile 0
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 0.0 in stage 0.0 (TID 0) (10.255.255.254, executor driver, partition 0, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 1.0 in stage 0.0 (TID 1) (10.255.255.254, executor driver, partition 1, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 2.0 in stage 0.0 (TID 2) (10.255.255.254, executor driver, partition 2, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 3.0 in stage 0.0 (TID 3) (10.255.255.254, executor driver, partition 3, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 4.0 in stage 0.0 (TID 4) (10.255.255.254, executor driver, partition 4, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 5.0 in stage 0.0 (TID 5) (10.255.255.254, executor driver, partition 5, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 6.0 in stage 0.0 (TID 6) (10.255.255.254, executor driver, partition 6, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 7.0 in stage 0.0 (TID 7) (10.255.255.254, executor driver, partition 7, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 8.0 in stage 0.0 (TID 8) (10.255.255.254, executor driver, partition 8, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 9.0 in stage 0.0 (TID 9) (10.255.255.254, executor driver, partition 9, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 10.0 in stage 0.0 (TID 10) (10.255.255.254, executor driver, partition 10, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 11.0 in stage 0.0 (TID 11) (10.255.255.254, executor driver, partition 11, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 12.0 in stage 0.0 (TID 12) (10.255.255.254, executor driver, partition 12, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 13.0 in stage 0.0 (TID 13) (10.255.255.254, executor driver, partition 13, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 14.0 in stage 0.0 (TID 14) (10.255.255.254, executor driver, partition 14, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 15.0 in stage 0.0 (TID 15) (10.255.255.254, executor driver, partition 15, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 16.0 in stage 0.0 (TID 16) (10.255.255.254, executor driver, partition 16, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 17.0 in stage 0.0 (TID 17) (10.255.255.254, executor driver, partition 17, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 18.0 in stage 0.0 (TID 18) (10.255.255.254, executor driver, partition 18, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 19.0 in stage 0.0 (TID 19) (10.255.255.254, executor driver, partition 19, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:40 INFO Executor: Running task 12.0 in stage 0.0 (TID 12)
+26/07/11 00:29:40 INFO Executor: Running task 8.0 in stage 0.0 (TID 8)
+26/07/11 00:29:40 INFO Executor: Running task 7.0 in stage 0.0 (TID 7)
+26/07/11 00:29:40 INFO Executor: Running task 5.0 in stage 0.0 (TID 5)
+26/07/11 00:29:40 INFO Executor: Running task 6.0 in stage 0.0 (TID 6)
+26/07/11 00:29:40 INFO Executor: Running task 3.0 in stage 0.0 (TID 3)
+26/07/11 00:29:40 INFO Executor: Running task 2.0 in stage 0.0 (TID 2)
+26/07/11 00:29:40 INFO Executor: Running task 10.0 in stage 0.0 (TID 10)
+26/07/11 00:29:40 INFO Executor: Running task 11.0 in stage 0.0 (TID 11)
+26/07/11 00:29:40 INFO Executor: Running task 0.0 in stage 0.0 (TID 0)
+26/07/11 00:29:40 INFO Executor: Running task 9.0 in stage 0.0 (TID 9)
+26/07/11 00:29:40 INFO Executor: Running task 1.0 in stage 0.0 (TID 1)
+26/07/11 00:29:40 INFO Executor: Running task 4.0 in stage 0.0 (TID 4)
+26/07/11 00:29:40 INFO Executor: Running task 14.0 in stage 0.0 (TID 14)
+26/07/11 00:29:40 INFO Executor: Running task 13.0 in stage 0.0 (TID 13)
+26/07/11 00:29:40 INFO Executor: Running task 15.0 in stage 0.0 (TID 15)
+26/07/11 00:29:40 INFO Executor: Running task 16.0 in stage 0.0 (TID 16)
+26/07/11 00:29:40 INFO Executor: Running task 17.0 in stage 0.0 (TID 17)
+26/07/11 00:29:40 INFO Executor: Running task 18.0 in stage 0.0 (TID 18)
+26/07/11 00:29:40 INFO Executor: Running task 19.0 in stage 0.0 (TID 19)
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 24.08256 ms
+26/07/11 00:29:40 INFO Executor: Finished task 0.0 in stage 0.0 (TID 0). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 12.0 in stage 0.0 (TID 12). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 1.0 in stage 0.0 (TID 1). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 9.0 in stage 0.0 (TID 9). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 15.0 in stage 0.0 (TID 15). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 6.0 in stage 0.0 (TID 6). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 14.0 in stage 0.0 (TID 14). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 13.0 in stage 0.0 (TID 13). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 4.0 in stage 0.0 (TID 4). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 17.0 in stage 0.0 (TID 17). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 19.0 in stage 0.0 (TID 19). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 7.0 in stage 0.0 (TID 7). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 3.0 in stage 0.0 (TID 3). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 11.0 in stage 0.0 (TID 11). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 8.0 in stage 0.0 (TID 8). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 18.0 in stage 0.0 (TID 18). 1887 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 16.0 in stage 0.0 (TID 16). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 5.0 in stage 0.0 (TID 5). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 2.0 in stage 0.0 (TID 2). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 10.0 in stage 0.0 (TID 10). 1930 bytes result sent to driver
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 16.0 in stage 0.0 (TID 16) in 212 ms on 10.255.255.254 (executor driver) (1/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 7.0 in stage 0.0 (TID 7) in 218 ms on 10.255.255.254 (executor driver) (2/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 5.0 in stage 0.0 (TID 5) in 219 ms on 10.255.255.254 (executor driver) (3/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 10.0 in stage 0.0 (TID 10) in 217 ms on 10.255.255.254 (executor driver) (4/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 11.0 in stage 0.0 (TID 11) in 217 ms on 10.255.255.254 (executor driver) (5/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 18.0 in stage 0.0 (TID 18) in 215 ms on 10.255.255.254 (executor driver) (6/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 9.0 in stage 0.0 (TID 9) in 219 ms on 10.255.255.254 (executor driver) (7/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 14.0 in stage 0.0 (TID 14) in 217 ms on 10.255.255.254 (executor driver) (8/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 17.0 in stage 0.0 (TID 17) in 216 ms on 10.255.255.254 (executor driver) (9/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 3.0 in stage 0.0 (TID 3) in 223 ms on 10.255.255.254 (executor driver) (10/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 13.0 in stage 0.0 (TID 13) in 220 ms on 10.255.255.254 (executor driver) (11/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 2.0 in stage 0.0 (TID 2) in 225 ms on 10.255.255.254 (executor driver) (12/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 19.0 in stage 0.0 (TID 19) in 219 ms on 10.255.255.254 (executor driver) (13/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 8.0 in stage 0.0 (TID 8) in 225 ms on 10.255.255.254 (executor driver) (14/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 15.0 in stage 0.0 (TID 15) in 223 ms on 10.255.255.254 (executor driver) (15/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 1.0 in stage 0.0 (TID 1) in 229 ms on 10.255.255.254 (executor driver) (16/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 6.0 in stage 0.0 (TID 6) in 227 ms on 10.255.255.254 (executor driver) (17/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 4.0 in stage 0.0 (TID 4) in 229 ms on 10.255.255.254 (executor driver) (18/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 12.0 in stage 0.0 (TID 12) in 225 ms on 10.255.255.254 (executor driver) (19/20)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 0.0 in stage 0.0 (TID 0) in 248 ms on 10.255.255.254 (executor driver) (20/20)
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Removed TaskSet 0.0, whose tasks have all completed, from pool 
+26/07/11 00:29:40 INFO DAGScheduler: ShuffleMapStage 0 (count at NativeMethodAccessorImpl.java:0) finished in 0.388 s
+26/07/11 00:29:40 INFO DAGScheduler: looking for newly runnable stages
+26/07/11 00:29:40 INFO DAGScheduler: running: Set()
+26/07/11 00:29:40 INFO DAGScheduler: waiting: Set()
+26/07/11 00:29:40 INFO DAGScheduler: failed: Set()
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 11.571596 ms
+26/07/11 00:29:40 INFO SparkContext: Starting job: count at NativeMethodAccessorImpl.java:0
+26/07/11 00:29:40 INFO DAGScheduler: Got job 1 (count at NativeMethodAccessorImpl.java:0) with 1 output partitions
+26/07/11 00:29:40 INFO DAGScheduler: Final stage: ResultStage 2 (count at NativeMethodAccessorImpl.java:0)
+26/07/11 00:29:40 INFO DAGScheduler: Parents of final stage: List(ShuffleMapStage 1)
+26/07/11 00:29:40 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:40 INFO DAGScheduler: Submitting ResultStage 2 (MapPartitionsRDD[6] at count at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_1 stored as values in memory (estimated size 12.5 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_1_piece0 stored as bytes in memory (estimated size 5.9 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO BlockManagerInfo: Added broadcast_1_piece0 in memory on 10.255.255.254:44959 (size: 5.9 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO SparkContext: Created broadcast 1 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:40 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 2 (MapPartitionsRDD[6] at count at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(0))
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Adding task set 2.0 with 1 tasks resource profile 0
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 0.0 in stage 2.0 (TID 20) (10.255.255.254, executor driver, partition 0, NODE_LOCAL, 8999 bytes) 
+26/07/11 00:29:40 INFO Executor: Running task 0.0 in stage 2.0 (TID 20)
+26/07/11 00:29:40 INFO ShuffleBlockFetcherIterator: Getting 20 (1200.0 B) non-empty blocks including 20 (1200.0 B) local and 0 (0.0 B) host-local and 0 (0.0 B) push-merged-local and 0 (0.0 B) remote blocks
+26/07/11 00:29:40 INFO ShuffleBlockFetcherIterator: Started 0 remote fetches in 10 ms
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 9.555406 ms
+26/07/11 00:29:40 INFO Executor: Finished task 0.0 in stage 2.0 (TID 20). 4038 bytes result sent to driver
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 0.0 in stage 2.0 (TID 20) in 66 ms on 10.255.255.254 (executor driver) (1/1)
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Removed TaskSet 2.0, whose tasks have all completed, from pool 
+26/07/11 00:29:40 INFO DAGScheduler: ResultStage 2 (count at NativeMethodAccessorImpl.java:0) finished in 0.075 s
+26/07/11 00:29:40 INFO DAGScheduler: Job 1 is finished. Cancelling potential speculative or zombie tasks for this job
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Killing all running tasks in stage 2: Stage finished
+26/07/11 00:29:40 INFO DAGScheduler: Job 1 finished: count at NativeMethodAccessorImpl.java:0, took 0.086223 s
+[SPARK_SUCCESS] spark.range(100).count() = 100
+[SPARK_SUCCESS] df.show():
+26/07/11 00:29:40 INFO BlockManagerInfo: Removed broadcast_1_piece0 on 10.255.255.254:44959 in memory (size: 5.9 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO BlockManagerInfo: Removed broadcast_0_piece0 on 10.255.255.254:44959 in memory (size: 7.0 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 14.577676 ms
+26/07/11 00:29:40 INFO SparkContext: Starting job: showString at NativeMethodAccessorImpl.java:0
+26/07/11 00:29:40 INFO DAGScheduler: Got job 2 (showString at NativeMethodAccessorImpl.java:0) with 1 output partitions
+26/07/11 00:29:40 INFO DAGScheduler: Final stage: ResultStage 3 (showString at NativeMethodAccessorImpl.java:0)
+26/07/11 00:29:40 INFO DAGScheduler: Parents of final stage: List()
+26/07/11 00:29:40 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:40 INFO DAGScheduler: Submitting ResultStage 3 (MapPartitionsRDD[10] at showString at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_2 stored as values in memory (estimated size 11.0 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_2_piece0 stored as bytes in memory (estimated size 5.1 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO BlockManagerInfo: Added broadcast_2_piece0 in memory on 10.255.255.254:44959 (size: 5.1 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO SparkContext: Created broadcast 2 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:40 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 3 (MapPartitionsRDD[10] at showString at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(0))
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Adding task set 3.0 with 1 tasks resource profile 0
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 0.0 in stage 3.0 (TID 21) (10.255.255.254, executor driver, partition 0, PROCESS_LOCAL, 9124 bytes) 
+26/07/11 00:29:40 INFO Executor: Running task 0.0 in stage 3.0 (TID 21)
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 14.092673 ms
+26/07/11 00:29:40 INFO Executor: Finished task 0.0 in stage 3.0 (TID 21). 1515 bytes result sent to driver
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 0.0 in stage 3.0 (TID 21) in 22 ms on 10.255.255.254 (executor driver) (1/1)
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Removed TaskSet 3.0, whose tasks have all completed, from pool 
+26/07/11 00:29:40 INFO DAGScheduler: ResultStage 3 (showString at NativeMethodAccessorImpl.java:0) finished in 0.029 s
+26/07/11 00:29:40 INFO DAGScheduler: Job 2 is finished. Cancelling potential speculative or zombie tasks for this job
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Killing all running tasks in stage 3: Stage finished
+26/07/11 00:29:40 INFO DAGScheduler: Job 2 finished: showString at NativeMethodAccessorImpl.java:0, took 0.033566 s
+26/07/11 00:29:40 INFO SparkContext: Starting job: showString at NativeMethodAccessorImpl.java:0
+26/07/11 00:29:40 INFO DAGScheduler: Got job 3 (showString at NativeMethodAccessorImpl.java:0) with 2 output partitions
+26/07/11 00:29:40 INFO DAGScheduler: Final stage: ResultStage 4 (showString at NativeMethodAccessorImpl.java:0)
+26/07/11 00:29:40 INFO DAGScheduler: Parents of final stage: List()
+26/07/11 00:29:40 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:40 INFO DAGScheduler: Submitting ResultStage 4 (MapPartitionsRDD[10] at showString at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_3 stored as values in memory (estimated size 11.0 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO MemoryStore: Block broadcast_3_piece0 stored as bytes in memory (estimated size 5.1 KiB, free 434.4 MiB)
+26/07/11 00:29:40 INFO BlockManagerInfo: Added broadcast_3_piece0 in memory on 10.255.255.254:44959 (size: 5.1 KiB, free: 434.4 MiB)
+26/07/11 00:29:40 INFO SparkContext: Created broadcast 3 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:40 INFO DAGScheduler: Submitting 2 missing tasks from ResultStage 4 (MapPartitionsRDD[10] at showString at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(1, 2))
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Adding task set 4.0 with 2 tasks resource profile 0
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 0.0 in stage 4.0 (TID 22) (10.255.255.254, executor driver, partition 1, PROCESS_LOCAL, 9124 bytes) 
+26/07/11 00:29:40 INFO TaskSetManager: Starting task 1.0 in stage 4.0 (TID 23) (10.255.255.254, executor driver, partition 2, PROCESS_LOCAL, 9124 bytes) 
+26/07/11 00:29:40 INFO Executor: Running task 1.0 in stage 4.0 (TID 23)
+26/07/11 00:29:40 INFO Executor: Running task 0.0 in stage 4.0 (TID 22)
+26/07/11 00:29:40 INFO Executor: Finished task 1.0 in stage 4.0 (TID 23). 1515 bytes result sent to driver
+26/07/11 00:29:40 INFO Executor: Finished task 0.0 in stage 4.0 (TID 22). 1515 bytes result sent to driver
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 1.0 in stage 4.0 (TID 23) in 5 ms on 10.255.255.254 (executor driver) (1/2)
+26/07/11 00:29:40 INFO TaskSetManager: Finished task 0.0 in stage 4.0 (TID 22) in 5 ms on 10.255.255.254 (executor driver) (2/2)
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Removed TaskSet 4.0, whose tasks have all completed, from pool 
+26/07/11 00:29:40 INFO DAGScheduler: ResultStage 4 (showString at NativeMethodAccessorImpl.java:0) finished in 0.012 s
+26/07/11 00:29:40 INFO DAGScheduler: Job 3 is finished. Cancelling potential speculative or zombie tasks for this job
+26/07/11 00:29:40 INFO TaskSchedulerImpl: Killing all running tasks in stage 4: Stage finished
+26/07/11 00:29:40 INFO DAGScheduler: Job 3 finished: showString at NativeMethodAccessorImpl.java:0, took 0.014668 s
+26/07/11 00:29:40 INFO CodeGenerator: Code generated in 6.513883 ms
++---+
+|id |
++---+
+|0  |
+|1  |
+|2  |
+|3  |
+|4  |
+|5  |
+|6  |
+|7  |
+|8  |
+|9  |
++---+
+only showing top 10 rows
+
+26/07/11 00:29:41 INFO CodeGenerator: Code generated in 17.628648 ms
+26/07/11 00:29:41 INFO DAGScheduler: Registering RDD 14 (collect at /tmp/dw-spark-13641562490813447835.py:29) as input to shuffle 1
+26/07/11 00:29:41 INFO DAGScheduler: Got map stage job 4 (collect at /tmp/dw-spark-13641562490813447835.py:29) with 20 output partitions
+26/07/11 00:29:41 INFO DAGScheduler: Final stage: ShuffleMapStage 5 (collect at /tmp/dw-spark-13641562490813447835.py:29)
+26/07/11 00:29:41 INFO DAGScheduler: Parents of final stage: List()
+26/07/11 00:29:41 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:41 INFO DAGScheduler: Submitting ShuffleMapStage 5 (MapPartitionsRDD[14] at collect at /tmp/dw-spark-13641562490813447835.py:29), which has no missing parents
+26/07/11 00:29:41 INFO MemoryStore: Block broadcast_4 stored as values in memory (estimated size 15.1 KiB, free 434.4 MiB)
+26/07/11 00:29:41 INFO MemoryStore: Block broadcast_4_piece0 stored as bytes in memory (estimated size 7.2 KiB, free 434.3 MiB)
+26/07/11 00:29:41 INFO BlockManagerInfo: Added broadcast_4_piece0 in memory on 10.255.255.254:44959 (size: 7.2 KiB, free: 434.4 MiB)
+26/07/11 00:29:41 INFO SparkContext: Created broadcast 4 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:41 INFO DAGScheduler: Submitting 20 missing tasks from ShuffleMapStage 5 (MapPartitionsRDD[14] at collect at /tmp/dw-spark-13641562490813447835.py:29) (first 15 tasks are for partitions Vector(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
+26/07/11 00:29:41 INFO TaskSchedulerImpl: Adding task set 5.0 with 20 tasks resource profile 0
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 0.0 in stage 5.0 (TID 24) (10.255.255.254, executor driver, partition 0, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 1.0 in stage 5.0 (TID 25) (10.255.255.254, executor driver, partition 1, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 2.0 in stage 5.0 (TID 26) (10.255.255.254, executor driver, partition 2, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 3.0 in stage 5.0 (TID 27) (10.255.255.254, executor driver, partition 3, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 4.0 in stage 5.0 (TID 28) (10.255.255.254, executor driver, partition 4, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 5.0 in stage 5.0 (TID 29) (10.255.255.254, executor driver, partition 5, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 6.0 in stage 5.0 (TID 30) (10.255.255.254, executor driver, partition 6, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 7.0 in stage 5.0 (TID 31) (10.255.255.254, executor driver, partition 7, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 8.0 in stage 5.0 (TID 32) (10.255.255.254, executor driver, partition 8, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 9.0 in stage 5.0 (TID 33) (10.255.255.254, executor driver, partition 9, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 10.0 in stage 5.0 (TID 34) (10.255.255.254, executor driver, partition 10, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 11.0 in stage 5.0 (TID 35) (10.255.255.254, executor driver, partition 11, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 12.0 in stage 5.0 (TID 36) (10.255.255.254, executor driver, partition 12, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 13.0 in stage 5.0 (TID 37) (10.255.255.254, executor driver, partition 13, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 14.0 in stage 5.0 (TID 38) (10.255.255.254, executor driver, partition 14, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 15.0 in stage 5.0 (TID 39) (10.255.255.254, executor driver, partition 15, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 16.0 in stage 5.0 (TID 40) (10.255.255.254, executor driver, partition 16, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 17.0 in stage 5.0 (TID 41) (10.255.255.254, executor driver, partition 17, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 18.0 in stage 5.0 (TID 42) (10.255.255.254, executor driver, partition 18, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 19.0 in stage 5.0 (TID 43) (10.255.255.254, executor driver, partition 19, PROCESS_LOCAL, 9113 bytes) 
+26/07/11 00:29:41 INFO Executor: Running task 0.0 in stage 5.0 (TID 24)
+26/07/11 00:29:41 INFO Executor: Running task 3.0 in stage 5.0 (TID 27)
+26/07/11 00:29:41 INFO Executor: Running task 4.0 in stage 5.0 (TID 28)
+26/07/11 00:29:41 INFO Executor: Running task 5.0 in stage 5.0 (TID 29)
+26/07/11 00:29:41 INFO Executor: Running task 2.0 in stage 5.0 (TID 26)
+26/07/11 00:29:41 INFO Executor: Running task 7.0 in stage 5.0 (TID 31)
+26/07/11 00:29:41 INFO Executor: Running task 8.0 in stage 5.0 (TID 32)
+26/07/11 00:29:41 INFO Executor: Running task 12.0 in stage 5.0 (TID 36)
+26/07/11 00:29:41 INFO Executor: Running task 9.0 in stage 5.0 (TID 33)
+26/07/11 00:29:41 INFO Executor: Running task 11.0 in stage 5.0 (TID 35)
+26/07/11 00:29:41 INFO Executor: Running task 18.0 in stage 5.0 (TID 42)
+26/07/11 00:29:41 INFO Executor: Running task 1.0 in stage 5.0 (TID 25)
+26/07/11 00:29:41 INFO Executor: Running task 14.0 in stage 5.0 (TID 38)
+26/07/11 00:29:41 INFO Executor: Running task 10.0 in stage 5.0 (TID 34)
+26/07/11 00:29:41 INFO Executor: Running task 15.0 in stage 5.0 (TID 39)
+26/07/11 00:29:41 INFO Executor: Running task 13.0 in stage 5.0 (TID 37)
+26/07/11 00:29:41 INFO Executor: Running task 17.0 in stage 5.0 (TID 41)
+26/07/11 00:29:41 INFO Executor: Running task 6.0 in stage 5.0 (TID 30)
+26/07/11 00:29:41 INFO Executor: Running task 19.0 in stage 5.0 (TID 43)
+26/07/11 00:29:41 INFO Executor: Running task 16.0 in stage 5.0 (TID 40)
+26/07/11 00:29:41 INFO CodeGenerator: Code generated in 10.832772 ms
+26/07/11 00:29:41 INFO Executor: Finished task 13.0 in stage 5.0 (TID 37). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 19.0 in stage 5.0 (TID 43). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 14.0 in stage 5.0 (TID 38). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 16.0 in stage 5.0 (TID 40). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 18.0 in stage 5.0 (TID 42). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 0.0 in stage 5.0 (TID 24). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 13.0 in stage 5.0 (TID 37) in 23 ms on 10.255.255.254 (executor driver) (1/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 14.0 in stage 5.0 (TID 38) in 24 ms on 10.255.255.254 (executor driver) (2/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 16.0 in stage 5.0 (TID 40) in 23 ms on 10.255.255.254 (executor driver) (3/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 19.0 in stage 5.0 (TID 43) in 22 ms on 10.255.255.254 (executor driver) (4/20)
+26/07/11 00:29:41 INFO Executor: Finished task 9.0 in stage 5.0 (TID 33). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 4.0 in stage 5.0 (TID 28). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 18.0 in stage 5.0 (TID 42) in 23 ms on 10.255.255.254 (executor driver) (5/20)
+26/07/11 00:29:41 INFO Executor: Finished task 8.0 in stage 5.0 (TID 32). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 0.0 in stage 5.0 (TID 24) in 30 ms on 10.255.255.254 (executor driver) (6/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 4.0 in stage 5.0 (TID 28) in 29 ms on 10.255.255.254 (executor driver) (7/20)
+26/07/11 00:29:41 INFO Executor: Finished task 17.0 in stage 5.0 (TID 41). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 9.0 in stage 5.0 (TID 33) in 27 ms on 10.255.255.254 (executor driver) (8/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 8.0 in stage 5.0 (TID 32) in 28 ms on 10.255.255.254 (executor driver) (9/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 17.0 in stage 5.0 (TID 41) in 25 ms on 10.255.255.254 (executor driver) (10/20)
+26/07/11 00:29:41 INFO Executor: Finished task 6.0 in stage 5.0 (TID 30). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 1.0 in stage 5.0 (TID 25). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 3.0 in stage 5.0 (TID 27). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 5.0 in stage 5.0 (TID 29). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 11.0 in stage 5.0 (TID 35). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 15.0 in stage 5.0 (TID 39). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 6.0 in stage 5.0 (TID 30) in 30 ms on 10.255.255.254 (executor driver) (11/20)
+26/07/11 00:29:41 INFO Executor: Finished task 10.0 in stage 5.0 (TID 34). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO Executor: Finished task 2.0 in stage 5.0 (TID 26). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 5.0 in stage 5.0 (TID 29) in 31 ms on 10.255.255.254 (executor driver) (12/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 1.0 in stage 5.0 (TID 25) in 33 ms on 10.255.255.254 (executor driver) (13/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 3.0 in stage 5.0 (TID 27) in 33 ms on 10.255.255.254 (executor driver) (14/20)
+26/07/11 00:29:41 INFO Executor: Finished task 12.0 in stage 5.0 (TID 36). 1844 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 11.0 in stage 5.0 (TID 35) in 30 ms on 10.255.255.254 (executor driver) (15/20)
+26/07/11 00:29:41 INFO Executor: Finished task 7.0 in stage 5.0 (TID 31). 1887 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 15.0 in stage 5.0 (TID 39) in 30 ms on 10.255.255.254 (executor driver) (16/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 7.0 in stage 5.0 (TID 31) in 33 ms on 10.255.255.254 (executor driver) (17/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 10.0 in stage 5.0 (TID 34) in 32 ms on 10.255.255.254 (executor driver) (18/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 12.0 in stage 5.0 (TID 36) in 31 ms on 10.255.255.254 (executor driver) (19/20)
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 2.0 in stage 5.0 (TID 26) in 35 ms on 10.255.255.254 (executor driver) (20/20)
+26/07/11 00:29:41 INFO TaskSchedulerImpl: Removed TaskSet 5.0, whose tasks have all completed, from pool 
+26/07/11 00:29:41 INFO DAGScheduler: ShuffleMapStage 5 (collect at /tmp/dw-spark-13641562490813447835.py:29) finished in 0.043 s
+26/07/11 00:29:41 INFO DAGScheduler: looking for newly runnable stages
+26/07/11 00:29:41 INFO DAGScheduler: running: Set()
+26/07/11 00:29:41 INFO DAGScheduler: waiting: Set()
+26/07/11 00:29:41 INFO DAGScheduler: failed: Set()
+26/07/11 00:29:41 INFO CodeGenerator: Code generated in 5.899935 ms
+26/07/11 00:29:41 INFO SparkContext: Starting job: collect at /tmp/dw-spark-13641562490813447835.py:29
+26/07/11 00:29:41 INFO DAGScheduler: Got job 5 (collect at /tmp/dw-spark-13641562490813447835.py:29) with 1 output partitions
+26/07/11 00:29:41 INFO DAGScheduler: Final stage: ResultStage 7 (collect at /tmp/dw-spark-13641562490813447835.py:29)
+26/07/11 00:29:41 INFO DAGScheduler: Parents of final stage: List(ShuffleMapStage 6)
+26/07/11 00:29:41 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:29:41 INFO DAGScheduler: Submitting ResultStage 7 (MapPartitionsRDD[17] at collect at /tmp/dw-spark-13641562490813447835.py:29), which has no missing parents
+26/07/11 00:29:41 INFO MemoryStore: Block broadcast_5 stored as values in memory (estimated size 13.7 KiB, free 434.3 MiB)
+26/07/11 00:29:41 INFO MemoryStore: Block broadcast_5_piece0 stored as bytes in memory (estimated size 6.4 KiB, free 434.3 MiB)
+26/07/11 00:29:41 INFO BlockManagerInfo: Added broadcast_5_piece0 in memory on 10.255.255.254:44959 (size: 6.4 KiB, free: 434.4 MiB)
+26/07/11 00:29:41 INFO SparkContext: Created broadcast 5 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:29:41 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 7 (MapPartitionsRDD[17] at collect at /tmp/dw-spark-13641562490813447835.py:29) (first 15 tasks are for partitions Vector(0))
+26/07/11 00:29:41 INFO TaskSchedulerImpl: Adding task set 7.0 with 1 tasks resource profile 0
+26/07/11 00:29:41 INFO TaskSetManager: Starting task 0.0 in stage 7.0 (TID 44) (10.255.255.254, executor driver, partition 0, NODE_LOCAL, 8999 bytes) 
+26/07/11 00:29:41 INFO Executor: Running task 0.0 in stage 7.0 (TID 44)
+26/07/11 00:29:41 INFO ShuffleBlockFetcherIterator: Getting 20 (1200.0 B) non-empty blocks including 20 (1200.0 B) local and 0 (0.0 B) host-local and 0 (0.0 B) push-merged-local and 0 (0.0 B) remote blocks
+26/07/11 00:29:41 INFO ShuffleBlockFetcherIterator: Started 0 remote fetches in 0 ms
+26/07/11 00:29:41 INFO CodeGenerator: Code generated in 6.546068 ms
+26/07/11 00:29:41 INFO Executor: Finished task 0.0 in stage 7.0 (TID 44). 3995 bytes result sent to driver
+26/07/11 00:29:41 INFO TaskSetManager: Finished task 0.0 in stage 7.0 (TID 44) in 19 ms on 10.255.255.254 (executor driver) (1/1)
+26/07/11 00:29:41 INFO TaskSchedulerImpl: Removed TaskSet 7.0, whose tasks have all completed, from pool 
+26/07/11 00:29:41 INFO DAGScheduler: ResultStage 7 (collect at /tmp/dw-spark-13641562490813447835.py:29) finished in 0.026 s
+26/07/11 00:29:41 INFO DAGScheduler: Job 5 is finished. Cancelling potential speculative or zombie tasks for this job
+26/07/11 00:29:41 INFO TaskSchedulerImpl: Killing all running tasks in stage 7: Stage finished
+26/07/11 00:29:41 INFO DAGScheduler: Job 5 finished: collect at /tmp/dw-spark-13641562490813447835.py:29, took 0.028918 s
+[SPARK_SUCCESS] sum(1..10) = 55
+[SPARK_SUCCESS] 全部断言通过，真跑成功。
+26/07/11 00:29:41 INFO SparkContext: SparkContext is stopping with exitCode 0.
+26/07/11 00:29:41 INFO BlockManagerInfo: Removed broadcast_2_piece0 on 10.255.255.254:44959 in memory (size: 5.1 KiB, free: 434.4 MiB)
+26/07/11 00:29:41 INFO BlockManagerInfo: Removed broadcast_3_piece0 on 10.255.255.254:44959 in memory (size: 5.1 KiB, free: 434.4 MiB)
+26/07/11 00:29:41 INFO SparkUI: Stopped Spark web UI at http://10.255.255.254:4040
+26/07/11 00:29:41 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+26/07/11 00:29:41 INFO MemoryStore: MemoryStore cleared
+26/07/11 00:29:41 INFO BlockManager: BlockManager stopped
+26/07/11 00:29:41 INFO BlockManagerMaster: BlockManagerMaster stopped
+26/07/11 00:29:41 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+26/07/11 00:29:41 INFO SparkContext: Successfully stopped SparkContext
+26/07/11 00:29:41 INFO ShutdownHookManager: Shutdown hook called
+26/07/11 00:29:41 INFO ShutdownHookManager: Deleting directory /tmp/spark-9dcd4c61-4892-4a5c-982e-d10e81b34a46
+26/07/11 00:29:41 INFO ShutdownHookManager: Deleting directory /tmp/spark-9869684d-375e-42dd-baf1-94b860ee2f51/pyspark-4e0bde02-65cd-45b8-aee6-b7c4607b4383
+26/07/11 00:29:41 INFO ShutdownHookManager: Deleting directory /tmp/spark-9869684d-375e-42dd-baf1-94b860ee2f51
+=== SPARK SUCCESS dw run --test (exit=5) ===
+TEST 实例已提交：019f4cdd-077e-73e2-b2fe-f4a67050795b
+dw: 日志流在终态前断开（未见 end 事件）

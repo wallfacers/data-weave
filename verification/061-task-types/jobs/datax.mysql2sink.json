@@ -1,0 +1,42 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "biz",
+            "password": "biz",
+            "column": ["id", "name", "val"],
+            "connection": [
+              {
+                "table": ["datax_source"],
+                "jdbcUrl": ["jdbc:mysql://host.docker.internal:3307/dataweave_biz?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"]
+              }
+            ]
+          }
+        },
+        "writer": {
+          "name": "mysqlwriter",
+          "parameter": {
+            "username": "biz",
+            "password": "biz",
+            "column": ["id", "name", "val"],
+            "writeMode": "replace",
+            "connection": [
+              {
+                "table": ["datax_sink"],
+                "jdbcUrl": "jdbc:mysql://host.docker.internal:3307/dataweave_biz?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 1
+      }
+    }
+  }
+}

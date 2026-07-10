@@ -199,10 +199,12 @@ class FlinkTaskExecutorTest {
     }
 
     @Test
-    void buildCommand_detachedSql_addsDashD() {
+    void buildCommand_detachedSql_noDashD() {
+        // 061 真跑验证修复：Flink 1.20 sql-client.sh 的 -d 是 --define（会话变量），
+        // 不是 detached。sql mode 下即使 long_running 也不传 -d。
         List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "sql", "/tmp/q.sql",
                 null, true);
-        assertThat(cmd).containsExactly("/opt/flink/bin/sql-client.sh", "-d", "-f", "/tmp/q.sql");
+        assertThat(cmd).containsExactly("/opt/flink/bin/sql-client.sh", "-f", "/tmp/q.sql");
     }
 
     @Test

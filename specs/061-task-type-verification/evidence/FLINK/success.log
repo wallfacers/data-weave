@@ -1,0 +1,47 @@
+[FLINK] long_running detached 提交: /home/wallfacers/opt/flink/bin/sql-client.sh -f /tmp/dw-flink-12461082217428043480.sql
+Jul 11, 2026 12:34:47 AM org.jline.utils.Log logr
+WARNING: Unable to create a system terminal, creating a dumb terminal (enable debug logging for more information)
+[34;1m[INFO] Executing SQL from file.[0m
+
+Command history file path: /home/wallfacers/.flink-sql-history
+Flink SQL> [34;1m[INFO] Execute statement succeeded.[0m
+
+Flink SQL> 
+> -- 无界 datagen 源（rows-per-second=1，永不停止）
+> CREATE TEMPORARY TABLE endless_source (
+>     id BIGINT,
+>     ts TIMESTAMP_LTZ(3),
+>     msg VARCHAR
+> ) WITH (
+>     'connector' = 'datagen',
+>     'rows-per-second' = '1',
+>     'fields.id.kind' = 'sequence',
+>     'fields.id.start' = '1',
+>     'fields.id.end' = '999999'
+> )[34;1m[INFO] Execute statement succeeded.[0m
+
+Flink SQL> 
+> -- blackhole sink（收到即丢弃，最小开销）
+> CREATE TEMPORARY TABLE blackhole_sink (
+>     id BIGINT,
+>     ts TIMESTAMP_LTZ(3),
+>     msg VARCHAR
+> ) WITH (
+>     'connector' = 'blackhole'
+> )[34;1m[INFO] Execute statement succeeded.[0m
+
+Flink SQL> [34;1m[INFO] Submitting SQL update statement to the cluster...[0m
+[34;1m[INFO] SQL update statement has been successfully submitted to the cluster:[0m
+Job ID: a79e2d8244701c88d17250e9c673188b
+
+
+Flink SQL> 
+Shutting down the session...
+done.
+[FLINK] JobID=a79e2d8244701c88d17250e9c673188b
+[FLINK] external_job_handle={"jobId":"a79e2d8244701c88d17250e9c673188b","restEndpoint":"http://localhost:8081"}
+[FLINK] 无实例绑定（本地 dw run？），external_job_handle 未回写
+[FLINK] state=RUNNING，继续轮询 JobID=a79e2d8244701c88d17250e9c673188b
+[FLINK] state=RUNNING，继续轮询 JobID=a79e2d8244701c88d17250e9c673188b
+[FLINK] state=RUNNING，继续轮询 JobID=a79e2d8244701c88d17250e9c673188b
+[FLINK] state=RUNNING，继续轮询 JobID=a79e2d8244701c88d17250e9c673188b

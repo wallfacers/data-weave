@@ -1,0 +1,76 @@
+# compose.integration.yml —— 数据集成验证环境（profile: integration）
+# 工作流 B（DataX + SeaTunnel）专用。
+#
+# 源：复用既有 backend dataweave-mysql（localhost:3307），不重定义同名容器。
+# 汇：同 MySQL 实例的 sink 表（dataweave_biz.datax_sink / seatunnel_sink）。
+# 网络：引用共享 dw061net（net.yml）。
+#
+# 用法：
+#   ./scripts/up.sh integration    # 幂等创建网络 + 起种子服务
+#   ./scripts/down.sh integration  # 停种子服务（不删外部 MySQL！）
+
+services:
+  # 种子初始化服务：在既有 MySQL 上建 source/sink 表
+  seed-integration:
+    image: mysql:8
+    container_name: dw061-integration-seed
+    entrypoint:
+      - bash
+      - -c
+      - |
+        echo "[seed] waiting for mysql..."
+        for i in $$(seq 1 30); do
+          if mysql -h host.docker.internal -P 3307 -u biz -pbiz -e "SELECT 1" dataweave_biz >/dev/null 2>&1; then
+            echo "[seed] mysql ready, creating tables..."
+            mysql -h host.docker.internal -P 3307 -u biz -pbiz dataweave_biz <<'SQL'
+-- DataX source/sink 表
+DROP TABLE IF EXISTS datax_source;
+CREATE TABLE datax_source (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  val  INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO datax_source (name, val) VALUES ('alpha', 10), ('beta', 20), ('gamma', 30);
+
+DROP TABLE IF EXISTS datax_sink;
+CREATE TABLE datax_sink (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  val  INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- SeaTunnel source/sink 表
+DROP TABLE IF EXISTS seatunnel_source;
+CREATE TABLE seatunnel_source (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  val  INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO seatunnel_source (name, val) VALUES ('one', 1), ('two', 2), ('three', 3);
+
+DROP TABLE IF EXISTS seatunnel_sink;
+CREATE TABLE seatunnel_sink (
+  id   INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  val  INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 用于 fail 测试的不存在表引用验证（无需实际表）
+SQL
+            echo "[seed] done"
+            exit 0
+          fi
+          echo "[seed] attempt $$i/30..."
+          sleep 2
+        done
+        echo "[seed] ERROR: mysql not reachable after 30 attempts" >&2
+        exit 1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+
+networks:
+  default:
+    name: dw061net
+    external: true

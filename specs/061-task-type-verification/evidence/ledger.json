@@ -1,7 +1,7 @@
 {
   "feature": "061-task-type-verification",
   "generated_at": null,
-  "overall": "INCOMPLETE",
+  "overall": "PASS",
   "entries": [
     {
       "engine": "STARROCKS",
@@ -96,14 +96,30 @@
     {
       "engine": "SPARK",
       "workflow": "C",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "3.5.4",
+      "run_via": "dw run (local)",
+      "success_evidence": "evidence/SPARK/success.log",
+      "fail_evidence": "evidence/SPARK/fail.log",
+      "skipped_evidence": "evidence/SPARK/skipped.log",
+      "dw_run_vs_server": "consistent",
+      "notes": "收口复核(A):SKIPPED 补正——C 原 skipped.log 用 bogus sparkHome 触发 pip spark-submit 内部 spark-class 缺失=exit127(非干净SKIPPED,存 skipped_bogushome_127.log);经 sparkHome 指向无 bin/spark-submit 空目录重跑，命中 SparkTaskExecutor:156-157 真 SKIPPED 路径→exit0「已跳过：本地无 Spark 环境」;SUCCESS/FAILURE 证据不变"
     },
     {
       "engine": "FLINK",
       "workflow": "C",
-      "status": "PENDING",
-      "engine_version": ""
+      "status": "PASS",
+      "engine_version": "1.20.5",
+      "run_via": "dw run (local + long_running)",
+      "success_evidence": "evidence/FLINK/success.log",
+      "fail_evidence": "evidence/FLINK/fail.log",
+      "skipped_evidence": "evidence/FLINK/skipped.log",
+      "dw_run_vs_server": "consistent",
+      "flink_reattach": {
+        "job_id": "a79e2d8244701c88d17250e9c673188b",
+        "handle_written": true,
+        "reattach_polled_terminal": true
+      }
     },
     {
       "engine": "PYTHON",

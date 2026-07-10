@@ -1,0 +1,88 @@
+26/07/11 00:30:09 WARN Utils: Your hostname, CHINAMI-0PP96OJ resolves to a loopback address: 127.0.1.1; using 10.255.255.254 instead (on interface lo)
+26/07/11 00:30:09 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+[SPARK_FAIL] 启动 SparkSession...
+26/07/11 00:30:10 INFO SparkContext: Running Spark version 3.5.4
+26/07/11 00:30:10 INFO SparkContext: OS info Linux, 6.6.87.2-microsoft-standard-WSL2, amd64
+26/07/11 00:30:10 INFO SparkContext: Java version 21.0.11
+26/07/11 00:30:10 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+26/07/11 00:30:10 INFO ResourceUtils: ==============================================================
+26/07/11 00:30:10 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/07/11 00:30:10 INFO ResourceUtils: ==============================================================
+26/07/11 00:30:10 INFO SparkContext: Submitted application: dw061-spark-fail
+26/07/11 00:30:10 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/07/11 00:30:10 INFO ResourceProfile: Limiting resource is cpu
+26/07/11 00:30:10 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/07/11 00:30:10 INFO SecurityManager: Changing view acls to: wallfacers
+26/07/11 00:30:10 INFO SecurityManager: Changing modify acls to: wallfacers
+26/07/11 00:30:10 INFO SecurityManager: Changing view acls groups to: 
+26/07/11 00:30:10 INFO SecurityManager: Changing modify acls groups to: 
+26/07/11 00:30:10 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: wallfacers; groups with view permissions: EMPTY; users with modify permissions: wallfacers; groups with modify permissions: EMPTY
+26/07/11 00:30:10 INFO Utils: Successfully started service 'sparkDriver' on port 44873.
+26/07/11 00:30:10 INFO SparkEnv: Registering MapOutputTracker
+26/07/11 00:30:10 INFO SparkEnv: Registering BlockManagerMaster
+26/07/11 00:30:10 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/07/11 00:30:10 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/07/11 00:30:10 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/07/11 00:30:10 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-a334acdf-b5ec-4411-97c3-c59a680e4845
+26/07/11 00:30:10 INFO MemoryStore: MemoryStore started with capacity 434.4 MiB
+26/07/11 00:30:10 INFO SparkEnv: Registering OutputCommitCoordinator
+26/07/11 00:30:10 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/07/11 00:30:10 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+26/07/11 00:30:10 INFO Executor: Starting executor ID driver on host 10.255.255.254
+26/07/11 00:30:10 INFO Executor: OS info Linux, 6.6.87.2-microsoft-standard-WSL2, amd64
+26/07/11 00:30:10 INFO Executor: Java version 21.0.11
+26/07/11 00:30:10 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''
+26/07/11 00:30:10 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@ae6ab20 for default.
+26/07/11 00:30:11 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 46343.
+26/07/11 00:30:11 INFO NettyBlockTransferService: Server created on 10.255.255.254:46343
+26/07/11 00:30:11 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+26/07/11 00:30:11 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, 10.255.255.254, 46343, None)
+26/07/11 00:30:11 INFO BlockManagerMasterEndpoint: Registering block manager 10.255.255.254:46343 with 434.4 MiB RAM, BlockManagerId(driver, 10.255.255.254, 46343, None)
+26/07/11 00:30:11 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, 10.255.255.254, 46343, None)
+26/07/11 00:30:11 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, 10.255.255.254, 46343, None)
+[SPARK_FAIL] master=local[*]
+26/07/11 00:30:12 INFO SharedState: Setting hive.metastore.warehouse.dir ('null') to the value of spark.sql.warehouse.dir.
+26/07/11 00:30:12 INFO SharedState: Warehouse path is 'file:/tmp/tmp.9W3nd5ZDip/spark-warehouse'.
+26/07/11 00:30:13 INFO CodeGenerator: Code generated in 157.214881 ms
+26/07/11 00:30:13 INFO CodeGenerator: Code generated in 11.997873 ms
+26/07/11 00:30:13 INFO SparkContext: Starting job: count at NativeMethodAccessorImpl.java:0
+26/07/11 00:30:13 INFO DAGScheduler: Registering RDD 2 (count at NativeMethodAccessorImpl.java:0) as input to shuffle 0
+26/07/11 00:30:13 INFO DAGScheduler: Got job 0 (count at NativeMethodAccessorImpl.java:0) with 1 output partitions
+26/07/11 00:30:13 INFO DAGScheduler: Final stage: ResultStage 1 (count at NativeMethodAccessorImpl.java:0)
+26/07/11 00:30:13 INFO DAGScheduler: Parents of final stage: List(ShuffleMapStage 0)
+26/07/11 00:30:13 INFO DAGScheduler: Missing parents: List()
+26/07/11 00:30:13 INFO DAGScheduler: Submitting ResultStage 1 (MapPartitionsRDD[5] at count at NativeMethodAccessorImpl.java:0), which has no missing parents
+26/07/11 00:30:13 INFO MemoryStore: Block broadcast_0 stored as values in memory (estimated size 12.5 KiB, free 434.4 MiB)
+26/07/11 00:30:13 INFO MemoryStore: Block broadcast_0_piece0 stored as bytes in memory (estimated size 5.9 KiB, free 434.4 MiB)
+26/07/11 00:30:13 INFO BlockManagerInfo: Added broadcast_0_piece0 in memory on 10.255.255.254:46343 (size: 5.9 KiB, free: 434.4 MiB)
+26/07/11 00:30:13 INFO SparkContext: Created broadcast 0 from broadcast at DAGScheduler.scala:1585
+26/07/11 00:30:13 INFO DAGScheduler: Submitting 1 missing tasks from ResultStage 1 (MapPartitionsRDD[5] at count at NativeMethodAccessorImpl.java:0) (first 15 tasks are for partitions Vector(0))
+26/07/11 00:30:13 INFO TaskSchedulerImpl: Adding task set 1.0 with 1 tasks resource profile 0
+26/07/11 00:30:13 INFO TaskSetManager: Starting task 0.0 in stage 1.0 (TID 0) (10.255.255.254, executor driver, partition 0, PROCESS_LOCAL, 8999 bytes) 
+26/07/11 00:30:13 INFO Executor: Running task 0.0 in stage 1.0 (TID 0)
+26/07/11 00:30:13 INFO ShuffleBlockFetcherIterator: Getting 0 (0.0 B) non-empty blocks including 0 (0.0 B) local and 0 (0.0 B) host-local and 0 (0.0 B) push-merged-local and 0 (0.0 B) remote blocks
+26/07/11 00:30:13 INFO ShuffleBlockFetcherIterator: Started 0 remote fetches in 5 ms
+26/07/11 00:30:13 INFO CodeGenerator: Code generated in 13.183096 ms
+26/07/11 00:30:13 INFO Executor: Finished task 0.0 in stage 1.0 (TID 0). 4031 bytes result sent to driver
+26/07/11 00:30:13 INFO TaskSetManager: Finished task 0.0 in stage 1.0 (TID 0) in 119 ms on 10.255.255.254 (executor driver) (1/1)
+26/07/11 00:30:13 INFO TaskSchedulerImpl: Removed TaskSet 1.0, whose tasks have all completed, from pool 
+26/07/11 00:30:13 INFO DAGScheduler: ResultStage 1 (count at NativeMethodAccessorImpl.java:0) finished in 0.225 s
+26/07/11 00:30:13 INFO DAGScheduler: Job 0 is finished. Cancelling potential speculative or zombie tasks for this job
+26/07/11 00:30:13 INFO TaskSchedulerImpl: Killing all running tasks in stage 1: Stage finished
+26/07/11 00:30:13 INFO DAGScheduler: Job 0 finished: count at NativeMethodAccessorImpl.java:0, took 0.252538 s
+[SPARK_FAIL] 空 df count=0
+[SPARK_FAIL] 预期真失败: division by zero
+26/07/11 00:30:13 INFO SparkContext: SparkContext is stopping with exitCode 0.
+26/07/11 00:30:13 INFO SparkUI: Stopped Spark web UI at http://10.255.255.254:4040
+26/07/11 00:30:13 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+26/07/11 00:30:13 INFO MemoryStore: MemoryStore cleared
+26/07/11 00:30:13 INFO BlockManager: BlockManager stopped
+26/07/11 00:30:13 INFO BlockManagerMaster: BlockManagerMaster stopped
+26/07/11 00:30:13 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+26/07/11 00:30:13 INFO SparkContext: Successfully stopped SparkContext
+26/07/11 00:30:14 INFO ShutdownHookManager: Shutdown hook called
+26/07/11 00:30:14 INFO ShutdownHookManager: Deleting directory /tmp/spark-2a444896-dc03-4a54-8247-b68b912ac191
+26/07/11 00:30:14 INFO ShutdownHookManager: Deleting directory /tmp/spark-6e671fb3-b04f-4674-874b-b2e7c0587324
+26/07/11 00:30:14 INFO ShutdownHookManager: Deleting directory /tmp/spark-6e671fb3-b04f-4674-874b-b2e7c0587324/pyspark-e94c5d31-8141-43f1-a8f8-21a99b6b7cc4
+退出码 1
+dw: 任务执行失败（runner 退出码 1，详见上方输出）

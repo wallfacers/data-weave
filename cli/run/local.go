@@ -107,7 +107,8 @@ func RunLocal(opts LocalOpts, stdout, stderr io.Writer) error {
 	}
 	var flinkOpts *FlinkRunOpts
 	if typeUp == "FLINK" {
-		flinkOpts = &FlinkRunOpts{FlinkMode: meta.FlinkMode, JarPath: meta.JarRef, MainClass: meta.MainClass}
+		flinkOpts = &FlinkRunOpts{FlinkMode: meta.FlinkMode, JarPath: meta.JarRef, MainClass: meta.MainClass,
+			LongRunning: meta.LongRunning}
 	}
 	cmd := BuildLocalRunCmd(classpath, typeUp, timeout, dsJSONPath, content, sparkOpts, flinkOpts)
 	cmd.Stdout = stdout
@@ -145,9 +146,10 @@ type SparkRunOpts struct {
 
 // FlinkRunOpts 是 FLINK 任务的内容形态参数（sql/jar）；非 FLINK 任务传 nil。
 type FlinkRunOpts struct {
-	FlinkMode string // sql / jar
-	JarPath   string // jar 形态的本地 application jar 路径
-	MainClass string // jar 形态的 --class 主类
+	FlinkMode   string // sql / jar
+	JarPath     string // jar 形态的本地 application jar 路径
+	MainClass   string // jar 形态的 --class 主类
+	LongRunning bool   // 流式作业：detached 提交 + REST 轮询至终态
 }
 
 // BuildLocalRunCmd 构造 java LocalRunMain 子进程命令；脚本体 content 经 stdin 传入。
@@ -200,6 +202,9 @@ func buildLocalRunArgs(classpath, taskType string, timeout int, dsJSONPath strin
 		}
 		if flink.MainClass != "" {
 			args = append(args, "--main-class", flink.MainClass)
+		}
+		if flink.LongRunning {
+			args = append(args, "--long-running")
 		}
 	}
 	return args
