@@ -61,7 +61,7 @@ class EventCenterServiceQueryTest {
     @Test
     @SuppressWarnings("unchecked")
     void query_isolates_by_tenant() {
-        Map<String, Object> data = service.query(10L, null, null, null, null, null, null, 0, 20);
+        Map<String, Object> data = service.query(10L, null, null, null, null, null, null, false, 0, 20);
         assertThat((int) data.get("total")).isEqualTo(2); // 仅租户 10 的两条
         List<HealthEvent> items = (List<HealthEvent>) data.get("items");
         assertThat(items).extracting(HealthEvent::getTenantId).containsOnly(10L);
@@ -70,7 +70,7 @@ class EventCenterServiceQueryTest {
     @Test
     @SuppressWarnings("unchecked")
     void query_filters_by_type() {
-        Map<String, Object> data = service.query(10L, "QUALITY_FAILED", null, null, null, null, null, 0, 20);
+        Map<String, Object> data = service.query(10L, "QUALITY_FAILED", null, null, null, null, null, false, 0, 20);
         assertThat((int) data.get("total")).isEqualTo(1);
         List<HealthEvent> items = (List<HealthEvent>) data.get("items");
         assertThat(items.get(0).getType()).isEqualTo("QUALITY_FAILED");

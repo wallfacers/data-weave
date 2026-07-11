@@ -50,6 +50,8 @@ export interface IncidentCard {
   suppressReason: string | null
   resolutionKind: string | null
   resolvedAt: string | null
+  healByType: string | null      // 064 愈合条件——恢复信号事件类型
+  healByRefId: string | null     // 064 愈合条件——恢复信号引用 ID
   pendingActionCount: number
   priorIncidentCount: number
   diagnosis: null

@@ -36,7 +36,7 @@ public class IncidentHealListener {
     public void on(TaskSucceededEvent event) {
         try {
             if (event.taskId() != null) {
-                incidentService.healByTask(event.taskId(), event.tenantId());
+                incidentService.healByTask("TASK_SUCCESS", String.valueOf(event.taskId()), event.tenantId());
             }
         } catch (Exception e) {
             log.error("[IncidentHeal] failed to heal by task {}", event.taskId(), e);

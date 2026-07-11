@@ -34,6 +34,8 @@ public class Incident {
     private LocalDateTime timeBudgetAt;
     private String suppressReason;
     private String resolutionKind;
+    private String healByType;        // 064 愈合条件——恢复信号事件类型
+    private String healByRefId;       // 064 愈合条件——恢复信号引用 ID
     private LocalDateTime resolvedAt;
     private LocalDateTime closedAt;
     private String diagnosisJson;
@@ -105,6 +107,12 @@ public class Incident {
 
     public String getResolutionKind() { return resolutionKind; }
     public void setResolutionKind(String resolutionKind) { this.resolutionKind = resolutionKind; }
+
+    public String getHealByType() { return healByType; }
+    public void setHealByType(String healByType) { this.healByType = healByType; }
+
+    public String getHealByRefId() { return healByRefId; }
+    public void setHealByRefId(String healByRefId) { this.healByRefId = healByRefId; }
 
     public LocalDateTime getResolvedAt() { return resolvedAt; }
     public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }

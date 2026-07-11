@@ -43,9 +43,9 @@ public class EventCenterService {
 
     // ── 查询 ──
     public Map<String, Object> query(long tenantId, String type, String severity, String refKind, String refId,
-                                     LocalDateTime from, LocalDateTime to, int offset, int limit) {
-        List<HealthEvent> items = eventRepo.query(tenantId, type, severity, refKind, refId, from, to, offset, limit);
-        int total = eventRepo.count(tenantId, type, severity, refKind, refId, from, to);
+                                     LocalDateTime from, LocalDateTime to, boolean incidentOnly, int offset, int limit) {
+        List<HealthEvent> items = eventRepo.query(tenantId, type, severity, refKind, refId, from, to, incidentOnly, offset, limit);
+        int total = eventRepo.count(tenantId, type, severity, refKind, refId, from, to, incidentOnly);
         return Map.of("items", items, "total", total);
     }
 
