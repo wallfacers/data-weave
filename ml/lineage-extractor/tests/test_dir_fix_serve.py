@@ -141,3 +141,40 @@ def test_tiering_off_equals_old_flat_output():
     assert off["review_reads"] == [] and off["review_writes"] == []
     assert off["tiered"] is False
     assert "dwd.clean" in {i["table"] for i in off["writes"]}  # 旧 dir_fix 语义不变
+
+
+# ---- 063 US2：自动入库只收高置信（治理安全） ----
+
+def test_auto_tier_only_governance_accepted_tiers():
+    # 自动层的每项 tier 必在治理阈采纳集内（thr=0.95 → 仅 sql_qual）
+    from realeval.tier_classify_constants import autoaccept_tiers
+    content = 'spark.sql("INSERT OVERWRITE TABLE db.dwd SELECT * FROM db.ods JOIN raw_bare")'
+    text = '{"reads": [{"table": "db.ods"}], "writes": []}'
+    out = postprocess(text, content, thr=0.95)
+    accept = set(autoaccept_tiers(0.95))
+    for i in out["reads"] + out["writes"]:
+        assert i["tier"] in accept  # 低置信级不进自动层
+
+
+# ---- 063 US3：治理阈可调 + 回滚 ----
+
+def test_thr_relaxation_expands_auto_tier():
+    # 阈放宽 0.95→0.85：自动采纳集扩大（sql_qual → +model_bare+agree+model_qual）
+    content = 'spark.sql("INSERT OVERWRITE TABLE db.dwd SELECT * FROM db.ods")'
+    text = '{"reads": [{"table": "db.ods"}], "writes": []}'
+    strict = postprocess(text, content, thr=0.95)
+    relaxed = postprocess(text, content, thr=0.85)
+    strict_auto = {i["table"] for i in strict["reads"] + strict["writes"]}
+    relaxed_auto = {i["table"] for i in relaxed["reads"] + relaxed["writes"]}
+    assert strict_auto <= relaxed_auto            # 放宽只会扩大自动层
+    assert "db.ods" in relaxed_auto and "db.ods" not in strict_auto  # agree 在 0.85 进 auto
+
+
+def test_union_recall_invariant_across_thr():
+    # 复核层召回天花板不随阈变化：auto∪review 恒等（US3-AS3）
+    content = 'spark.sql("INSERT OVERWRITE TABLE db.dwd SELECT * FROM db.ods")'
+    text = '{"reads": [{"table": "db.ods"}], "writes": []}'
+    def union(thr):
+        o = postprocess(text, content, thr=thr)
+        return {i["table"] for i in o["reads"] + o["writes"] + o["review_reads"] + o["review_writes"]}
+    assert union(0.95) == union(0.85) == union(0.0)

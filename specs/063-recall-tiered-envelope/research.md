@@ -39,7 +39,7 @@ CV 去偏直接在 gold C 金标 + 既有模型预测上做，**不需**构建 p
 
 **Decision**：自动采纳阈 = **累计校准 precision ≥ thr**（`best_frontier` 语义），thr 由 env `LINEAGE_AUTOACCEPT_MIN_PRECISION` 提供，默认 `"0.95"`。累计前沿（校准序采纳前 k 级）precision ≥ thr 的最大召回点即自动层边界；其余候选进复核层。thr=0 → 全并集进自动层；`LINEAGE_TIERING=0` → 完全关分层退回旧单一输出。
 
-**Rationale**：与 clarify 定的 ≥0.95 治理严格一致；env 可配满足 US3；累计（非单级）门与 `confidence_calibration.best_frontier` 既有语义一致，直接复用。文档标注 0.90 为统计稳定膝点（gold C 实测自动层召回 0.047→0.453）。
+**Rationale**：与 clarify 定的 ≥0.95 治理严格一致；env 可配满足 US3；自动采纳集由 CV 去偏扫描（`autoaccept_tiers`）选 held-out precision≥阈的最大召回集——治理诚实。**CV 实测**：0.95/0.90 均只 sql_qual（held-out recall 0.047）；样本内点估计的 0.90 膝点（recall 0.453）**不泛化**；CV 下真膝点在 0.85（held-out precision 0.87、recall 0.723）。
 
 ## R5. confidence 值语义
 

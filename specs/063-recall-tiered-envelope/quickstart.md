@@ -41,7 +41,7 @@ PYTHONPATH=. python3 realeval/rescore_tiered.py \
     --preds deepseek:out/preds-c-teacher-deepseek-pro.jsonl \
     --preds qwen:out/preds-c-teacher-qwen-max.jsonl \
     --thr 0.95 --report out/rescore-tiered.md
-# 期望（SC）：自动层∪复核层召回 ≥0.76；自动层 held-out precision ≥0.95；披露 ≥0.95 自动层召回~0.05 代价 + 0.90 膝点
+# 期望（SC）：自动层∪复核层召回 ≥0.76；自动层 CV held-out precision ≥0.95；披露 ≥0.95 自动层召回~0.05 代价 + CV 真膝点 0.85(recall~0.72)
 ```
 
 ## 步骤 3：serving 分层（部署落地）

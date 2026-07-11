@@ -73,7 +73,7 @@
 
 - [ ] T017 [P] [US2] 写 `<ml>/tests/test_tier_classify.py` 补用例（先行）：`thr=0.95` 时低置信 tier（model_bare 使累计跌破阈）降级 review、仅达阈前缀留 auto；`test_dir_fix_serve.py` 补：`reads/writes` 只含 auto 层高置信表
 - [ ] T018 [US2] `rescore_tiered.py` 增自动层度量：auto 层 gold C **CV held-out** precision（`conf_calibration_cv` 口径，级序/前沿留出）+ 与模型平铺输出精度对照（无回归）
-- [ ] T019 [US2] 跑 harness 确认 **SC-002**：自动层 held-out precision ≥ 治理阈（默认 0.95）且 ≥ 平铺输出精度；报告如实披露 ≥0.95 自动层召回过低（约 0.05）为治理严格代价 + 0.90 膝点数据（约 0.45）；US2 测试转绿
+- [ ] T019 [US2] 跑 harness 确认 **SC-002**：自动层 CV held-out precision ≥ 治理阈（默认 0.95→1.000）；报告如实披露 ≥0.95 自动层召回过低（约 0.05，仅 sql_qual）为治理严格代价 + CV 真膝点 0.85 数据（recall 约 0.72）；US2 测试转绿
 
 **Checkpoint**: 自动层治理安全性经 held-out 证明 → US2 交付。
 
@@ -87,7 +87,7 @@
 
 - [ ] T020 [P] [US3] 写 `<ml>/tests/test_dir_fix_serve.py` 补用例（先行）：`LINEAGE_AUTOACCEPT_MIN_PRECISION=0.90` 时 auto 层扩大/复核负载降；`LINEAGE_TIERING=0` 时响应等价旧单一 `reads/writes`（review 空、`tiered=False`、旧字段语义不变）；任意阈下 `auto∪review` 召回不变
 - [ ] T021 [US3] `<ml>/serve/app.py`：接 env `LINEAGE_AUTOACCEPT_MIN_PRECISION`（默认 `"0.95"`）→ `thr`；接 `LINEAGE_TIERING`（默认 `"1"`，置 0 完全跳过分层退回旧路径）；见 contracts/extract-response.md 配置表
-- [ ] T022 [US3] 跑 T020 用例转绿；确认 **SC-004**：0.95→0.90 自动层召回约 0.05→0.45 可验证、`LINEAGE_TIERING=0` 逐字节等价 059 现状
+- [ ] T022 [US3] 跑 T020 用例转绿；确认 **SC-004**：0.95→0.85 自动层召回约 0.05→0.72 可验证（CV 真膝点；0.90 仍约 0.05）、`LINEAGE_TIERING=0` 逐字节等价 059 现状
 
 **Checkpoint**: 阈可调 + 回滚安全阀就绪 → US3 交付。
 
