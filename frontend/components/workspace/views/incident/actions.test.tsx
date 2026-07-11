@@ -37,6 +37,8 @@ function makeCard(overrides: Partial<IncidentCard> = {}): IncidentCard {
     priorIncidentCount: 2,
     diagnosis: null,
     proposal: null,
+    healByType: "TASK_SUCCESS",
+    healByRefId: "1024",
     ...overrides,
   }
 }
