@@ -110,8 +110,8 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 4
 
-- [ ] T025 [P] [US4] 删除 `backend/dataweave-master/src/main/resources/messages.properties` + `messages_en_US.properties` 的 4 条 `incident.*` 孤儿 key（`incident.not_found`/`invalid_state`/`suppress_reason_required`/`action_target_mismatch`，行 421-425）
-- [ ] T026 [US4] 确认 `specs/027`、`specs/043`、`specs/064` 保留作历史决策记录（不删规格目录）；提交「incident 残留清理」
+- [X] T025 [P] [US4] 删除 `backend/dataweave-master/src/main/resources/messages.properties` + `messages_en_US.properties` 的 4 条 `incident.*` 孤儿 key（`incident.not_found`/`invalid_state`/`suppress_reason_required`/`action_target_mismatch`，行 421-425）
+- [X] T026 [US4] 确认 `specs/027`、`specs/043`、`specs/064` 保留作历史决策记录（不删规格目录）；提交「incident 残留清理」
 
 **Checkpoint**: 065 监督席残留清零
 
