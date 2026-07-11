@@ -48,6 +48,8 @@ public class OpsService {
     private final EventBus eventBus;
     private final JdbcTemplate jdbc;
     private final AgentActionRepository agentActionRepository;
+    private final com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository;  // 062
+    private final long checkpointTtlHours;  // 062：检查点过期判定（streaming.checkpoint.ttl-hours）
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
@@ -58,7 +60,10 @@ public class OpsService {
                       LogBus logBus,
                       EventBus eventBus,
                       JdbcTemplate jdbc,
-                      AgentActionRepository agentActionRepository) {
+                      AgentActionRepository agentActionRepository,
+                      com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository,
+                      @org.springframework.beans.factory.annotation.Value(
+                              "${streaming.checkpoint.ttl-hours:24}") long checkpointTtlHours) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
@@ -69,6 +74,13 @@ public class OpsService {
         this.eventBus = eventBus;
         this.jdbc = jdbc;
         this.agentActionRepository = agentActionRepository;
+        this.checkpointRepository = checkpointRepository;
+        this.checkpointTtlHours = checkpointTtlHours;
+    }
+
+    /** LocalDateTime → UTC ISO 字符串（带 Z），null 透传（datetime 输出约定）。 */
+    private static String iso(LocalDateTime t) {
+        return t != null ? t.atZone(ZoneId.systemDefault()).toInstant().toString() : null;
     }
 
     /** 记录运维直接操作审计日志。绕过闸门的直接操作仍需留痕（FR-012）。 */
@@ -770,6 +782,97 @@ public class OpsService {
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);
+    }
+
+    // ===== 062 实时任务运维 =====
+
+    /**
+     * 实时任务面板查询（US1）：仅 long_running=TRUE 实例，server 分页，关联最近成功检查点 + worker 在线态。
+     * 036 项目隔离：按 projectId 过滤。state/keyword 可选。
+     */
+    public PageResult<OpsContracts.StreamingTaskRow> listStreamingTasks(OpsContracts.StreamingTaskQuery q) {
+        int page = Math.max(0, q.page());
+        int size = Math.min(Math.max(1, q.size()), 200);
+        StringBuilder where = new StringBuilder(" WHERE ti.deleted=0 AND ti.long_running=TRUE ");
+        List<Object> args = new ArrayList<>();
+        if (q.projectId() != null) {
+            where.append("AND ti.project_id=? ");
+            args.add(q.projectId());
+        }
+        if (q.state() != null && !q.state().isBlank()) {
+            where.append("AND ti.state=? ");
+            args.add(q.state().trim());
+        }
+        if (q.keyword() != null && !q.keyword().isBlank()) {
+            where.append("AND ti.task_def_name LIKE CONCAT('%', ?, '%') ");
+            args.add(q.keyword().trim());
+        }
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(size);
+        pageArgs.add((long) page * size);
+        // 运行中优先（RUNNING/DISPATCHED），其余按最近开始降序；worker 在线态 LEFT JOIN worker_nodes 取 status
+        List<OpsContracts.StreamingTaskRow> items = jdbc.query(
+                "SELECT ti.id, ti.task_id, ti.task_def_name, ti.state, ti.long_running, ti.started_at, ti.finished_at, "
+                        + "ti.business_attempt, ti.infra_redispatch_count, ti.external_job_handle, "
+                        + "wn.status AS worker_status "
+                        + "FROM task_instance ti "
+                        + "LEFT JOIN worker_nodes wn ON ti.worker_node_code = wn.node_code" + where
+                        + "ORDER BY CASE WHEN ti.state IN ('RUNNING','DISPATCHED') THEN 0 "
+                        + "  WHEN ti.state='SUSPENDED' THEN 1 ELSE 2 END, ti.started_at DESC NULLS LAST, ti.id DESC "
+                        + "LIMIT ? OFFSET ?",
+                (rs, n) -> {
+                    UUID id = rs.getObject("id", UUID.class);
+                    LocalDateTime startedAt = rs.getObject("started_at", LocalDateTime.class);
+                    LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
+                    String state = rs.getString("state");
+                    // 已运行时长：运行中=起→现在；已结束=起→结束（秒）
+                    Long durationSeconds = null;
+                    if (startedAt != null) {
+                        LocalDateTime end = finishedAt != null ? finishedAt : LocalDateTime.now();
+                        durationSeconds = Math.max(0, Duration.between(startedAt, end).toSeconds());
+                    }
+                    String handle = rs.getString("external_job_handle");
+                    String workerStatus = rs.getString("worker_status");
+                    boolean workerOnline = "ONLINE".equalsIgnoreCase(workerStatus);
+                    OpsContracts.CheckpointView last = checkpointRepository.findLatestSuccess(id)
+                            .map(this::toCheckpointView).orElse(null);
+                    return new OpsContracts.StreamingTaskRow(
+                            id, (Long) rs.getObject("task_id"), rs.getString("task_def_name"), state,
+                            rs.getBoolean("long_running"), iso(startedAt), durationSeconds,
+                            rs.getInt("business_attempt"), rs.getInt("infra_redispatch_count"),
+                            last, handle != null && !handle.isBlank(), workerOnline);
+                },
+                pageArgs.toArray());
+        return new PageResult<>(items, totalCount, page, size);
+    }
+
+    /**
+     * 某实时任务的检查点列表（US4，ordinal DESC）。校验 long_running + 项目隔离。
+     * resumable = SUCCESS && !expired（过期 = completed_at 超 ttl-hours）。
+     */
+    public List<OpsContracts.CheckpointView> listCheckpoints(UUID instanceId, Long projectId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (projectId != null && !projectId.equals(ti.getProjectId())) {
+            throw new BizException("ops.instance.not_found", instanceId);
+        }
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        return checkpointRepository.listByInstance(instanceId).stream()
+                .map(this::toCheckpointView).toList();
+    }
+
+    /** Checkpoint → CheckpointView：计算 expired（ttl）+ resumable。 */
+    private OpsContracts.CheckpointView toCheckpointView(com.dataweave.master.domain.Checkpoint c) {
+        boolean success = com.dataweave.master.domain.Checkpoint.SUCCESS.equals(c.status());
+        boolean expired = com.dataweave.master.domain.Checkpoint.EXPIRED.equals(c.status())
+                || (c.completedAt() != null
+                        && c.completedAt().isBefore(LocalDateTime.now().minusHours(checkpointTtlHours)));
+        return new OpsContracts.CheckpointView(c.id(), c.ordinal(), c.status(), c.checkpointPath(),
+                iso(c.completedAt()), c.sizeBytes(), expired, success && !expired);
     }
 
     /** 获取日志分块。 */

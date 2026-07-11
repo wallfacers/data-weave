@@ -40,7 +40,8 @@ class OpsServiceWorkflowInstanceTest {
         // Weft A 已拆除服务端 AI（DiagnosisService 移除）；OpsService 末位参为 origin 的 AgentActionRepository
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
                 workflowDefRepository, stateMachine, workflowStateService, logBus, eventBus, jdbc,
-                mock(AgentActionRepository.class));
+                mock(AgentActionRepository.class),
+                mock(com.dataweave.master.infrastructure.CheckpointRepository.class), 24L);
     }
 
     // ─── queryWorkflowInstances ─────────────────────────────

@@ -242,6 +242,35 @@ public class OpsController {
     }
 
     /**
+     * 062 实时任务面板列表（US1）：仅 long_running 实例，server 分页。page 从 1 起；size 上限 200。
+     * 项目隔离沿用 {@code resolveProjectId}；只读、无门控。
+     */
+    @GetMapping("/streaming-tasks")
+    public ApiResponse<?> streamingTasks(
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Long pid = resolveProjectId(projectId);
+        int page0 = Math.max(0, page - 1);
+        OpsContracts.PageResult<OpsContracts.StreamingTaskRow> pr = opsService.listStreamingTasks(
+                new OpsContracts.StreamingTaskQuery(pid, state, keyword, page0, size));
+        return ApiResponse.ok(new Page<>(pr.items(), pr.total(), page, pr.size()));
+    }
+
+    /**
+     * 062 某实时任务的检查点列表（US4，ordinal DESC，续跑选择用）。
+     */
+    @GetMapping("/streaming-tasks/{instanceId}/checkpoints")
+    public ApiResponse<?> streamingTaskCheckpoints(
+            @PathVariable String instanceId,
+            @RequestParam(required = false) Long projectId) {
+        Long pid = resolveProjectId(projectId);
+        return ApiResponse.ok(opsService.listCheckpoints(UUID.fromString(instanceId), pid));
+    }
+
+    /**
      * 多维筛选 + 分页查询任务流实例列表。
      * page 从 1 起；size 上限 200。
      */
