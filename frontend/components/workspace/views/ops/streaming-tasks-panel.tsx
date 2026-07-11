@@ -170,6 +170,11 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
               <Badge variant={STATE_BADGE[r.state] ?? "outline"}>
                 {t(STATE_I18N[r.state] ?? "stateRunning")}
               </Badge>
+              {r.state === "SUSPENDED" && (
+                <span className="text-xs text-warning" title={t("suspendedHint")}>
+                  {t("suspendedHint")}
+                </span>
+              )}
               {drift && (
                 <span className="text-xs text-warning" title={t("disconnected")}>
                   {t("disconnected")}
