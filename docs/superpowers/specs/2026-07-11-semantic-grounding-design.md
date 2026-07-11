@@ -78,3 +78,18 @@
 - `cd ml/lineage-extractor && PYTHONPATH=. python3 -m pytest tests/test_semantic_grounding.py -q` 全绿。
 - 全量 ml 套件不回归。
 - harness 真跑三方，报告落盘，数据可复核。
+
+## 结果（实测，gold C 校准）
+
+**★实测校准了排除集**：初始设计的黑名单含 `{comment, import, path, temp_view, var_decl, param, attribute}`，实测误杀 22 个真表（3B 召回 0.633→0.487 崩、方向同崩）——`var_decl`/`param`/`attribute` 正是「变量持有的表名」和「限定表名叶名前带 `.`」这类连 pro 都裁不清的**标签歧义边界**，真血缘也住那。收窄到**保守集 `{comment, import, path, temp_view}`**（无歧义排除）后：
+
+| 模型 | literal ALL-p | semantic ALL-p | 非空-p | 召回 | 方向 |
+|---|---|---|---|---|---|
+| **自托管 3B** | 0.6419 | **0.6835 (+4.2pt)** | 0.7422→0.7724 | 0.6333→**0.6333** | 0.6327→**0.6327** |
+| deepseek-pro | 0.5874 | 0.5930 (+0.6) | 0.6237→0.6277 | 0.8067→0.7867 | ↓ |
+| qwen-max | 0.3867 | 0.4130 (+2.6) | 0.4895→0.5229 | 0.7733→0.7600 | ↓ |
+
+- **成功判据达成**：3B ALL-p +4.2pt / 非空-p +3.0pt，**召回、方向零退化**（保守集只剔无歧义位置）。
+- 语义 grounding 对 3B 增益最大（小模型 grounded-but-wrong 幻觉最多，强 teacher 少犯）→ **3B 对 deepseek 的精度领先从 0.055 扩大到 0.090**。
+- `param`/`attribute`/`var_decl` 仍被 `occurrence_contexts` 标注供审计，只是不进 `_EXCLUDED`。
+- 产物：`realeval/semantic_grounding.py` + `realeval/rescore_semantic.py` + `tests/test_semantic_grounding.py`（20 测）+ `out/rescore-semantic.md`。

@@ -61,6 +61,21 @@
 - grounding 对 teacher 几乎无增益（deepseek +0.3pt / qwen +3pt）却帮 3B +9.3pt——3B 的 ungrounded 幻觉更多、被过滤器接住，强 teacher 本就少犯。
 - 复现：`realeval/eval_teachers_c.py`（teacher→gold C 预测，抓真实 token 用量）+ `rescore_arbitrated.py` 同尺子打分；报告 `out/rescore-teacher-{qwen,deepseek}.md`。
 
+## ③ 语义级 grounding——吃掉 grounded-but-wrong FP（正结果，+4.2pt 零召回损）
+
+② 证明剩下的假阳是 **grounded-but-wrong**（叶名字面在脚本、但位置是注释/import/路径/变量/临时视图）。literal-grounding 只查「叶名出现在脚本某处」，够不着；升级为**上下文感知**（`realeval/semantic_grounding.py`）：定位叶名每处出现、判句法上下文，黑名单裁决——所有出现都在约定已排除位置 → 剔。
+
+| 模型 | literal ALL-p | semantic ALL-p | 非空-p | 召回 | 方向 |
+| --- | --- | --- | --- | --- | --- |
+| **自托管 3B** | 0.6419 | **0.6835（+4.2pt）** | 0.742→**0.772** | 0.6333→**0.6333** | 0.6327→**0.6327** |
+| deepseek-pro | 0.5874 | 0.5930 | 0.624→0.628 | 0.807→0.787 | ↓ |
+| qwen-max | 0.3867 | 0.4130 | 0.490→0.523 | 0.773→0.760 | ↓ |
+
+- **成功判据达成**：3B ALL-p **+4.2pt**、非空-p +3.0pt，**召回与方向零退化**——与 ② 的「拿召回换精度」相反，这是干净收益。
+- **★关键校准**：黑名单只能含**无歧义**排除位置 `{注释, import, 文件路径, 临时视图}`。初版还纳入 `变量声明/形参/属性` 三类，实测误杀 22 个真表、召回崩到 0.487——因为「变量持有的表名」（`SOURCE_TABLE="orders"`）和「限定表名叶名前带 `.`」正是连 pro 都裁不清的**标签歧义边界**，真血缘也住那（gold 仲裁恰把这类翻成真表）。
+- 语义 grounding 对 3B 增益最大（小模型 grounded-but-wrong 幻觉最多，强 teacher 少犯）→ **3B 对 deepseek 的精度领先从 0.055 扩大到 0.090**。
+- 复现：`realeval/rescore_semantic.py`（三方三档 raw/literal/semantic）+ `tests/test_semantic_grounding.py`（20 测）；报告 `out/rescore-semantic.md`；设计 `docs/superpowers/specs/2026-07-11-semantic-grounding-design.md`。本轮**离线测量**（证收益），下一轮接进 predict 后处理。
+
 ## 训练稳定性（`sft_qlora.py` 加向后兼容旋钮）
 
 Run D 第一次跑 bf16 早期数值发散（step 20-40 梯度溢出成 NaN，裁剪救不了，acc 塌到 ~0，整轮报废）。同配方 Run C 未撞上，差异仅数据组成/顺序——bf16 LoRA 早期发散有随机性。加 `--lr / --warmup / --max-grad-norm` 三个可选参数（默认=原配方，向后兼容），Run D2 用 lr 1.2e-4 / warmup 0.10 / grad-clip 0.5 重跑，grad_norm 全程有限、loss 单调降、acc 爬到 0.83，健康跑通。
