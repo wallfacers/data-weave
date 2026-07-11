@@ -70,9 +70,12 @@ public class TaskLineageResolver {
                                    String type, String content,
                                    Long datasourceId, Long targetDatasourceId,
                                    List<String> agentReads, List<String> agentWrites) {
+        // 数仓内 ETL（源=目标同库）常不显式设 targetDatasource：写侧坐标须回退到源数据源，
+        // 否则同一张表「上游写」空坐标节点、「下游读」源坐标节点 → 节点分裂 → 跨层血缘断链（与 push 侧一致）。
+        Long writeDs = LineageEdgeAssembler.effectiveWriteDatasource(datasourceId, targetDatasourceId);
         LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                 tenantId, projectId, type, content, agentReads, agentWrites,
-                datasourceId, targetDatasourceId);
+                datasourceId, writeDs);
 
         List<ColumnEdge> columnEdges = List.of();
         if ("SQL".equalsIgnoreCase(type)) {
@@ -82,7 +85,7 @@ public class TaskLineageResolver {
             columnEdges = ColumnLineageStoreAdapter.toDomain(
                     colResult,
                     lineageEdgeAssembler.resolveCoord(tenantId, projectId, datasourceId),
-                    lineageEdgeAssembler.resolveCoord(tenantId, projectId, targetDatasourceId));
+                    lineageEdgeAssembler.resolveCoord(tenantId, projectId, writeDs));
         }
 
         var ioEdges = new ArrayList<>(assembly.ioEdges());
