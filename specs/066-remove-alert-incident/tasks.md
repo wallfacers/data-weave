@@ -51,7 +51,7 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 - [X] T003 [US3] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `QUALITY_RULE_WRITE`/`QUALITY_RUN` 两条 policy_rule 种子（行 489-490）
 - [X] T004 [US3] grep 验证：现存 java 对 `com.dataweave.master.quality`/`com.dataweave.api.quality` 零引用；schema.sql 无 `quality_*` 表；data.sql 无 `QUALITY_*` 策略
-- [ ] T005 [US3] 提交「quality 收尾」
+- [X] T005 [US3] 提交「quality 收尾」
 
 **Checkpoint**: quality 模块彻底清零
 
@@ -121,15 +121,15 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 **Purpose**: 调度核心与闸门不退化验证 + schema 升版本 + 跨切收尾
 
-- [ ] T027 升级 `backend/dataweave-api/src/main/resources/schema.sql` 版本到 `0.18.0`：改文件头 `Schema Version` 注释 + `schema_version` 表 INSERT 行，标注「066 移除告警/质量体系——删 alert_* 7 表」
-- [ ] T028 全量编译（防 build-cache 假绿）：`cd backend && ./mvnw clean -Dmaven.build.cache.enabled=false compile`
-- [ ] T029 全量后端测试：`cd backend && setsid bash -c './mvnw clean -Dmaven.build.cache.enabled=false -pl dataweave-master,dataweave-api,dataweave-worker -am test >build.log 2>&1; echo $? >build.exit' </dev/null >/dev/null 2>&1 & disown`（认 `Tests run: N>0`，WSL2 setsid 脱离）
-- [ ] T030 前端验证：`cd frontend && pnpm typecheck && pnpm test`
-- [ ] T031 调度并发核验（因动 InstanceStateMachine，CLAUDE.md 硬规则）：跑 every-minute cron 端到端，确认 `started_at − created_at ≈ 0`、根节点 `attempt=1`、零「跳过下发/中止执行」stragglers；查 `task_instance` attempt-count 与延迟无异常相关
-- [ ] T032 schema 启动验证：H2（`-Dspring-boot.run.profiles=h2`）+ PostgreSQL（`docker compose up -d`）双存储启动 + `GET /api/health`
-- [ ] T033 grep 零命中全验证 + i18n parity：`AlertSignal`/`com.dataweave.alert`/`com.dataweave.master.quality`/`alert_*` 表/`ALERT_*`·`QUALITY_*` 策略全零；`diff <(jq keys zh-CN) <(jq keys en-US)` 空
-- [ ] T034 审查 `CLAUDE.md` Knowledge Map：060 条目「StuckInstanceSweeper 无节点等待告警」等过时告警/事件/质量/工单引用按需更新（恢复唤醒保留，告警语义改检测）
-- [ ] T035 最终提交 + 分支整合准备：确认 4 提交结构（quality 收尾 / alert 模块 / 信号桥 / incident 残留 + polish）落齐，工作区干净
+- [X] T027 升级 `backend/dataweave-api/src/main/resources/schema.sql` 版本到 `0.18.0`：改文件头 `Schema Version` 注释 + `schema_version` 表 INSERT 行，标注「066 移除告警/质量体系——删 alert_* 7 表」
+- [X] T028 全量编译（防 build-cache 假绿）：`cd backend && ./mvnw clean -Dmaven.build.cache.enabled=false compile`
+- [X] T029 全量后端测试：`cd backend && setsid bash -c './mvnw clean -Dmaven.build.cache.enabled=false -pl dataweave-master,dataweave-api,dataweave-worker -am test >build.log 2>&1; echo $? >build.exit' </dev/null >/dev/null 2>&1 & disown`（认 `Tests run: N>0`，WSL2 setsid 脱离）
+- [X] T030 前端验证：`cd frontend && pnpm typecheck && pnpm test`
+- [X] T031 调度并发核验（因动 InstanceStateMachine，CLAUDE.md 硬规则）：跑 every-minute cron 端到端，确认 `started_at − created_at ≈ 0`、根节点 `attempt=1`、零「跳过下发/中止执行」stragglers；查 `task_instance` attempt-count 与延迟无异常相关
+- [X] T032 schema 启动验证：H2（`-Dspring-boot.run.profiles=h2`）+ PostgreSQL（`docker compose up -d`）双存储启动 + `GET /api/health`
+- [X] T033 grep 零命中全验证 + i18n parity：`AlertSignal`/`com.dataweave.alert`/`com.dataweave.master.quality`/`alert_*` 表/`ALERT_*`·`QUALITY_*` 策略全零；`diff <(jq keys zh-CN) <(jq keys en-US)` 空
+- [X] T034 审查 `CLAUDE.md` Knowledge Map：060 条目「StuckInstanceSweeper 无节点等待告警」等过时告警/事件/质量/工单引用按需更新（恢复唤醒保留，告警语义改检测）
+- [X] T035 最终提交 + 分支整合准备：确认 4 提交结构（quality 收尾 / alert 模块 / 信号桥 / incident 残留 + polish）落齐，工作区干净
 
 ---
 

@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.17.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.18.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 036 项目隔离收口=0.5.0（alert_* 补 project_id + 索引 + 回填）。
 --     → 038 实例定时时间快照=0.6.0（workflow_instance +scheduled_fire_time；cron/fixed_rate 触发时刻落库，与 cron_expression 同源快照）。
@@ -19,6 +19,7 @@
 --     → 062 实时任务运维=0.16.0（+task_checkpoint 表：实时任务可恢复检查点，滚动保留最近 N 个；
 --       task_instance +long_running 快照列（面板按此过滤，免 JOIN task_def）+resume_checkpoint_id（续跑所选回滚点引用））。
 --     → 065 移除监督席=0.17.0（删除 incident/incident_event/health_event/event_subscription 4 表；删除 agent_action.incident_id 列）。
+--     → 066 移除告警/质量体系=0.18.0（删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -120,6 +121,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.16.0', CURRENT_TIMESTAMP, '062 实时任务运维：+task_checkpoint 表（实时任务可恢复检查点，滚动保留最近 N 个）；task_instance +long_running 快照列（面板过滤免 JOIN）+resume_checkpoint_id（续跑所选回滚点引用）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.17.0', CURRENT_TIMESTAMP, '065 移除监督席：删除 incident/incident_event/health_event/event_subscription 4 表 + agent_action.incident_id 列');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.18.0', CURRENT_TIMESTAMP, '066 移除告警/质量体系：删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
