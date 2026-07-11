@@ -65,16 +65,16 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] 删除 `backend/dataweave-alert/src/` 整目录（main + test 全部 .java + resources/messages.properties）
-- [ ] T007 [US1] 删除 `backend/dataweave-alert/pom.xml` + `backend/pom.xml` 的 `<module>dataweave-alert</module>` 声明 + `backend/dataweave-api/pom.xml` 的 `dataweave-alert` 依赖
-- [ ] T008 [P] [US1] 删除 `backend/dataweave-api/src/main/resources/schema.sql` 的 7 张 `alert_*` 表 CREATE（行 900-1050 区域：alert_rule/channel/route/event/notification/silence/poll_fire）+ DROP 段（行 82-88）+ `alert_*` project_id 回填段
-- [ ] T009 [US1] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `ALERT_RULE_WRITE`/`ALERT_TEST_SEND` 两条 policy_rule 种子（行 486-487）
-- [ ] T010 [P] [US1] 删除前端 `frontend/components/workspace/views/alerts-view.tsx` + 清理 `frontend/lib/workspace/registry.tsx`/`views.ts`/`nav-groups.ts`/`nav-permissions.test.ts` 的 alerts 注册
-- [ ] T011 [P] [US1] 删除前端 i18n `frontend/messages/zh-CN.json` + `en-US.json` 的 `alerts` 块（~40 key）+ `nav.alerts` + `leftNav.groups.alerting` + `eventVsPoll`/`eventRatio`/`btnSubscribe`（两 bundle 保 parity）
-- [ ] T012 [P] [US1] 删除 api 测试 `backend/dataweave-api/src/test/java/com/dataweave/api/AlertSeamIT.java` + `AlertCrossProjectGuardTest.java`
-- [ ] T013 [US1] 清理 `backend/dataweave-api/src/main/resources/ops-messages.properties` 的 `ops.alert.*` 模板；`application.yml` 的 `stuck-wait-alert-ms`（行 78）保留改注释、`default-response-timeout-ms`（行 103）保留改注释去 alert 举例；清理 `ProjectAuthz.java` 的 `AlertController.requireOwned` 注释
-- [ ] T014 [US1] 验证：`./dev-install.sh` 编译零错 + `pnpm typecheck` + grep alert 零命中（`grep -rni "com.dataweave.alert" backend --include='*.java' | grep -v /target/`）
-- [ ] T015 [US1] 提交「alert 整模块删除」
+- [X] T006 [P] [US1] 删除 `backend/dataweave-alert/src/` 整目录（main + test 全部 .java + resources/messages.properties）
+- [X] T007 [US1] 删除 `backend/dataweave-alert/pom.xml` + `backend/pom.xml` 的 `<module>dataweave-alert</module>` 声明 + `backend/dataweave-api/pom.xml` 的 `dataweave-alert` 依赖
+- [X] T008 [P] [US1] 删除 `backend/dataweave-api/src/main/resources/schema.sql` 的 7 张 `alert_*` 表 CREATE（行 900-1050 区域：alert_rule/channel/route/event/notification/silence/poll_fire）+ DROP 段（行 82-88）+ `alert_*` project_id 回填段
+- [X] T009 [US1] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `ALERT_RULE_WRITE`/`ALERT_TEST_SEND` 两条 policy_rule 种子（行 486-487）
+- [X] T010 [P] [US1] 删除前端 `frontend/components/workspace/views/alerts-view.tsx` + 清理 `frontend/lib/workspace/registry.tsx`/`views.ts`/`nav-groups.ts`/`nav-permissions.test.ts` 的 alerts 注册
+- [X] T011 [P] [US1] 删除前端 i18n `frontend/messages/zh-CN.json` + `en-US.json` 的 `alerts` 块（~40 key）+ `nav.alerts` + `leftNav.groups.alerting` + `eventVsPoll`/`eventRatio`/`btnSubscribe`（两 bundle 保 parity）
+- [X] T012 [P] [US1] 删除 api 测试 `backend/dataweave-api/src/test/java/com/dataweave/api/AlertSeamIT.java` + `AlertCrossProjectGuardTest.java`
+- [X] T013 [US1] 清理 `backend/dataweave-api/src/main/resources/ops-messages.properties` 的 `ops.alert.*` 模板；`application.yml` 的 `stuck-wait-alert-ms`（行 78）保留改注释、`default-response-timeout-ms`（行 103）保留改注释去 alert 举例；清理 `ProjectAuthz.java` 的 `AlertController.requireOwned` 注释
+- [X] T014 [US1] 验证：`./dev-install.sh` 编译零错 + `pnpm typecheck` + grep alert 零命中（`grep -rni "com.dataweave.alert" backend --include='*.java' | grep -v /target/`）
+- [X] T015 [US1] 提交「alert 整模块删除」
 
 **Checkpoint**: 告警中心前后端全链下线，AlertSignal 失去唯一消费者（为 US2 铺路）
 

@@ -37,7 +37,6 @@
         <module>dataweave-master</module>
         <module>dataweave-worker</module>
         <module>dataweave-api</module>
-        <module>dataweave-alert</module>
     </modules>
 
     <dependencyManagement>
@@ -50,11 +49,6 @@
             <dependency>
                 <groupId>com.dataweave</groupId>
                 <artifactId>dataweave-worker</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.dataweave</groupId>
-                <artifactId>dataweave-alert</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- 内置默认 JDBC 驱动（datasource-driver-isolation）：集中管理版本，供 master+worker 引用 -->

@@ -482,9 +482,6 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (54, 'TOOL', 'LINEAGE_EDGE_REMOVE',       NULL, 'L1', '血缘推断边人工剔除（抑制展示，可撤销）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (55, 'TOOL', 'LINEAGE_CORRECTION_REVOKE', NULL, 'L1', '血缘修正裁决撤销',                    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
-	-- 告警引擎写工具（021）
-	(46, 'TOOL', 'ALERT_RULE_WRITE',    NULL, 'L1', '告警规则/通道/静默写（租户内直通+审计）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-	(47, 'TOOL', 'ALERT_TEST_SEND',     NULL, 'L2', '告警 test-send（真发通知副作用，需审批）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 

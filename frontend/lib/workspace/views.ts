@@ -14,7 +14,6 @@ export type ViewType =
   | "fleet"
   | "lineage"
   | "datasources"
-  | "alerts"
   | "settings"
   | "instance-log"
   | "workflow-instance-detail"
@@ -40,7 +39,6 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   fleet: { title: "views.fleet" },
   lineage: { title: "views.lineage" },
   datasources: { title: "views.datasources", requirePermission: "datasource:manage" },
-  alerts: { title: "views.alerts" },
   settings: { title: "views.settings", requirePermission: "project:manage" },
   "instance-log": { title: "views.instanceLog" },
   "workflow-instance-detail": { title: "views.workflowInstanceDetail" },

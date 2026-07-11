@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * 角色权限不足 → {@code project.role.forbidden}(403)。
  *
  * <p>本门面是闸门前置门：通过后调用方照常走 GatedActionService/PolicyEngine，零 bypass。
- * by-id 端点应传<b>实体归属 projectId</b>（防跨项目按 id 改删，镜像 AlertController.requireOwned）；
+ * by-id 端点应传<b>实体归属 projectId</b>（防跨项目按 id 改删）；
  * create 类端点用 {@link #requireCurrent}（当前请求项目，来自 X-Project-Id / ?projectId=）。
  *
  * <p><b>契约冻结（036-D 地基）</b>：本文件由收尾方落地，D1/D2 实现 agent 只消费不修改；
