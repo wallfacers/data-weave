@@ -25,7 +25,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
         @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)
 })
-@EnableJdbcRepositories(basePackages = {"com.dataweave.master.domain", "com.dataweave.master.quality.domain"})
+@EnableJdbcRepositories(basePackages = "com.dataweave.master.domain")
 @EnableScheduling
 @EnableAsync
 public class DataWeaveApiApplication {

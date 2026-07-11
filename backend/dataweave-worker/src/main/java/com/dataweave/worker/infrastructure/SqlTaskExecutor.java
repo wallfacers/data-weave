@@ -127,7 +127,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
     }
 
     /** 建连：绑定了上传 jar（元数据齐全）→ 隔离加载 driver.connect；否则内置 DriverManager。
-     *  <p>可见性提为 protected 以便 {@code QualityProbeExecutor} 复用建连/驱动隔离不变量（022-data-quality）。 */
+     *  <p>可见性提为 protected 以便子类复用建连/驱动隔离不变量。 */
     protected Connection openConnection(ExecutionContext.DataSourceRef ds) throws Exception {
         if (ds.driverJarId() != null && ds.storageKey() != null && ds.driverClass() != null) {
             DriverJar jar = new DriverJar();
@@ -146,7 +146,7 @@ public class SqlTaskExecutor extends AbstractTaskExecutor {
     }
 
     /** 连接期失败判定：无驱动 / 无法建连 → 方案 A 回退（非语句级 SQL 错误）。
-     *  <p>可见性提为 protected 以便 {@code QualityProbeExecutor} 复用（022-data-quality）。 */
+     *  <p>可见性提为 protected 以便子类复用。 */
     protected boolean isConnectionFailure(SQLException e) {
         String state = e.getSQLState();
         // SQLState 08xxx = connection exception；DriverManager 无驱动抛 "No suitable driver"（state 多为 08001/null）。
