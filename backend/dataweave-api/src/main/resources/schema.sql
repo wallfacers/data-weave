@@ -588,7 +588,7 @@ CREATE TABLE task_instance (
     params_override      TEXT,                 -- TEST 试跑携带的编辑器临时调度参数 JSON；与 content_override 同源（占位符按编辑器解析）
     type_override        VARCHAR(32),          -- TEST 试跑携带的编辑器临时任务类型（SQL/SHELL/ECHO）；非空则覆盖 task_def.type 选执行器
     task_type            VARCHAR(32),          -- 快照：task_def.type（物化时写入，免查询 JOIN）；type_override 仅 TEST 试跑时覆盖执行器选择，不影响此列
-    long_running         BOOLEAN NOT NULL DEFAULT FALSE,  -- 062 快照：task_def.long_running（物化时写入，免查询 JOIN）。实时任务面板按此过滤；下发链路据此走 detached 长驻分支
+    long_running         BOOLEAN DEFAULT FALSE,  -- 062 快照：task_def.long_running（物化时写入，免查询 JOIN）。可空（NULL≡false，实例经实体 save 未 set 即 NULL）；面板 `=TRUE` 过滤对 NULL 天然排除；下发链路据此走 detached 长驻分支
     resume_checkpoint_id UUID,                 -- 062 续跑：resumeFromCheckpoint 所选回滚点（→ task_checkpoint.id）；非续跑为 NULL。reattach 命中 external_job_handle 优先，此列供从检查点恢复路径
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试 / BACKFILL 补数据（data-ops-center）
     backfill_run_id      UUID,                 -- 所属补数据批次（run_mode=BACKFILL 时非空；指向 backfill_run.id）
