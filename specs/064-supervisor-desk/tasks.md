@@ -19,7 +19,7 @@
 
 **Purpose**: Database schema changes — prerequisite for all backend work
 
-- [ ] T001 Bump schema version to 0.11.0, add `heal_by_type` and `heal_by_ref_id` columns + index to `incident` table in `backend/dataweave-api/src/main/resources/schema.sql`
+- [x] T001 Bump schema version to 0.17.0, add `heal_by_type` and `heal_by_ref_id` columns + index to `incident` table in `backend/dataweave-api/src/main/resources/schema.sql`
 
 ---
 
@@ -29,8 +29,8 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Add `healByType` and `healByRefId` fields to `Incident.java` domain entity in `backend/dataweave-master/src/main/java/com/dataweave/master/domain/incident/Incident.java`
-- [ ] T003 [P] Update `IncidentCard` TypeScript interface with `healByType: string | null` and `healByRefId: string | null` in `frontend/lib/incident-api.ts`
+- [x] T002 [P] Add `healByType` and `healByRefId` fields to `Incident.java` domain entity in `backend/dataweave-master/src/main/java/com/dataweave/master/domain/incident/Incident.java`
+- [x] T003 [P] Update `IncidentCard` TypeScript interface with `healByType: string | null` and `healByRefId: string | null` in `frontend/lib/incident-api.ts`
 - [ ] T004 [P] Add i18n keys for signal stream namespace (`signalStream.*`) to `frontend/messages/zh-CN.json` (at least: title, empty, filter.allTypes, filter.allSeverities, summary.TASK_FAILED, type.*, severity.*)
 - [ ] T005 [P] Add matching i18n keys to `frontend/messages/en-US.json` for parity
 

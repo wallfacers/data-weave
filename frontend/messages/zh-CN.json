@@ -1409,6 +1409,11 @@
     "activeSection": "活跃 ({count})",
     "recentResolvedSection": "近 24 小时已自动解决 ({count})",
     "history": "历史",
+    "close": "关闭",
+    "tab": {
+      "signals": "信号流",
+      "tickets": "工单队列"
+    },
     "emptyActive": "数据管线一切正常",
     "emptyActiveHint": "暂无活跃故障工单",
     "emptyHistory": "暂无历史工单",
@@ -1489,6 +1494,45 @@
     },
     "pendingApproval": "待审批",
     "deepLink": "跳转到 {kind}"
+  },
+  "signalStream": {
+    "title": "信号流",
+    "empty": "暂无异常信号",
+    "filter": {
+      "allTypes": "全部类型",
+      "allSeverities": "全部严重度"
+    },
+    "type": {
+      "TASK_FAILED": "任务失败",
+      "TASK_TIMEOUT": "任务超时",
+      "SLA_BREACH": "SLA 破约",
+      "NODE_OFFLINE": "节点离线",
+      "WORKFLOW_STATE": "工作流状态",
+      "QUALITY_FAILED": "质量失败",
+      "METRIC_BREACH": "指标破约"
+    },
+    "severity": {
+      "CRITICAL": "严重",
+      "HIGH": "高",
+      "MEDIUM": "中",
+      "LOW": "低",
+      "WARNING": "警告",
+      "INFO": "信息"
+    },
+    "summary": {
+      "TASK_FAILED": "{name} 执行失败",
+      "TASK_TIMEOUT": "{name} 执行超时",
+      "SLA_BREACH": "{name} SLA 破约（{minutes} 分钟）",
+      "NODE_OFFLINE": "节点 {node} 离线",
+      "QUALITY_FAILED": "{dataset} 质量检查失败",
+      "METRIC_BREACH": "{name} 指标异常",
+      "WORKFLOW_STATE_FAILED": "{name} 执行失败",
+      "WORKFLOW_STATE_STOPPED": "{name} 已停止"
+    },
+    "detail": {
+      "title": "原始信号",
+      "empty": "无原始上下文数据"
+    }
   },
   "streamingTasks": {
     "panelTitle": "实时任务",

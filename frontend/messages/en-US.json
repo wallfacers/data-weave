@@ -1409,6 +1409,11 @@
     "activeSection": "Active ({count})",
     "recentResolvedSection": "Auto-resolved in 24h ({count})",
     "history": "History",
+    "close": "Close",
+    "tab": {
+      "signals": "Signal Stream",
+      "tickets": "Tickets"
+    },
     "emptyActive": "All pipelines running smoothly",
     "emptyActiveHint": "No active incidents",
     "emptyHistory": "No history records",
@@ -1489,6 +1494,45 @@
     },
     "pendingApproval": "Pending Approval",
     "deepLink": "Open {kind}"
+  },
+  "signalStream": {
+    "title": "Signal Stream",
+    "empty": "No abnormal signals",
+    "filter": {
+      "allTypes": "All Types",
+      "allSeverities": "All Severities"
+    },
+    "type": {
+      "TASK_FAILED": "Task Failed",
+      "TASK_TIMEOUT": "Task Timeout",
+      "SLA_BREACH": "SLA Breach",
+      "NODE_OFFLINE": "Node Offline",
+      "WORKFLOW_STATE": "Workflow State",
+      "QUALITY_FAILED": "Quality Failed",
+      "METRIC_BREACH": "Metric Breach"
+    },
+    "severity": {
+      "CRITICAL": "Critical",
+      "HIGH": "High",
+      "MEDIUM": "Medium",
+      "LOW": "Low",
+      "WARNING": "Warning",
+      "INFO": "Info"
+    },
+    "summary": {
+      "TASK_FAILED": "{name} execution failed",
+      "TASK_TIMEOUT": "{name} timed out",
+      "SLA_BREACH": "{name} SLA breached ({minutes}min)",
+      "NODE_OFFLINE": "Node {node} offline",
+      "QUALITY_FAILED": "{dataset} quality check failed",
+      "METRIC_BREACH": "{name} metric anomaly",
+      "WORKFLOW_STATE_FAILED": "{name} execution failed",
+      "WORKFLOW_STATE_STOPPED": "{name} stopped"
+    },
+    "detail": {
+      "title": "Raw Signal",
+      "empty": "No context data"
+    }
   },
   "streamingTasks": {
     "panelTitle": "Streaming Tasks",

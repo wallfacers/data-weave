@@ -85,18 +85,18 @@ public class IncidentService {
         long taskId = tidRaw instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(tidRaw));
         String taskName = str(ctx, "taskName", "任务#" + taskId);
         String failureReason = str(ctx, "failureReason", "UNKNOWN");
-        String failureClass = normalizeFailureClass(failureReason);
-        String signature = "T:" + taskId + ":" + failureClass;
+        String signature = "T:" + taskId + ":" + failureReason;
         Object wiIdRaw = ctx.get("workflowInstanceId");
         UUID workflowInstanceId = wiIdRaw != null ? toUUID(wiIdRaw) : null;
 
         long projectId = resolveProjectId("task_instance",
                 "id", toUUID(ctx.get("taskInstanceId")), tenantId);
 
-        String title = taskName + " 失败(" + failureClass + ")";
+        String title = taskName + " 失败(" + failureReason + ")";
         return openOrAttachInternal(tenantId, projectId, signature, title,
                 signal.getSeverityHint(), "TASK", String.valueOf(taskId), taskName,
-                workflowInstanceId, signal, ctx);
+                workflowInstanceId, "TASK_SUCCESS", String.valueOf(taskId),
+                signal, ctx);
     }
 
     // ── SLA ─────────────────────────────────────────────────────
@@ -113,7 +113,8 @@ public class IncidentService {
         String title = workflowName + " SLA 破约";
         return openOrAttachInternal(tenantId, projectId, signature, title,
                 signal.getSeverityHint(), "WORKFLOW", String.valueOf(workflowId), workflowName,
-                workflowInstanceId, signal, ctx);
+                workflowInstanceId, null, null,
+                signal, ctx);
     }
 
     // ── NODE ────────────────────────────────────────────────────
@@ -136,7 +137,8 @@ public class IncidentService {
         String title = nodeCode + " 节点离线";
         return openOrAttachInternal(tenantId, projectId, signature, title,
                 signal.getSeverityHint(), "NODE", nodeCode, nodeCode,
-                null, signal, ctx);
+                null, "NODE_ONLINE", nodeCode,
+                signal, ctx);
     }
 
     // ── 核心附着/开单引擎（research D4：UPDATE 优先 → INSERT → 撞键重试）──
@@ -145,6 +147,7 @@ public class IncidentService {
                                            String signature, String title, String severityHint,
                                            String sourceKind, String sourceRefId, String sourceRefName,
                                            UUID workflowInstanceId,
+                                           String healByType, String healByRefId,
                                            AlertSignal signal, Map<String, Object> ctx) {
         LocalDateTime now = LocalDateTime.now();
         String activeKey = signature;
@@ -186,7 +189,7 @@ public class IncidentService {
             try {
                 Long id = insertIncident(tenantId, projectId, signature, activeKey, title,
                         severityHint, sourceKind, sourceRefId, sourceRefName,
-                        workflowInstanceId, now);
+                        workflowInstanceId, healByType, healByRefId, now);
                 if (id != null) {
                     appendTimelineInternal(id, tenantId, "SIGNAL",
                             toJson(signalContextMap(signal, ctx)), "system", now);
@@ -226,15 +229,17 @@ public class IncidentService {
 
     private Long insertIncident(long tenantId, long projectId, String signature, String activeKey,
                                  String title, String severity, String sourceKind, String sourceRefId,
-                                 String sourceRefName, UUID workflowInstanceId, LocalDateTime now) {
+                                 String sourceRefName, UUID workflowInstanceId,
+                                 String healByType, String healByRefId, LocalDateTime now) {
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbc.update(con -> {
             var ps = con.prepareStatement(
                     "INSERT INTO incident (tenant_id, project_id, signature, active_key, title, " +
                     "severity, state, source_kind, source_ref_id, source_ref_name, workflow_instance_id, " +
+                    "heal_by_type, heal_by_ref_id, " +
                     "occurrence_count, first_seen_at, last_seen_at, " +
                     "created_by, updated_by, created_at, updated_at) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     new String[]{"id"});
             int i = 0;
             ps.setLong(++i, tenantId);
@@ -248,6 +253,8 @@ public class IncidentService {
             ps.setString(++i, sourceRefId);
             ps.setString(++i, sourceRefName);
             ps.setObject(++i, workflowInstanceId);
+            ps.setString(++i, healByType);
+            ps.setString(++i, healByRefId);
             ps.setInt(++i, 1);
             ps.setObject(++i, now);
             ps.setObject(++i, now);
@@ -293,24 +300,22 @@ public class IncidentService {
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * 按 taskId 愈合：找到该任务未关闭的 TASK 类工单 → CAS 到 RESOLVED。
-     * 仅在 signal 到达前仍处于 OPEN/MITIGATING/RESOLVED 时 CAS（RESOLVED 窗口内复发已在 openOrAttach 处理）。
+     * 按愈合条件精确匹配：healByType + healByRefId → CAS 到 RESOLVED（064 精确指纹愈合）。
+     * 仅在 signal 到达前仍处于 OPEN/MITIGATING 时 CAS。
      */
-    public void healByTask(long taskId, long tenantId) {
+    public void healByTask(String healByType, String healByRefId, long tenantId) {
         LocalDateTime now = LocalDateTime.now();
-        String sigPrefix = "T:" + taskId + ":";
         int updated = jdbc.update(
                 "UPDATE incident SET state = 'RESOLVED', resolved_at = ?, resolution_kind = 'AUTO_HEAL', " +
                 "updated_at = ? " +
-                "WHERE tenant_id = ? AND state IN ('OPEN','MITIGATING') AND source_kind = 'TASK' " +
-                "AND source_ref_id = ? AND deleted = 0",
-                now, now, tenantId, String.valueOf(taskId));
+                "WHERE tenant_id = ? AND state IN ('OPEN','MITIGATING') " +
+                "AND heal_by_type = ? AND heal_by_ref_id = ? AND deleted = 0",
+                now, now, tenantId, healByType, healByRefId);
         if (updated > 0) {
-            // timeline for each healed incident
             var healed = jdbc.query(
-                    "SELECT id FROM incident WHERE tenant_id = ? AND source_kind = 'TASK' " +
-                    "AND source_ref_id = ? AND state = 'RESOLVED' AND deleted = 0",
-                    (rs, n) -> rs.getLong(1), tenantId, String.valueOf(taskId));
+                    "SELECT id FROM incident WHERE tenant_id = ? " +
+                    "AND heal_by_type = ? AND heal_by_ref_id = ? AND state = 'RESOLVED' AND deleted = 0",
+                    (rs, n) -> rs.getLong(1), tenantId, healByType, healByRefId);
             for (Long id : healed) {
                 String payload = toJson(Map.of(
                         "from", "OPEN/MITIGATING", "to", "RESOLVED", "reason", "自动愈合：任务恢复成功"));
@@ -673,6 +678,8 @@ public class IncidentService {
         inc.setTimeBudgetAt(rs.getObject("time_budget_at", LocalDateTime.class));
         inc.setSuppressReason(rs.getString("suppress_reason"));
         inc.setResolutionKind(rs.getString("resolution_kind"));
+        inc.setHealByType(rs.getString("heal_by_type"));
+        inc.setHealByRefId(rs.getString("heal_by_ref_id"));
         inc.setResolvedAt(rs.getObject("resolved_at", LocalDateTime.class));
         inc.setClosedAt(rs.getObject("closed_at", LocalDateTime.class));
         inc.setDiagnosisJson(rs.getString("diagnosis_json"));
