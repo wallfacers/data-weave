@@ -13,10 +13,10 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { PlayIcon, StopIcon, CheckmarkCircle01Icon, PauseIcon, RepeatIcon } from "@hugeicons/core-free-icons"
-import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
-import "overlayscrollbars/overlayscrollbars.css"
+import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
 import { toast } from "sonner"
 import { DetailPanelShell } from "@/components/workspace/detail-panel-shell"
+import { DwScroll } from "@/components/ui/dw-scroll"
 import { CodeBlock } from "@/components/workspace/shared/code-block"
 import { ParamsTable, InfoRow, taskTypeToLang } from "@/components/workspace/shared/params-table"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
@@ -108,11 +108,19 @@ function InstanceLogView({ taskInstanceId, taskState }: { taskInstanceId: string
     if (vp) vp.scrollTop = vp.scrollHeight
   }, [events])
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     const vp = osRef.current?.osInstance()?.elements().viewport
     if (!vp) return
     autoScroll.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 50
-  }
+  }, [])
+
+  // 绑定滚动事件（DwScroll 不直接暴露 events prop，通过 osRef 拿 viewport 监听）
+  useEffect(() => {
+    const vp = osRef.current?.osInstance()?.elements().viewport
+    if (!vp) return
+    vp.addEventListener("scroll", handleScroll, { passive: true })
+    return () => vp.removeEventListener("scroll", handleScroll)
+  }, [handleScroll, lines.length > 0])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -127,32 +135,25 @@ function InstanceLogView({ taskInstanceId, taskState }: { taskInstanceId: string
           )}
         </div>
       ) : (
-        <OverlayScrollbarsComponent
+        <DwScroll
           ref={osRef}
-          element="div"
           className="h-full bg-muted/20"
-          options={{
-            scrollbars: { theme: "os-theme-dark", autoHide: "never" },
-            overflow: { x: "hidden", y: "scroll" },
-          }}
-          events={{ scroll: handleScroll }}
+          innerClassName="px-3 py-2 font-mono text-xs leading-relaxed"
         >
-          <div className="px-3 py-2 font-mono text-xs leading-relaxed">
-            <div className="space-y-px">
-              {lines.map((line, i) => {
-                const banner = line.startsWith("===")
-                return (
-                  <div
-                    key={i}
-                    className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
-                  >
-                    {line}
-                  </div>
-                )
-              })}
-            </div>
+          <div className="space-y-px">
+            {lines.map((line, i) => {
+              const banner = line.startsWith("===")
+              return (
+                <div
+                  key={i}
+                  className={cn("whitespace-pre-wrap break-all", banner && "text-primary/70")}
+                >
+                  {line}
+                </div>
+              )
+            })}
           </div>
-        </OverlayScrollbarsComponent>
+        </DwScroll>
       )}
     </div>
   )

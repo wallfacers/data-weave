@@ -15,12 +15,13 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Activity01Icon, FileViewIcon, StopIcon, Cancel01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
+import { Activity01Icon, FileViewIcon, StopIcon, Cancel01Icon, RefreshIcon, Copy01Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 import { ResumeCheckpointDialog } from "./resume-checkpoint-dialog"
@@ -83,8 +84,7 @@ const STATE_I18N: Record<string, string> = {
   FAILED: "stateFailed",
 }
 
-/** 062 状态筛选选项：仅 long_running 实例可能出现的状态。 */
-const STATE_FILTER_OPTIONS = [
+const STREAMING_STATE_OPTIONS = [
   { value: "RUNNING", labelKey: "stateRunning" },
   { value: "DISPATCHED", labelKey: "stateRecovering" },
   { value: "WAITING", labelKey: "stateRecovering" },
@@ -92,6 +92,13 @@ const STATE_FILTER_OPTIONS = [
   { value: "SUSPENDED", labelKey: "stateSuspended" },
   { value: "FAILED", labelKey: "stateFailed" },
 ] as const
+
+const CHECKPOINT_STATUS_I18N: Record<string, string> = {
+  SUCCESS: "checkpointStatusSuccess",
+  IN_PROGRESS: "checkpointStatusInProgress",
+  FAILED: "checkpointStatusFailed",
+  EXPIRED: "checkpointStatusExpired",
+}
 
 /** 秒 → 可读时长（Xd Xh / Xh Ym / Xm Ys / Xs）。 */
 export function humanizeDuration(sec: number | null | undefined): string {
@@ -122,32 +129,13 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
   const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
 
-  // ── 筛选定义：state（下拉单选）+ keyword（搜索）──
-  const filters = useMemo<FilterDef[]>(
-    () => [
-      {
-        key: "state",
-        label: t("filterState"),
-        kind: "select",
-        width: "w-32",
-        options: STATE_FILTER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
-      },
-      {
-        key: "keyword",
-        label: t("filterKeyword"),
-        kind: "search",
-        width: "w-48",
-        placeholder: t("filterKeyword"),
-      },
-    ],
-    [t],
-  )
-
   // 停止（保留进度）/ 强制终止 确认态
   const [confirm, setConfirm] = useState<{ kind: "stop" | "kill"; row: StreamingTaskRow } | null>(null)
   const [busy, setBusy] = useState(false)
   // 续跑目标（打开检查点选择对话框）
   const [resumeTarget, setResumeTarget] = useState<{ instanceId: string; taskName: string } | null>(null)
+  // T5: 检查点详情弹框
+  const [checkpointDetail, setCheckpointDetail] = useState<CheckpointView | null>(null)
 
   const runConfirmed = useCallback(async () => {
     if (!confirm) return
@@ -181,13 +169,37 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   const columns = useMemo<ColumnDef<StreamingTaskRow>[]>(
     () => [
       {
+        key: "instanceId",
+        header: t("colInstanceId"),
+        widthPct: 8,
+        cell: (r) => (
+          <button
+            className="group inline-flex items-center gap-1 font-mono text-xs tabular-nums cursor-pointer hover:text-primary transition-colors"
+            title={`${r.instanceId} — ${t("clickToCopy")}`}
+            onClick={async (e) => {
+              e.stopPropagation()
+              try {
+                await navigator.clipboard.writeText(r.instanceId)
+                toast.success(t("copySuccessId", { value: "…" + r.instanceId.slice(-8) }))
+              } catch {
+                toast.error(t("copyFailedId"))
+              }
+            }}
+          >
+            <span>…{r.instanceId.slice(-8)}</span>
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
+              <HugeiconsIcon icon={Copy01Icon} className="size-3" />
+            </span>
+          </button>
+        ),
+      },
+      {
         key: "taskName",
-        header: t("colTask"),
-        widthPct: 24,
+        header: t("colTaskName"),
+        widthPct: 16,
         cell: (r) => (
           <div className="align-top" title={r.taskName}>
             <div className="truncate font-medium">{r.taskName}</div>
-            <div className="truncate font-mono text-xs text-muted-foreground">…{r.instanceId.slice(-8)}</div>
           </div>
         ),
       },
@@ -232,9 +244,24 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
           const c = r.lastCheckpoint
           if (!c) return <span className="text-muted-foreground">{t("checkpointNone")}</span>
           return (
-            <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
               <Badge variant={c.resumable ? "success" : "outline"}>#{c.ordinal}</Badge>
               {c.expired && <span className="text-xs text-muted-foreground">{t("checkpointExpired")}</span>}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-6"
+                      onClick={() => setCheckpointDetail(c)}
+                    >
+                      <HugeiconsIcon icon={FileViewIcon} className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("checkpointDetail")}</TooltipContent>
+              </Tooltip>
             </div>
           )
         },
@@ -331,6 +358,21 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
     [t, open],
   )
 
+  // ── T4: 筛选定义（与 PeriodicInstancesPanel 对齐） ──
+  const filters = useMemo<FilterDef[]>(
+    () => [
+      {
+        key: "stateIn",
+        label: t("filterState"),
+        kind: "multiSelect",
+        width: "w-32",
+        options: STREAMING_STATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
+      },
+      { key: "keyword", label: t("filterKeyword"), kind: "search", width: "w-48", placeholder: t("filterKeyword") },
+    ],
+    [t],
+  )
+
   const fetcher = async (query: FetchQuery): Promise<PageResult<StreamingTaskRow>> => {
     const qs = toQueryParams(query, filters)
     qs.set("projectId", String(projectId))
@@ -404,6 +446,51 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         onOpenChange={(o) => !o && setResumeTarget(null)}
         onResumed={reload}
       />
+      {/* T5: 检查点详情弹框 */}
+      <Dialog open={checkpointDetail !== null} onOpenChange={(o) => !o && setCheckpointDetail(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("checkpointDetailTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("checkpointOrdinal", { ordinal: checkpointDetail?.ordinal ?? 0 })}
+            </DialogDescription>
+          </DialogHeader>
+          {checkpointDetail && (
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="text-muted-foreground">{t("colState")}</div>
+              <div>
+                <Badge variant={checkpointDetail.resumable ? "success" : "outline"}>
+                  {t(CHECKPOINT_STATUS_I18N[checkpointDetail.status] ?? checkpointDetail.status)}
+                </Badge>
+                {checkpointDetail.expired && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">{t("checkpointExpired")}</span>
+                )}
+              </div>
+              <div className="text-muted-foreground">{t("checkpointPath")}</div>
+              <div className="font-mono text-xs break-all">{checkpointDetail.checkpointPath}</div>
+              {checkpointDetail.sizeBytes != null && (
+                <>
+                  <div className="text-muted-foreground">{t("checkpointSize")}</div>
+                  <div className="tabular-nums">{formatBytes(checkpointDetail.sizeBytes)}</div>
+                </>
+              )}
+              {checkpointDetail.completedAt && (
+                <>
+                  <div className="text-muted-foreground">{t("checkpointCompletedAt")}</div>
+                  <div className="tabular-nums">{checkpointDetail.completedAt}</div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
