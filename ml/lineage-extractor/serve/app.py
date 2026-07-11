@@ -21,11 +21,17 @@ from pydantic import BaseModel
 
 from realeval.dir_fix import apply_dir_fix
 from realeval.semantic_grounding import filter_pred_semantic
+from realeval.tier_classify import classify_tiers
 
 MODEL_DIR = os.environ.get("MODEL_DIR", "out/run1/merged")
 MODEL_VERSION = os.environ.get("MODEL_VERSION", "wallfacers/weft-lineage-extractor-1.5b@v1")
 # 语义 grounding 后处理默认开（gold C 实测 ALL-p +4.2pt、零召回损）；置 0 回滚到旧行为。
 GROUND_DEFAULT = os.environ.get("LINEAGE_SEMANTIC_GROUNDING", "1") != "0"
+# 置信度分层默认开（063）：reads/writes=自动采纳层（治理安全），reviewReads/Writes=复核候选层。
+# 置 LINEAGE_TIERING=0 完全关闭，退回旧的单一 reads/writes 输出（逐字节等价 059）。
+TIERING_DEFAULT = os.environ.get("LINEAGE_TIERING", "1") != "0"
+# 自动采纳治理阈（累计 CV held-out precision ≥ 此值的最大召回集进自动层）；默认 0.95 治理严格。
+AUTOACCEPT_MIN_PRECISION = float(os.environ.get("LINEAGE_AUTOACCEPT_MIN_PRECISION", "0.95"))
 
 SYSTEM_PROMPT = (
     "You are a data lineage extractor for ETL scripts. Given a PYTHON or SHELL task "
@@ -61,14 +67,19 @@ class ExtractRequest(BaseModel):
 class TableIo(BaseModel):
     table: str
     columns: list[str] | None = None
+    tier: str = ""            # 063：置信级 agree/sql_qual/sql_bare/model_qual/model_bare
+    confidence: float = 0.0   # 063：该级冻结 precision（复核层排序用）
 
 
 class ExtractResponse(BaseModel):
     modelVersion: str
-    reads: list[TableIo]
+    reads: list[TableIo]           # 自动采纳层（≥治理阈，可直接入库）
     writes: list[TableIo]
+    reviewReads: list[TableIo] = []   # 063：复核候选层（并集剩余，进人工队列，不自动入库）
+    reviewWrites: list[TableIo] = []
     dirFixed: bool = False
     grounded: bool = False
+    tiered: bool = False           # 063：是否发生分层（有 ≥1 表被分到复核层）
 
 
 def _parse_model_json(text: str) -> dict:
@@ -85,31 +96,48 @@ def _parse_model_json(text: str) -> dict:
     return {"reads": reads, "writes": writes}
 
 
-def postprocess(model_text: str, content: str, ground: bool = None) -> dict:
-    """解析模型 JSON → 语义 grounding（剔非表 FP）→ dir_fix 方向修正（表由模型定、方向由 AST 定）。
+def postprocess(model_text: str, content: str, ground: bool = None,
+                tiering: bool = None, thr: float = None) -> dict:
+    """解析 → 语义 grounding（剔非表 FP）→ dir_fix（方向 AST 校正）→ 置信度分层（063）。
 
     纯函数、无 torch/GPU（dir_fix 复用 channel_router 健壮性补丁：片段窗封顶/跳模板/限时）——
-    可无 GPU 单测（T024）。畸形超大脚本靠 800 字符片段窗封顶防回溯爆内存（与线程无关）。
+    可无 GPU 单测。畸形超大脚本靠 800 字符片段窗封顶防回溯爆内存（与线程无关）。
 
-    语义 grounding（`ground`，默认取 GROUND_DEFAULT）：剔掉叶名只出现在注释/import/文件路径/
-    临时视图的 grounded-but-wrong 假阳（gold C 实测 ALL-p +4.2pt、零召回损）。返回 `grounded`
-    标记（是否剔除了 ≥1 个表）。置 env `LINEAGE_SEMANTIC_GROUNDING=0` 回滚。
+    语义 grounding（`ground`，默认 GROUND_DEFAULT）：剔叶名只在注释/import/路径/临时视图的假阳。
+    置信度分层（`tiering`，默认 TIERING_DEFAULT）：model∪SQL-AST → auto（≥`thr`治理阈，CV 去偏
+    诚实采纳集）+ review（并集剩余，召回回收进人工队列）。`tiering=False` 或 env `LINEAGE_TIERING=0`
+    → 退回旧单一输出（review 空、tiered=False，逐字节等价 059）。
+
+    返回：{reads, writes}=自动层、{review_reads, review_writes}=复核层、dir_fixed、grounded、tiered。
     """
     if ground is None:
         ground = GROUND_DEFAULT
+    if tiering is None:
+        tiering = TIERING_DEFAULT
+    if thr is None:
+        thr = AUTOACCEPT_MIN_PRECISION
     pred = _parse_model_json(model_text)
     grounded = False
     if ground:
         before = len(pred["reads"]) + len(pred["writes"])
         pred = filter_pred_semantic(pred, content)
         grounded = (len(pred["reads"]) + len(pred["writes"])) < before
-    out = apply_dir_fix(pred, content)
-    out["grounded"] = grounded
+    fixed = apply_dir_fix(pred, content)   # {reads, writes, dir_fixed}
+    out = {"reads": fixed["reads"], "writes": fixed["writes"],
+           "review_reads": [], "review_writes": [],
+           "dir_fixed": fixed["dir_fixed"], "grounded": grounded, "tiered": False}
+    if tiering:
+        tiers = classify_tiers({"reads": fixed["reads"], "writes": fixed["writes"]}, content, thr)
+        out["reads"], out["writes"] = tiers["auto"]["reads"], tiers["auto"]["writes"]
+        out["review_reads"], out["review_writes"] = tiers["review"]["reads"], tiers["review"]["writes"]
+        out["tiered"] = tiers["tiered"]
     return out
 
 
 def _to_io(items) -> list[TableIo]:
-    return [TableIo(table=t["table"], columns=t.get("columns")) for t in items if t.get("table")]
+    return [TableIo(table=t["table"], columns=t.get("columns"),
+                    tier=t.get("tier", ""), confidence=t.get("confidence", 0.0))
+            for t in items if t.get("table")]
 
 
 @app.get("/health")
@@ -130,7 +158,10 @@ def extract(req: ExtractRequest) -> ExtractResponse:
         out = model.generate(**inputs, max_new_tokens=256, do_sample=False,
                              pad_token_id=tok.pad_token_id or tok.eos_token_id)
     text = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-    fixed = postprocess(text, req.content)  # 语义 grounding + dir_fix（方向由 AST 校正）
+    fixed = postprocess(text, req.content)  # grounding + dir_fix + 置信度分层（063）
     return ExtractResponse(modelVersion=MODEL_VERSION,
                            reads=_to_io(fixed["reads"]), writes=_to_io(fixed["writes"]),
-                           dirFixed=fixed["dir_fixed"], grounded=fixed["grounded"])
+                           reviewReads=_to_io(fixed["review_reads"]),
+                           reviewWrites=_to_io(fixed["review_writes"]),
+                           dirFixed=fixed["dir_fixed"], grounded=fixed["grounded"],
+                           tiered=fixed["tiered"])
