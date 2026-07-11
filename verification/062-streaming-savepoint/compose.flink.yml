@@ -1,0 +1,61 @@
+# 062 实时任务运维 — savepoint 端到端取证专用 Flink 1.20 集群
+# 与 061 compose.compute.yml 隔离（多 Agent 零覆盖）：自有 network + 自有容器名 dw062-*。
+# 关键差异：JM/TM 挂共享 named volume /savepoints —— stop-with-savepoint 的 targetDirectory
+#           须 JM+TM 同路径可达，否则分布式 savepoint 元数据/状态写入不一致而失败。
+# 端口：Flink JM REST 宿主 8083 → 容器 8081（与 061 一致，便于复用 restEndpoint 约定）。
+# 内存：JM 1g + TM 1g（单机 WSL2，跑完 down 释放）。
+
+services:
+  flink-jobmanager:
+    image: flink:1.20
+    container_name: dw062-flink-jm
+    hostname: flink-jobmanager
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 2g
+        jobmanager.memory.process.size: 1500m
+        parallelism.default: 1
+        state.savepoints.dir: file:///savepoints
+        state.checkpoints.dir: file:///savepoints/chk
+    ports:
+      - "8083:8081"
+    volumes:
+      - savepoints:/savepoints
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+
+  flink-taskmanager:
+    image: flink:1.20
+    container_name: dw062-flink-tm
+    hostname: flink-taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 2g
+    volumes:
+      - savepoints:/savepoints
+    healthcheck:
+      test: ["CMD", "bash", "-c", "curl -f http://flink-jobmanager:8081/taskmanagers | grep -q '\"id\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  savepoints:

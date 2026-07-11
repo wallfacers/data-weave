@@ -8,6 +8,7 @@ import com.dataweave.master.domain.Datasource;
 import com.dataweave.master.domain.DatasourceRepository;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.i18n.Messages;
+import com.dataweave.worker.domain.CurrentExecution;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import jakarta.annotation.PreDestroy;
@@ -152,6 +153,10 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     engineRef
             );
 
+            // 062：绑定当前实例 id，供 FlinkTaskExecutor long_running detached 提交后回写
+            // external_job_handle（in-process/all-in-one 下发路径此前漏绑，句柄不回写——TR 真跑暴露；
+            // distributed 路径由 WorkerExecService.submit 绑定，两路径对齐）。
+            CurrentExecution.bind(cmd.taskInstanceId());
             try {
                 TaskExecutor.ExecutionResult result = executor.execute(ctx, lineConsumer);
 
@@ -179,6 +184,7 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                     reportService.reportFailed(cmd.taskInstanceId(), reason, tail);
                 }
             } finally {
+                CurrentExecution.clear();   // 062：清理 ThreadLocal 绑定，防线程池复用泄漏
                 // 清理 Python 临时配置文件
                 if (pythonConfigPath != null && datasourceResolver != null) {
                     datasourceResolver.cleanup(pythonConfigPath);

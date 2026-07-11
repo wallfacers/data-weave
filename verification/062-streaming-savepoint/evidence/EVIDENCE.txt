@@ -1,0 +1,29 @@
+=== 062 实时任务运维 — savepoint 端到端真跑取证（TR）===
+环境：真实 Flink 1.20.5 docker 集群（dw062-flink-jm/tm，JM REST :8083，JM/TM 共享 savepoint 卷）
+      + host flink 客户端（JDK11）+ backend all-in-one（h2 profile）+ dw CLI 服务端 TEST run
+结果：PASS=22 FAIL=0（exit=0）
+
+全链路真跑证据（服务端产品路径，非夹具）：
+  ① dw push(longRunning:true) → task_def.long_running=TRUE                      ✅
+  ② dw run --test → triggerTestRun 物化 instance.long_running=TRUE → 下发       ✅
+  ③ worker FlinkTaskExecutor detached 提交 → 真 JobID 54c6a778... → 句柄回写实例  ✅（依赖 D1 修复）
+  ④ POST /streaming-tasks/{id}/stop → HttpFlinkSavepointClient 真连 Flink REST
+     stop-with-savepoint → 轮询 COMPLETED → location=file:/savepoints/savepoint-...  ✅
+     → task_checkpoint 记录 SUCCESS/resumable → CAS 实例 STOPPED                    ✅
+  ⑤ GET /streaming-tasks/{id}/checkpoints → 检查点真实落库(SUCCESS/resumable)      ✅
+  ⑥ Flink REST 侧作业终态 FINISHED（savepoint 优雅停止，非 cancel）               ✅
+  ⑦ POST /streaming-tasks/{id}/resume → CAS 转出 STOPPED + resume_checkpoint_id
+     落库 + 保留 external_job_handle                                              ✅
+
+真跑暴露并修复缺陷：
+  D1（已修 InProcessTaskExecutionGateway）：all-in-one/in-process 下发路径
+     executor.execute 前未 CurrentExecution.bind(taskInstanceId) → Flink long_running
+     detached 提交后 external_job_handle 无法回写（writeHandle 取不到实例 id）。
+     distributed 路径（WorkerExecService.submit）已绑定，两路径此前不对齐。
+     修复：in-process 网关 execute 前后 bind/clear，与 distributed 对齐。
+
+已知语义缺口（TR 暴露，超本次修复范围 — 见汇报）：
+  D2：resumeFromCheckpoint 记录 resume_checkpoint_id 并保留句柄，但
+     FlinkTaskExecutor 无 savepoint 恢复逻辑（无 `flink run -s <savepointPath>`）。
+     续跑 → reattach 到旧作业；若旧作业已 FINISHED（savepoint 停止后），则判 SUCCESS
+     而非从 savepoint 真正恢复计算状态。US4「从检查点续跑」执行器侧尚未消费 savepoint。
