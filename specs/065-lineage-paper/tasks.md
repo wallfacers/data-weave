@@ -41,9 +41,9 @@
 
 **独立测试**：regex+SQLLineage 在 gold C 上与模型同尺子分层跑分；SQL 子集 SQLLineage 可比、脚本子集工具≤0.10、模型脚本召回显著高于工具。
 
-- [ ] T007 [P] [US2] 测试先行 `tests/test_sqllineage_baseline.py`：① 纯 SQL（INSERT…SELECT/JOIN）正确分列 source/target；② Python/Shell/非 SQL/超长/二进制输入→返回空且**永不抛**；③ 输出符合 `{reads,writes}`（columns=None）契约。
-- [ ] T008 [US2] 实现 `eval/baselines/sqllineage_baseline.py`：`predict(row)` 用 `sqllineage.runner.LineageRunner`，非 SQL/解析失败 catch→空（契约见 `contracts/baseline-predict.md`）。既有 `regex_baseline` 不改，仅确认接口通用。
-- [ ] T009 [US2] 编排 `realeval/eval_baselines_c.py`：对 gold C 跑 regex+sqllineage+model-{0.5b/1.5b/3b}，经 counts_adapter 按 `subset` 分层，各行附 significance CI，产 `out/baselines-c.md`（`BaselineComparisonRow` 表）。**断言 SC-003**：SQLLineage@sql.recall 可比 / 工具@script.recall≤0.10 / model-3b@script 显著高于工具（diff-CI 不含 0 或 McNemar p<0.05）。
+- [x] T007 [P] [US2] 测试先行 `tests/test_sqllineage_baseline.py`：① 纯 SQL（INSERT…SELECT/JOIN）正确分列 source/target；② Python/Shell/非 SQL/超长/二进制输入→返回空且**永不抛**；③ 输出符合 `{reads,writes}`（columns=None）契约。
+- [x] T008 [US2] 实现 `eval/baselines/sqllineage_baseline.py`：`predict(row)` 用 `sqllineage.runner.LineageRunner`，非 SQL/解析失败 catch→空（契约见 `contracts/baseline-predict.md`）。既有 `regex_baseline` 不改，仅确认接口通用。
+- [x] T009 [US2] 编排 `realeval/eval_baselines_c.py`：对 gold C 跑 regex+sqllineage+model-{0.5b/1.5b/3b}，经 counts_adapter 按 `subset` 分层，各行附 significance CI，产 `out/baselines-c.md`（`BaselineComparisonRow` 表）。**断言 SC-003**：SQLLineage@sql.recall 可比 / 工具@script.recall≤0.10 / model-3b@script 显著高于工具（diff-CI 不含 0 或 McNemar p<0.05）。
 
 **Checkpoint**：US2 可独立交付——SC-003 招牌对比达成。
 
