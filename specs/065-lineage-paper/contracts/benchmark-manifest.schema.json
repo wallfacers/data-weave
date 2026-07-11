@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weft-lineage-benchmark-manifest",
+  "title": "Lineage Benchmark Manifest (labels + pointers, no source bodies)",
+  "type": "object",
+  "required": ["version", "records", "eval_scripts", "disclosure", "credential_free"],
+  "properties": {
+    "version": { "type": "string" },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["repo", "commit", "path", "reads", "writes", "subset"],
+        "properties": {
+          "repo": { "type": "string", "description": "public repo pointer, e.g. owner/name" },
+          "commit": { "type": "string", "description": "immutable commit SHA" },
+          "path": { "type": "string" },
+          "reads": { "$ref": "#/$defs/tableList" },
+          "writes": { "$ref": "#/$defs/tableList" },
+          "arbitrated": { "type": "boolean" },
+          "subset": { "enum": ["sql", "script"] }
+        },
+        "not": { "required": ["content"] }
+      }
+    },
+    "eval_scripts": { "type": "array", "items": { "type": "string" } },
+    "disclosure": {
+      "type": "object",
+      "required": ["no_source_bodies", "no_synthetic_train"],
+      "properties": {
+        "no_source_bodies": { "const": true },
+        "no_synthetic_train": { "const": true }
+      }
+    },
+    "credential_free": { "const": true }
+  },
+  "$defs": {
+    "tableList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["table"],
+        "properties": {
+          "table": { "type": "string" },
+          "columns": { "type": "null", "description": "column-level out of scope" }
+        }
+      }
+    }
+  }
+}
