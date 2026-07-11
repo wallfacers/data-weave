@@ -74,7 +74,8 @@
 - **成功判据达成**：3B ALL-p **+4.2pt**、非空-p +3.0pt，**召回与方向零退化**——与 ② 的「拿召回换精度」相反，这是干净收益。
 - **★关键校准**：黑名单只能含**无歧义**排除位置 `{注释, import, 文件路径, 临时视图}`。初版还纳入 `变量声明/形参/属性` 三类，实测误杀 22 个真表、召回崩到 0.487——因为「变量持有的表名」（`SOURCE_TABLE="orders"`）和「限定表名叶名前带 `.`」正是连 pro 都裁不清的**标签歧义边界**，真血缘也住那（gold 仲裁恰把这类翻成真表）。
 - 语义 grounding 对 3B 增益最大（小模型 grounded-but-wrong 幻觉最多，强 teacher 少犯）→ **3B 对 deepseek 的精度领先从 0.055 扩大到 0.090**。
-- 复现：`realeval/rescore_semantic.py`（三方三档 raw/literal/semantic）+ `tests/test_semantic_grounding.py`（20 测）；报告 `out/rescore-semantic.md`；设计 `docs/superpowers/specs/2026-07-11-semantic-grounding-design.md`。本轮**离线测量**（证收益），下一轮接进 predict 后处理。
+- 复现：`realeval/rescore_semantic.py`（三方三档 raw/literal/semantic）+ `tests/test_semantic_grounding.py`（20 测）；报告 `out/rescore-semantic.md`；设计 `docs/superpowers/specs/2026-07-11-semantic-grounding-design.md`。
+- **★已接进 serving（部署落地）**：`serve/app.py` 的 `postprocess` 后处理链升级为 **解析 → 语义 grounding（剔非表 FP）→ dir_fix（AST 修方向）**，默认开（env `LINEAGE_SEMANTIC_GROUNDING=0` 回滚），响应加 `grounded` 标记。契约变化：模型吐出的**未 grounded 幻觉表被剔**（即 +4.2pt 收益落到真实部署，非仅评测）。`tests/test_dir_fix_serve.py` +4 测（剔幻觉/剔注释表/留真表/env 回滚），全量 ml 211 绿。
 
 ## 训练稳定性（`sft_qlora.py` 加向后兼容旋钮）
 
