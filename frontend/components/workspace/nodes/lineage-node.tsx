@@ -103,7 +103,9 @@ export function LineageNode({ id, data }: NodeProps<LineageNode>) {
               e.stopPropagation()
               actions?.onToggleExpand?.(id)
             }}
-            className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            // nodrag：节点在血缘图内 interactiveNodes 可拖拽，ReactFlow 的 XYDrag(d3-drag)
+            // 会吞掉拖拽手势尾随的 click；带 nodrag 的元素不发起拖拽，click 才能流到按钮。
+            className="nodrag -mr-1 flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <HugeiconsIcon icon={d.expanded ? ArrowDown01Icon : ArrowRight01Icon} className="size-3.5" />
           </button>
