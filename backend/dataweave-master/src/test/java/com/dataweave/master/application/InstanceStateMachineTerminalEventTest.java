@@ -2,7 +2,6 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.application.readiness.ReadinessTestHelper;
 import com.dataweave.master.domain.EventBus;
-import com.dataweave.master.quality.application.TaskSucceededEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,7 +89,6 @@ class InstanceStateMachineTerminalEventTest {
 
         String state = jdbc.queryForObject("SELECT state FROM task_instance WHERE id=?", String.class, id);
         assertThat(state).isEqualTo("SUCCESS");
-        verify(publisher).publishEvent(any(TaskSucceededEvent.class));
         verify(eventBus).publish(startsWith("dw:evt:"), anyString());
     }
 
@@ -102,7 +100,6 @@ class InstanceStateMachineTerminalEventTest {
         assertThat(sm.casTaskTerminal(id, "RUNNING", "SUCCESS", null)).isTrue();
 
         // 无事务：afterCommit 无处挂 → 立即执行，语义等价旧行为
-        verify(publisher).publishEvent(any(TaskSucceededEvent.class));
         verify(eventBus).publish(startsWith("dw:evt:"), anyString());
     }
 }

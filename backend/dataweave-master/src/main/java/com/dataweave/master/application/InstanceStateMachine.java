@@ -3,7 +3,6 @@ package com.dataweave.master.application;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.signal.AlertSignal;
-import com.dataweave.master.quality.application.TaskSucceededEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -167,18 +166,6 @@ public class InstanceStateMachine {
                 publishTaskState(id, to);
                 if ("FAILED".equals(to)) {
                     publishAlertSignalForTask(id, failureReason);
-                } else if ("SUCCESS".equals(to)) {
-                    try {
-                        Long taskId = jdbc.queryForObject(
-                                "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
-                        Long tenantId = jdbc.queryForObject(
-                                "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
-                        if (taskId != null && tenantId != null) {
-                            eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
-                        }
-                    } catch (Exception e) {
-                        // 事件仅作门禁辅助，发布失败不影响状态推进
-                    }
                 }
             });
         }
@@ -202,19 +189,6 @@ public class InstanceStateMachine {
                 if ("FAILED".equals(to)) {
                     // 021-alert: 终态 FAILED → 发 AlertSignal
                     publishAlertSignalForTask(id, failureReason);
-                } else if ("SUCCESS".equals(to)) {
-                    // 022-data-quality: post-task 门禁钩子（D2.1）—— 任务 SUCCESS 后触发质量断言
-                    try {
-                        Long taskId = jdbc.queryForObject(
-                                "SELECT task_id FROM task_instance WHERE id = ?", Long.class, id);
-                        Long tenantId = jdbc.queryForObject(
-                                "SELECT tenant_id FROM task_instance WHERE id = ?", Long.class, id);
-                        if (taskId != null && tenantId != null) {
-                            eventPublisher.publishEvent(new TaskSucceededEvent(id, taskId, tenantId));
-                        }
-                    } catch (Exception e) {
-                        // 事件仅作门禁辅助，发布失败不影响状态推进（同 publishTaskState 纪律）
-                    }
                 }
             });
         }

@@ -20,7 +20,6 @@ import {
   ServerStackIcon,
   SettingDone02Icon,
   Settings02Icon,
-  Shield01Icon,
   Share08Icon,
 } from "@hugeicons/core-free-icons"
 
@@ -33,7 +32,6 @@ import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
 import { AlertsView } from "@/components/workspace/views/alerts-view"
-import { QualityView } from "@/components/workspace/views/quality-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { type ViewType } from "./views"
@@ -62,10 +60,6 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   alerts: {
     icon: BellIcon,
     component: AlertsView,
-  },
-  quality: {
-    icon: Shield01Icon,
-    component: QualityView,
   },
   datasources: {
     icon: Database01Icon,
