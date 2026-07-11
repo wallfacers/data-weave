@@ -1,0 +1,32 @@
+{
+  "3b": {
+    "n_nonempty": 61,
+    "gold_total": 148,
+    "model_recall": 0.7027027027027027,
+    "union_recall": 0.7635135135135135,
+    "auto_recall": 0.0472972972972973,
+    "auto_precision": 1.0,
+    "auto_n": 7,
+    "review_per_script": 2.1639344262295084
+  },
+  "deepseek": {
+    "n_nonempty": 61,
+    "gold_total": 148,
+    "model_recall": 0.8175675675675675,
+    "union_recall": 0.831081081081081,
+    "auto_recall": 0.013513513513513514,
+    "auto_precision": 1.0,
+    "auto_n": 2,
+    "review_per_script": 2.442622950819672
+  },
+  "qwen": {
+    "n_nonempty": 61,
+    "gold_total": 148,
+    "model_recall": 0.8378378378378378,
+    "union_recall": 0.8445945945945946,
+    "auto_recall": 0.02027027027027027,
+    "auto_precision": 1.0,
+    "auto_n": 3,
+    "review_per_script": 2.9508196721311477
+  }
+}
