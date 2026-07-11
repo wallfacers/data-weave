@@ -53,10 +53,10 @@
 
 **独立测试**：从发布物在无私有凭据环境按 README 复算头条表，落在 US1 的 CI 内。
 
-- [ ] T010 [P] [US3] 测试先行 `tests/test_benchmark_manifest.py`：校验清单符合 `contracts/benchmark-manifest.schema.json`——记录**无 `content` 字段**、`disclosure.no_source_bodies/no_synthetic_train=true`、`credential_free=true`、抓取仅引用公开端点（**消化 rigor：无源码重分发/无合成泄漏**，FR-007）。
-- [ ] T011 [US3] 实现 `benchmark/build_manifest.py`：从仲裁后 gold C 产 `manifest.json`（LabelRecord+SourcePointer，仅 repo/commit/path+标签，无源码正文）+ `labels.jsonl`。
-- [ ] T012 [US3] 实现 `benchmark/fetch.py`：按 `repo@commit:path` 无凭据抓公开源（GitHub raw / the-stack 公开镜像）重建评测输入；失败可跳过并如实报缺失。
-- [ ] T013 [US3] 撰写 `benchmark/README.md` 复现说明：三步复算（build→fetch→eval）、公开边界声明、**gold C 获取路径（HF）**（消化 rigor CHK029）、受限凭据分支（deepseek）与核心路径的显式分离（FR-008）。
+- [x] T010 [P] [US3] 测试先行 `tests/test_benchmark_manifest.py`：校验清单符合 `contracts/benchmark-manifest.schema.json`——记录**无 `content` 字段**、`disclosure.no_source_bodies/no_synthetic_train=true`、`credential_free=true`、抓取仅引用公开端点（**消化 rigor：无源码重分发/无合成泄漏**，FR-007）。
+- [x] T011 [US3] 实现 `benchmark/build_manifest.py`：从仲裁后 gold C 产 `manifest.json`（LabelRecord+SourcePointer，仅 repo/commit/path+标签，无源码正文）+ `labels.jsonl`。
+- [x] T012 [US3] 实现 `benchmark/fetch.py`：按 `repo@commit:path` 无凭据抓公开源（GitHub raw / the-stack 公开镜像）重建评测输入；失败可跳过并如实报缺失。
+- [x] T013 [US3] 撰写 `benchmark/README.md` 复现说明：三步复算（build→fetch→eval）、公开边界声明、**gold C 获取路径（HF）**（消化 rigor CHK029）、受限凭据分支（deepseek）与核心路径的显式分离（FR-008）。
 
 **Checkpoint**：US3 可独立交付——SC-004（第三方复算）/ SC-005（招牌图可复现）达成。
 
