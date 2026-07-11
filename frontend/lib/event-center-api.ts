@@ -54,6 +54,7 @@ export interface EventQuery {
   severity?: string
   refKind?: string
   refId?: string
+  incidentOnly?: boolean
   page?: number
   size?: number
 }
@@ -76,6 +77,7 @@ export async function fetchEvents(q: EventQuery): Promise<{ items: HealthEvent[]
   if (q.severity) params.set("severity", q.severity)
   if (q.refKind) params.set("refKind", q.refKind)
   if (q.refId) params.set("refId", q.refId)
+  if (q.incidentOnly) params.set("incidentOnly", "true")
   params.set("page", String(q.page ?? 1))
   params.set("size", String(q.size ?? 20))
   const json = await getJson(`/api/events?${params.toString()}`)

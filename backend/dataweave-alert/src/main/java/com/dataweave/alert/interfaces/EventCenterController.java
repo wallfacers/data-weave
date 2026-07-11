@@ -38,12 +38,13 @@ public class EventCenterController {
                                                 @RequestParam(required = false) String refId,
                                                 @RequestParam(required = false) String from,
                                                 @RequestParam(required = false) String to,
+                                                @RequestParam(defaultValue = "false") boolean incidentOnly,
                                                 @RequestParam(defaultValue = "1") int page,
                                                 @RequestParam(defaultValue = "20") int size) {
         long tid = tenantId(exchange);
         int offset = Math.max(0, (page - 1) * size);
         var data = service.query(tid, type, severity, refKind, refId,
-                parse(from), parse(to), offset, size);
+                parse(from), parse(to), incidentOnly, offset, size);
         return Mono.just(Map.of("code", 0, "data", data));
     }
 

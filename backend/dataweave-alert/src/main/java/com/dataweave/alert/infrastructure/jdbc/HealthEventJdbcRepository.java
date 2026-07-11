@@ -72,11 +72,19 @@ public class HealthEventJdbcRepository implements HealthEventRepository {
 
     @Override
     public List<HealthEvent> query(long tenantId, String type, String severity, String refKind, String refId,
-                                   LocalDateTime from, LocalDateTime to, int offset, int limit) {
+                                   LocalDateTime from, LocalDateTime to, boolean incidentOnly, int offset, int limit) {
         List<Object> args = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT * FROM health_event WHERE tenant_id = ? AND deleted = 0");
+        String alias = incidentOnly ? "he" : null;
+        StringBuilder sql = new StringBuilder(incidentOnly
+                ? "SELECT he.* FROM health_event he WHERE he.tenant_id = ? AND he.deleted = 0"
+                : "SELECT * FROM health_event WHERE tenant_id = ? AND deleted = 0");
         args.add(tenantId);
-        appendFilters(sql, args, type, severity, refKind, refId, from, to);
+        appendFilters(sql, args, type, severity, refKind, refId, from, to, alias);
+        if (incidentOnly) {
+            sql.append(" AND EXISTS (SELECT 1 FROM incident inc WHERE inc.tenant_id = he.tenant_id " +
+                    "AND inc.source_ref_id = he.ref_id AND inc.state IN ('OPEN','MITIGATING','RESOLVED','SUPPRESSED') " +
+                    "AND inc.deleted = 0)");
+        }
         sql.append(" ORDER BY last_occurred_at DESC LIMIT ? OFFSET ?");
         args.add(limit);
         args.add(offset);
@@ -85,13 +93,32 @@ public class HealthEventJdbcRepository implements HealthEventRepository {
 
     @Override
     public int count(long tenantId, String type, String severity, String refKind, String refId,
-                     LocalDateTime from, LocalDateTime to) {
+                     LocalDateTime from, LocalDateTime to, boolean incidentOnly) {
         List<Object> args = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM health_event WHERE tenant_id = ? AND deleted = 0");
+        String alias = incidentOnly ? "he" : null;
+        StringBuilder sql = new StringBuilder(incidentOnly
+                ? "SELECT COUNT(*) FROM health_event he WHERE he.tenant_id = ? AND he.deleted = 0"
+                : "SELECT COUNT(*) FROM health_event WHERE tenant_id = ? AND deleted = 0");
         args.add(tenantId);
-        appendFilters(sql, args, type, severity, refKind, refId, from, to);
+        appendFilters(sql, args, type, severity, refKind, refId, from, to, alias);
+        if (incidentOnly) {
+            sql.append(" AND EXISTS (SELECT 1 FROM incident inc WHERE inc.tenant_id = he.tenant_id " +
+                    "AND inc.source_ref_id = he.ref_id AND inc.state IN ('OPEN','MITIGATING','RESOLVED','SUPPRESSED') " +
+                    "AND inc.deleted = 0)");
+        }
         Integer n = jdbc.queryForObject(sql.toString(), Integer.class, args.toArray());
         return n != null ? n : 0;
+    }
+
+    private void appendFilters(StringBuilder sql, List<Object> args, String type, String severity,
+                               String refKind, String refId, LocalDateTime from, LocalDateTime to, String alias) {
+        String prefix = alias != null ? alias + "." : "";
+        if (type != null && !type.isBlank()) { sql.append(" AND ").append(prefix).append("type = ?"); args.add(type); }
+        if (severity != null && !severity.isBlank()) { sql.append(" AND ").append(prefix).append("severity = ?"); args.add(severity); }
+        if (refKind != null && !refKind.isBlank()) { sql.append(" AND ").append(prefix).append("ref_kind = ?"); args.add(refKind); }
+        if (refId != null && !refId.isBlank()) { sql.append(" AND ").append(prefix).append("ref_id = ?"); args.add(refId); }
+        if (from != null) { sql.append(" AND ").append(prefix).append("last_occurred_at >= ?"); args.add(from); }
+        if (to != null) { sql.append(" AND ").append(prefix).append("last_occurred_at <= ?"); args.add(to); }
     }
 
     private void appendFilters(StringBuilder sql, List<Object> args, String type, String severity,
