@@ -45,6 +45,22 @@
 - **机理**：残留假阳是 **grounded-but-wrong**（表名字面在脚本、但是模块路径 / 文件名 / 变量，非血缘），靠「空脚本弃权」够不着；加负例只把模型教得更保守 → 掉召回，不解决 FP。
 - **结论**：**Run C（0.5）是最优工作点**，10pt 弃权空间不是靠加负例能买到的。要再上探须换杠杆（语义级 grounding：区分「表名」vs「路径/变量/模块」，而非纯字面匹配）或人工金标。
 
+## 与主流 teacher 同底对比（gold C 153 · 校准 gold + grounding · 同一尺子）
+
+让 qwen-max 与 deepseek-v4-pro 在**同一 gold C** 上跑、套**同一 grounding + 校准尺子**，与自托管 3B 完全同底：
+
+| 模型 | ALL-p | 非空-p | 召回 | 方向 | 成本 |
+| --- | --- | --- | --- | --- | --- |
+| **自托管 Run C 3B**（本地单卡 LoRA） | **0.6419** | **0.7422** | 0.6333 | 0.6327 | 一次训练，零推理调用费 |
+| deepseek-v4-pro（强档 teacher） | 0.5874 | 0.6237 | **0.8067** | 0.6054 | 约 ¥1-2 / 153 条 |
+| qwen-max | 0.3867 | 0.4895 | 0.7733 | 0.6463 | ¥1.13 / 153 条 |
+
+- **北极星量化坐实**：自托管 3B ALL-p **0.642 > deepseek-v4-pro 0.587 > qwen-max 0.387**——3B 精度**超过**两个前沿 teacher。deepseek-pro 实测 0.587 正落在北极星参照带 0.55-0.60，验证了整个前提。
+- **权衡是召回**：teacher 召回更高（deepseek 0.807 / qwen 0.773 vs 3B 0.633）——teacher 抽得多但假阳多；3B 更保守更准。precision 是治理场景的北极星，3B 胜。
+- **非空-p 差距最大**：有血缘的脚本上 3B 0.742 ≫ deepseek 0.624 ≫ qwen 0.490。
+- grounding 对 teacher 几乎无增益（deepseek +0.3pt / qwen +3pt）却帮 3B +9.3pt——3B 的 ungrounded 幻觉更多、被过滤器接住，强 teacher 本就少犯。
+- 复现：`realeval/eval_teachers_c.py`（teacher→gold C 预测，抓真实 token 用量）+ `rescore_arbitrated.py` 同尺子打分；报告 `out/rescore-teacher-{qwen,deepseek}.md`。
+
 ## 训练稳定性（`sft_qlora.py` 加向后兼容旋钮）
 
 Run D 第一次跑 bf16 早期数值发散（step 20-40 梯度溢出成 NaN，裁剪救不了，acc 塌到 ~0，整轮报废）。同配方 Run C 未撞上，差异仅数据组成/顺序——bf16 LoRA 早期发散有随机性。加 `--lr / --warmup / --max-grad-norm` 三个可选参数（默认=原配方，向后兼容），Run D2 用 lr 1.2e-4 / warmup 0.10 / grad-clip 0.5 重跑，grad_norm 全程有限、loss 单调降、acc 爬到 0.83，健康跑通。
