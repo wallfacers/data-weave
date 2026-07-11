@@ -82,7 +82,7 @@ public class HeartbeatReporter {
         }
         try {
             String host = buildAdvertisedHost(advertiseHost, InetAddress.getLocalHost().getHostName(), serverPort);
-            String capacity = "4C/8G";
+            String capacity = buildCapacity();
             // L1 真采集（live-telemetry）：替换硬编码常量，输出 0-100 百分比量纲（与诊断 mem>=90 等阈值一致）。
             NodeMetrics m = sample();
             double cpu = m.cpu();
@@ -209,5 +209,106 @@ public class HeartbeatReporter {
 
     private static double round2(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    /**
+     * 构建容量规格字符串（如 "8C/16G"），Docker 容器感知：优先读 cgroup 限制，
+     * 不可得时回退到 JVM 可见的宿主机 CPU/内存。
+     */
+    static String buildCapacity() {
+        int cores = detectCpuCores();
+        long memoryGb = detectMemoryGb();
+        return cores + "C/" + memoryGb + "G";
+    }
+
+    /** 检测 CPU 核数：cgroup v2 → v1 → JVM availableProcessors。 */
+    static int detectCpuCores() {
+        // cgroup v2: /sys/fs/cgroup/cpu.max 格式 "MAX PERIOD"
+        Double v2 = parseCgroupV2Cpu();
+        if (v2 != null && v2 > 0) {
+            return Math.max(1, (int) Math.ceil(v2));
+        }
+        // cgroup v1: quota/period
+        Double v1 = parseCgroupV1Cpu();
+        if (v1 != null && v1 > 0) {
+            return Math.max(1, (int) Math.ceil(v1));
+        }
+        return Runtime.getRuntime().availableProcessors();
+    }
+
+    /** 检测总内存（GB）：cgroup v2 → v1 → OS MXBean totalMemory。 */
+    static long detectMemoryGb() {
+        Long cgroupBytes = parseCgroupMemoryBytes();
+        long bytes;
+        if (cgroupBytes != null && cgroupBytes > 0) {
+            bytes = cgroupBytes;
+        } else {
+            com.sun.management.OperatingSystemMXBean os =
+                    (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+            bytes = os.getTotalMemorySize();
+        }
+        long gb = bytes / (1024L * 1024L * 1024L);
+        return Math.max(1, gb);
+    }
+
+    /** 读 cgroup v2 cpu.max，返回核数（可为小数）或 null。 */
+    private static Double parseCgroupV2Cpu() {
+        try {
+            String content = readFileString("/sys/fs/cgroup/cpu.max");
+            if (content == null || content.isBlank()) return null;
+            String[] parts = content.strip().split("\\s+");
+            if (parts.length < 2) return null;
+            String max = parts[0];
+            if ("max".equals(max)) return null; // 无限制
+            double quota = Double.parseDouble(max);
+            double period = Double.parseDouble(parts[1]);
+            return period > 0 ? quota / period : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 读 cgroup v1 cpu.cfs_quota_us / cpu.cfs_period_us，返回核数或 null。 */
+    private static Double parseCgroupV1Cpu() {
+        try {
+            String quotaStr = readFileString("/sys/fs/cgroup/cpu/cpu.cfs_quota_us");
+            String periodStr = readFileString("/sys/fs/cgroup/cpu/cpu.cfs_period_us");
+            if (quotaStr == null || periodStr == null) return null;
+            double quota = Double.parseDouble(quotaStr.strip());
+            if (quota < 0) return null; // -1 = 无限制
+            double period = Double.parseDouble(periodStr.strip());
+            return period > 0 ? quota / period : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 读 cgroup 内存限制（bytes）：v2 memory.max → v1 memory.limit_in_bytes，不可得返回 null。 */
+    private static Long parseCgroupMemoryBytes() {
+        // cgroup v2
+        String v2 = readFileString("/sys/fs/cgroup/memory.max");
+        if (v2 != null && !v2.isBlank() && !"max".equals(v2.strip())) {
+            try { return Long.parseLong(v2.strip()); } catch (NumberFormatException ignored) {}
+        }
+        // cgroup v1
+        String v1 = readFileString("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+        if (v1 != null && !v1.isBlank()) {
+            try {
+                long val = Long.parseLong(v1.strip());
+                // 超大值 = 无限制（cgroup v1 无限制时设为接近 Long.MAX）
+                long limit = 1L << 50; // ~1 PB
+                return val < limit ? val : null;
+            } catch (NumberFormatException ignored) {}
+        }
+        return null;
+    }
+
+    /** 读取文件首行内容，文件不存在或读取失败返回 null。 */
+    private static String readFileString(String path) {
+        try {
+            return java.nio.file.Files.readString(java.nio.file.Path.of(path)).strip();
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
