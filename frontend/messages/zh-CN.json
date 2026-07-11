@@ -372,8 +372,6 @@
     "settings": "系统设置",
     "datasources": "数据源管理",
     "alerts": "告警中心",
-    "incidents": "监督席",
-    "eventCenter": "事件中心",
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例"
   },
@@ -1203,62 +1201,6 @@
     "today": "今天",
     "yesterday": "昨天"
   },
-  "eventCenter": {
-    "tab": {
-      "events": "事件",
-      "subscriptions": "订阅"
-    },
-    "filter": {
-      "allTypes": "全部类型",
-      "allSeverities": "全部级别"
-    },
-    "severity": {
-      "INFO": "信息",
-      "LOW": "低",
-      "MEDIUM": "中",
-      "WARNING": "警告",
-      "HIGH": "高",
-      "CRITICAL": "严重"
-    },
-    "severityGte": "≥ {level}",
-    "refresh": "刷新",
-    "loading": "加载中",
-    "empty": "暂无事件",
-    "total": "共 {count} 条",
-    "openRef": "跳转到 {kind}",
-    "type": {
-      "TASK_FAILED": "任务失败",
-      "TASK_TIMEOUT": "任务超时",
-      "SLA_BREACH": "SLA 超期",
-      "WORKFLOW_STATE": "工作流终态",
-      "NODE_OFFLINE": "节点离线",
-      "METRIC_BREACH": "指标越限",
-      "QUALITY_FAILED": "质量校验失败"
-    },
-    "refKind": {
-      "TASK": "任务",
-      "METRIC": "指标",
-      "TABLE": "表",
-      "WORKFLOW": "工作流"
-    },
-    "summary": {
-      "TASK_FAILED": "任务 {name} 执行失败",
-      "TASK_TIMEOUT": "任务 {name} 执行超时",
-      "WORKFLOW_STATE_FAILED": "工作流 {name} 运行失败",
-      "WORKFLOW_STATE_STOPPED": "工作流 {name} 被终止",
-      "SLA_BREACH": "工作流 {name} 超出 SLA {minutes} 分钟未完成（业务日期 {bizDate}）",
-      "NODE_OFFLINE": "节点 {node} 已离线",
-      "QUALITY_FAILED": "数据集 {dataset} 质量校验失败：{message}",
-      "METRIC_BREACH": "指标 {name} 越限"
-    },
-    "sub": {
-      "anySeverity": "不限级别",
-      "selectChannel": "选择通道",
-      "create": "创建订阅",
-      "empty": "暂无订阅",
-      "delete": "删除"
-    }
-  },
   "viewRefresh": {
     "lastUpdated": "最后更新 {time}",
     "auto": "自动刷新",
@@ -1402,137 +1344,6 @@
     "dateTimeFormat": "显示格式",
     "dateFormat_dash": "短横线（2026-06-25）",
     "dateFormat_slash": "斜线（2026/06/25）"
-  },
-  "incidents": {
-    "title": "监督席",
-    "subtitle": "故障工单队列，异常自动开单、自动愈合",
-    "activeSection": "活跃 ({count})",
-    "recentResolvedSection": "近 24 小时已自动解决 ({count})",
-    "history": "历史",
-    "close": "关闭",
-    "tab": {
-      "signals": "信号流",
-      "tickets": "工单队列"
-    },
-    "emptyActive": "数据管线一切正常",
-    "emptyActiveHint": "暂无活跃故障工单",
-    "emptyHistory": "暂无历史工单",
-    "loading": "加载中",
-    "loadError": "加载失败",
-    "severity": {
-      "CRITICAL": "严重",
-      "HIGH": "高",
-      "MEDIUM": "中",
-      "LOW": "低",
-      "WARNING": "警告"
-    },
-    "state": {
-      "OPEN": "待处置",
-      "MITIGATING": "处置中",
-      "RESOLVED": "已解决",
-      "SUPPRESSED": "已静默",
-      "CLOSED": "已关闭"
-    },
-    "card": {
-      "occurrenceCount": "发生 {count} 次",
-      "priorCount": "历史发生 {count} 次",
-      "blastRadiusNull": "血缘不可用",
-      "blastRadiusZero": "无下游影响",
-      "blastRadius": "影响 {count} 个下游",
-      "timeBudgetOverdue": "已超期 {time}",
-      "timeBudgetNoSla": "无 SLA 约束",
-      "countdown": "距最近 SLA {time}",
-      "diagnosisPlaceholder": "等待运维编队接入",
-      "proposalPlaceholder": "等待运维编队接入",
-      "suppressReason": "静默原因：{reason}",
-      "resolvedAt": "已解决于 {time}",
-      "autoHealed": "已自动愈合"
-    },
-    "action": {
-      "rerun": "重跑",
-      "suppress": "静默",
-      "unsuppress": "取消静默",
-      "viewTimeline": "时间线",
-      "addNote": "备注",
-      "viewLog": "查看日志",
-      "viewInstance": "查看实例",
-      "viewWorkflow": "查看工作流",
-      "approve": "批准",
-      "reject": "驳回"
-    },
-    "rerun": {
-      "executed": "重跑已执行",
-      "pendingApproval": "已生成审批单",
-      "rejected": "重跑被拒绝：{message}"
-    },
-    "suppressDialog": {
-      "title": "静默工单",
-      "description": "静默后工单退出队列主视图，期间同签名故障仅累加计数。",
-      "reasonLabel": "静默原因",
-      "reasonPlaceholder": "请填写静默原因",
-      "reasonRequired": "静默原因不能为空",
-      "confirm": "确认静默",
-      "cancel": "取消"
-    },
-    "timeline": {
-      "title": "事件时间线",
-      "empty": "暂无事件记录",
-      "kind": {
-        "SIGNAL": "原始信号",
-        "STATE_CHANGE": "状态变更",
-        "ACTION": "处置动作",
-        "APPROVAL": "审批",
-        "NOTE": "备注"
-      },
-      "actorSystem": "系统"
-    },
-    "noteDialog": {
-      "title": "添加备注",
-      "placeholder": "备注内容（不超过 2000 字）",
-      "confirm": "添加",
-      "cancel": "取消"
-    },
-    "pendingApproval": "待审批",
-    "deepLink": "跳转到 {kind}"
-  },
-  "signalStream": {
-    "title": "信号流",
-    "empty": "暂无异常信号",
-    "filter": {
-      "allTypes": "全部类型",
-      "allSeverities": "全部严重度"
-    },
-    "type": {
-      "TASK_FAILED": "任务失败",
-      "TASK_TIMEOUT": "任务超时",
-      "SLA_BREACH": "SLA 破约",
-      "NODE_OFFLINE": "节点离线",
-      "WORKFLOW_STATE": "工作流状态",
-      "QUALITY_FAILED": "质量失败",
-      "METRIC_BREACH": "指标破约"
-    },
-    "severity": {
-      "CRITICAL": "严重",
-      "HIGH": "高",
-      "MEDIUM": "中",
-      "LOW": "低",
-      "WARNING": "警告",
-      "INFO": "信息"
-    },
-    "summary": {
-      "TASK_FAILED": "{name} 执行失败",
-      "TASK_TIMEOUT": "{name} 执行超时",
-      "SLA_BREACH": "{name} SLA 破约（{minutes} 分钟）",
-      "NODE_OFFLINE": "节点 {node} 离线",
-      "QUALITY_FAILED": "{dataset} 质量检查失败",
-      "METRIC_BREACH": "{name} 指标异常",
-      "WORKFLOW_STATE_FAILED": "{name} 执行失败",
-      "WORKFLOW_STATE_STOPPED": "{name} 已停止"
-    },
-    "detail": {
-      "title": "原始信号",
-      "empty": "无原始上下文数据"
-    }
   },
   "streamingTasks": {
     "panelTitle": "实时任务",

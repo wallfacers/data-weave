@@ -74,7 +74,6 @@ describe("036-D 菜单权限过滤（三角色矩阵）", () => {
       "fleet",
       "lineage",
       "alerts",
-      "event-center",
       "quality",
     ] as ViewType[]) {
       expect(v.has(ro)).toBe(true)

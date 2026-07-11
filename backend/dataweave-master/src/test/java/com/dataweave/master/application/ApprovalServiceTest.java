@@ -31,14 +31,12 @@ class ApprovalServiceTest {
     private AgentActionRepository actionRepository;
     @Mock
     private PlatformActionExecutor executor;
-    @Mock
-    private com.dataweave.master.application.incident.IncidentService incidentService;
 
     private ApprovalService approvalService;
 
     @BeforeEach
     void setUp() {
-        approvalService = new ApprovalService(actionRepository, executor, incidentService);
+        approvalService = new ApprovalService(actionRepository, executor);
         org.mockito.Mockito.lenient()
                 .when(actionRepository.save(any(AgentAction.class))).thenAnswer(inv -> inv.getArgument(0));
     }

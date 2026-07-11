@@ -1,6 +1,5 @@
 package com.dataweave.master.application;
 
-import com.dataweave.master.application.incident.IncidentService;
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.AgentActionRepository;
 import com.dataweave.master.i18n.BizException;
@@ -22,14 +21,11 @@ public class ApprovalService {
 
     private final AgentActionRepository actionRepository;
     private final PlatformActionExecutor executor;
-    private final IncidentService incidentService; // 043: 审批回挂工单时间线
 
     public ApprovalService(AgentActionRepository actionRepository,
-                           PlatformActionExecutor executor,
-                           IncidentService incidentService) {
+                           PlatformActionExecutor executor) {
         this.actionRepository = actionRepository;
         this.executor = executor;
-        this.incidentService = incidentService;
     }
 
     public List<AgentAction> pending() {
@@ -85,8 +81,6 @@ public class ApprovalService {
         action.setResultJson(out.resultJson());
         action.setUpdatedAt(LocalDateTime.now());
         actionRepository.save(action);
-        // 043: 审批批准回挂工单时间线（无 incident_id 关联时零行为）
-        appendApprovalTimeline(action, approver, "APPROVED");
         return ApprovalResult.ok(action, out.message(), out.resultInstanceId());
     }
 
@@ -103,23 +97,8 @@ public class ApprovalService {
         action.setApprovedAt(LocalDateTime.now());
         action.setUpdatedAt(LocalDateTime.now());
         actionRepository.save(action);
-        // 043: 审批驳回回挂工单时间线（无 incident_id 关联时零行为）
-        appendApprovalTimeline(action, approver, "REJECTED");
         // 复用 approval.rejected code 作为成功确认（由上层按 locale 本地化）。
         return ApprovalResult.ok(action, "approval.rejected", null);
-    }
-
-    /** 043: 审批结果经 agent_action.incident_id 反查工单并追记 APPROVAL 时间线条目。 */
-    private void appendApprovalTimeline(AgentAction action, String approver, String status) {
-        if (action.getIncidentId() == null) return;
-        try {
-            String payload = String.format(
-                    "{\"actionId\":%d,\"approvalStatus\":\"%s\",\"approvedBy\":\"%s\"}",
-                    action.getId(), status, approver);
-            incidentService.appendTimeline(action.getIncidentId(), "APPROVAL", payload, approver);
-        } catch (Exception e) {
-            // 审批时间是次要回写，失败不阻断审批本身
-        }
     }
 
     /** 把超时未处理的 PENDING 审批单置 EXPIRED。返回过期条数。供定时任务调用。 */

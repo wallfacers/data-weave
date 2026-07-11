@@ -372,8 +372,6 @@
     "settings": "Settings",
     "datasources": "Datasources",
     "alerts": "Alert Center",
-    "incidents": "Incidents",
-    "eventCenter": "Event Center",
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance"
   },
@@ -1203,62 +1201,6 @@
     "today": "Today",
     "yesterday": "Yesterday"
   },
-  "eventCenter": {
-    "tab": {
-      "events": "Events",
-      "subscriptions": "Subscriptions"
-    },
-    "filter": {
-      "allTypes": "All types",
-      "allSeverities": "All severities"
-    },
-    "severity": {
-      "INFO": "Info",
-      "LOW": "Low",
-      "MEDIUM": "Medium",
-      "WARNING": "Warning",
-      "HIGH": "High",
-      "CRITICAL": "Critical"
-    },
-    "severityGte": "≥ {level}",
-    "refresh": "Refresh",
-    "loading": "Loading",
-    "empty": "No events yet",
-    "total": "{count} total",
-    "openRef": "Open {kind}",
-    "type": {
-      "TASK_FAILED": "Task failed",
-      "TASK_TIMEOUT": "Task timed out",
-      "SLA_BREACH": "SLA breach",
-      "WORKFLOW_STATE": "Workflow terminal state",
-      "NODE_OFFLINE": "Node offline",
-      "METRIC_BREACH": "Metric breach",
-      "QUALITY_FAILED": "Quality check failed"
-    },
-    "refKind": {
-      "TASK": "Task",
-      "METRIC": "Metric",
-      "TABLE": "Table",
-      "WORKFLOW": "Workflow"
-    },
-    "summary": {
-      "TASK_FAILED": "Task {name} failed",
-      "TASK_TIMEOUT": "Task {name} timed out",
-      "WORKFLOW_STATE_FAILED": "Workflow {name} failed",
-      "WORKFLOW_STATE_STOPPED": "Workflow {name} was stopped",
-      "SLA_BREACH": "Workflow {name} missed its SLA by {minutes} min (biz date {bizDate})",
-      "NODE_OFFLINE": "Node {node} went offline",
-      "QUALITY_FAILED": "Dataset {dataset} failed quality check: {message}",
-      "METRIC_BREACH": "Metric {name} breached threshold"
-    },
-    "sub": {
-      "anySeverity": "Any severity",
-      "selectChannel": "Select channel",
-      "create": "Create subscription",
-      "empty": "No subscriptions",
-      "delete": "Delete"
-    }
-  },
   "viewRefresh": {
     "lastUpdated": "Updated {time}",
     "auto": "Auto-refresh",
@@ -1402,137 +1344,6 @@
     "dateTimeFormat": "Display format",
     "dateFormat_dash": "Dash (2026-06-25)",
     "dateFormat_slash": "Slash (2026/06/25)"
-  },
-  "incidents": {
-    "title": "Incidents",
-    "subtitle": "Incident queue — automatic ticket creation and auto-healing",
-    "activeSection": "Active ({count})",
-    "recentResolvedSection": "Auto-resolved in 24h ({count})",
-    "history": "History",
-    "close": "Close",
-    "tab": {
-      "signals": "Signal Stream",
-      "tickets": "Tickets"
-    },
-    "emptyActive": "All pipelines running smoothly",
-    "emptyActiveHint": "No active incidents",
-    "emptyHistory": "No history records",
-    "loading": "Loading",
-    "loadError": "Failed to load",
-    "severity": {
-      "CRITICAL": "Critical",
-      "HIGH": "High",
-      "MEDIUM": "Medium",
-      "LOW": "Low",
-      "WARNING": "Warning"
-    },
-    "state": {
-      "OPEN": "Open",
-      "MITIGATING": "Mitigating",
-      "RESOLVED": "Resolved",
-      "SUPPRESSED": "Suppressed",
-      "CLOSED": "Closed"
-    },
-    "card": {
-      "occurrenceCount": "{count} occurrences",
-      "priorCount": "{count} prior occurrences",
-      "blastRadiusNull": "Lineage unavailable",
-      "blastRadiusZero": "No downstream impact",
-      "blastRadius": "Impacts {count} downstream",
-      "timeBudgetOverdue": "Overdue {time}",
-      "timeBudgetNoSla": "No SLA constraint",
-      "countdown": "Next SLA in {time}",
-      "diagnosisPlaceholder": "Awaiting ops fleet",
-      "proposalPlaceholder": "Awaiting ops fleet",
-      "suppressReason": "Suppress reason: {reason}",
-      "resolvedAt": "Resolved at {time}",
-      "autoHealed": "Auto-healed"
-    },
-    "action": {
-      "rerun": "Rerun",
-      "suppress": "Suppress",
-      "unsuppress": "Unsuppress",
-      "viewTimeline": "Timeline",
-      "addNote": "Note",
-      "viewLog": "View Log",
-      "viewInstance": "View Instance",
-      "viewWorkflow": "View Workflow",
-      "approve": "Approve",
-      "reject": "Reject"
-    },
-    "rerun": {
-      "executed": "Rerun executed",
-      "pendingApproval": "Approval request submitted",
-      "rejected": "Rerun rejected: {message}"
-    },
-    "suppressDialog": {
-      "title": "Suppress Incident",
-      "description": "Suppressed incidents are removed from the main queue. Recurrences of the same fault only increment the counter.",
-      "reasonLabel": "Reason",
-      "reasonPlaceholder": "Enter reason for suppression",
-      "reasonRequired": "Reason is required",
-      "confirm": "Confirm",
-      "cancel": "Cancel"
-    },
-    "timeline": {
-      "title": "Event Timeline",
-      "empty": "No events recorded",
-      "kind": {
-        "SIGNAL": "Signal",
-        "STATE_CHANGE": "State Change",
-        "ACTION": "Action",
-        "APPROVAL": "Approval",
-        "NOTE": "Note"
-      },
-      "actorSystem": "System"
-    },
-    "noteDialog": {
-      "title": "Add Note",
-      "placeholder": "Note content (max 2000 characters)",
-      "confirm": "Add",
-      "cancel": "Cancel"
-    },
-    "pendingApproval": "Pending Approval",
-    "deepLink": "Open {kind}"
-  },
-  "signalStream": {
-    "title": "Signal Stream",
-    "empty": "No abnormal signals",
-    "filter": {
-      "allTypes": "All Types",
-      "allSeverities": "All Severities"
-    },
-    "type": {
-      "TASK_FAILED": "Task Failed",
-      "TASK_TIMEOUT": "Task Timeout",
-      "SLA_BREACH": "SLA Breach",
-      "NODE_OFFLINE": "Node Offline",
-      "WORKFLOW_STATE": "Workflow State",
-      "QUALITY_FAILED": "Quality Failed",
-      "METRIC_BREACH": "Metric Breach"
-    },
-    "severity": {
-      "CRITICAL": "Critical",
-      "HIGH": "High",
-      "MEDIUM": "Medium",
-      "LOW": "Low",
-      "WARNING": "Warning",
-      "INFO": "Info"
-    },
-    "summary": {
-      "TASK_FAILED": "{name} execution failed",
-      "TASK_TIMEOUT": "{name} timed out",
-      "SLA_BREACH": "{name} SLA breached ({minutes}min)",
-      "NODE_OFFLINE": "Node {node} offline",
-      "QUALITY_FAILED": "{dataset} quality check failed",
-      "METRIC_BREACH": "{name} metric anomaly",
-      "WORKFLOW_STATE_FAILED": "{name} execution failed",
-      "WORKFLOW_STATE_STOPPED": "{name} stopped"
-    },
-    "detail": {
-      "title": "Raw Signal",
-      "empty": "No context data"
-    }
   },
   "streamingTasks": {
     "panelTitle": "Streaming Tasks",

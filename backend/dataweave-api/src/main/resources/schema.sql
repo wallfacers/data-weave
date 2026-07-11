@@ -1,16 +1,13 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.16.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.17.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
---     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
 --     → 038 实例定时时间快照=0.6.0（workflow_instance +scheduled_fire_time；cron/fixed_rate 触发时刻落库，与 cron_expression 同源快照）。
 --     → 036 补充=0.6.1（cron_fire/sla_baseline 补 tenant_id + project_id + 索引；豁免反转→统一补列）。
---     → 事件中心可读化=0.6.2（health_event +ref_name：任务/工作流等关联对象的可读名称，供 UI 拼装人性化标题）。
 --     → 041 新鲜度重设计=0.6.3（+freshness_daily_snapshot/freshness_task_daily 2 表，支撑日环比和7天趋势火花图）。
 --     → 041 脚本血缘=0.7.0（+lineage_edge_correction 人工修正裁决 / +lineage_unresolved_hint 未解析提示 2 表）。
 --     → 045 cron 并行化=0.7.1（cron_fire +status PENDING/FIRED/DEAD +reconciler 补偿扫描索引; workflow_instance +UNIQUE(workflow_id,scheduled_fire_time) 幂等防重）。
 --     → 移除资产目录+指标市场=0.8.0（北极星方向判定不需要，真删除 data_asset/metric_listing/metric_reuse_ref/asset_subscription 4 表）。
---     → 043 Incident 监督席=0.9.0（+incident/incident_event 2 表，agent_action +incident_id；工单化故障开单/归并/自动愈合/分诊/处置闭环）。
 --     → 051 就绪态物化=0.10.0（task_instance +unmet_deps + idx_task_instance_claim 扩列 + readiness_signal outbox 表）。
 --     → 053 云 AI Agent 血缘通道=0.11.0（+lineage_agent_config 配置默认关闭/凭据加密 / +lineage_agent_call 外呼审计 2 表）。
 --     → 055 血缘目录接地=0.12.0（+lineage_grounding_disposition 目录接地处置审计 1 表；候选表存在性三态裁决留痕）。
@@ -21,6 +18,7 @@
 --       task_instance +business_attempt/infra_redispatch_count/external_job_handle +SUSPENDED 态；task_def(_version) +long_running）。
 --     → 062 实时任务运维=0.16.0（+task_checkpoint 表：实时任务可恢复检查点，滚动保留最近 N 个；
 --       task_instance +long_running 快照列（面板按此过滤，免 JOIN task_def）+resume_checkpoint_id（续跑所选回滚点引用））。
+--     → 065 移除监督席=0.17.0（删除 incident/incident_event/health_event/event_subscription 4 表；删除 agent_action.incident_id 列）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -35,10 +33,6 @@ DROP TABLE IF EXISTS lineage_edge_correction;
 DROP TABLE IF EXISTS lineage_unresolved_hint;
 DROP TABLE IF EXISTS lineage_agent_call;
 DROP TABLE IF EXISTS lineage_agent_config;
-DROP TABLE IF EXISTS event_subscription;
-DROP TABLE IF EXISTS health_event;
-DROP TABLE IF EXISTS incident_event;
-DROP TABLE IF EXISTS incident;
 DROP TABLE IF EXISTS backfill_run;
 DROP TABLE IF EXISTS workspace_snapshot;
 DROP TABLE IF EXISTS agent_action;
@@ -111,8 +105,6 @@ VALUES ('0.6.0', CURRENT_TIMESTAMP, '038 workflow_instance +scheduled_fire_time 
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.6.1', CURRENT_TIMESTAMP, '036 补充 cron_fire/sla_baseline +tenant_id +project_id +index（豁免反转）');
 INSERT INTO schema_version (version, applied_at, description)
-VALUES ('0.6.2', CURRENT_TIMESTAMP, '事件中心可读化：health_event +ref_name（关联对象可读名称）');
-INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.6.3', CURRENT_TIMESTAMP, '041 新鲜度重设计：+freshness_daily_snapshot/freshness_task_daily 2 表（日环比+7天趋势火花图）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.7.0', CURRENT_TIMESTAMP, '041 脚本血缘：+lineage_edge_correction（人工修正裁决）/ +lineage_unresolved_hint（未解析提示）');
@@ -120,8 +112,6 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.7.1', CURRENT_TIMESTAMP, '045 cron 并行化：cron_fire +status(PENDING/FIRED/DEAD)+idx_cron_fire_instance_created(补偿扫描); workflow_instance +uq_workflow_instance_wf_fire 幂等防重');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.8.0', CURRENT_TIMESTAMP, '移除 023 资产目录+指标市场（4 表下线）');
-INSERT INTO schema_version (version, applied_at, description)
-VALUES ('0.9.0', CURRENT_TIMESTAMP, '043 Incident 监督席：+incident/incident_event 2 表，agent_action +incident_id；工单化故障开单/归并/自动愈合/分诊/处置闭环');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.10.0', CURRENT_TIMESTAMP, '051 就绪态物化：task_instance +unmet_deps + idx_task_instance_claim 扩列 + readiness_signal outbox 表');
 INSERT INTO schema_version (version, applied_at, description)
@@ -143,7 +133,7 @@ VALUES ('0.15.0', CURRENT_TIMESTAMP, '060 节点容错闭环：worker_nodes +inc
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.16.0', CURRENT_TIMESTAMP, '062 实时任务运维：+task_checkpoint 表（实时任务可恢复检查点，滚动保留最近 N 个）；task_instance +long_running 快照列（面板过滤免 JOIN）+resume_checkpoint_id（续跑所选回滚点引用）');
 INSERT INTO schema_version (version, applied_at, description)
-VALUES ('0.17.0', CURRENT_TIMESTAMP, '064 监督席：incident +heal_by_type/heal_by_ref_id（愈合条件映射，精确指纹匹配恢复信号→工单）');
+VALUES ('0.17.0', CURRENT_TIMESTAMP, '065 移除监督席：删除 incident/incident_event/health_event/event_subscription 4 表 + agent_action.incident_id 列');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -1117,7 +1107,6 @@ CREATE TABLE agent_action (
     executed_at     TIMESTAMP,
     result_json     VARCHAR(4000),
     expires_at      TIMESTAMP,
-    incident_id     BIGINT,                         -- 043 关联 incident 工单：incident 卡片发起的闸门动作反向回挂工单；NULL = 非 incident 发起
     created_at      TIMESTAMP,
     updated_at      TIMESTAMP
 );
@@ -1139,69 +1128,6 @@ CREATE TABLE policy_rules (
     deleted        SMALLINT DEFAULT 0,
     version        INTEGER DEFAULT 0
 );
-
--- ============================================================
--- 域 I · Incident 监督席工单（043）：工单化故障开单/归并/自动愈合/分诊/处置闭环
---   incident: 可变实体（含 active_key UNIQUE 保证未关闭同签名全局唯一——关闭置 NULL，H2/PG 多 NULL 均不冲突）
---   incident_event: 时间线 append-only 流水，无 UPDATE/DELETE 路径
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS incident (
-    id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    tenant_id           BIGINT NOT NULL,
-    project_id          BIGINT NOT NULL,
-    signature           VARCHAR(128) NOT NULL,
-    active_key          VARCHAR(128) NULL,
-    title               VARCHAR(256) NOT NULL,
-    severity            VARCHAR(16) NOT NULL,          -- 已附着信号 severityHint 最大值（CRITICAL>HIGH>MEDIUM>LOW）
-    state               VARCHAR(16) NOT NULL,          -- OPEN / MITIGATING / RESOLVED / SUPPRESSED / CLOSED
-    source_kind         VARCHAR(16) NOT NULL,          -- TASK / WORKFLOW / NODE（对齐既有 ref_kind 语义）
-    source_ref_id       VARCHAR(64) NOT NULL,
-    source_ref_name     VARCHAR(256) NULL,
-    workflow_instance_id UUID NULL,                    -- 同工作流实例归并键；NODE 类为 NULL
-    occurrence_count    INTEGER NOT NULL DEFAULT 1,
-    first_seen_at       TIMESTAMP NOT NULL,
-    last_seen_at        TIMESTAMP NOT NULL,
-    blast_radius        INTEGER NULL,                  -- NULL = 血缘不可用（区别于 0 = 无下游）
-    time_budget_at      TIMESTAMP NULL,                -- 最近下游 SLA 基线投影时刻；NULL = 无基线；< now = 已超期
-    suppress_reason     VARCHAR(512) NULL,
-    resolution_kind     VARCHAR(32) NULL,              -- AUTO_HEAL / MANUAL_RERUN / …
-    resolved_at         TIMESTAMP NULL,
-    closed_at           TIMESTAMP NULL,
-    diagnosis_json      VARCHAR(4000) NULL,            -- 编队预留槽位（043 恒 NULL）
-    proposal_json       VARCHAR(4000) NULL,            -- 编队预留槽位（043 恒 NULL）
-    created_by          BIGINT,
-    updated_by          BIGINT,
-    created_at          TIMESTAMP,
-    updated_at          TIMESTAMP,
-    deleted             SMALLINT DEFAULT 0,
-    version             INTEGER DEFAULT 0,
-    heal_by_type        VARCHAR(32) NULL,              -- 064 愈合条件——恢复信号事件类型（如 TASK_FAILED→TASK_SUCCESS 愈合）；NULL=无自动愈合
-    heal_by_ref_id      VARCHAR(128) NULL              -- 064 愈合条件——恢复信号引用 ID（如 taskId）；NULL=无自动愈合
-);
-
--- active_key: 未关闭 = signature，CLOSED 置 NULL；UNIQUE 中多 NULL 均不冲突（H2/PG 共同行为）
-CREATE UNIQUE INDEX IF NOT EXISTS idx_incident_active_key ON incident(tenant_id, project_id, active_key);
-CREATE INDEX IF NOT EXISTS idx_incident_queue ON incident(tenant_id, project_id, state, last_seen_at);
-CREATE INDEX IF NOT EXISTS idx_incident_wfi ON incident(workflow_instance_id);
-CREATE INDEX IF NOT EXISTS idx_incident_signature ON incident(tenant_id, signature);
-CREATE INDEX IF NOT EXISTS idx_incident_heal ON incident(tenant_id, heal_by_type, heal_by_ref_id);
-
-CREATE TABLE IF NOT EXISTS incident_event (
-    id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    tenant_id       BIGINT NOT NULL,
-    incident_id     BIGINT NOT NULL,
-    seq             INTEGER NOT NULL,
-    kind            VARCHAR(16) NOT NULL,              -- SIGNAL / STATE_CHANGE / ACTION / APPROVAL / NOTE
-    payload_json    VARCHAR(4000) NOT NULL,
-    actor           VARCHAR(64) NOT NULL,              -- 用户名 / 'system' / 未来 agent 名
-    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ievent_incident_seq ON incident_event(incident_id, seq);
-
--- agent_action 反向关联工单索引（incident 卡片内联审批/重跑回挂）
-CREATE INDEX IF NOT EXISTS idx_agent_action_incident ON agent_action(incident_id);
 
 -- ============================================================
 -- 域 F · 表级/任务级血缘（table-lineage：表为节点、任务为边的二部图）
@@ -1435,49 +1361,6 @@ CREATE TABLE quality_fire (
     created_at          TIMESTAMP,
     CONSTRAINT uq_quality_fire UNIQUE (rule_id, scheduled_fire_time)
 );
-
--- ============================================================
--- 域 K · 统一数据健康事件中心（027）—— 散落信号的统一归宿
--- health_event 旁路持久化每条 domain.signal.AlertSignal（规则无关，区别于 alert_event 的规则绑定）；
--- event_subscription 命中经 026 通道（alert_channel）分发。两表均不写 neo4j、不算质量。
--- ============================================================
-
--- 数据健康事件（租户级）。按 (tenant_id, type, fingerprint) 去重合并（count++/last_occurred_at）。
-CREATE TABLE health_event (
-    id                BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    tenant_id         BIGINT NOT NULL,
-    type              VARCHAR(32) NOT NULL,          -- SLA_BREACH/QUALITY_FAILED/TASK_FAILED/...（预留 LINEAGE_CONFLICT）
-    severity          VARCHAR(16),                   -- 信号 severityHint
-    fingerprint       VARCHAR(128) NOT NULL,         -- 去重指纹（来自 fingerprintHint）
-    ref_kind          VARCHAR(16),                   -- TASK/METRIC/TABLE/WORKFLOW
-    ref_id            VARCHAR(128),                  -- 关联对象标识（深链）
-    ref_name          VARCHAR(256),                  -- 关联对象可读名称（任务名/工作流名/数据集/指标 key；无则为空，前端兜底用 ref_id）
-    summary           VARCHAR(512),
-    context_json      VARCHAR(2000),
-    count             INTEGER DEFAULT 1,
-    first_occurred_at TIMESTAMP,
-    last_occurred_at  TIMESTAMP,
-    created_at        TIMESTAMP,
-    deleted           SMALLINT DEFAULT 0
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_health_event_dedup ON health_event (tenant_id, type, fingerprint);
-CREATE INDEX IF NOT EXISTS idx_health_event_query ON health_event (tenant_id, type, last_occurred_at);
-
--- 事件订阅（租户级 + 订阅用户）。命中事件经 channel_id（复用 026 alert_channel）分发。
-CREATE TABLE event_subscription (
-    id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    tenant_id           BIGINT NOT NULL,
-    subscriber_id       BIGINT,
-    type_filter         VARCHAR(32),                 -- 订阅类型（空=全部）
-    min_severity        VARCHAR(16),                 -- severity 阈值（≥ 才触达）
-    ref_kind            VARCHAR(16),                 -- 资产维度过滤（空=全部）
-    ref_id              VARCHAR(128),                -- 资产标识过滤（空=全部）
-    channel_id          BIGINT NOT NULL,             -- 目标通道（alert_channel.id）
-    enabled             SMALLINT DEFAULT 1,
-    created_at          TIMESTAMP,
-    deleted             SMALLINT DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_event_subscription_tenant ON event_subscription (tenant_id, enabled);
 
 -- ============================================================
 -- 036 项目隔离回填（幂等）：存量数据 project_id 为 NULL 时，回填到该租户的默认项目

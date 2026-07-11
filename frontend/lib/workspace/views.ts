@@ -7,7 +7,6 @@
  */
 
 export type ViewType =
-  | "incidents"
   | "ops"
   | "workflow-canvas"
   | "freshness"
@@ -17,7 +16,6 @@ export type ViewType =
   | "quality"
   | "datasources"
   | "alerts"
-  | "event-center"
   | "settings"
   | "instance-log"
   | "workflow-instance-detail"
@@ -36,7 +34,6 @@ export interface ViewMeta {
 }
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
-  incidents: { title: "views.incidents" },
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas", requirePermission: "workflow:manage" },
   freshness: { title: "views.freshness" },
@@ -46,7 +43,6 @@ export const VIEW_META: Record<ViewType, ViewMeta> = {
   quality: { title: "views.quality" },
   datasources: { title: "views.datasources", requirePermission: "datasource:manage" },
   alerts: { title: "views.alerts" },
-  "event-center": { title: "views.eventCenter" },
   settings: { title: "views.settings", requirePermission: "project:manage" },
   "instance-log": { title: "views.instanceLog" },
   "workflow-instance-detail": { title: "views.workflowInstanceDetail" },
@@ -56,8 +52,8 @@ export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(
   (v) => VIEW_META[v].defaultPinned,
 )
 
-/** 首次启动默认打开的视图（不再有底座概念，用户可关闭后手动重开）。incidents 为监督席主页，排首位。 */
-export const DEFAULT_VIEWS: ViewType[] = ["incidents", "freshness", "metrics"]
+/** 首次启动默认打开的视图（不再有底座概念，用户可关闭后手动重开）。 */
+export const DEFAULT_VIEWS: ViewType[] = ["freshness", "metrics"]
 
 export function isKnownView(view: string): view is ViewType {
   return view in VIEW_META

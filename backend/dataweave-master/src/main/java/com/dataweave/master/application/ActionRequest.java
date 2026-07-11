@@ -25,8 +25,6 @@ public final class ActionRequest {
     private final String actorSource;     // AGENT / CLI / UI
     private final String summary;
     private final Map<String, Object> params;
-    private final Long incidentId;     // 043 incident 工单反查键；null = 非 incident 发起（既有调用方零影响）
-
     private ActionRequest(Builder b) {
         this.runId = b.runId;
         this.stepId = b.stepId;
@@ -42,7 +40,6 @@ public final class ActionRequest {
         this.actorSource = b.actorSource;
         this.summary = b.summary;
         this.params = b.params;
-        this.incidentId = b.incidentId;
     }
 
     public Long runId() {
@@ -97,11 +94,6 @@ public final class ActionRequest {
         return summary;
     }
 
-    /** 043 incident 工单反查键（incident 卡片发起的闸门动作回挂工单）；null = 非 incident 发起。 */
-    public Long incidentId() {
-        return incidentId;
-    }
-
     public Map<String, Object> params() {
         return params;
     }
@@ -129,7 +121,6 @@ public final class ActionRequest {
         private String actorSource;
         private String summary;
         private Map<String, Object> params = new LinkedHashMap<>();
-        private Long incidentId;
 
         public Builder runId(Long v) {
             this.runId = v;
@@ -193,11 +184,6 @@ public final class ActionRequest {
 
         public Builder summary(String v) {
             this.summary = v;
-            return this;
-        }
-
-        public Builder incidentId(Long v) {
-            this.incidentId = v;
             return this;
         }
 

@@ -277,19 +277,6 @@ public class WorkerReportService {
                 }
             } else if (InstanceStates.SUCCESS.equals(state)) {
                 slaService.recordCompletion(workflowInstanceId);
-                // 043: publish WorkflowSucceededEvent for incident auto-heal (best-effort)
-                try {
-                    var row = jdbc.queryForMap(
-                            "SELECT tenant_id, workflow_id FROM workflow_instance WHERE id = ?",
-                            workflowInstanceId);
-                    if (row != null && !row.isEmpty()) {
-                        long tid = ((Number) row.get("TENANT_ID")).longValue();
-                        Long wfId = (Long) row.get("WORKFLOW_ID");
-                        eventPublisher.publishEvent(new WorkflowSucceededEvent(workflowInstanceId, wfId, tid));
-                    }
-                } catch (Exception e) {
-                    // auto-heal signal is best-effort; do not fail workflow completion
-                }
             }
         });
     }

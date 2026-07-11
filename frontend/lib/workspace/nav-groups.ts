@@ -21,8 +21,8 @@ export interface NavGroup {
 /** 有序分组目录（决定导航显示顺序，FR-005）。 */
 export const NAV_GROUPS: NavGroup[] = [
   { id: "dev", titleKey: "groups.dev", items: ["workflow-canvas"] },
-  { id: "ops", titleKey: "groups.ops", items: ["incidents", "ops", "metrics", "fleet", "freshness"] },
-  { id: "alerting", titleKey: "groups.alerting", items: ["alerts", "event-center"] },
+  { id: "ops", titleKey: "groups.ops", items: ["ops", "metrics", "fleet", "freshness"] },
+  { id: "alerting", titleKey: "groups.alerting", items: ["alerts"] },
   { id: "governance", titleKey: "groups.governance", items: ["quality", "lineage"] },
   { id: "assets", titleKey: "groups.assets", items: ["datasources"] },
   { id: "admin", titleKey: "groups.admin", items: ["settings"] },
