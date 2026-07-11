@@ -107,11 +107,20 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
      */
     public record EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
                                    String mainClass, String configPath, Map<String, String> props,
-                                   boolean longRunning, String externalJobHandle) {
-        /** 向后兼容构造（无 long_running/external_job_handle 字段，默认 false/null）。 */
+                                   boolean longRunning, String externalJobHandle,
+                                   String savepointRestorePath) {
+        /** 向后兼容构造（无 long_running/external_job_handle/savepoint 字段，默认 false/null/null）。 */
         public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
                               String mainClass, String configPath, Map<String, String> props) {
-            this(kind, engineHome, mode, jarPath, mainClass, configPath, props, false, null);
+            this(kind, engineHome, mode, jarPath, mainClass, configPath, props, false, null, null);
+        }
+
+        /** 062 向后兼容构造（含 long_running/external_job_handle，无 savepoint 恢复路径）。 */
+        public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
+                              String mainClass, String configPath, Map<String, String> props,
+                              boolean longRunning, String externalJobHandle) {
+            this(kind, engineHome, mode, jarPath, mainClass, configPath, props,
+                    longRunning, externalJobHandle, null);
         }
     }
 }

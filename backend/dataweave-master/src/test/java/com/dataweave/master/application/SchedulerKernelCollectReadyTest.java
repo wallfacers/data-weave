@@ -56,9 +56,12 @@ class SchedulerKernelCollectReadyTest {
                     deleted INT DEFAULT 0,
                     backfill_held INT DEFAULT 0,
                     long_running BOOLEAN DEFAULT FALSE,
-                    external_job_handle VARCHAR(512)
+                    external_job_handle VARCHAR(512),
+                    resume_checkpoint_id UUID
                 )
                 """);
+        // D2：claim SELECT 关联子查询 task_checkpoint（resume_checkpoint_id → checkpoint_path）
+        jdbc.execute("CREATE TABLE task_checkpoint (id UUID PRIMARY KEY, checkpoint_path VARCHAR(512))");
         jdbc.execute("CREATE TABLE workflow_instance (id UUID PRIMARY KEY, priority INT, state VARCHAR(20), "
                 + "trigger_type VARCHAR(20), workflow_id BIGINT)");
         jdbc.execute("CREATE TABLE task_def (id BIGINT PRIMARY KEY, timeout_sec INT, type VARCHAR(40), datasource_id BIGINT)");

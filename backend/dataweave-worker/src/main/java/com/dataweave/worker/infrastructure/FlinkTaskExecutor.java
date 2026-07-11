@@ -107,6 +107,14 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
         String mode = (ref.mode() != null && !ref.mode().isBlank()) ? ref.mode() : "sql";
         String content = ctx.content() == null ? "" : ctx.content().replace("\r\n", "\n").replace('\r', '\n');
 
+        // ── D2 savepoint 恢复优先：resume_checkpoint_id 落库的 savepoint 路径存在 → 全新 detached
+        //    提交并从 savepoint 恢复计算状态（区别 reattach 旧作业）。优先级高于 reattach——续跑
+        //    停止后旧作业已 FINISHED，reattach 只会判 SUCCESS 而不恢复状态（US4 语义要点）。──
+        if (ref.savepointRestorePath() != null && !ref.savepointRestorePath().isBlank()) {
+            emit(onLine, "[FLINK] 从 savepoint 恢复续跑: " + ref.savepointRestorePath());
+            return executeLongRunning(ctx, ref, mode, content, onLine, ref.savepointRestorePath());
+        }
+
         // ── reattach 路径：external_job_handle 非空 → 按句柄重连（FR-024）──
         if (ref.externalJobHandle() != null && !ref.externalJobHandle().isBlank()) {
             return executeReattach(ctx, ref, mode, content, onLine);
@@ -114,7 +122,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
 
         // ── long_running 分支：detached 提交（FR-023）──
         if (ref.longRunning()) {
-            return executeLongRunning(ctx, ref, mode, content, onLine);
+            return executeLongRunning(ctx, ref, mode, content, onLine, null);
         }
 
         // ── 有界/批 Flink：阻塞子进程，exit-code/stdout 语义不变（constitution III）──
@@ -175,7 +183,8 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
      * </ol>
      */
     private ExecutionResult executeLongRunning(ExecutionContext ctx, EngineSubmitRef ref,
-                                                String mode, String content, Consumer<String> onLine)
+                                                String mode, String content, Consumer<String> onLine,
+                                                String savepointRestorePath)
             throws Exception {
         Path sqlFile = null;
         try {
@@ -187,7 +196,12 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                         emit(onLine, msg);
                         return new ExecutionResult(false, -1, "", "", false, false, msg);
                     }
-                    sqlFile = writeTempFile(content, ".sql");
+                    // D2 sql 模式 savepoint 恢复：前置 SET 'execution.savepoint.path'——sql-client 无
+                    // flink run -s 等价 flag，通过会话变量注入恢复路径（Flink 1.20 官方机制）。
+                    String effectiveContent = (savepointRestorePath != null && !savepointRestorePath.isBlank())
+                            ? "SET 'execution.savepoint.path' = '" + savepointRestorePath + "';\n" + content
+                            : content;
+                    sqlFile = writeTempFile(effectiveContent, ".sql");
                     submitTarget = sqlFile.toString();
                 }
                 case "jar" -> {
@@ -211,9 +225,9 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 }
             }
 
-            // detached 提交：flink run -d ...
+            // detached 提交：flink run -d [-s <savepoint>] ...（jar 模式经 -s 恢复；sql 模式经会话变量）
             List<String> command = buildCommand(resolveEngineHome(ref), mode, submitTarget,
-                    ref.mainClass(), true);
+                    ref.mainClass(), true, "jar".equals(mode) ? savepointRestorePath : null);
 
             emit(onLine, "[FLINK] long_running detached 提交: " + String.join(" ", command));
 
@@ -287,7 +301,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
         emit(onLine, "[FLINK] reattach 模式：handle=" + handle);
         if (jobId == null) {
             emit(onLine, "[FLINK] 句柄无 jobId，回退重新提交");
-            return executeLongRunning(ctx, ref, mode, content, onLine);
+            return executeLongRunning(ctx, ref, mode, content, onLine, null);
         }
         // 探测作业是否存在
         String state;
@@ -299,7 +313,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
         }
         if (state == null) {
             emit(onLine, "[FLINK] 集群侧作业不存在（JobID=" + jobId + "），按业务重试重新提交");
-            return executeLongRunning(ctx, ref, mode, content, onLine);
+            return executeLongRunning(ctx, ref, mode, content, onLine, null);
         }
         emit(onLine, "[FLINK] reattach 命中：JobID=" + jobId + " 当前状态=" + state + "，继续监控（不重新提交）");
         return pollUntilTerminal(restEndpoint, jobId, onLine);
@@ -416,6 +430,17 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
      */
     static List<String> buildCommand(String engineHome, String mode, String submitTarget,
                                       String mainClass, boolean detached) {
+        return buildCommand(engineHome, mode, submitTarget, mainClass, detached, null);
+    }
+
+    /**
+     * 构造 Flink 提交命令（D2：jar 模式支持 savepoint 恢复 {@code -s <path>}）。
+     *
+     * @param savepointRestorePath jar 模式的 savepoint 恢复路径（{@code flink run -s <path>}）；
+     *                             null=不恢复。sql 模式的恢复经会话变量注入内容，此参不用。
+     */
+    static List<String> buildCommand(String engineHome, String mode, String submitTarget,
+                                      String mainClass, boolean detached, String savepointRestorePath) {
         List<String> cmd = new ArrayList<>();
         switch (mode != null ? mode : "sql") {
             case "jar" -> {
@@ -423,6 +448,12 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 cmd.add("run");
                 if (detached) {
                     cmd.add("-d");
+                }
+                // D2：从 savepoint 恢复状态（须在 jar 之前）；-n 允许非受限状态跳过（拓扑变更容错）。
+                if (savepointRestorePath != null && !savepointRestorePath.isBlank()) {
+                    cmd.add("-s");
+                    cmd.add(savepointRestorePath);
+                    cmd.add("-n");
                 }
                 if (mainClass != null && !mainClass.isBlank()) {
                     cmd.add("-c");
@@ -435,6 +466,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 // 不传 -d：Flink 1.20 sql-client.sh 的 -d 是 --define（会话变量），
                 // 而非 detached（仅 flink run 支持 -d）。sql-client.sh -f 本身对
                 // streaming query 提交后即返回，JobID 在 stdout 中可解析（061 真跑验证）。
+                // savepoint 恢复经内容前置 SET 'execution.savepoint.path'（见 executeLongRunning）。
                 cmd.add("-f");
                 cmd.add(submitTarget);
             }
@@ -444,7 +476,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
 
     /** 向后兼容：不带 detached 参数的 buildCommand（有界/批 Flink，语义不变）。 */
     static List<String> buildCommand(String engineHome, String mode, String submitTarget, String mainClass) {
-        return buildCommand(engineHome, mode, submitTarget, mainClass, false);
+        return buildCommand(engineHome, mode, submitTarget, mainClass, false, null);
     }
 
     /**

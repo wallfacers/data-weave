@@ -138,7 +138,14 @@ public final class ReadinessTestHelper {
                     version INTEGER DEFAULT 0,
                     long_running BOOLEAN DEFAULT FALSE,
                     external_job_handle VARCHAR(512),
+                    resume_checkpoint_id UUID,
                     unmet_deps INTEGER NOT NULL DEFAULT 0
+                )""");
+        // D2：claim SELECT 关联子查询 task_checkpoint（resume_checkpoint_id → checkpoint_path）
+        jdbc.execute("""
+                CREATE TABLE task_checkpoint (
+                    id UUID PRIMARY KEY,
+                    checkpoint_path VARCHAR(512)
                 )""");
     }
 

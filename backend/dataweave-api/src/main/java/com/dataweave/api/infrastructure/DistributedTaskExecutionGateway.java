@@ -126,6 +126,10 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
         if (cmd.externalJobHandle() != null && !cmd.externalJobHandle().isBlank()) {
             body.put("externalJobHandle", cmd.externalJobHandle());
         }
+        // D2：续跑 savepoint 恢复路径（worker 引擎执行器据此走全新提交 -s 恢复，优先于 reattach）
+        if (cmd.resumeSavepointPath() != null && !cmd.resumeSavepointPath().isBlank()) {
+            body.put("resumeSavepointPath", cmd.resumeSavepointPath());
+        }
 
         // C4.2：解析数据源 → 序列化连接信息进 body（worker 不新增 DB 依赖）
         Map<String, Object> dsInfo = resolveDatasourceForWire(cmd.datasourceId(), taskType);

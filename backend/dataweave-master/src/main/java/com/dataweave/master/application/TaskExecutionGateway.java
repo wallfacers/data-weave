@@ -43,6 +43,7 @@ public interface TaskExecutionGateway {
                            int timeoutSeconds, String taskType, Long datasourceId, String locale,
                            String sparkMode, String jarRef, String mainClass,
                            String engineMode, String engineJarRef, String engineMainClass,
-                           boolean longRunning, String externalJobHandle) {
+                           boolean longRunning, String externalJobHandle,
+                           String resumeSavepointPath) {
     }
 }

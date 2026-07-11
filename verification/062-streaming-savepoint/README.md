@@ -52,13 +52,19 @@ docker compose -f compose.flink.yml down -v   # 跑完释放
 →轮询 COMPLETED 取 location→写 `task_checkpoint`→CAS STOPPED ⑤ `GET /checkpoints` 检查点落库
 ⑥ Flink 侧作业 FINISHED（savepoint 停止非 cancel）⑦ `POST /resume`→CAS 转出 STOPPED+`resume_checkpoint_id`+保留句柄。
 
-结果：**PASS=22 FAIL=0**（`evidence/EVIDENCE.txt`）。
+⑧ `POST /resume` 续跑经 savepoint 提交**全新** Flink 作业（新 JobID ≠ 旧）⑨ 新作业 Flink checkpoint
+config `restored-from` = 旧作业 stop 的 savepoint —— **真从 savepoint 恢复计算状态**（D2）。
 
-## 真跑暴露
+结果：**PASS=24 FAIL=0**（`evidence/EVIDENCE.txt`）。
+
+## 真跑暴露并修复
 
 - **D1（已修）** in-process/all-in-one 下发路径 `InProcessTaskExecutionGateway` 执行前未
   `CurrentExecution.bind(taskInstanceId)`→long_running 句柄不回写（distributed 路径早已绑定，两路径此前不对齐）。
   回归测试 `InProcessTaskExecutionGatewayBindTest`。
-- **D2（已记录，未修）** `resumeFromCheckpoint` 记录 `resume_checkpoint_id` 但 `FlinkTaskExecutor` 无
-  savepoint 恢复逻辑（无 `flink run -s <savepointPath>`）→续跑 reattach 旧作业而非从 savepoint 真恢复状态。
-  US4 执行器侧待补。
+- **D2（已修）** `resumeFromCheckpoint` 记录 `resume_checkpoint_id` 但 `FlinkTaskExecutor` 此前无 savepoint
+  恢复逻辑 → 续跑仅 reattach 旧作业（旧作业 FINISHED → 判 SUCCESS 而不恢复状态）。修复：下发链传播 savepoint
+  路径（`SchedulerKernel` claim 关联 `task_checkpoint` → `DispatchCommand.resumeSavepointPath` →
+  `EngineSubmitRef.savepointRestorePath` → 两 gateway → `WorkerExecController`）；`FlinkTaskExecutor`
+  savepoint 恢复优先于 reattach（sql 前置 `SET 'execution.savepoint.path'`；jar 加 `flink run -s <path> -n`）；
+  句柄回写清 `resume_checkpoint_id`（消费后 infra-redispatch reattach 新作业）。端到端 restored-from 决定性证据见 ⑨。

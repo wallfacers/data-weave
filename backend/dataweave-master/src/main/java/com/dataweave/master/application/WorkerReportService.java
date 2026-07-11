@@ -113,8 +113,10 @@ public class WorkerReportService {
         if (taskInstanceId == null || handle == null || handle.isBlank()) {
             return false;
         }
+        // D2：新句柄写入即消费 resume_checkpoint_id —— savepoint 恢复的全新提交已把状态载入新作业，
+        // 后续 infra-redispatch 应 reattach 到新作业（external_job_handle）而非重复从同一 savepoint 恢复。
         int n = jdbc.update(
-                "UPDATE task_instance SET external_job_handle=?, updated_at=? "
+                "UPDATE task_instance SET external_job_handle=?, resume_checkpoint_id=NULL, updated_at=? "
                         + "WHERE id=? AND deleted=0 AND state IN ('DISPATCHED','RUNNING')",
                 handle, LocalDateTime.now(), taskInstanceId);
         return n == 1;

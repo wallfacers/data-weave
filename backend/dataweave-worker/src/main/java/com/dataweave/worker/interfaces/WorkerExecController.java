@@ -120,6 +120,7 @@ public class WorkerExecController {
         // 062：外部托管长驻作业标记 + reattach 句柄（master 下发传播）→ 引擎执行器走 detached / reattach 分支
         boolean longRunning = Boolean.TRUE.equals(body.get("longRunning"));
         String externalJobHandle = (String) body.get("externalJobHandle");
+        String resumeSavepointPath = (String) body.get("resumeSavepointPath");  // D2：续跑 savepoint 恢复路径
 
         Object dsObj = body.get("datasource");
         if (!(dsObj instanceof Map)) {
@@ -130,7 +131,7 @@ public class WorkerExecController {
             // 无数据源：引擎任务仍须带 kind/engineMode（engineHome 缺 → 执行器判 SKIPPED）；062 传播 longRunning/句柄
             ExecutionContext.EngineSubmitRef engineNoDs = isEngineTask(taskType)
                     ? new ExecutionContext.EngineSubmitRef(taskType, null, engineMode, engineJarRef,
-                            engineMainClass, null, null, longRunning, externalJobHandle)
+                            engineMainClass, null, null, longRunning, externalJobHandle, resumeSavepointPath)
                     : null;
             return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
                     null, null, null, sparkNoDs, engineNoDs);
@@ -165,7 +166,7 @@ public class WorkerExecController {
                     (String) dsInfo.get("engineHome"),
                     engineMode, engineJarRef, engineMainClass, null,
                     toStringMap(dsInfo.get("engineProps")),
-                    longRunning, externalJobHandle);  // 062：detached 长驻 / reattach 传播
+                    longRunning, externalJobHandle, resumeSavepointPath);  // 062 detached/reattach + D2 savepoint 恢复
             default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
         }
         return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,

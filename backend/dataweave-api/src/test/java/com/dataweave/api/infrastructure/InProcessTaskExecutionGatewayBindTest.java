@@ -69,7 +69,7 @@ class InProcessTaskExecutionGatewayBindTest {
 
         gw.dispatch(new DispatchCommand(instanceId, 1, "worker-local", 100L, null, "TEST",
                 "2026-07-10", "echo hi", 60, "TESTX", null, "zh-CN",
-                null, null, null, null, null, null, false, null));
+                null, null, null, null, null, null, false, null, null));
 
         assertThat(done.await(5, TimeUnit.SECONDS)).as("执行线程应在 5s 内完成").isTrue();
         assertThat(boundDuringExecute.get())

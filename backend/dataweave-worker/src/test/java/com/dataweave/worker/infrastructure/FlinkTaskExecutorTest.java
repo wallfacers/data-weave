@@ -54,6 +54,44 @@ class FlinkTaskExecutorTest {
         assertThat(cmd).contains("-f", "/tmp/q.sql");
     }
 
+    // ---- D2 savepoint 恢复 ----
+
+    @Test
+    void buildCommand_jarWithSavepoint_addsDashSAndAllowNonRestored() {
+        // detached=true + savepoint 路径 → flink run -d -s <path> -n <jar>（-s 在 jar 之前）
+        List<String> cmd = FlinkTaskExecutor.buildCommand(
+                "/opt/flink", "jar", "/tmp/app.jar", "com.example.Main", true, "file:///savepoints/sp-1");
+        assertThat(cmd).containsExactly("/opt/flink/bin/flink", "run", "-d",
+                "-s", "file:///savepoints/sp-1", "-n", "-c", "com.example.Main", "/tmp/app.jar");
+    }
+
+    @Test
+    void buildCommand_jarNoSavepoint_noDashS() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand(
+                "/opt/flink", "jar", "/tmp/app.jar", null, true, null);
+        assertThat(cmd).doesNotContain("-s", "-n");
+        assertThat(cmd).containsExactly("/opt/flink/bin/flink", "run", "-d", "/tmp/app.jar");
+    }
+
+    @Test
+    void buildCommand_sqlIgnoresSavepointFlag_injectedViaContentInstead() {
+        // sql 模式 savepoint 恢复经内容前置 SET，不进命令行（sql-client 无 -s flag）
+        List<String> cmd = FlinkTaskExecutor.buildCommand(
+                "/opt/flink", "sql", "/tmp/q.sql", null, false, "file:///savepoints/sp-1");
+        assertThat(cmd).containsExactly("/opt/flink/bin/sql-client.sh", "-f", "/tmp/q.sql");
+    }
+
+    @Test
+    void engineSubmitRef_savepointRestorePath_backwardCompatConstructors() {
+        // 7 参与 9 参向后兼容构造 savepointRestorePath 默认 null；10 参可显式传
+        EngineSubmitRef nine = new EngineSubmitRef("FLINK", "/opt/flink", "sql", null, null, null, null,
+                true, "{\"jobId\":\"x\"}");
+        assertThat(nine.savepointRestorePath()).isNull();
+        EngineSubmitRef ten = new EngineSubmitRef("FLINK", "/opt/flink", "sql", null, null, null, null,
+                true, null, "file:///savepoints/sp-1");
+        assertThat(ten.savepointRestorePath()).isEqualTo("file:///savepoints/sp-1");
+    }
+
     // ---- SKIPPED 判定 ----
 
     @Test

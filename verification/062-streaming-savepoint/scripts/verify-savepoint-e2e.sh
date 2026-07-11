@@ -185,6 +185,32 @@ echo "  续跑响应: state=${RESUME_STATE} resumeCheckpointId=${RESUME_CKPT}"
 [ "${RESUME_STATE}" != "STOPPED" ] && ok "实例已转出 STOPPED（${RESUME_STATE}，实时调度器可续推进）" || bad "续跑后仍 STOPPED"
 echo "${RESUME_HANDLE_RAW}" | grep -q "jobId" && ok "续跑保留 external_job_handle" || bad "续跑丢失句柄"
 
+# ─────────────── D2 核心：续跑提交全新作业从 savepoint 恢复（非 reattach 旧 FINISHED 作业）───────────────
+step "步骤9b D2 —— 续跑经 savepoint 提交全新 Flink 作业（区别 reattach 旧作业）"
+NEW_JOB=""
+for i in $(seq 1 25); do
+  NEW_JOB="$(curl -s "${FLINK_REST}/jobs" | python3 -c "
+import json,sys
+r=[x['id'] for x in json.load(sys.stdin).get('jobs',[]) if x.get('status')=='RUNNING' and x['id']!='${FLINK_JOB}']
+print(r[0] if r else '')
+" 2>/dev/null)"
+  [ -n "${NEW_JOB}" ] && break
+  echo "  轮询新作业 ${i}/25 ..."; sleep 3
+done
+[ -n "${NEW_JOB}" ] && ok "D2：续跑提交全新作业 RUNNING（新 JobID=${NEW_JOB} ≠ 旧 ${FLINK_JOB}）——真从 savepoint 恢复而非 reattach 旧终态作业" \
+  || bad "D2：续跑未见新作业（仅 reattach 旧作业？）"
+
+# D2 决定性证据：新作业的 Flink checkpoint config 应显示 restored-from = 旧作业 stop 时的 savepoint
+if [ -n "${NEW_JOB}" ]; then
+  sleep 4  # 待新作业首个 checkpoint 元数据带出 restore 记录
+  RESTORED_FROM="$(curl -s "${FLINK_REST}/jobs/${NEW_JOB}/checkpoints" \
+    | python3 -c "import json,sys; r=json.load(sys.stdin).get('latest',{}).get('restored'); print(r.get('external_path','') if r else '')" 2>/dev/null)"
+  echo "  新作业 restored-from: ${RESTORED_FROM}"
+  echo "${RESTORED_FROM}" | grep -q "savepoint-" \
+    && ok "D2 决定性：新作业真从 savepoint 恢复计算状态（restored external_path=${RESTORED_FROM}）" \
+    || bad "D2：新作业未见 savepoint restore 记录（restored=${RESTORED_FROM}）"
+fi
+
 # ─────────────── 收尾 ───────────────
 step "步骤10 收尾（取消残留 Flink 作业 + 结束 dw run）"
 # 续跑可能触发 reattach 重新拉起，取消所有 RUNNING 作业防泄漏
@@ -204,6 +230,8 @@ savepoint location: ${CKPT_PATH}
 检查点 ID: ${CKPT_ID}  状态: ${CK_STATUS}  resumable: ${CK_RESUMABLE}
 Flink 作业终态: ${JOB_FINAL}
 续跑后状态: ${RESUME_STATE}  resume_checkpoint_id: ${RESUME_CKPT}
+D2 续跑新作业 JobID: ${NEW_JOB}（≠ 旧 ${FLINK_JOB}）
+D2 新作业 restored-from: ${RESTORED_FROM}
 PASS=${PASS} FAIL=${FAIL}
 EVEOF
 
