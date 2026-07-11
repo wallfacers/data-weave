@@ -12,14 +12,14 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 在 `requirements.txt` 增加 `scipy`（McNemar 精确检验）与 `sqllineage`（工具基线），并 `pip install -r requirements.txt` 验证可 import（`numpy`/`pandas`/`sqlglot` 已在）。
+- [x] T001 在 `requirements.txt` 增加 `sqllineage`（工具基线）；**scipy 按设计不加**——McNemar 改手写精确二项（`math.comb`），US1 全程只依赖已在的 `numpy`（对 research R6 的修订，记录在 `significance.py`）。
 
 ---
 
 ## Phase 2: Foundational（阻塞所有 Story，必须先完成）
 
-- [ ] T002 [P] 新建 `eval/subset.py`：sql/script 子集分类器——按样本 `type`（SQL→sql；PYTHON/SHELL/SPARK→script）+ 内容兜底启发式，给每样本判 `subset ∈ {sql, script}`。**消化 rigor CHK010**（SC-003 招牌对比的归类地基）。附纯函数、边界（空/未知类型）确定性。
-- [ ] T003 逐脚本 counts 采集适配层 `realeval/counts_adapter.py`：对每样本调既有 `eval/metrics.py:score_row`（**不改**）取 tp/fp/fn/direction，派生 `exact_match = (fp==0 and fn==0)`，并用 `eval/subset.py` 附 `subset`。产出 `list[PerScriptCounts]`（data-model 稳定接缝）。依赖 T002。
+- [x] T002 [P] 新建 `eval/subset.py`：sql/script 子集分类器——按样本 `type`（SQL→sql；PYTHON/SHELL/SPARK→script）+ 内容兜底启发式，给每样本判 `subset ∈ {sql, script}`。**消化 rigor CHK010**（SC-003 招牌对比的归类地基）。附纯函数、边界（空/未知类型）确定性。
+- [x] T003 逐脚本 counts 采集适配层 `realeval/counts_adapter.py`：对每样本调既有 `eval/metrics.py:score_row`（**不改**）取 tp/fp/fn/direction，派生 `exact_match = (fp==0 and fn==0)`，并用 `eval/subset.py` 附 `subset`。产出 `list[PerScriptCounts]`（data-model 稳定接缝）。依赖 T002。
 
 **Checkpoint**：US1/US2 共用的逐脚本 counts + 子集口径就绪。
 
@@ -29,9 +29,9 @@
 
 **独立测试**：对落盘 preds（3B/teacher @ gold C、gold A）算 counts，跑统计层，产出每指标 point+95%CI 与 3B-vs-teacher 的 diff-CI+McNemar p+"是否显著"判定；无需 GPU/新数据。
 
-- [ ] T004 [P] [US1] 测试先行 `tests/test_significance.py`：① bootstrap 同 seed 逐位可复现；② CI 含点估计且 `lo≤point≤hi`；③ paired-diff 在构造数据上 `significant` 判定正确；④ McNemar 已知 2×2（含全并列 b+c=0→p=1.0）；⑤ 空/单样本退化不崩。
-- [ ] T005 [US1] 实现 `eval/significance.py`：`bootstrap_metric_ci` / `paired_bootstrap_diff` / `mcnemar_exact`（契约见 `contracts/significance-api.md`）。numpy 手写 bootstrap（固定 seed），McNemar 用 `scipy.stats.binomtest`。**不 import metrics 打分逻辑**，只消费 counts。
-- [ ] T006 [US1] 编排 `realeval/significance_report.py`：读 preds→counts_adapter→significance，输出 `out/significance-c.md`——每指标 point+CI；3B-vs-teacher 的 diff-CI 与 McNemar p；**诚实判定"n≈49 下是否显著"**（SC-002）；报告顶部引用既有 `out/leak-curve.md` 泄漏曲线作为头条锚点（部分消化 rigor CHK005）。
+- [x] T004 [P] [US1] 测试先行 `tests/test_significance.py`：① bootstrap 同 seed 逐位可复现；② CI 含点估计且 `lo≤point≤hi`；③ paired-diff 在构造数据上 `significant` 判定正确；④ McNemar 已知 2×2（含全并列 b+c=0→p=1.0）；⑤ 空/单样本退化不崩。
+- [x] T005 [US1] 实现 `eval/significance.py`：`bootstrap_metric_ci` / `paired_bootstrap_diff` / `mcnemar_exact`（契约见 `contracts/significance-api.md`）。numpy 手写 bootstrap（固定 seed），McNemar 用 `scipy.stats.binomtest`。**不 import metrics 打分逻辑**，只消费 counts。
+- [x] T006 [US1] 编排 `realeval/significance_report.py`：读 preds→counts_adapter→significance，输出 `out/significance-c.md`——每指标 point+CI；3B-vs-teacher 的 diff-CI 与 McNemar p；**诚实判定"n≈49 下是否显著"**（SC-002）；报告顶部引用既有 `out/leak-curve.md` 泄漏曲线作为头条锚点（部分消化 rigor CHK005）。
 
 **Checkpoint**：US1 可独立交付——SC-001（头条带 CI）/ SC-002（诚实报显著性）达成。
 
