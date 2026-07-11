@@ -55,7 +55,7 @@ class LeaseReaperTest {
                 mock(ApplicationEventPublisher.class));
         NodeHealthService nodeHealthService = new NodeHealthService(jdbc, 3, 30_000L);
         reaper = new LeaseReaper(jdbc, stateMachine, nodeHealthService, mock(WorkerNodeRepository.class),
-                mock(EventBus.class), mock(SchedulerMetrics.class), mock(ApplicationEventPublisher.class),
+                mock(EventBus.class), mock(SchedulerMetrics.class),
                 mock(WorkflowStateService.class), INFRA_MAX);
         instanceId = UUID.randomUUID();
     }

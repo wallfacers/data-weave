@@ -2,9 +2,7 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
-import com.dataweave.master.domain.signal.AlertSignal;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -35,17 +33,15 @@ public class TimeoutSweeper {
     private final JdbcTemplate jdbc;
     private final InstanceStateMachine stateMachine;
     private final EventBus eventBus;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${scheduler.timeout-sweep-interval-ms:30000}")
     private long sweepIntervalMs;
 
     public TimeoutSweeper(JdbcTemplate jdbc, InstanceStateMachine stateMachine,
-                          EventBus eventBus, ApplicationEventPublisher eventPublisher) {
+                          EventBus eventBus) {
         this.jdbc = jdbc;
         this.stateMachine = stateMachine;
         this.eventBus = eventBus;
-        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -92,47 +88,11 @@ public class TimeoutSweeper {
                     log.log(System.Logger.Level.INFO,
                             "TimeoutSweeper: 实例 {0} 超时（运行 {1}s > timeout_sec={2}s），已置 FAILED(TIMEOUT)",
                             c.id, elapsedSec, c.timeoutSec);
-                    // 异步发告警（不阻塞扫除循环）
-                    try {
-                        publishTimeoutAlert(c.id);
-                    } catch (Exception e) {
-                        log.log(System.Logger.Level.WARNING,
-                                "TimeoutSweeper: 超时告警发布失败 instance={0}: {1}", c.id, e.getMessage());
-                    }
                 }
             }
         }
         if (swept > 0) {
             log.log(System.Logger.Level.INFO, "TimeoutSweeper: 本轮扫除 {0} 个超时实例", swept);
-        }
-    }
-
-    /** 超时告警：复用 InstanceStateMachine 的 AlertSignal(TASK_TIMEOUT) 通道。 */
-    private void publishTimeoutAlert(UUID taskInstanceId) {
-        try {
-            var row = jdbc.queryForMap(
-                    "SELECT ti.tenant_id, ti.task_id, ti.workflow_instance_id, td.name AS task_name " +
-                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id=?",
-                    taskInstanceId);
-            if (row.isEmpty()) return;
-            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
-            Long taskId = (Long) row.get("TASK_ID");
-            String taskName = (String) row.get("TASK_NAME");
-            Object wiIdRaw = row.get("WORKFLOW_INSTANCE_ID");
-            String wiId = wiIdRaw != null ? wiIdRaw.toString() : null;
-
-            Map<String, Object> ctx = new LinkedHashMap<>();
-            ctx.put("taskInstanceId", taskInstanceId.toString());
-            ctx.put("taskId", taskId);
-            ctx.put("taskName", taskName);
-            ctx.put("workflowInstanceId", wiId);
-            ctx.put("failureReason", "TIMEOUT");
-
-            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.TASK_TIMEOUT, tenantId,
-                    taskId != null ? taskId.toString() : taskInstanceId.toString(),
-                    "HIGH", ctx));
-        } catch (Exception e) {
-            // 告警仅作辅助，失败不影响状态推进
         }
     }
 

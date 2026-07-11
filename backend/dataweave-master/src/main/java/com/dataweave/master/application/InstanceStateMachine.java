@@ -2,7 +2,6 @@ package com.dataweave.master.application;
 
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
-import com.dataweave.master.domain.signal.AlertSignal;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -164,9 +163,6 @@ public class InstanceStateMachine {
             // F1 收口：终态副作用延迟到事务提交后发（同 casTaskTerminal 纪律）。
             runAfterCommitOrNow(() -> {
                 publishTaskState(id, to);
-                if ("FAILED".equals(to)) {
-                    publishAlertSignalForTask(id, failureReason);
-                }
             });
         }
         return n == 1;
@@ -180,16 +176,12 @@ public class InstanceStateMachine {
                         + "WHERE id=? AND state=? AND deleted=0",
                 to, failureReason, LocalDateTime.now(), LocalDateTime.now(), id, from);
         if (n == 1) {
-            // F1 收口（audit §3-F1 残留副作用）：终态副作用（UI 事件 / FAILED alert / SUCCESS 质量门禁）
-            // 挪到事务提交后发。此 CAS 现被 WorkerReportService 与 writeTerminalSignal 包在同一事务里，
-            // 若信号 INSERT 失败回滚，同步发出的 alert/质量事件会成"假事件"（task 实际未到终态）。
+            // F1 收口（audit §3-F1 残留副作用）：终态副作用（UI 事件）挪到事务提交后发。
+            // 此 CAS 现被 WorkerReportService 与 writeTerminalSignal 包在同一事务里，
+            // 若信号 INSERT 失败回滚，同步发出的 UI 事件会成"假事件"（task 实际未到终态）。
             // afterCommit 保证仅在真提交后发；无活动事务（auto-commit 调用方）则立即发——语义等价旧行为。
             runAfterCommitOrNow(() -> {
                 publishTaskState(id, to);
-                if ("FAILED".equals(to)) {
-                    // 021-alert: 终态 FAILED → 发 AlertSignal
-                    publishAlertSignalForTask(id, failureReason);
-                }
             });
         }
         return n == 1;
@@ -324,7 +316,7 @@ public class InstanceStateMachine {
         }
         int count = readInfraRedispatchCount(id);
         if (count > infraMax && casSuspend(id, InstanceStates.WAITING)) {
-            publishInfraSuspendedAlert(id, count);
+            // 060 FR-012：infra 重派超限转 SUSPENDED（仅可见性，不判死）；告警信号已随 alert 模块移除
         }
         return true;
     }
@@ -347,9 +339,6 @@ public class InstanceStateMachine {
                 to, LocalDateTime.now(), id, from);
         if (n == 1) {
             publishWorkflowState(id, to);
-            if ("FAILED".equals(to) || "STOPPED".equals(to)) {
-                publishAlertSignalForWorkflow(id, to);
-            }
         }
         return n == 1;
     }
@@ -383,92 +372,6 @@ public class InstanceStateMachine {
                     "{\"workflowState\":\"" + state + "\"}");
         } catch (Exception e) {
             // 同上：事件仅作 UI 辅助。
-        }
-    }
-
-    // ─── 告警信号发布（021 alert-engine）─────────────────────
-
-    /** 任务实例终态 → 发布 AlertSignal（TASK_FAILED / TASK_TIMEOUT）。 */
-    private void publishAlertSignalForTask(UUID taskInstanceId, String failureReason) {
-        try {
-            var row = jdbc.queryForMap(
-                    "SELECT ti.tenant_id, ti.task_id, ti.workflow_instance_id, td.name AS task_name " +
-                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id=?",
-                    taskInstanceId);
-            if (row.isEmpty()) return;
-            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
-            Long taskId = (Long) row.get("TASK_ID");
-            String taskName = (String) row.get("TASK_NAME");
-            Object wiIdRaw = row.get("WORKFLOW_INSTANCE_ID");
-            String wiId = wiIdRaw != null ? wiIdRaw.toString() : null;
-
-            AlertSignal.Type type = "TIMEOUT".equalsIgnoreCase(failureReason)
-                    ? AlertSignal.Type.TASK_TIMEOUT : AlertSignal.Type.TASK_FAILED;
-            Map<String, Object> ctx = new LinkedHashMap<>();
-            ctx.put("taskInstanceId", taskInstanceId.toString());
-            ctx.put("taskId", taskId);
-            ctx.put("taskName", taskName);
-            ctx.put("workflowInstanceId", wiId);
-            ctx.put("failureReason", failureReason);
-
-            eventPublisher.publishEvent(new AlertSignal(type, tenantId,
-                    taskId != null ? taskId.toString() : taskInstanceId.toString(),
-                    "HIGH", ctx));
-        } catch (Exception e) {
-            // 告警信号仅作辅助，发布失败不影响状态推进。
-        }
-    }
-
-    /** 060 单实例 infra 重派超限转 SUSPENDED → 发 AlertSignal(TASK_SUSPENDED)（FR-012，仅可见性，不判死）。 */
-    private void publishInfraSuspendedAlert(UUID taskInstanceId, int infraCount) {
-        try {
-            var row = jdbc.queryForMap(
-                    "SELECT ti.tenant_id, ti.task_id, td.name AS task_name " +
-                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id=?",
-                    taskInstanceId);
-            if (row.isEmpty()) return;
-            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
-            Long taskId = (Long) row.get("TASK_ID");
-            String taskName = (String) row.get("TASK_NAME");
-
-            Map<String, Object> ctx = new LinkedHashMap<>();
-            ctx.put("taskInstanceId", taskInstanceId.toString());
-            ctx.put("taskId", taskId);
-            ctx.put("taskName", taskName);
-            ctx.put("infraRedispatchCount", infraCount);
-            ctx.put("failureReason", InstanceStates.INFRA_SUSPENDED);
-
-            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.TASK_SUSPENDED, tenantId,
-                    taskInstanceId.toString(), "HIGH", ctx));
-        } catch (Exception e) {
-            // 告警仅作辅助，失败不影响 SUSPENDED 推进。
-        }
-    }
-
-    /** 工作流实例终态 → 发布 AlertSignal（WORKFLOW_STATE）。 */
-    private void publishAlertSignalForWorkflow(UUID workflowInstanceId, String state) {
-        try {
-            var row = jdbc.queryForMap(
-                    "SELECT wi.tenant_id, wi.workflow_id, wd.name AS workflow_name " +
-                    "FROM workflow_instance wi LEFT JOIN workflow_def wd ON wd.id = wi.workflow_id WHERE wi.id=?",
-                    workflowInstanceId);
-            if (row.isEmpty()) return;
-            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
-            Long workflowId = (Long) row.get("WORKFLOW_ID");
-            String workflowName = (String) row.get("WORKFLOW_NAME");
-
-            Map<String, Object> ctx = new LinkedHashMap<>();
-            ctx.put("workflowInstanceId", workflowInstanceId.toString());
-            ctx.put("workflowId", workflowId);
-            ctx.put("workflowName", workflowName);
-            ctx.put("state", state);
-
-            String severity = "STOPPED".equals(state) ? "MEDIUM" : "HIGH";
-            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.WORKFLOW_STATE, tenantId,
-                    workflowId != null ? workflowId.toString() : workflowInstanceId.toString(),
-                    severity, ctx));
-        } catch (Exception e) {
-            // 告警信号仅作辅助，发布失败不影响状态推进。
         }
     }
 }

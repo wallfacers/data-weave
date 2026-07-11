@@ -88,15 +88,15 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/application/InstanceStateMachine.java`：删 3 处 `publishEvent(new AlertSignal(...))`（行 414/441/467）+ 2 个 helper（`publishAlertSignalForTask`/`publishAlertSignalForWorkflow`，行 417/474）+ `import AlertSignal`；**保留** `eventPublisher` 字段（`publishTaskState`/`publishWorkflowState` 喂 DAG SSE 运行态观测仍用）
-- [ ] T017 [P] [US2] `backend/dataweave-master/.../application/LeaseReaper.java`：删 `NODE_OFFLINE` publish（行 214）+ `eventPublisher` 字段 + 构造参数 + import
-- [ ] T018 [P] [US2] `backend/dataweave-master/.../application/SlaService.java`：删 `SLA_BREACH` publish（行 237）+ `eventPublisher` 字段 + 两处构造器参数 + import
-- [ ] T019 [P] [US2] `backend/dataweave-master/.../application/StuckInstanceSweeper.java`：删 `NODE_STARVATION`/`TASK_SUSPENDED` publish（行 135/148）+ `eventPublisher` 字段 + 构造参数 + import；**保留** `stuckWaitAlertMs`（行 105 检测阈值用）；清理行 130 `ctx.put("stuckWaitAlertMs")` 若仅服务信号 payload
-- [ ] T020 [P] [US2] `backend/dataweave-master/.../application/TimeoutSweeper.java`：删 `TASK_TIMEOUT` publish（行 131）+ `eventPublisher` 字段 + 构造参数 + import
-- [ ] T021 [US2] 删除 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/signal/AlertSignal.java`
-- [ ] T022 [P] [US2] 删除/改测试：`StuckInstanceSweeperTest.java`（删 AlertSignal 断言，行 82-106）、`QualitySignalUnifiedTest.java`（删——quality 已删）、确认 `AlertSeamIT` 已由 T012 删
-- [ ] T023 [US2] 验证：`./dev-install.sh` 编译零错 + `./mvnw -pl dataweave-master test` 绿 + grep `AlertSignal` 零命中
-- [ ] T024 [US2] 提交「AlertSignal 信号桥删除」
+- [X] T016 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/application/InstanceStateMachine.java`：删 3 处 `publishEvent(new AlertSignal(...))`（行 414/441/467）+ 2 个 helper（`publishAlertSignalForTask`/`publishAlertSignalForWorkflow`，行 417/474）+ `import AlertSignal`；**保留** `eventPublisher` 字段（`publishTaskState`/`publishWorkflowState` 喂 DAG SSE 运行态观测仍用）
+- [X] T017 [P] [US2] `backend/dataweave-master/.../application/LeaseReaper.java`：删 `NODE_OFFLINE` publish（行 214）+ `eventPublisher` 字段 + 构造参数 + import
+- [X] T018 [P] [US2] `backend/dataweave-master/.../application/SlaService.java`：删 `SLA_BREACH` publish（行 237）+ `eventPublisher` 字段 + 两处构造器参数 + import
+- [X] T019 [P] [US2] `backend/dataweave-master/.../application/StuckInstanceSweeper.java`：删 `NODE_STARVATION`/`TASK_SUSPENDED` publish（行 135/148）+ `eventPublisher` 字段 + 构造参数 + import；**保留** `stuckWaitAlertMs`（行 105 检测阈值用）；清理行 130 `ctx.put("stuckWaitAlertMs")` 若仅服务信号 payload
+- [X] T020 [P] [US2] `backend/dataweave-master/.../application/TimeoutSweeper.java`：删 `TASK_TIMEOUT` publish（行 131）+ `eventPublisher` 字段 + 构造参数 + import
+- [X] T021 [US2] 删除 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/signal/AlertSignal.java`
+- [X] T022 [P] [US2] 删除/改测试：`StuckInstanceSweeperTest.java`（删 AlertSignal 断言，行 82-106）、`QualitySignalUnifiedTest.java`（删——quality 已删）、确认 `AlertSeamIT` 已由 T012 删
+- [X] T023 [US2] 验证：`./dev-install.sh` 编译零错 + `./mvnw -pl dataweave-master test` 绿 + grep `AlertSignal` 零命中
+- [X] T024 [US2] 提交「AlertSignal 信号桥删除」
 
 **Checkpoint**: 故障信号桥彻底清零，调度核心逻辑不变
 

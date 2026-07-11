@@ -4,11 +4,9 @@ import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
-import com.dataweave.master.domain.signal.AlertSignal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -43,7 +41,6 @@ public class LeaseReaper {
     private final WorkerNodeRepository nodeRepository;
     private final EventBus eventBus;
     private final SchedulerMetrics metrics;
-    private final ApplicationEventPublisher eventPublisher;
     private final WorkflowStateService workflowStateService;
     private final int infraRedispatchMax;
 
@@ -53,7 +50,6 @@ public class LeaseReaper {
                        WorkerNodeRepository nodeRepository,
                        EventBus eventBus,
                        SchedulerMetrics metrics,
-                       ApplicationEventPublisher eventPublisher,
                        WorkflowStateService workflowStateService,
                        @Value("${scheduler.infra-redispatch-max:10}") int infraRedispatchMax) {
         this.jdbc = jdbc;
@@ -62,7 +58,6 @@ public class LeaseReaper {
         this.nodeRepository = nodeRepository;
         this.eventBus = eventBus;
         this.metrics = metrics;
-        this.eventPublisher = eventPublisher;
         this.workflowStateService = workflowStateService;
         this.infraRedispatchMax = infraRedispatchMax;
     }
@@ -181,10 +176,6 @@ public class LeaseReaper {
             workflowStateService.computeAndUpdate(inst.workflowInstanceId);
         }
         metrics.markLeaseReclaim();  // 仅在真实回收（reclaimInfra 赢）后计数一次
-        // 021 alert-engine: publish NODE_OFFLINE for heartbeat timeout
-        if ("WORKER_LOST".equals(reason)) {
-            publishNodeOffline(inst);
-        }
         return true;
     }
 
@@ -196,25 +187,4 @@ public class LeaseReaper {
         UUID workflowInstanceId;
     }
 
-    // ─── 告警信号发布（021 alert-engine）─────────────────────
-
-    private void publishNodeOffline(ExpiredInstance inst) {
-        try {
-            var row = jdbc.queryForMap(
-                    "SELECT ti.tenant_id, ti.task_id, td.name AS task_name " +
-                    "FROM task_instance ti LEFT JOIN task_def td ON td.id = ti.task_id WHERE ti.id = ?", inst.id);
-            if (row.isEmpty()) return;
-            long tenantId = ((Number) row.get("TENANT_ID")).longValue();
-            Map<String, Object> ctx = new LinkedHashMap<>();
-            ctx.put("taskInstanceId", inst.id.toString());
-            ctx.put("taskId", row.get("TASK_ID"));
-            ctx.put("taskName", row.get("TASK_NAME"));
-            ctx.put("workerNodeCode", inst.workerNodeCode);
-            ctx.put("failureReason", "WORKER_LOST");
-            eventPublisher.publishEvent(new AlertSignal(AlertSignal.Type.NODE_OFFLINE, tenantId,
-                    inst.workerNodeCode, "CRITICAL", ctx));
-        } catch (Exception e) {
-            // 告警信号仅作辅助，发布失败不影响回收。
-        }
-    }
 }
