@@ -28,26 +28,28 @@ func ScriptExtension(taskType string) string {
 
 // TaskMeta 轻读的任务元数据（data-model §4，仅 dw run 用，不重写 B 双向契约）。
 type TaskMeta struct {
-	Name       string
-	Type       string
-	Datasource string // 逻辑名（SQL/PYTHON/SPARK 查 .weft/datasources.local.yaml）
-	TimeoutSec int
-	SparkMode  string // SPARK 内容形态：pyspark/spark-sql/jar（其它类型空）
-	FlinkMode  string // FLINK 内容形态：sql/jar（其它类型空）
-	JarRef     string // SPARK/FLINK jar 形态的 application jar 引用（本地路径）
-	MainClass  string // SPARK/FLINK jar 形态的 --class 主类
+	Name        string
+	Type        string
+	Datasource  string // 逻辑名（SQL/PYTHON/SPARK 查 .weft/datasources.local.yaml）
+	TimeoutSec  int
+	SparkMode   string // SPARK 内容形态：pyspark/spark-sql/jar（其它类型空）
+	FlinkMode   string // FLINK 内容形态：sql/jar（其它类型空）
+	JarRef      string // SPARK/FLINK jar 形态的 application jar 引用（本地路径）
+	MainClass   string // SPARK/FLINK jar 形态的 --class 主类
+	LongRunning bool   // FLINK 流式作业 detached 提交 + REST 轮询（其它类型 false）
 }
 
 // taskFile 对应 <slug>.task.yaml 的字段（与 filecontract TaskDoc 字段名一致）。
 type taskFile struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Datasource string `yaml:"datasource"`
-	TimeoutSec int    `yaml:"timeoutSec"`
-	SparkMode  string `yaml:"sparkMode"`
-	FlinkMode  string `yaml:"flinkMode"`
-	JarRef     string `yaml:"jarRef"`
-	MainClass  string `yaml:"mainClass"`
+	Name        string `yaml:"name"`
+	Type        string `yaml:"type"`
+	Datasource  string `yaml:"datasource"`
+	TimeoutSec  int    `yaml:"timeoutSec"`
+	SparkMode   string `yaml:"sparkMode"`
+	FlinkMode   string `yaml:"flinkMode"`
+	JarRef      string `yaml:"jarRef"`
+	MainClass   string `yaml:"mainClass"`
+	LongRunning bool   `yaml:"longRunning"`
 }
 
 // ParseTaskMeta 读 <slug>.task.yaml 提取最小字段（FR-005）。解析失败仅影响本地 run（低爆炸半径）。
@@ -64,7 +66,8 @@ func ParseTaskMeta(path string) (*TaskMeta, error) {
 		return nil, fmt.Errorf("任务定义缺少 type 字段（%s）", path)
 	}
 	return &TaskMeta{Name: tf.Name, Type: tf.Type, Datasource: tf.Datasource, TimeoutSec: tf.TimeoutSec,
-		SparkMode: tf.SparkMode, FlinkMode: tf.FlinkMode, JarRef: tf.JarRef, MainClass: tf.MainClass}, nil
+		SparkMode: tf.SparkMode, FlinkMode: tf.FlinkMode, JarRef: tf.JarRef, MainClass: tf.MainClass,
+		LongRunning: tf.LongRunning}, nil
 }
 
 // LocateTask 定位任务定义文件（FR-005 / D4）：相对文件路径优先，任务名别名次之。

@@ -1,0 +1,116 @@
+# 工作流C：计算与流式引擎 — Spark standalone + Flink 1.20
+# profile compute；起停：./scripts/up.sh compute / ./scripts/down.sh compute
+# 端口：Spark master 7077(worker RPC) 8080(web UI) · Flink JM 8081(REST) 6123(RPC) · TM 无固定端口
+# 内存：spark-worker 1g · flink-tm 1g（单机错峰防 OOM）
+
+networks:
+  default:
+    name: dw061net
+    external: true
+
+services:
+  # ── Spark standalone 集群 ──
+  spark-master:
+    image: apache/spark:3.5
+    container_name: dw061-spark-master
+    hostname: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    ports:
+      - "8080:8080"   # Web UI
+      - "7077:7077"   # Worker RPC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - default
+
+  spark-worker:
+    image: apache/spark:3.5
+    container_name: dw061-spark-worker
+    hostname: spark-worker
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=1g
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    ports:
+      - "8081:8081"   # Worker Web UI（错开 Flink REST）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - default
+
+  # ── Flink 1.20 集群 ──
+  flink-jobmanager:
+    image: flink:1.20
+    container_name: dw061-flink-jm
+    hostname: flink-jobmanager
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 1g
+        jobmanager.memory.process.size: 1g
+        parallelism.default: 1
+        rest.flamegraph.enabled: true
+    ports:
+      - "8083:8081"   # Flink REST（8081 已被 spark-worker 占，宿主 8083→容器 8081）
+      - "6123:6123"   # RPC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/config"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - default
+
+  flink-taskmanager:
+    image: flink:1.20
+    container_name: dw061-flink-tm
+    hostname: flink-taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 1g
+    healthcheck:
+      test: ["CMD", "bash", "-c", "curl -f http://flink-jobmanager:8081/taskmanagers | grep -q '\"id\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - default

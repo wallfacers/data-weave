@@ -1,0 +1,13 @@
+# 服务端 worker(Alpine 容器)无 python3 → PYTHON 任务 FAILED(-1)，暴露 D4 观测性缺陷
+# worker-1/worker-2: sh: python3: not found
+
+=========== DataWeave Task Run ===========
+Run mode: NORMAL | Type: PYTHON | Datasource: -
+Start time: 2026-07-10 17:26:53
+=========================================
+=========== Execution Finished ===========
+Status: Failed | Exit code: -1
+Duration: 21ms
+End time: 2026-07-10 17:26:53
+===============================
+

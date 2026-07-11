@@ -1,0 +1,6 @@
+# 共享 docker network（各 compose.<family>.yml 以 external 引用，避免同改一文件 → 多 Agent 零覆盖）
+# 由 scripts/up.sh 幂等创建：docker network create dw061net
+networks:
+  default:
+    name: dw061net
+    external: true

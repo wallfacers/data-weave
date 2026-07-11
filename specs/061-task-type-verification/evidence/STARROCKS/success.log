@@ -1,0 +1,15 @@
+连接数据源：dw061-starrocks（STARROCKS） jdbc:mysql://localhost:9030/information_schema
+连接成功，开始执行
+语句 1/5 执行完成：影响 0 行，耗时 9ms
+语句 2/5 执行完成：影响 0 行，耗时 9ms
+语句 3/5 执行完成：影响 3 行，耗时 833ms
+Tables_in_dwverify
+------------------
+t_orders
+语句 4/5 执行完成：返回 1 行结果集，耗时 25ms
+city | cnt | total
+------------------
+Beijing | 2 | 150.75
+Shanghai | 1 | 200.00
+语句 5/5 执行完成：返回 2 行结果集，耗时 45ms
+全部语句执行完成，共 5 条，总耗时 1434ms

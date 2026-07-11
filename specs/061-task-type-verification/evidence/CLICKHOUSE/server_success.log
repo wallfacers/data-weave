@@ -1,0 +1,24 @@
+=========== DataWeave Task Run ===========
+Run mode: NORMAL | Type: SQL | Datasource: dw061-clickhouse (CLICKHOUSE)
+Start time: 2026-07-10 16:09:29
+=========================================
+连接数据源：dw061-clickhouse（CLICKHOUSE） jdbc:clickhouse://192.168.1.5:8123/dwverify
+连接成功，开始执行
+语句 1/4 执行完成：影响 0 行，耗时 52ms
+语句 2/4 执行完成：影响 3 行，耗时 7ms
+name
+----
+t_orders
+语句 3/4 执行完成：返回 1 行结果集，耗时 7ms
+city | cnt | total
+------------------
+Beijing | 6 | 452.25
+Shanghai | 3 | 600.00
+语句 4/4 执行完成：返回 2 行结果集，耗时 14ms
+全部语句执行完成，共 4 条，总耗时 527ms
+=========== Execution Finished ===========
+Status: Success | Exit code: 0
+Duration: 540ms
+End time: 2026-07-10 16:09:30
+===============================
+

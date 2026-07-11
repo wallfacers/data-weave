@@ -27,9 +27,11 @@ func RunDiff(opts DiffOpts, cfg client.Config) error {
 		return err
 	}
 	cmd := pushCommand{
-		Files:             files,
-		Baseline:          state.Baseline,
-		ExpectedFileCount: state.FileCount,
+		Files:    files,
+		Baseline: state.Baseline,
+		// 意图文件数 = 本次实际文件数（同 push；diff 只读、服务端当前不强校验，
+		// 但保持与 push 一致语义，避免 state.FileCount 陈旧基线数的同源隐患）。
+		ExpectedFileCount: len(files),
 	}
 	body, _ := json.Marshal(cmd)
 	data, err := client.Do(cfg, "POST", fmt.Sprintf("/api/projects/%d/diff", state.ProjectID), body)

@@ -1,0 +1,7 @@
+# 真跑证据大日志与本地凭据不入仓库（脱敏摘要 + 台账进 specs/061/evidence 手工保留）
+*.log
+clients/dist/
+*.tar.gz
+*.jar
+.env
+secrets.*

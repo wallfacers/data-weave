@@ -32,9 +32,11 @@ class SeaTunnelTaskExecutorTest {
     void buildCommand_seatunnelShWithConfig() {
         List<String> cmd = SeaTunnelTaskExecutor.buildCommand("/opt/seatunnel", "/tmp/config.conf");
         assertThat(cmd.get(0)).isEqualTo("/opt/seatunnel/bin/seatunnel.sh");
-        assertThat(cmd.get(1)).isEqualTo("--config");
-        assertThat(cmd.get(2)).isEqualTo("/tmp/config.conf");
-        assertThat(cmd).hasSize(3);
+        assertThat(cmd.get(1)).isEqualTo("--master");
+        assertThat(cmd.get(2)).isEqualTo("local");
+        assertThat(cmd.get(3)).isEqualTo("--config");
+        assertThat(cmd.get(4)).isEqualTo("/tmp/config.conf");
+        assertThat(cmd).hasSize(5);
     }
 
     // ---- SKIPPED 判定 ----

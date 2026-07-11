@@ -1,0 +1,12 @@
+Jul 11, 2026 12:30:38 AM org.jline.utils.Log logr
+WARNING: Unable to create a system terminal, creating a dumb terminal (enable debug logging for more information)
+[34;1m[INFO] Executing SQL from file.[0m
+
+Command history file path: /home/wallfacers/.flink-sql-history
+Flink SQL> [34;1m[INFO] Execute statement succeeded.[0m
+
+Flink SQL> [31;1m[ERROR] Could not execute SQL statement. Reason:
+org.apache.calcite.sql.validate.SqlValidatorException: Object 'nonexistent_table_061_fail_test' not found[0m
+
+Shutting down the session...
+done.

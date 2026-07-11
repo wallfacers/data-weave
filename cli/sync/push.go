@@ -33,10 +33,14 @@ func RunPush(opts PushOpts, cfg client.Config) error {
 		remark = "dw push"
 	}
 	cmd := pushCommand{
-		Files:             files,
-		Baseline:          state.Baseline,
-		Force:             opts.Force,
-		ExpectedFileCount: state.FileCount,
+		Files:    files,
+		Baseline: state.Baseline,
+		Force:    opts.Force,
+		// 完整性校验数 = 本次实际推送的文件数（客户端序列化前算的「意图数」），
+		// 供服务端比对反序列化后的 files 数以检测传输截断。
+		// 曾误用 state.FileCount（上次 pull 的基线数）→ 任何新增/删除文件都撞
+		// project.sync.incomplete；下方成功后本就写回 state.FileCount = len(files)。
+		ExpectedFileCount: len(files),
 		Remark:            remark,
 	}
 	body, err := json.Marshal(cmd)

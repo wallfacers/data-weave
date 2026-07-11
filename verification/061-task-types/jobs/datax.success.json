@@ -1,0 +1,31 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "streamreader",
+          "parameter": {
+            "column": [
+              {"type": "string", "value": "hello-datax"},
+              {"type": "long", "value": 42},
+              {"type": "string", "value": "success"}
+            ],
+            "sliceRecordCount": 5
+          }
+        },
+        "writer": {
+          "name": "streamwriter",
+          "parameter": {
+            "encoding": "UTF-8",
+            "print": true
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 1
+      }
+    }
+  }
+}

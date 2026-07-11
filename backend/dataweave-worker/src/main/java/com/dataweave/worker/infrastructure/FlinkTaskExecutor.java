@@ -57,9 +57,12 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
     private static final int MAX_CAPTURED_LINES = 5000;
     private static final int DEFAULT_TIMEOUT_SECONDS = 3600;
 
-    /** Flink detached 提交后 stdout 中的 JobID 模式：JobID: <hex>（32 hex chars，大小写不敏感）。 */
+    /** Flink detached 提交后 stdout 中的 JobID 模式。
+     * 兼容两种格式：{@code flink run -d} 输出 {@code JobID: <hex>}（紧凑），
+     * 以及 {@code sql-client.sh} 输出 {@code Job ID: <hex>}（带空格）。
+     * 32 hex chars，大小写不敏感。 */
     private static final Pattern JOB_ID_PATTERN = Pattern.compile(
-            "JobID:\\s*([0-9a-fA-F]{32})");
+            "Job\\s*ID[=:]\\s*([0-9a-fA-F]{32})");
 
     private final ExternalJobHandleWriter handleWriter;
 
@@ -161,8 +164,15 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
     /**
      * long_running 执行路径：detached 提交 + 解析 JobID + 写回句柄 + 轮询（FR-023/025）。
      *
-     * <p>当前状态：桩实现——detached 提交和 JobID 解析逻辑完整，但 Flink REST 轮询
-     * 待 Foundational 完成后集成。桩版本返回 skipped（不阻塞、不误报成功/失败）。
+     * <p>完整实现（060 已去桩，061 真跑验证通过 SC-005）：
+     * <ol>
+     *   <li>detached 提交（flink run -d / sql-client.sh -d），解析 stdout 中的真实 JobID</li>
+     *   <li>构造 JSON 句柄（jobId + restEndpoint）→ 回写 master（{@link #writeHandle}）</li>
+     *   <li>REST 轮询（{@link FlinkJobStatusFetcher#http()}）GET /jobs/{jobId} → 解析
+     *       {@code "state"} 字段 → 终态（FINISHED=success / FAILED/CANCELED=failure）</li>
+     *   <li>reattach 路径（{@link #executeReattach}）：实例带 external_job_handle → 先探
+     *       集群侧作业存在性 → 存在则直接轮询不重复提交，不存在则回退重新提交</li>
+     * </ol>
      */
     private ExecutionResult executeLongRunning(ExecutionContext ctx, EngineSubmitRef ref,
                                                 String mode, String content, Consumer<String> onLine)
@@ -422,9 +432,9 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
             }
             default -> { // sql
                 cmd.add(Path.of(engineHome, "bin", "sql-client.sh").toString());
-                if (detached) {
-                    cmd.add("-d");
-                }
+                // 不传 -d：Flink 1.20 sql-client.sh 的 -d 是 --define（会话变量），
+                // 而非 detached（仅 flink run 支持 -d）。sql-client.sh -f 本身对
+                // streaming query 提交后即返回，JobID 在 stdout 中可解析（061 真跑验证）。
                 cmd.add("-f");
                 cmd.add(submitTarget);
             }

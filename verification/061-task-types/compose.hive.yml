@@ -1,0 +1,24 @@
+# 061 US1 Hive 家族 —— 单容器 HiveServer2（HMS + HS2 + 内嵌 Derby 元数据）。
+# 唯一需要「上传驱动」的引擎：worker 未打包 hive-jdbc → 经 POST /driver-jars 上传
+# hive-jdbc-<ver>-standalone.jar（从容器 /opt/hive/jdbc/ 取），数据源绑 driver_jar_id
+# → IsolatedDriverLoader 隔离加载。HS2 JDBC 端口 10000。
+services:
+  hive:
+    image: apache/hive:4.0.0
+    container_name: dw061-hive
+    environment:
+      SERVICE_NAME: hiveserver2
+    ports:
+      - "10000:10000"   # HiveServer2 JDBC (thrift)
+      - "10002:10002"   # HS2 web UI
+    healthcheck:
+      # HS2 就绪：beeline 能连上并跑通轻量查询
+      test: ["CMD-SHELL", "beeline -u 'jdbc:hive2://localhost:10000/' -e 'show databases;' >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+
+networks:
+  default:
+    name: dw061net
+    external: true

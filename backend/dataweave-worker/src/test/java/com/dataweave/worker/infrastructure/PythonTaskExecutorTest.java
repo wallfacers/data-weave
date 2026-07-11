@@ -133,4 +133,29 @@ class PythonTaskExecutorTest {
         assertThat(r.exitCode()).isEqualTo(0);
         assertThat(lines).contains("start", "done");
     }
+
+    /**
+     * D4 回归（061 US1 真跑暴露）：解释器缺失（如 Alpine worker 无 python3）时，诊断信息
+     * 必须经 onLine 流入实例日志——否则操作者只见框架裸 "-1" 无从判因。此前该消息仅进
+     * ExecutionResult.message 字段、不流日志。用 seam 覆盖 interpreterExecutable() 为不存在
+     * 的命令触发 IOException 路径。
+     */
+    @Test
+    void missingInterpreterSurfacesDiagnosticToLog() {
+        PythonTaskExecutor missing = new PythonTaskExecutor() {
+            @Override
+            protected String interpreterExecutable() {
+                return "python3-definitely-not-installed-xyz";
+            }
+        };
+        ExecutionContext ctx = pyCtx("print('never runs')", 10, null);
+        List<String> lines = new ArrayList<>();
+        TaskExecutor.ExecutionResult r = missing.execute(ctx, lines::add);
+
+        assertThat(r.success()).isFalse();
+        assertThat(r.exitCode()).isEqualTo(-1);
+        // 关键断言：诊断行真流入 onLine（此前静默）
+        assertThat(lines).anySatisfy(l -> assertThat(l).contains("无法启动"));
+        assertThat(lines).anySatisfy(l -> assertThat(l).contains("python3-definitely-not-installed-xyz"));
+    }
 }

@@ -1,0 +1,10 @@
+连接数据源：dw061-clickhouse（CLICKHOUSE） jdbc:clickhouse://localhost:8123/dwverify
+连接成功，开始执行
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::arrayBaseOffset has been called by net.jpountz.util.UnsafeUtils (jar:nested:/home/wallfacers/project/data-weave/backend/dataweave-worker/target/dataweave-worker-0.7.0-SNAPSHOT-exec.jar/!BOOT-INF/lib/jcc-11.5.9.0.jar!/)
+WARNING: Please consider reporting this to the maintainers of class net.jpountz.util.UnsafeUtils
+WARNING: sun.misc.Unsafe::arrayBaseOffset will be removed in a future release
+SQL 执行失败：Code: 60. DB::Exception: Unknown table expression identifier 'dwverify.no_such_table_xyz' in scope SELECT * FROM dwverify.no_such_table_xyz. (UNKNOWN_TABLE) (version 24.3.18.7 (official build))
+, server ClickHouseNode [uri=http://localhost:8123/dwverify]@-1529338083
+SQL 执行失败
+dw: 任务执行失败（runner 退出码 255，详见上方输出）

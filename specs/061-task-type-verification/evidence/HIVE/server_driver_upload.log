@@ -1,0 +1,26 @@
+# 服务端 test-connection（API 节点·IsolatedDriverLoader 隔离加载上传的 uber jar）
+{
+    "code": 0,
+    "data": {
+        "success": true,
+        "message": "\u8fde\u63a5\u6210\u529f\uff08\u4e0a\u4f20\u9a71\u52a8\uff09",
+        "latencyMs": 54,
+        "serverVersion": "Apache Hive 4.0.0"
+    },
+    "message": "success",
+    "errorCode": null
+}
+
+# 服务端 dw run --test 任务执行（分布式 worker 无 IsolatedDriverLoader bean + LOCAL存储jar worker不可达 → 契约正确 SKIPPED，见 D5）
+=========== DataWeave Task Run ===========
+Run mode: NORMAL | Type: SQL | Datasource: dw061-hive (HIVE)
+Start time: 2026-07-10 18:00:07
+=========================================
+连接数据源：dw061-hive（HIVE） jdbc:hive2://192.168.1.5:10000/default
+数据源连接失败，已跳过：No suitable driver found for jdbc:hive2://192.168.1.5:10000/default
+=========== Execution Finished ===========
+Status: Skipped | Exit code: 0
+Duration: 30ms
+End time: 2026-07-10 18:00:07
+===============================
+

@@ -39,6 +39,11 @@ public class ShellTaskExecutor extends AbstractTaskExecutor {
         return "SHELL";
     }
 
+    /** 解释器可执行名——抽为 seam 便于测试缺失解释器（IOException）路径。 */
+    protected String interpreterExecutable() {
+        return "bash";
+    }
+
     @Override
     protected ExecutionResult doExecute(ExecutionContext ctx, Consumer<String> onLine) throws Exception {
         if (ctx.content() == null || ctx.content().isBlank()) {
@@ -51,7 +56,7 @@ public class ShellTaskExecutor extends AbstractTaskExecutor {
         // 当作每行命令的一部分，例如 `sleep 2\r` 报 "invalid time interval '2\r'"。
         String script = ctx.content().replace("\r\n", "\n").replace('\r', '\n');
 
-        ProcessBuilder pb = new ProcessBuilder("bash", "-c", script);
+        ProcessBuilder pb = new ProcessBuilder(interpreterExecutable(), "-c", script);
         pb.environment().put("DW_ATTEMPT", String.valueOf(ctx.attempt()));
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
@@ -70,7 +75,12 @@ public class ShellTaskExecutor extends AbstractTaskExecutor {
         try {
             process = pb.start();
         } catch (IOException e) {
-            return new ExecutionResult(false, -1, "", "", false, false, "无法启动进程: " + e.getMessage());
+            // 解释器缺失 → 诊断信息经 onLine 流入实例日志（同 PythonTaskExecutor，避免裸 "-1" 静默）。
+            String diag = "[SHELL] 无法启动 " + interpreterExecutable() + " 进程: " + e.getMessage();
+            if (onLine != null) {
+                onLine.accept(diag);
+            }
+            return new ExecutionResult(false, -1, "", "", false, false, diag);
         }
 
         // 读输出线程：独立运行，避免 readLine() 阻塞超时判定

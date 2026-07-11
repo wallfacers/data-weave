@@ -1,0 +1,34 @@
+{
+  "job": {
+    "content": [
+      {
+        "reader": {
+          "name": "mysqlreader",
+          "parameter": {
+            "username": "biz",
+            "password": "biz",
+            "column": ["id", "name"],
+            "connection": [
+              {
+                "table": ["nonexistent_table_xyz"],
+                "jdbcUrl": ["jdbc:mysql://host.docker.internal:3307/dataweave_biz?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"]
+              }
+            ]
+          }
+        },
+        "writer": {
+          "name": "streamwriter",
+          "parameter": {
+            "encoding": "UTF-8",
+            "print": true
+          }
+        }
+      }
+    ],
+    "setting": {
+      "speed": {
+        "channel": 1
+      }
+    }
+  }
+}
