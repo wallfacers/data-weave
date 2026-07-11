@@ -284,6 +284,22 @@ public class OpsController {
     }
 
     /**
+     * 062 从检查点续跑（US4）：body {@code {checkpointId}}。CAS STOPPED/SUSPENDED→WAITING（保留句柄供 reattach）。
+     * 无有效检查点 → streaming.checkpoint.invalid（前端引导全量重跑）。L1 直执 + audit。
+     */
+    @PostMapping("/streaming-tasks/{instanceId}/resume")
+    public ApiResponse<?> streamingTaskResume(
+            @PathVariable String instanceId,
+            @RequestBody java.util.Map<String, String> body) {
+        String checkpointId = body != null ? body.get("checkpointId") : null;
+        if (checkpointId == null || checkpointId.isBlank()) {
+            throw new com.dataweave.master.i18n.BizException("streaming.checkpoint.invalid");
+        }
+        return ApiResponse.ok(opsService.resumeFromCheckpoint(
+                UUID.fromString(instanceId), UUID.fromString(checkpointId)));
+    }
+
+    /**
      * 多维筛选 + 分页查询任务流实例列表。
      * page 从 1 起；size 上限 200。
      */

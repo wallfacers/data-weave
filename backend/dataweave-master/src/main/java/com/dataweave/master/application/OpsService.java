@@ -909,6 +909,36 @@ public class OpsService {
         return new OpsContracts.StreamingStopResult(instanceId, checkpointId, InstanceStates.STOPPED, path);
     }
 
+    /**
+     * 从检查点续跑（US4）：校验所选检查点有效（属于该实例 + SUCCESS + 未过期）→ CAS STOPPED/SUSPENDED→WAITING
+     * （记录 resume_checkpoint_id，保留 external_job_handle 供 reattach）→ 唤醒调度。
+     * 无有效检查点 → streaming.checkpoint.invalid（前端引导全量重跑 rerunInstance，FR-008）。
+     * L1 直执 + audit（FR-011）。
+     */
+    public TaskInstance resumeFromCheckpoint(UUID instanceId, UUID checkpointId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        if (!InstanceStates.STOPPED.equals(ti.getState()) && !InstanceStates.SUSPENDED.equals(ti.getState())) {
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        var cp = checkpointRepository.findById(checkpointId)
+                .filter(c -> instanceId.equals(c.taskInstanceId()))
+                .orElseThrow(() -> new BizException("streaming.checkpoint.invalid"));
+        if (!toCheckpointView(cp).resumable()) {
+            throw new BizException("streaming.checkpoint.invalid");
+        }
+        if (!stateMachine.casResumeFromCheckpoint(instanceId, checkpointId)) {
+            // 并发下已被他人转出 → 视为状态不允许续跑
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        eventBus.publish(InstanceStates.WAKE_CHANNEL, "resume");
+        audit("RESUME_FROM_CHECKPOINT", instanceId, "从检查点续跑（ordinal " + cp.ordinal() + "）");
+        return instanceRepository.findById(instanceId).orElse(ti);
+    }
+
     /** 从 external_job_handle JSON 取字段（jobId/restEndpoint）。 */
     private static String parseHandleField(String handleJson, String field) {
         try {

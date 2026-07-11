@@ -15,7 +15,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Activity01Icon, FileViewIcon, StopIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
+import { Activity01Icon, FileViewIcon, StopIcon, Cancel01Icon, RefreshIcon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
+import { ResumeCheckpointDialog } from "./resume-checkpoint-dialog"
 import {
   type ColumnDef,
   type FetchQuery,
@@ -113,6 +114,8 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   // 停止（保留进度）/ 强制终止 确认态
   const [confirm, setConfirm] = useState<{ kind: "stop" | "kill"; row: StreamingTaskRow } | null>(null)
   const [busy, setBusy] = useState(false)
+  // 续跑目标（打开检查点选择对话框）
+  const [resumeTarget, setResumeTarget] = useState<{ instanceId: string; taskName: string } | null>(null)
 
   const runConfirmed = useCallback(async () => {
     if (!confirm) return
@@ -214,6 +217,7 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         cell: (r) => {
           const stoppable = r.state === "RUNNING"
           const killable = !["STOPPED", "SUCCESS", "FAILED", "SKIPPED"].includes(r.state)
+          const resumable = r.state === "STOPPED" || r.state === "SUSPENDED"
           return (
             <div className="flex items-center gap-1">
               <Tooltip>
@@ -231,6 +235,23 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
                 />
                 <TooltipContent>{t("actionLogs")}</TooltipContent>
               </Tooltip>
+              {resumable && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => setResumeTarget({ instanceId: r.instanceId, taskName: r.taskName })}
+                      >
+                        <HugeiconsIcon icon={RefreshIcon} className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t("actionResume")}</TooltipContent>
+                </Tooltip>
+              )}
               {stoppable && (
                 <Tooltip>
                   <TooltipTrigger
@@ -337,6 +358,13 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         destructive={confirm?.kind === "kill"}
         busy={busy}
         onConfirm={runConfirmed}
+      />
+      <ResumeCheckpointDialog
+        instanceId={resumeTarget?.instanceId ?? null}
+        taskName={resumeTarget?.taskName}
+        open={resumeTarget !== null}
+        onOpenChange={(o) => !o && setResumeTarget(null)}
+        onResumed={reload}
       />
     </div>
   )

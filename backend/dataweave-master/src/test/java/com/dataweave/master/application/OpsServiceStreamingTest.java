@@ -1,5 +1,6 @@
 package com.dataweave.master.application;
 
+import com.dataweave.master.domain.Checkpoint;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.LogBus;
 import com.dataweave.master.domain.TaskInstance;
@@ -36,6 +37,7 @@ class OpsServiceStreamingTest {
     private InstanceStateMachine stateMachine;
     private CheckpointService checkpointService;
     private FlinkSavepointClient flinkClient;
+    private CheckpointRepository checkpointRepository;
     private OpsService ops;
 
     private static final UUID IID = UUID.fromString("00000000-0000-7000-8000-000000000062");
@@ -47,6 +49,7 @@ class OpsServiceStreamingTest {
         stateMachine = mock(InstanceStateMachine.class);
         checkpointService = mock(CheckpointService.class);
         flinkClient = mock(FlinkSavepointClient.class);
+        checkpointRepository = mock(CheckpointRepository.class);
         ops = new OpsService(
                 mock(com.dataweave.master.domain.TaskDefRepository.class),
                 instanceRepository,
@@ -58,7 +61,7 @@ class OpsServiceStreamingTest {
                 mock(EventBus.class),
                 mock(JdbcTemplate.class),
                 mock(com.dataweave.master.domain.AgentActionRepository.class),
-                mock(CheckpointRepository.class),
+                checkpointRepository,
                 checkpointService,
                 flinkClient,
                 24L);
@@ -128,5 +131,58 @@ class OpsServiceStreamingTest {
         assertThatThrownBy(() -> ops.stopWithSavepoint(IID, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("savepoint.unavailable");
+    }
+
+    // ─── US4 续跑 ───────────────────────────────────────
+
+    private Checkpoint checkpoint(String status, java.time.LocalDateTime completedAt) {
+        return new Checkpoint(CPID, IID, 2, "hdfs:///sp/2", "job-1", status, 1024L, completedAt,
+                java.time.LocalDateTime.now());
+    }
+
+    private static final UUID CPID = UUID.fromString("00000000-0000-7000-8000-0000000000c1");
+
+    @Test
+    void resumeFromCheckpoint_有效检查点_CAS_WAITING() {
+        when(instanceRepository.findById(IID)).thenReturn(Optional.of(instance("STOPPED", true, HANDLE)));
+        when(checkpointRepository.findById(CPID))
+                .thenReturn(Optional.of(checkpoint("SUCCESS", java.time.LocalDateTime.now())));
+        when(stateMachine.casResumeFromCheckpoint(IID, CPID)).thenReturn(true);
+
+        ops.resumeFromCheckpoint(IID, CPID);
+
+        verify(stateMachine).casResumeFromCheckpoint(IID, CPID);
+    }
+
+    @Test
+    void resumeFromCheckpoint_SUSPENDED也可续跑() {
+        when(instanceRepository.findById(IID)).thenReturn(Optional.of(instance("SUSPENDED", true, HANDLE)));
+        when(checkpointRepository.findById(CPID))
+                .thenReturn(Optional.of(checkpoint("SUCCESS", java.time.LocalDateTime.now())));
+        when(stateMachine.casResumeFromCheckpoint(IID, CPID)).thenReturn(true);
+
+        ops.resumeFromCheckpoint(IID, CPID);
+
+        verify(stateMachine).casResumeFromCheckpoint(IID, CPID);
+    }
+
+    @Test
+    void resumeFromCheckpoint_过期检查点_invalid() {
+        when(instanceRepository.findById(IID)).thenReturn(Optional.of(instance("STOPPED", true, HANDLE)));
+        when(checkpointRepository.findById(CPID))
+                .thenReturn(Optional.of(checkpoint("SUCCESS", java.time.LocalDateTime.now().minusHours(48))));
+
+        assertThatThrownBy(() -> ops.resumeFromCheckpoint(IID, CPID))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("checkpoint.invalid");
+        verify(stateMachine, never()).casResumeFromCheckpoint(any(), any());
+    }
+
+    @Test
+    void resumeFromCheckpoint_非STOPPED或SUSPENDED_拒绝() {
+        when(instanceRepository.findById(IID)).thenReturn(Optional.of(instance("RUNNING", true, HANDLE)));
+        assertThatThrownBy(() -> ops.resumeFromCheckpoint(IID, CPID))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("not_resumable");
     }
 }

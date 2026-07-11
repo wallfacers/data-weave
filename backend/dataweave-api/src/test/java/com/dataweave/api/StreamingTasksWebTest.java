@@ -207,6 +207,68 @@ class StreamingTasksWebTest {
 
     static final String HANDLE = "{\"jobId\":\"job-1\",\"restEndpoint\":\"http://flink:8081\"}";
 
+    void insertCheckpointWithId(UUID cpId, UUID instanceId, int ordinal, String status) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbc.update(
+                "INSERT INTO task_checkpoint (id, task_instance_id, ordinal, checkpoint_path, status, "
+                        + "completed_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                cpId, instanceId, ordinal, "hdfs:///sp/" + ordinal, status,
+                "SUCCESS".equals(status) ? now : null, now);
+    }
+
+    @Test
+    void checkpoints_列表ordinalDESC带resumable() {
+        UUID id = uuidv7(61);
+        insert(id, 1, TASK_A, "mysql-sync-realtime", "STOPPED", true, null);
+        insertCheckpoint(id, 1, "SUCCESS");
+        insertCheckpoint(id, 2, "SUCCESS");
+
+        client.get().uri("/api/ops/streaming-tasks/{id}/checkpoints", id)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data[0].ordinal").isEqualTo(2)
+                .jsonPath("$.data[0].resumable").isEqualTo(true)
+                .jsonPath("$.data[1].ordinal").isEqualTo(1);
+    }
+
+    @Test
+    void resume_有效检查点_置WAITING保留句柄不动attempt() {
+        UUID id = uuidv7(62);
+        UUID cpId = UUID.fromString("00000000-0000-7000-8000-620100000062");
+        insert(id, 1, TASK_A, "mysql-sync-realtime", "STOPPED", true, HANDLE);
+        insertCheckpointWithId(cpId, id, 3, "SUCCESS");
+
+        client.post().uri("/api/ops/streaming-tasks/{id}/resume", id)
+                .bodyValue("{\"checkpointId\":\"" + cpId + "\"}")
+                .header("Content-Type", "application/json")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0);
+
+        var row = jdbc.queryForMap(
+                "SELECT state, resume_checkpoint_id, external_job_handle, attempt FROM task_instance WHERE id=?", id);
+        org.assertj.core.api.Assertions.assertThat(row.get("state")).isEqualTo("WAITING");
+        org.assertj.core.api.Assertions.assertThat(row.get("resume_checkpoint_id").toString()).isEqualTo(cpId.toString());
+        org.assertj.core.api.Assertions.assertThat(row.get("external_job_handle")).isEqualTo(HANDLE);  // reattach 保留
+        org.assertj.core.api.Assertions.assertThat(((Number) row.get("attempt")).intValue()).isEqualTo(0);  // 060 栅栏不动
+    }
+
+    @Test
+    void resume_无效检查点_invalid() {
+        UUID id = uuidv7(63);
+        insert(id, 1, TASK_A, "mysql-sync-realtime", "STOPPED", true, HANDLE);
+
+        client.post().uri("/api/ops/streaming-tasks/{id}/resume", id)
+                .bodyValue("{\"checkpointId\":\"00000000-0000-7000-8000-000000009999\"}")
+                .header("Content-Type", "application/json")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.errorCode").isEqualTo("streaming.checkpoint.invalid");
+    }
+
     @Test
     void unauthenticated_401() {
         WebTestClient noAuth = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
