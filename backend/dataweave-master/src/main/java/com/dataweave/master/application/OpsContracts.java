@@ -161,6 +161,33 @@ public final class OpsContracts {
                                     List<String> unresolvedPlaceholders, String runMode,
                                     boolean isOverride, String taskType) {}
 
+    // ===== 062 实时任务运维 =====
+
+    /**
+     * 实时任务行（面板投影，仅 long_running 实例）。
+     * durationSeconds=started_at→现在（运行中）/→finished_at 的秒数；lastCheckpoint 可空（无可用检查点）；
+     * externalJobHandlePresent + workerOnline 表达状态漂移（RUNNING 但 worker 断连=引擎侧可能仍活，Edge Case ⑥）；
+     * businessAttempt/infraRedispatchCount 为健康信号（重启情况，US5）。时间字段 UTC ISO（带 Z）。
+     */
+    public record StreamingTaskRow(UUID instanceId, Long taskDefId, String taskName, String state,
+                                   boolean longRunning, String startedAt, Long durationSeconds,
+                                   int businessAttempt, int infraRedispatchCount,
+                                   CheckpointView lastCheckpoint, boolean externalJobHandlePresent,
+                                   boolean workerOnline) {}
+
+    /**
+     * 检查点视图（续跑选择/面板展示）。resumable = status==SUCCESS && !expired；
+     * expired 由服务端按 ttl（streaming.checkpoint.ttl-hours）+ completedAt 判定。时间字段 UTC ISO。
+     */
+    public record CheckpointView(UUID id, int ordinal, String status, String checkpointPath,
+                                 String completedAt, Long sizeBytes, boolean expired, boolean resumable) {}
+
+    /** 实时任务筛选（面板 server 分页）。projectId 项目隔离；state/keyword 可选。 */
+    public record StreamingTaskQuery(Long projectId, String state, String keyword, int page, int size) {}
+
+    /** 优雅停止结果（US3）：checkpointId=新写入的检查点；state=停止后实例态（STOPPED）。 */
+    public record StreamingStopResult(UUID instanceId, UUID checkpointId, String state, String checkpointPath) {}
+
     /** 参数替换后的实际配置视图。TEST 模式下 originalParamsJson/originalTimeoutSeconds 非空。 */
     public record ResolvedConfigView(UUID taskInstanceId, String taskType, int timeoutSeconds,
                                       String retryStrategy, String resourceLimit,

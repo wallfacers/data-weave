@@ -358,7 +358,8 @@ public class SchedulerKernel {
             out.add(new DispatchCommand(r.id, p.attempt(), p.workerNodeCode(), r.taskId, r.taskVersionNo,
                     r.runMode, r.bizDate, content, timeout, r.taskType, r.datasourceId, r.locale,
                     sparkMode, jarRef, mainClass,
-                    engineMode, engineJarRef, engineMainClass));
+                    engineMode, engineJarRef, engineMainClass,
+                    r.longRunning, r.externalJobHandle));  // 062：传播 long_running + reattach 句柄
             // DISPATCHED 事件延迟到事务提交后发布(runRound);content 失败实例已被 casFailed 发 FAILED,不再发 DISPATCHED。
             events.add(new InstanceStateMachine.DispatchedEvent(r.id, r.workflowInstanceId));
         }
@@ -413,6 +414,7 @@ public class SchedulerKernel {
                 + "(SELECT td.datasource_id FROM task_def td WHERE td.id=ti.task_id) AS datasource_id, "
                 + "(SELECT wi.trigger_type FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wtrigger, "
                 + "(SELECT wi.workflow_id FROM workflow_instance wi WHERE wi.id=ti.workflow_instance_id) AS wfid, "
+                + "ti.long_running, ti.external_job_handle, "  // 062：下发传播 long_running + reattach 句柄（读快照列免 JOIN）
                 + "ti.locale FROM task_instance ti "
                 + "WHERE ti.state='WAITING' AND ti.run_mode='" + runMode.name() + "' AND ti.deleted=0 ";
         if (!isTest) {
@@ -450,6 +452,8 @@ public class SchedulerKernel {
             r.timeoutSec = (Integer) rs.getObject("timeout_sec");
             r.taskType = rs.getString("task_type");
             r.datasourceId = (Long) rs.getObject("datasource_id");
+            r.longRunning = rs.getBoolean("long_running");        // 062
+            r.externalJobHandle = rs.getString("external_job_handle");  // 062 reattach
             r.locale = rs.getString("locale");
             r.workflowTrigger = rs.getString("wtrigger");
             r.workflowId = (Long) rs.getObject("wfid");
@@ -841,6 +845,8 @@ public class SchedulerKernel {
         Integer timeoutSec;
         String taskType;
         Long datasourceId;
+        boolean longRunning;        // 062：下发传播 long_running（快照列）
+        String externalJobHandle;   // 062：reattach 句柄（快照列）
         String locale;
         String workflowTrigger;
         Long workflowId;  // 048:批量跨周期判定用(workflow_instance→workflow_id)

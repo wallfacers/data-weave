@@ -81,6 +81,9 @@ public class SchedulerMetrics {
     private final AtomicLong quarantinedNodes = new AtomicLong(0);
     private final AtomicLong suspendedInstances = new AtomicLong(0);
     private final AtomicLong infraRedispatchTotal = new AtomicLong(0);
+    // 062 实时任务运维 gauge：成功检查点累计 / 续跑中实例数（sampleGauges 周期刷新，指标不可变约定）
+    private final AtomicLong streamingCheckpointTotal = new AtomicLong(0);
+    private final AtomicLong streamingRecovering = new AtomicLong(0);
     private final AtomicLong shardWorkflows = new AtomicLong(0);
     private final AtomicLong cronWindowSize = new AtomicLong(0);
     // 045 cron 并行化指标：fireArm/fireExecute 解耦 + 队列背压 + 补偿器
@@ -270,6 +273,14 @@ public class SchedulerMetrics {
                 .register(registry);
         Gauge.builder("scheduler.infra.redispatch.total", infraRedispatchTotal, AtomicLong::doubleValue)
                 .description("060: Cumulative infra redispatch count across all instances (lease/restart/dispatch reclaim)")
+                .register(registry);
+
+        // 062 实时任务运维 gauge（只新增不改既有，遵「指标不可变」）
+        Gauge.builder("scheduler.streaming.checkpoint.total", streamingCheckpointTotal, AtomicLong::doubleValue)
+                .description("062: Cumulative SUCCESS streaming checkpoints across all long_running instances")
+                .register(registry);
+        Gauge.builder("scheduler.streaming.recovering", streamingRecovering, AtomicLong::doubleValue)
+                .description("062: long_running instances recovering (WAITING/DISPATCHED with resume_checkpoint_id after resumeFromCheckpoint)")
                 .register(registry);
 
         Gauge.builder("dw.cron.shard.workflows", shardWorkflows, AtomicLong::doubleValue)
@@ -527,6 +538,27 @@ public class SchedulerMetrics {
         refreshSlotUtilization();
         refreshFragmentation();
         refreshNodeFaultToleranceGauges();  // 060：隔离节点/SUSPENDED/infra 重派累计
+        refreshStreamingGauges();           // 062：成功检查点累计 / 续跑中实例数
+    }
+
+    /** 062：刷新实时任务运维 gauge（成功检查点累计 / 续跑中实例数）。吞异常，失败不影响调度。 */
+    public void refreshStreamingGauges() {
+        try {
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM task_checkpoint WHERE status='SUCCESS'", Integer.class);
+            streamingCheckpointTotal.set(c != null ? c : 0);
+        } catch (Exception e) {
+            // 静默吞错（指标降级）
+        }
+        try {
+            Integer c = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM task_instance WHERE long_running=TRUE AND resume_checkpoint_id IS NOT NULL "
+                            + "AND state IN ('WAITING','DISPATCHED') AND deleted=0",
+                    Integer.class);
+            streamingRecovering.set(c != null ? c : 0);
+        } catch (Exception e) {
+            // 静默吞错
+        }
     }
 
     /** 060：刷新节点容错闭环 gauge（隔离节点数 / SUSPENDED 实例数 / infra 重派累计）。各查询吞异常，失败不影响调度。 */

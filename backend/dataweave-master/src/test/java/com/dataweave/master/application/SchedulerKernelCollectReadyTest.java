@@ -54,7 +54,9 @@ class SchedulerKernelCollectReadyTest {
                     locale VARCHAR(10),
                     state VARCHAR(20),
                     deleted INT DEFAULT 0,
-                    backfill_held INT DEFAULT 0
+                    backfill_held INT DEFAULT 0,
+                    long_running BOOLEAN DEFAULT FALSE,
+                    external_job_handle VARCHAR(512)
                 )
                 """);
         jdbc.execute("CREATE TABLE workflow_instance (id UUID PRIMARY KEY, priority INT, state VARCHAR(20), "

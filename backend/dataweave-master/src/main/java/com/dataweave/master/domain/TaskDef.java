@@ -32,6 +32,9 @@ public class TaskDef {
     private Integer deleted;
     private Long version;
     private Long catalogNodeId;
+    // 060 外部托管长驻作业标记（Flink 流式=true）；062 接通创作→下发链路后经产品路径可写。
+    // 决定实例物化 long_running 快照 + 下发 detached 长驻分支 + timeout/自我中止豁免。
+    private Boolean longRunning;
 
     public TaskDef() {}
 
@@ -109,4 +112,8 @@ public class TaskDef {
 
     public Long getCatalogNodeId() { return catalogNodeId; }
     public void setCatalogNodeId(Long catalogNodeId) { this.catalogNodeId = catalogNodeId; }
+
+    /** 060/062 外部托管长驻作业标记（Flink 流式=true）。null≡false（老数据/未设）。 */
+    public Boolean getLongRunning() { return longRunning; }
+    public void setLongRunning(Boolean longRunning) { this.longRunning = longRunning; }
 }

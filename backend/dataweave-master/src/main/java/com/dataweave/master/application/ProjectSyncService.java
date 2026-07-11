@@ -460,7 +460,9 @@ public class ProjectSyncService {
                 || !Objects.equals(local.getTimeoutSec(), server.getTimeoutSec())
                 || !Objects.equals(local.getRetryMax(), server.getRetryMax())
                 || !Objects.equals(local.getPriority(), server.getPriority())
-                || !Objects.equals(local.getDescription(), server.getDescription());
+                || !Objects.equals(local.getDescription(), server.getDescription())
+                || !Objects.equals(Boolean.TRUE.equals(local.getLongRunning()),
+                                   Boolean.TRUE.equals(server.getLongRunning()));  // 062：长驻标记变更可被 diff 识别
     }
 
     /** Compare workflow config fields (excluding DAG - DAG compared separately). */
@@ -844,6 +846,7 @@ public class ProjectSyncService {
                 srv.setRetryMax(localTask.getRetryMax());
                 srv.setPriority(localTask.getPriority());
                 srv.setDescription(localTask.getDescription());
+                srv.setLongRunning(Boolean.TRUE.equals(localTask.getLongRunning()));  // 062：长驻标记 push 更新
                 if (localTask.getCatalogNodeId() != null) {
                     srv.setCatalogNodeId(localCatIdToReal.get(localTask.getCatalogNodeId()));
                 }

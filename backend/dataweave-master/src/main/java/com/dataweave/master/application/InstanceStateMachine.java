@@ -291,6 +291,24 @@ public class InstanceStateMachine {
         return n == 1;
     }
 
+    /**
+     * 062 US4 从检查点续跑（单赢）：{@code STOPPED/SUSPENDED → WAITING}，记录所选 resume_checkpoint_id，
+     * 清 worker/租约/failure_reason/finished_at。**不清 external_job_handle**（保留供 reattach 优先），
+     * **不动 attempt/business_attempt/infra_redispatch_count**（060 七红线：纯下发栅栏与业务重试语义零改动）。
+     *
+     * <p>WHERE state IN ('STOPPED','SUSPENDED') 由 DB 单赢裁决（并发续跑只一个成功）；SUSPENDED→续跑
+     * 是 060 现状缺失的转出路径（此前 SUSPENDED 只能 kill/rerun）。
+     */
+    public boolean casResumeFromCheckpoint(UUID id, UUID checkpointId) {
+        int n = jdbc.update(
+                "UPDATE task_instance SET state='WAITING', resume_checkpoint_id=?, worker_node_code=NULL, "
+                        + "lease_expire_at=NULL, failure_reason=NULL, finished_at=NULL, updated_at=? "
+                        + "WHERE id=? AND state IN ('STOPPED','SUSPENDED') AND deleted=0",
+                checkpointId, LocalDateTime.now(), id);
+        if (n == 1) publishTaskState(id, "WAITING");
+        return n == 1;
+    }
+
     /** 060 业务重试计数原子自增（仅"曾进入 RUNNING 后业务失败"调用；FR-009）。 */
     public void incrementBusinessAttempt(UUID id) {
         jdbc.update(

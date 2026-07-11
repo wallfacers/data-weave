@@ -48,6 +48,10 @@ public class OpsService {
     private final EventBus eventBus;
     private final JdbcTemplate jdbc;
     private final AgentActionRepository agentActionRepository;
+    private final com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository;  // 062
+    private final long checkpointTtlHours;  // 062：检查点过期判定（streaming.checkpoint.ttl-hours）
+    private final CheckpointService checkpointService;      // 062 US3：写检查点 + 滚动保留
+    private final FlinkSavepointClient flinkSavepointClient; // 062 US3：Flink savepoint 触发
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
@@ -58,7 +62,12 @@ public class OpsService {
                       LogBus logBus,
                       EventBus eventBus,
                       JdbcTemplate jdbc,
-                      AgentActionRepository agentActionRepository) {
+                      AgentActionRepository agentActionRepository,
+                      com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository,
+                      CheckpointService checkpointService,
+                      FlinkSavepointClient flinkSavepointClient,
+                      @org.springframework.beans.factory.annotation.Value(
+                              "${streaming.checkpoint.ttl-hours:24}") long checkpointTtlHours) {
         this.taskDefRepository = taskDefRepository;
         this.instanceRepository = instanceRepository;
         this.workflowInstanceRepository = workflowInstanceRepository;
@@ -69,6 +78,15 @@ public class OpsService {
         this.eventBus = eventBus;
         this.jdbc = jdbc;
         this.agentActionRepository = agentActionRepository;
+        this.checkpointRepository = checkpointRepository;
+        this.checkpointService = checkpointService;
+        this.flinkSavepointClient = flinkSavepointClient;
+        this.checkpointTtlHours = checkpointTtlHours;
+    }
+
+    /** LocalDateTime → UTC ISO 字符串（带 Z），null 透传（datetime 输出约定）。 */
+    private static String iso(LocalDateTime t) {
+        return t != null ? t.atZone(ZoneId.systemDefault()).toInstant().toString() : null;
     }
 
     /** 记录运维直接操作审计日志。绕过闸门的直接操作仍需留痕（FR-012）。 */
@@ -642,8 +660,10 @@ public class OpsService {
         }
         LocalDateTime now = LocalDateTime.now();
         // 060: 新增重置 business_attempt/infra_redispatch_count/external_job_handle（FR-028）
+        // 062: 全量重跑清 resume_checkpoint_id（干净重来、不带检查点）；long_running 快照保值（任务身份不变）
         jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, "
                 + "business_attempt=0, infra_redispatch_count=0, external_job_handle=NULL, "
+                + "resume_checkpoint_id=NULL, "
                 + "worker_node_code=NULL, lease_expire_at=NULL, failure_reason=NULL, "
                 + "finished_at=NULL, exit_code=NULL, started_at=NULL, log=NULL, updated_at=? "
                 + "WHERE id=? AND deleted=0", now, instanceId);
@@ -768,6 +788,175 @@ public class OpsService {
                 },
                 pageArgs.toArray());
         return new PageResult<>(items, totalCount, page, size);
+    }
+
+    // ===== 062 实时任务运维 =====
+
+    /**
+     * 实时任务面板查询（US1）：仅 long_running=TRUE 实例，server 分页，关联最近成功检查点 + worker 在线态。
+     * 036 项目隔离：按 projectId 过滤。state/keyword 可选。
+     */
+    public PageResult<OpsContracts.StreamingTaskRow> listStreamingTasks(OpsContracts.StreamingTaskQuery q) {
+        int page = Math.max(0, q.page());
+        int size = Math.min(Math.max(1, q.size()), 200);
+        StringBuilder where = new StringBuilder(" WHERE ti.deleted=0 AND ti.long_running=TRUE ");
+        List<Object> args = new ArrayList<>();
+        if (q.projectId() != null) {
+            where.append("AND ti.project_id=? ");
+            args.add(q.projectId());
+        }
+        if (q.state() != null && !q.state().isBlank()) {
+            where.append("AND ti.state=? ");
+            args.add(q.state().trim());
+        }
+        if (q.keyword() != null && !q.keyword().isBlank()) {
+            where.append("AND ti.task_def_name LIKE CONCAT('%', ?, '%') ");
+            args.add(q.keyword().trim());
+        }
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM task_instance ti" + where, Long.class, args.toArray());
+        long totalCount = total == null ? 0L : total;
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(size);
+        pageArgs.add((long) page * size);
+        // 运行中优先（RUNNING/DISPATCHED），其余按最近开始降序；worker 在线态 LEFT JOIN worker_nodes 取 status
+        List<OpsContracts.StreamingTaskRow> items = jdbc.query(
+                "SELECT ti.id, ti.task_id, ti.task_def_name, ti.state, ti.long_running, ti.started_at, ti.finished_at, "
+                        + "ti.business_attempt, ti.infra_redispatch_count, ti.external_job_handle, "
+                        + "wn.status AS worker_status "
+                        + "FROM task_instance ti "
+                        + "LEFT JOIN worker_nodes wn ON ti.worker_node_code = wn.node_code" + where
+                        + "ORDER BY CASE WHEN ti.state IN ('RUNNING','DISPATCHED') THEN 0 "
+                        + "  WHEN ti.state='SUSPENDED' THEN 1 ELSE 2 END, ti.started_at DESC NULLS LAST, ti.id DESC "
+                        + "LIMIT ? OFFSET ?",
+                (rs, n) -> {
+                    UUID id = rs.getObject("id", UUID.class);
+                    LocalDateTime startedAt = rs.getObject("started_at", LocalDateTime.class);
+                    LocalDateTime finishedAt = rs.getObject("finished_at", LocalDateTime.class);
+                    String state = rs.getString("state");
+                    // 已运行时长：运行中=起→现在；已结束=起→结束（秒）
+                    Long durationSeconds = null;
+                    if (startedAt != null) {
+                        LocalDateTime end = finishedAt != null ? finishedAt : LocalDateTime.now();
+                        durationSeconds = Math.max(0, Duration.between(startedAt, end).toSeconds());
+                    }
+                    String handle = rs.getString("external_job_handle");
+                    String workerStatus = rs.getString("worker_status");
+                    boolean workerOnline = "ONLINE".equalsIgnoreCase(workerStatus);
+                    OpsContracts.CheckpointView last = checkpointRepository.findLatestSuccess(id)
+                            .map(this::toCheckpointView).orElse(null);
+                    return new OpsContracts.StreamingTaskRow(
+                            id, (Long) rs.getObject("task_id"), rs.getString("task_def_name"), state,
+                            rs.getBoolean("long_running"), iso(startedAt), durationSeconds,
+                            rs.getInt("business_attempt"), rs.getInt("infra_redispatch_count"),
+                            last, handle != null && !handle.isBlank(), workerOnline);
+                },
+                pageArgs.toArray());
+        return new PageResult<>(items, totalCount, page, size);
+    }
+
+    /**
+     * 某实时任务的检查点列表（US4，ordinal DESC）。校验 long_running + 项目隔离。
+     * resumable = SUCCESS && !expired（过期 = completed_at 超 ttl-hours）。
+     */
+    public List<OpsContracts.CheckpointView> listCheckpoints(UUID instanceId, Long projectId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (projectId != null && !projectId.equals(ti.getProjectId())) {
+            throw new BizException("ops.instance.not_found", instanceId);
+        }
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        return checkpointRepository.listByInstance(instanceId).stream()
+                .map(this::toCheckpointView).toList();
+    }
+
+    /**
+     * 优雅停止实时任务并保留进度（US3）：触发 Flink stop-with-savepoint → 写 SUCCESS 检查点（滚动保留 N）
+     * → CAS RUNNING→STOPPED。与强制终止（{@link #killTask} CANCEL 无 savepoint）显式区分。
+     * savepoint 不可用（引擎不可达/拒绝/无句柄）→ streaming.savepoint.unavailable（前端提示改用强制终止）。
+     * L1 直执 + audit，不经审批（FR-011）。
+     *
+     * @param targetDirectory 可选 savepoint 目录（null=引擎默认）
+     */
+    public OpsContracts.StreamingStopResult stopWithSavepoint(UUID instanceId, String targetDirectory) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        if (!InstanceStates.RUNNING.equals(ti.getState())) {
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        String handle = ti.getExternalJobHandle();
+        if (handle == null || handle.isBlank()) {
+            throw new BizException("streaming.savepoint.unavailable", "无外部作业句柄，无法触发 savepoint");
+        }
+        String jobId = parseHandleField(handle, "jobId");
+        String restEndpoint = parseHandleField(handle, "restEndpoint");
+        String path;
+        try {
+            path = flinkSavepointClient.stopWithSavepoint(restEndpoint, jobId, targetDirectory);
+        } catch (FlinkSavepointClient.SavepointException e) {
+            throw new BizException("streaming.savepoint.unavailable", e.getMessage());
+        }
+        UUID checkpointId = checkpointService.recordSuccess(instanceId, path, jobId, null);
+        stateMachine.casTaskTerminal(instanceId, ti.getState(), InstanceStates.STOPPED, "SAVEPOINT_STOP");
+        if (ti.getWorkflowInstanceId() != null) {
+            workflowStateService.computeAndUpdate(ti.getWorkflowInstanceId());
+        }
+        audit("STOP_WITH_SAVEPOINT", instanceId, "优雅停止实时任务（保留检查点 " + path + "）");
+        return new OpsContracts.StreamingStopResult(instanceId, checkpointId, InstanceStates.STOPPED, path);
+    }
+
+    /**
+     * 从检查点续跑（US4）：校验所选检查点有效（属于该实例 + SUCCESS + 未过期）→ CAS STOPPED/SUSPENDED→WAITING
+     * （记录 resume_checkpoint_id，保留 external_job_handle 供 reattach）→ 唤醒调度。
+     * 无有效检查点 → streaming.checkpoint.invalid（前端引导全量重跑 rerunInstance，FR-008）。
+     * L1 直执 + audit（FR-011）。
+     */
+    public TaskInstance resumeFromCheckpoint(UUID instanceId, UUID checkpointId) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        if (!InstanceStates.STOPPED.equals(ti.getState()) && !InstanceStates.SUSPENDED.equals(ti.getState())) {
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        var cp = checkpointRepository.findById(checkpointId)
+                .filter(c -> instanceId.equals(c.taskInstanceId()))
+                .orElseThrow(() -> new BizException("streaming.checkpoint.invalid"));
+        if (!toCheckpointView(cp).resumable()) {
+            throw new BizException("streaming.checkpoint.invalid");
+        }
+        if (!stateMachine.casResumeFromCheckpoint(instanceId, checkpointId)) {
+            // 并发下已被他人转出 → 视为状态不允许续跑
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        eventBus.publish(InstanceStates.WAKE_CHANNEL, "resume");
+        audit("RESUME_FROM_CHECKPOINT", instanceId, "从检查点续跑（ordinal " + cp.ordinal() + "）");
+        return instanceRepository.findById(instanceId).orElse(ti);
+    }
+
+    /** 从 external_job_handle JSON 取字段（jobId/restEndpoint）。 */
+    private static String parseHandleField(String handleJson, String field) {
+        try {
+            var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(handleJson);
+            return node.has(field) ? node.get(field).asText() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Checkpoint → CheckpointView：计算 expired（ttl）+ resumable。 */
+    private OpsContracts.CheckpointView toCheckpointView(com.dataweave.master.domain.Checkpoint c) {
+        boolean success = com.dataweave.master.domain.Checkpoint.SUCCESS.equals(c.status());
+        boolean expired = com.dataweave.master.domain.Checkpoint.EXPIRED.equals(c.status())
+                || (c.completedAt() != null
+                        && c.completedAt().isBefore(LocalDateTime.now().minusHours(checkpointTtlHours)));
+        return new OpsContracts.CheckpointView(c.id(), c.ordinal(), c.status(), c.checkpointPath(),
+                iso(c.completedAt()), c.sizeBytes(), expired, success && !expired);
     }
 
     /** 获取日志分块。 */

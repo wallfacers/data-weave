@@ -119,6 +119,13 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
         if (cmd.engineMainClass() != null) {
             body.put("engineMainClass", cmd.engineMainClass());
         }
+        // 062：外部托管长驻作业标记 + reattach 句柄透传（worker 引擎执行器据此走 detached / reattach 分支）
+        if (cmd.longRunning()) {
+            body.put("longRunning", true);
+        }
+        if (cmd.externalJobHandle() != null && !cmd.externalJobHandle().isBlank()) {
+            body.put("externalJobHandle", cmd.externalJobHandle());
+        }
 
         // C4.2：解析数据源 → 序列化连接信息进 body（worker 不新增 DB 依赖）
         Map<String, Object> dsInfo = resolveDatasourceForWire(cmd.datasourceId(), taskType);

@@ -241,7 +241,9 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 cmd.engineJarRef(),
                 cmd.engineMainClass(),
                 null,  // configPath 运行期填
-                e != null ? e.props() : null);
+                e != null ? e.props() : null,
+                cmd.longRunning(),            // 062：detached 长驻分支
+                cmd.externalJobHandle());     // 062：reattach 句柄（非空则重连不重复提交）
     }
 
     /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间（按触发者 locale 渲染）。 */

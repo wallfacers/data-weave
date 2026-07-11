@@ -136,6 +136,8 @@ public final class ReadinessTestHelper {
                     deleted SMALLINT DEFAULT 0,
                     locale VARCHAR(16),
                     version INTEGER DEFAULT 0,
+                    long_running BOOLEAN DEFAULT FALSE,
+                    external_job_handle VARCHAR(512),
                     unmet_deps INTEGER NOT NULL DEFAULT 0
                 )""");
     }

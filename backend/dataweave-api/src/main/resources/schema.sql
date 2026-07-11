@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.15.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.16.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 027 统一事件中心=0.4.0（+health_event/event_subscription 2 表）。
 --     → 036 项目隔离收口=0.5.0（alert_*/quality_* 补 project_id + 索引 + 回填）。
@@ -19,6 +19,8 @@
 --     → worker 默认并发上调=0.14.1（worker_nodes.max_concurrent_tasks DEFAULT 10→100；拉高单节点并发上限）。
 --     → 060 节点容错闭环=0.15.0（worker_nodes +incarnation_since/consecutive_infra_failures/quarantined_until；
 --       task_instance +business_attempt/infra_redispatch_count/external_job_handle +SUSPENDED 态；task_def(_version) +long_running）。
+--     → 062 实时任务运维=0.16.0（+task_checkpoint 表：实时任务可恢复检查点，滚动保留最近 N 个；
+--       task_instance +long_running 快照列（面板按此过滤，免 JOIN task_def）+resume_checkpoint_id（续跑所选回滚点引用））。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -53,6 +55,7 @@ DROP TABLE IF EXISTS sla_baseline;
 DROP TABLE IF EXISTS cron_fire;
 DROP TABLE IF EXISTS workflow_node_freeze;
 DROP TABLE IF EXISTS workflow_dependency;
+DROP TABLE IF EXISTS task_checkpoint;
 DROP TABLE IF EXISTS task_instance;
 DROP TABLE IF EXISTS workflow_instance;
 DROP TABLE IF EXISTS workflow_edge;
@@ -137,6 +140,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.14.3', CURRENT_TIMESTAMP, '059 content 安全修正：TEXT→VARCHAR(1048576)（1MB DB 硬上限，既满足大作业体又防无界 DoS；安全审查 RESOURCE-BOUND）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.15.0', CURRENT_TIMESTAMP, '060 节点容错闭环：worker_nodes +incarnation_since/consecutive_infra_failures/quarantined_until；task_instance +business_attempt/infra_redispatch_count/external_job_handle +SUSPENDED 态；task_def/task_def_version +long_running');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.16.0', CURRENT_TIMESTAMP, '062 实时任务运维：+task_checkpoint 表（实时任务可恢复检查点，滚动保留最近 N 个）；task_instance +long_running 快照列（面板过滤免 JOIN）+resume_checkpoint_id（续跑所选回滚点引用）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -583,6 +588,8 @@ CREATE TABLE task_instance (
     params_override      TEXT,                 -- TEST 试跑携带的编辑器临时调度参数 JSON；与 content_override 同源（占位符按编辑器解析）
     type_override        VARCHAR(32),          -- TEST 试跑携带的编辑器临时任务类型（SQL/SHELL/ECHO）；非空则覆盖 task_def.type 选执行器
     task_type            VARCHAR(32),          -- 快照：task_def.type（物化时写入，免查询 JOIN）；type_override 仅 TEST 试跑时覆盖执行器选择，不影响此列
+    long_running         BOOLEAN DEFAULT FALSE,  -- 062 快照：task_def.long_running（物化时写入，免查询 JOIN）。可空（NULL≡false，实例经实体 save 未 set 即 NULL）；面板 `=TRUE` 过滤对 NULL 天然排除；下发链路据此走 detached 长驻分支
+    resume_checkpoint_id UUID,                 -- 062 续跑：resumeFromCheckpoint 所选回滚点（→ task_checkpoint.id）；非续跑为 NULL。reattach 命中 external_job_handle 优先，此列供从检查点恢复路径
     run_mode             VARCHAR(32) DEFAULT 'NORMAL',  -- NORMAL 正式 / TEST 试跑调试 / BACKFILL 补数据（data-ops-center）
     backfill_run_id      UUID,                 -- 所属补数据批次（run_mode=BACKFILL 时非空；指向 backfill_run.id）
     backfill_held        SMALLINT DEFAULT 0,   -- 补数据 bizDate 粒度节流旁路标志（backfill-parallelism-throttle）：1=被持有不可认领，由 BackfillPromoter 完成即晋升 1→0；与认领状态正交（实例仍 WAITING）
@@ -612,6 +619,23 @@ CREATE TABLE task_instance (
     -- 由 ReadinessInitializer 物化时算初值；ReadinessMaintainer 异步维护；ReadinessReconciler 兜底对账。
     unmet_deps           INTEGER NOT NULL DEFAULT 0
 );
+
+-- 062 实时任务检查点：一个实时任务实例（long_running）的多个可恢复进度快照。
+-- 滚动保留最近 N 个成功检查点（默认 N=3，可配置 streaming.checkpoint.retention-count），超出按 ordinal 淘汰。
+-- 续跑（resumeFromCheckpoint）时运维从中选一个作为回滚恢复点；有时效性（默认 24h，可配置）。
+CREATE TABLE task_checkpoint (
+    id                UUID PRIMARY KEY,           -- UUIDv7（应用层生成）
+    task_instance_id  UUID NOT NULL,              -- 所属实时任务实例（→ task_instance.id）
+    ordinal           INTEGER NOT NULL,           -- 同实例内递增序号（滚动淘汰：保留 ordinal 最大的 N 个）
+    checkpoint_path   VARCHAR(1024) NOT NULL,     -- 引擎侧 savepoint/checkpoint 路径（Flink savepointPath）
+    external_ref      VARCHAR(255),               -- 引擎侧触发句柄/请求 ID（可选，追踪 savepoint 触发结果）
+    status            VARCHAR(32) NOT NULL,        -- IN_PROGRESS / SUCCESS / FAILED / EXPIRED
+    size_bytes        BIGINT,                     -- 检查点大小（引擎返回则填）
+    completed_at      TIMESTAMP,                  -- status=SUCCESS 的时刻（过期判定依据）
+    created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_checkpoint_instance ON task_checkpoint (task_instance_id, ordinal DESC);  -- 面板列表 + 滚动淘汰
+CREATE INDEX idx_checkpoint_status ON task_checkpoint (task_instance_id, status);          -- 找有效检查点
 
 -- 补数据批次（data-ops-center）：一次「按 任务/工作流 × 日期区间」补数操作的父记录。
 -- 进度（success/failed/running）不落库，查询时按 backfill_run_id 聚合子 task_instance 状态得出（避免计数器一致性问题）。

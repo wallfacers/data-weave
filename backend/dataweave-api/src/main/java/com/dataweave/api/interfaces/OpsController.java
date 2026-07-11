@@ -242,6 +242,64 @@ public class OpsController {
     }
 
     /**
+     * 062 实时任务面板列表（US1）：仅 long_running 实例，server 分页。page 从 1 起；size 上限 200。
+     * 项目隔离沿用 {@code resolveProjectId}；只读、无门控。
+     */
+    @GetMapping("/streaming-tasks")
+    public ApiResponse<?> streamingTasks(
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long projectId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Long pid = resolveProjectId(projectId);
+        int page0 = Math.max(0, page - 1);
+        OpsContracts.PageResult<OpsContracts.StreamingTaskRow> pr = opsService.listStreamingTasks(
+                new OpsContracts.StreamingTaskQuery(pid, state, keyword, page0, size));
+        return ApiResponse.ok(new Page<>(pr.items(), pr.total(), page, pr.size()));
+    }
+
+    /**
+     * 062 某实时任务的检查点列表（US4，ordinal DESC，续跑选择用）。
+     */
+    @GetMapping("/streaming-tasks/{instanceId}/checkpoints")
+    public ApiResponse<?> streamingTaskCheckpoints(
+            @PathVariable String instanceId,
+            @RequestParam(required = false) Long projectId) {
+        Long pid = resolveProjectId(projectId);
+        return ApiResponse.ok(opsService.listCheckpoints(UUID.fromString(instanceId), pid));
+    }
+
+    /**
+     * 062 优雅停止实时任务并保留进度（US3）：触发 Flink stop-with-savepoint → 写检查点 → STOPPED。
+     * 与强制终止（{@code /instances/{id}/kill}）区分。L1 直执 + audit（不经审批，FR-011）。
+     * savepoint 不可用 → 错误 envelope（streaming.savepoint.unavailable），前端提示改用强制终止。
+     */
+    @PostMapping("/streaming-tasks/{instanceId}/stop")
+    public ApiResponse<?> streamingTaskStop(
+            @PathVariable String instanceId,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String targetDirectory = body != null ? body.get("targetDirectory") : null;
+        return ApiResponse.ok(opsService.stopWithSavepoint(UUID.fromString(instanceId), targetDirectory));
+    }
+
+    /**
+     * 062 从检查点续跑（US4）：body {@code {checkpointId}}。CAS STOPPED/SUSPENDED→WAITING（保留句柄供 reattach）。
+     * 无有效检查点 → streaming.checkpoint.invalid（前端引导全量重跑）。L1 直执 + audit。
+     */
+    @PostMapping("/streaming-tasks/{instanceId}/resume")
+    public ApiResponse<?> streamingTaskResume(
+            @PathVariable String instanceId,
+            @RequestBody java.util.Map<String, String> body) {
+        String checkpointId = body != null ? body.get("checkpointId") : null;
+        if (checkpointId == null || checkpointId.isBlank()) {
+            throw new com.dataweave.master.i18n.BizException("streaming.checkpoint.invalid");
+        }
+        return ApiResponse.ok(opsService.resumeFromCheckpoint(
+                UUID.fromString(instanceId), UUID.fromString(checkpointId)));
+    }
+
+    /**
      * 多维筛选 + 分页查询任务流实例列表。
      * page 从 1 起；size 上限 200。
      */

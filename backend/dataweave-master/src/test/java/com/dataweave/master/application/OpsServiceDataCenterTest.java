@@ -54,7 +54,10 @@ class OpsServiceDataCenterTest {
         jdbc = mock(JdbcTemplate.class);
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
                 workflowDefRepository, stateMachine, workflowStateService, logBus, eventBus, jdbc,
-                mock(com.dataweave.master.domain.AgentActionRepository.class));
+                mock(com.dataweave.master.domain.AgentActionRepository.class),
+                mock(com.dataweave.master.infrastructure.CheckpointRepository.class),
+                mock(com.dataweave.master.application.CheckpointService.class),
+                mock(com.dataweave.master.application.FlinkSavepointClient.class), 24L);
     }
 
     private TaskInstance instance(String state) {

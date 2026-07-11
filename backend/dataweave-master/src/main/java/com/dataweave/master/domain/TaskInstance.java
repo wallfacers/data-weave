@@ -22,6 +22,8 @@ public class TaskInstance {
     private String paramsOverride;
     private String typeOverride;
     private String taskType;
+    private Boolean longRunning;        // 062 快照：task_def.long_running（物化写入，免 JOIN）；面板过滤 + 下发 detached 分支判据
+    private UUID resumeCheckpointId;    // 062 续跑所选回滚点（→ task_checkpoint.id）；非续跑为 null
     private String runMode;
     private UUID backfillRunId;
     private Integer backfillHeld;
@@ -93,6 +95,14 @@ public class TaskInstance {
 
     public String getTaskType() { return taskType; }
     public void setTaskType(String taskType) { this.taskType = taskType; }
+
+    /** 062 快照：task_def.long_running（面板过滤 + 下发 detached 分支判据）。null≡false。 */
+    public Boolean getLongRunning() { return longRunning; }
+    public void setLongRunning(Boolean longRunning) { this.longRunning = longRunning; }
+
+    /** 062 续跑所选回滚点（→ task_checkpoint.id）；非续跑为 null。 */
+    public UUID getResumeCheckpointId() { return resumeCheckpointId; }
+    public void setResumeCheckpointId(UUID resumeCheckpointId) { this.resumeCheckpointId = resumeCheckpointId; }
 
     public String getRunMode() { return runMode; }
     public void setRunMode(String runMode) { this.runMode = runMode; }

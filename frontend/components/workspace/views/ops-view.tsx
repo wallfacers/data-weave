@@ -15,25 +15,29 @@ import {
   RefreshIcon,
   CursorMagicSelection02Icon,
   Task01Icon,
+  Activity01Icon,
 } from "@hugeicons/core-free-icons"
 
 import type { ViewProps } from "@/lib/workspace/registry"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OpsTopStrip } from "./ops/top-strip"
 import { PeriodicInstancesPanel } from "./ops/periodic-instances-panel"
+import { StreamingTasksPanel } from "./ops/streaming-tasks-panel"
 import { WorkflowInstancesPanel } from "./ops/workflow-instances-panel"
 import { InstanceDagDialog } from "./ops/instance-dag-dialog"
 import { PeriodicWorkflowsPanel } from "./ops/periodic-workflows-panel"
 import { ManualWorkflowsPanel } from "./ops/manual-workflows-panel"
 
-// 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 任务实例 / 补数据实例。
-type TabId = "periodicWf" | "manualWf" | "workflowInstances" | "taskInstances"
+// 运维主体 = 任务流（ops-center-publish-boundary）：周期任务流列表 / 手动任务流列表 / 任务流实例 / 任务实例 / 实时任务 / 补数据实例。
+type TabId = "periodicWf" | "manualWf" | "workflowInstances" | "taskInstances" | "streamingTasks"
 
 const TAB_ORDER: { id: TabId; labelKey: string; icon: typeof BoxIcon }[] = [
   { id: "periodicWf", labelKey: "tabPeriodicWorkflows", icon: Calendar03Icon },
   { id: "manualWf", labelKey: "tabManualWorkflows", icon: CursorMagicSelection02Icon },
   { id: "workflowInstances", labelKey: "tabWorkflowInstances", icon: RefreshIcon },
   { id: "taskInstances", labelKey: "tabTaskInstances", icon: Task01Icon },
+  // 062：实时任务紧随任务实例之后，独立并列（US1/FR-001）
+  { id: "streamingTasks", labelKey: "tabStreamingTasks", icon: Activity01Icon },
 ]
 
 export function OpsView({ params, active }: ViewProps) {
@@ -75,6 +79,7 @@ export function OpsView({ params, active }: ViewProps) {
             {activeTab === "taskInstances" && (
               <PeriodicInstancesPanel initialFilter={initialFilter} active={active} />
             )}
+            {activeTab === "streamingTasks" && <StreamingTasksPanel active={active} />}
                       </div>
         </main>
       </div>
