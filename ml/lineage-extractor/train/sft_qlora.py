@@ -85,6 +85,10 @@ def main() -> None:
     # 保证 0.5B/1.5B/3B 是干净对比。默认保持 1.5B 向后兼容。
     ap.add_argument("--base-model", default=BASE_MODEL,
                     help="HF base 模型 id，如 Qwen/Qwen2.5-Coder-0.5B-Instruct / -3B-Instruct")
+    # 稳定性旋钮（默认=原配方，向后兼容）：bf16 LoRA 早期数值发散时用更小 lr / 更长 warmup / 更紧梯度裁剪。
+    ap.add_argument("--lr", type=float, default=2e-4)
+    ap.add_argument("--warmup", type=float, default=0.03)
+    ap.add_argument("--max-grad-norm", type=float, default=1.0)
     args = ap.parse_args()
     base_model = args.base_model
 
@@ -115,9 +119,10 @@ def main() -> None:
         num_train_epochs=args.epochs,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=8,
-        learning_rate=2e-4,
+        learning_rate=args.lr,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.03,
+        warmup_ratio=args.warmup,
+        max_grad_norm=args.max_grad_norm,
         logging_steps=20,
         save_strategy="epoch",
         bf16=True,
