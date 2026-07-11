@@ -1385,6 +1385,8 @@
     "healthProgress": "Progress",
     "healthLag": "Backlog Lag",
     "healthCheckpointAge": "Checkpoint Age",
-    "healthRestarts": "Restarts"
+    "healthRestarts": "Restarts",
+    "filterState": "State",
+    "filterKeyword": "Search tasks"
   }
 }
