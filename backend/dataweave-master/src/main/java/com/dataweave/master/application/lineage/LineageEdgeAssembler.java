@@ -103,6 +103,18 @@ public class LineageEdgeAssembler {
         }
     }
 
+    /**
+     * 写侧目标数据源的有效解析：显式 {@code targetDatasourceId} 优先，缺失则回退到源数据源 {@code readDatasourceId}。
+     *
+     * <p>数仓内 ETL（ods→dwd→dws→ads 同库加工）普遍不显式声明 targetDatasource。若写侧坐标退化为空占位，
+     * 同一张表会在「上游任务写」与「下游任务读」时解析到两个不同 {@link DatasourceCoord#dsKey()} 节点，
+     * 使跨层 {@code FLOWS_TO} 断裂、多跳血缘溯源失效。回退到源库让同库表节点归一，保证链路连通。
+     * 跨库分层（读一库写另一库）仍须显式设 targetDatasource。
+     */
+    public static Long effectiveWriteDatasource(Long readDatasourceId, Long targetDatasourceId) {
+        return targetDatasourceId != null ? targetDatasourceId : readDatasourceId;
+    }
+
     /** 构造 TableRef（复用 inferLayer；供 runtime recordSynced 写表引用，feature 025）。 */
     public TableRef tableRef(DatasourceCoord coord, String qualifiedName) {
         return new TableRef(coord, qualifiedName, inferLayer(qualifiedName));

@@ -873,9 +873,12 @@ public class ProjectSyncService {
                 if (t == null) {
                     continue;
                 }
+                // 数仓内 ETL（源=目标同库）常不显式设 targetDatasource：写侧坐标须回退到源数据源，
+                // 否则同一张表在「上游写」用空坐标节点、在「下游读」用源坐标节点 → 节点分裂 → 跨层血缘断链、多跳溯源失效。
+                Long writeDs = LineageEdgeAssembler.effectiveWriteDatasource(t.getDatasourceId(), t.getTargetDatasourceId());
                 LineageEdgeAssembler.Assembly assembly = lineageEdgeAssembler.assemble(
                         tenantId, projectId, t.getType(), t.getContent(),
-                        null, null, t.getDatasourceId(), t.getTargetDatasourceId());
+                        null, null, t.getDatasourceId(), writeDs);
 
                 // 024-声明 schema 转换
                 java.util.Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>>
@@ -918,7 +921,7 @@ public class ProjectSyncService {
                     columnEdges = com.dataweave.master.application.lineage.ColumnLineageStoreAdapter.toDomain(
                             colResult,
                             lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getDatasourceId()),
-                            lineageEdgeAssembler.resolveCoord(tenantId, projectId, t.getTargetDatasourceId()));
+                            lineageEdgeAssembler.resolveCoord(tenantId, projectId, writeDs));
                 }
 
                 // 041 脚本血缘：PYTHON/SHELL(/SPARK) 并联脚本通道（SQL 分支零改动，FR-001/FR-005）
