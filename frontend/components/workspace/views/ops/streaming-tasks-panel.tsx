@@ -15,13 +15,14 @@
 import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { Activity01Icon, FileViewIcon } from "@hugeicons/core-free-icons"
+import { Activity01Icon, FileViewIcon, StopIcon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialog"
 import {
   type ColumnDef,
   type FetchQuery,
@@ -107,6 +108,40 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   const { tickNow } = useRefreshSchedule(onTick, { active, enabled: autoEnabled, skipInitialFire: true })
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
+  const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
+
+  // 停止（保留进度）/ 强制终止 确认态
+  const [confirm, setConfirm] = useState<{ kind: "stop" | "kill"; row: StreamingTaskRow } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const runConfirmed = useCallback(async () => {
+    if (!confirm) return
+    const { kind, row } = confirm
+    setBusy(true)
+    try {
+      const url =
+        kind === "stop"
+          ? `${API_BASE}/api/ops/streaming-tasks/${row.instanceId}/stop`
+          : `${API_BASE}/api/ops/instances/${row.instanceId}/kill`
+      const res = await authFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: kind === "stop" ? JSON.stringify({}) : undefined,
+      })
+      const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null
+      if (!json || json.code !== 0) {
+        toast.error(json?.message ?? `HTTP ${res.status}`)
+        return
+      }
+      toast.success(kind === "stop" ? t("stopConfirmTitle") : t("forceKillConfirmTitle"))
+      setConfirm(null)
+      reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "network error")
+    } finally {
+      setBusy(false)
+    }
+  }, [confirm, t, reload])
 
   const columns = useMemo<ColumnDef<StreamingTaskRow>[]>(
     () => [
@@ -176,25 +211,63 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         key: "actions",
         header: t("colActions"),
         widthPct: 20,
-        cell: (r) => (
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7"
-                    onClick={() => open("instance-log", { instanceId: r.instanceId, taskName: r.taskName })}
-                  >
-                    <HugeiconsIcon icon={FileViewIcon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("actionLogs")}</TooltipContent>
-            </Tooltip>
-          </div>
-        ),
+        cell: (r) => {
+          const stoppable = r.state === "RUNNING"
+          const killable = !["STOPPED", "SUCCESS", "FAILED", "SKIPPED"].includes(r.state)
+          return (
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7"
+                      onClick={() => open("instance-log", { instanceId: r.instanceId, taskName: r.taskName })}
+                    >
+                      <HugeiconsIcon icon={FileViewIcon} className="size-4" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("actionLogs")}</TooltipContent>
+              </Tooltip>
+              {stoppable && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7"
+                        onClick={() => setConfirm({ kind: "stop", row: r })}
+                      >
+                        <HugeiconsIcon icon={StopIcon} className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t("actionStopGraceful")}</TooltipContent>
+                </Tooltip>
+              )}
+              {killable && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7 text-destructive"
+                        onClick={() => setConfirm({ kind: "kill", row: r })}
+                      >
+                        <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{t("actionForceKill")}</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          )
+        },
       },
     ],
     [t, open],
@@ -254,6 +327,16 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         emptyIcon={Activity01Icon}
         emptyTitle={t("panelTitle")}
         emptyHint={t("empty")}
+      />
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm?.kind === "kill" ? t("forceKillConfirmTitle") : t("stopConfirmTitle")}
+        description={confirm?.kind === "kill" ? t("forceKillConfirmDesc") : t("stopConfirmDesc")}
+        confirmLabel={confirm?.kind === "kill" ? t("actionForceKill") : t("actionStopGraceful")}
+        destructive={confirm?.kind === "kill"}
+        busy={busy}
+        onConfirm={runConfirmed}
       />
     </div>
   )

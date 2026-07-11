@@ -271,6 +271,19 @@ public class OpsController {
     }
 
     /**
+     * 062 优雅停止实时任务并保留进度（US3）：触发 Flink stop-with-savepoint → 写检查点 → STOPPED。
+     * 与强制终止（{@code /instances/{id}/kill}）区分。L1 直执 + audit（不经审批，FR-011）。
+     * savepoint 不可用 → 错误 envelope（streaming.savepoint.unavailable），前端提示改用强制终止。
+     */
+    @PostMapping("/streaming-tasks/{instanceId}/stop")
+    public ApiResponse<?> streamingTaskStop(
+            @PathVariable String instanceId,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        String targetDirectory = body != null ? body.get("targetDirectory") : null;
+        return ApiResponse.ok(opsService.stopWithSavepoint(UUID.fromString(instanceId), targetDirectory));
+    }
+
+    /**
      * 多维筛选 + 分页查询任务流实例列表。
      * page 从 1 起；size 上限 200。
      */

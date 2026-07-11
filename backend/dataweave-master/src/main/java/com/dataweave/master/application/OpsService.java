@@ -50,6 +50,8 @@ public class OpsService {
     private final AgentActionRepository agentActionRepository;
     private final com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository;  // 062
     private final long checkpointTtlHours;  // 062：检查点过期判定（streaming.checkpoint.ttl-hours）
+    private final CheckpointService checkpointService;      // 062 US3：写检查点 + 滚动保留
+    private final FlinkSavepointClient flinkSavepointClient; // 062 US3：Flink savepoint 触发
 
     public OpsService(TaskDefRepository taskDefRepository,
                       TaskInstanceRepository instanceRepository,
@@ -62,6 +64,8 @@ public class OpsService {
                       JdbcTemplate jdbc,
                       AgentActionRepository agentActionRepository,
                       com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository,
+                      CheckpointService checkpointService,
+                      FlinkSavepointClient flinkSavepointClient,
                       @org.springframework.beans.factory.annotation.Value(
                               "${streaming.checkpoint.ttl-hours:24}") long checkpointTtlHours) {
         this.taskDefRepository = taskDefRepository;
@@ -75,6 +79,8 @@ public class OpsService {
         this.jdbc = jdbc;
         this.agentActionRepository = agentActionRepository;
         this.checkpointRepository = checkpointRepository;
+        this.checkpointService = checkpointService;
+        this.flinkSavepointClient = flinkSavepointClient;
         this.checkpointTtlHours = checkpointTtlHours;
     }
 
@@ -863,6 +869,54 @@ public class OpsService {
         }
         return checkpointRepository.listByInstance(instanceId).stream()
                 .map(this::toCheckpointView).toList();
+    }
+
+    /**
+     * 优雅停止实时任务并保留进度（US3）：触发 Flink stop-with-savepoint → 写 SUCCESS 检查点（滚动保留 N）
+     * → CAS RUNNING→STOPPED。与强制终止（{@link #killTask} CANCEL 无 savepoint）显式区分。
+     * savepoint 不可用（引擎不可达/拒绝/无句柄）→ streaming.savepoint.unavailable（前端提示改用强制终止）。
+     * L1 直执 + audit，不经审批（FR-011）。
+     *
+     * @param targetDirectory 可选 savepoint 目录（null=引擎默认）
+     */
+    public OpsContracts.StreamingStopResult stopWithSavepoint(UUID instanceId, String targetDirectory) {
+        TaskInstance ti = instanceRepository.findById(instanceId)
+                .orElseThrow(() -> new BizException("ops.instance.not_found", instanceId));
+        if (!Boolean.TRUE.equals(ti.getLongRunning())) {
+            throw new BizException("streaming.not_long_running");
+        }
+        if (!InstanceStates.RUNNING.equals(ti.getState())) {
+            throw new BizException("streaming.instance.not_resumable", ti.getState());
+        }
+        String handle = ti.getExternalJobHandle();
+        if (handle == null || handle.isBlank()) {
+            throw new BizException("streaming.savepoint.unavailable", "无外部作业句柄，无法触发 savepoint");
+        }
+        String jobId = parseHandleField(handle, "jobId");
+        String restEndpoint = parseHandleField(handle, "restEndpoint");
+        String path;
+        try {
+            path = flinkSavepointClient.stopWithSavepoint(restEndpoint, jobId, targetDirectory);
+        } catch (FlinkSavepointClient.SavepointException e) {
+            throw new BizException("streaming.savepoint.unavailable", e.getMessage());
+        }
+        UUID checkpointId = checkpointService.recordSuccess(instanceId, path, jobId, null);
+        stateMachine.casTaskTerminal(instanceId, ti.getState(), InstanceStates.STOPPED, "SAVEPOINT_STOP");
+        if (ti.getWorkflowInstanceId() != null) {
+            workflowStateService.computeAndUpdate(ti.getWorkflowInstanceId());
+        }
+        audit("STOP_WITH_SAVEPOINT", instanceId, "优雅停止实时任务（保留检查点 " + path + "）");
+        return new OpsContracts.StreamingStopResult(instanceId, checkpointId, InstanceStates.STOPPED, path);
+    }
+
+    /** 从 external_job_handle JSON 取字段（jobId/restEndpoint）。 */
+    private static String parseHandleField(String handleJson, String field) {
+        try {
+            var node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(handleJson);
+            return node.has(field) ? node.get(field).asText() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Checkpoint → CheckpointView：计算 expired（ttl）+ resumable。 */

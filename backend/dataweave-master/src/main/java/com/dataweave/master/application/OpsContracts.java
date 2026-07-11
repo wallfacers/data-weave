@@ -185,6 +185,9 @@ public final class OpsContracts {
     /** 实时任务筛选（面板 server 分页）。projectId 项目隔离；state/keyword 可选。 */
     public record StreamingTaskQuery(Long projectId, String state, String keyword, int page, int size) {}
 
+    /** 优雅停止结果（US3）：checkpointId=新写入的检查点；state=停止后实例态（STOPPED）。 */
+    public record StreamingStopResult(UUID instanceId, UUID checkpointId, String state, String checkpointPath) {}
+
     /** 参数替换后的实际配置视图。TEST 模式下 originalParamsJson/originalTimeoutSeconds 非空。 */
     public record ResolvedConfigView(UUID taskInstanceId, String taskType, int timeoutSeconds,
                                       String retryStrategy, String resourceLimit,

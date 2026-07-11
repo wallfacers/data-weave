@@ -1,6 +1,7 @@
 package com.dataweave.api;
 
 import com.dataweave.api.infrastructure.JwtUtil;
+import com.dataweave.master.application.FlinkSavepointClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,10 +9,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 /**
  * 062 US1 实时任务面板端点契约（GET /api/ops/streaming-tasks）：
@@ -32,6 +38,8 @@ class StreamingTasksWebTest {
     JdbcTemplate jdbc;
     @Autowired
     JwtUtil jwtUtil;
+    @MockitoBean
+    FlinkSavepointClient flinkSavepointClient;  // 替换真 Flink REST，测 stop 端点接线
 
     WebTestClient client;
 
@@ -140,6 +148,64 @@ class StreamingTasksWebTest {
                 .jsonPath("$.data.items[0].lastCheckpoint.resumable").isEqualTo(true)
                 .jsonPath("$.data.items[0].externalJobHandlePresent").isEqualTo(false);
     }
+
+    @Test
+    void stop_成功_触发savepoint写检查点置STOPPED() {
+        UUID id = uuidv7(51);
+        insert(id, 1, TASK_A, "mysql-sync-realtime", "RUNNING", true, HANDLE);
+        when(flinkSavepointClient.stopWithSavepoint(anyString(), anyString(), any()))
+                .thenReturn("hdfs:///sp/stopped-1");
+
+        client.post().uri("/api/ops/streaming-tasks/{id}/stop", id)
+                .bodyValue("{}")
+                .header("Content-Type", "application/json")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.state").isEqualTo("STOPPED")
+                .jsonPath("$.data.checkpointPath").isEqualTo("hdfs:///sp/stopped-1");
+
+        // DB 落地：实例 STOPPED + 检查点 SUCCESS
+        String state = jdbc.queryForObject("SELECT state FROM task_instance WHERE id=?", String.class, id);
+        Integer cpCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM task_checkpoint WHERE task_instance_id=? AND status='SUCCESS'",
+                Integer.class, id);
+        org.assertj.core.api.Assertions.assertThat(state).isEqualTo("STOPPED");
+        org.assertj.core.api.Assertions.assertThat(cpCount).isEqualTo(1);
+    }
+
+    @Test
+    void stop_savepoint不可用_错误envelope() {
+        UUID id = uuidv7(52);
+        insert(id, 1, TASK_A, "mysql-sync-realtime", "RUNNING", true, HANDLE);
+        when(flinkSavepointClient.stopWithSavepoint(anyString(), anyString(), any()))
+                .thenThrow(new FlinkSavepointClient.SavepointException("引擎不可达"));
+
+        client.post().uri("/api/ops/streaming-tasks/{id}/stop", id)
+                .bodyValue("{}")
+                .header("Content-Type", "application/json")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.errorCode").isEqualTo("streaming.savepoint.unavailable");
+    }
+
+    @Test
+    void stop_非long_running_拒绝() {
+        UUID id = uuidv7(53);
+        insert(id, 1, TASK_BATCH, "daily-batch", "RUNNING", false, null);
+
+        client.post().uri("/api/ops/streaming-tasks/{id}/stop", id)
+                .bodyValue("{}")
+                .header("Content-Type", "application/json")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.errorCode").isEqualTo("streaming.not_long_running");
+    }
+
+    static final String HANDLE = "{\"jobId\":\"job-1\",\"restEndpoint\":\"http://flink:8081\"}";
 
     @Test
     void unauthenticated_401() {

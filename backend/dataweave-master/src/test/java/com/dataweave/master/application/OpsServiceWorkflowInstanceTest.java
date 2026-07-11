@@ -41,7 +41,9 @@ class OpsServiceWorkflowInstanceTest {
         ops = new OpsService(taskDefRepository, instanceRepository, workflowInstanceRepository,
                 workflowDefRepository, stateMachine, workflowStateService, logBus, eventBus, jdbc,
                 mock(AgentActionRepository.class),
-                mock(com.dataweave.master.infrastructure.CheckpointRepository.class), 24L);
+                mock(com.dataweave.master.infrastructure.CheckpointRepository.class),
+                mock(com.dataweave.master.application.CheckpointService.class),
+                mock(com.dataweave.master.application.FlinkSavepointClient.class), 24L);
     }
 
     // ─── queryWorkflowInstances ─────────────────────────────
