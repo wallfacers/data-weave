@@ -26,6 +26,7 @@ import { ConfirmDialog } from "@/components/workspace/views/shared/confirm-dialo
 import { ResumeCheckpointDialog } from "./resume-checkpoint-dialog"
 import {
   type ColumnDef,
+  type FilterDef,
   type FetchQuery,
   type PageResult,
   toQueryParams,
@@ -82,6 +83,16 @@ const STATE_I18N: Record<string, string> = {
   FAILED: "stateFailed",
 }
 
+/** 062 状态筛选选项：仅 long_running 实例可能出现的状态。 */
+const STATE_FILTER_OPTIONS = [
+  { value: "RUNNING", labelKey: "stateRunning" },
+  { value: "DISPATCHED", labelKey: "stateRecovering" },
+  { value: "WAITING", labelKey: "stateRecovering" },
+  { value: "STOPPED", labelKey: "stateStopped" },
+  { value: "SUSPENDED", labelKey: "stateSuspended" },
+  { value: "FAILED", labelKey: "stateFailed" },
+] as const
+
 /** 秒 → 可读时长（Xd Xh / Xh Ym / Xm Ys / Xs）。 */
 export function humanizeDuration(sec: number | null | undefined): string {
   if (sec == null || sec < 0) return "—"
@@ -110,6 +121,27 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   const onLoadingChange = useCallback((loading: boolean) => setRefreshing(loading), [])
   const onLoaded = useCallback(() => setLastUpdatedAt(Date.now()), [])
   const reload = useCallback(() => setReloadSignal((n) => n + 1), [])
+
+  // ── 筛选定义：state（下拉单选）+ keyword（搜索）──
+  const filters = useMemo<FilterDef[]>(
+    () => [
+      {
+        key: "state",
+        label: t("filterState"),
+        kind: "select",
+        width: "w-32",
+        options: STATE_FILTER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey as never) })),
+      },
+      {
+        key: "keyword",
+        label: t("filterKeyword"),
+        kind: "search",
+        width: "w-48",
+        placeholder: t("filterKeyword"),
+      },
+    ],
+    [t],
+  )
 
   // 停止（保留进度）/ 强制终止 确认态
   const [confirm, setConfirm] = useState<{ kind: "stop" | "kill"; row: StreamingTaskRow } | null>(null)
@@ -300,7 +332,7 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
   )
 
   const fetcher = async (query: FetchQuery): Promise<PageResult<StreamingTaskRow>> => {
-    const qs = toQueryParams(query, [])
+    const qs = toQueryParams(query, filters)
     qs.set("projectId", String(projectId))
     const res = await authFetch(`${API_BASE}/api/ops/streaming-tasks?${qs.toString()}`)
     if (!res.ok) {
@@ -337,6 +369,7 @@ export function StreamingTasksPanel({ active }: { active?: boolean }) {
         getRowId={(r) => r.instanceId}
         mode="server"
         fetcher={fetcher}
+        filters={filters}
         reloadSignal={reloadSignal}
         onLoadingChange={onLoadingChange}
         onLoaded={onLoaded}

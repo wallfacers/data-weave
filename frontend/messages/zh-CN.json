@@ -1385,6 +1385,8 @@
     "healthProgress": "进度",
     "healthLag": "堆积延迟",
     "healthCheckpointAge": "检查点时效",
-    "healthRestarts": "重启次数"
+    "healthRestarts": "重启次数",
+    "filterState": "状态",
+    "filterKeyword": "搜索任务"
   }
 }
