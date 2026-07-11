@@ -21,9 +21,9 @@
 
 **Purpose**: gitignored 数据软链到 063，确认既有内核可用。
 
-- [ ] T001 按 quickstart「前置」软链 dw-059 的 gitignored 数据到 `<ml>`：`realeval/gold/real-c-arbitrated.jsonl`、`out/preds-c-run-059-runc.jsonl`、`out/preds-c-teacher-{deepseek-pro,qwen-max}.jsonl`（均 gitignored，不入 commit；CV 不需 pool-c-held/teacher 标签）
-- [ ] T002 [P] 冒烟确认既有内核在 063 可导入：`cd <ml> && PYTHONPATH=. python3 -c "from realeval.channel_router import extract_sql_lineage; from realeval.confidence_calibration import _canonical_edges, TIERS; from realeval.conf_calibration_cv import main; from realeval.semantic_grounding import filter_pred_semantic; from realeval.dir_fix import apply_dir_fix; print('ok')"`
-- [ ] T003 [P] 冒烟确认 gold C（153 行）与 preds-c（153 行）对齐，三方预测（3b/deepseek/qwen）齐备
+- [x] T001 按 quickstart「前置」软链 dw-059 的 gitignored 数据到 `<ml>`：`realeval/gold/real-c-arbitrated.jsonl`、`out/preds-c-run-059-runc.jsonl`、`out/preds-c-teacher-{deepseek-pro,qwen-max}.jsonl`（均 gitignored，不入 commit；CV 不需 pool-c-held/teacher 标签）
+- [x] T002 [P] 冒烟确认既有内核在 063 可导入：`cd <ml> && PYTHONPATH=. python3 -c "from realeval.channel_router import extract_sql_lineage; from realeval.confidence_calibration import _canonical_edges, TIERS; from realeval.conf_calibration_cv import main; from realeval.semantic_grounding import filter_pred_semantic; from realeval.dir_fix import apply_dir_fix; print('ok')"`
+- [x] T003 [P] 冒烟确认 gold C（153 行）与 preds-c（153 行）对齐，三方预测（3b/deepseek/qwen）齐备
 
 ---
 
@@ -33,17 +33,17 @@
 
 ### 冻结校准（research R1 修正：无独立非泄漏带标集 → gold C 嵌套 CV 去偏；复用既有 gold C 预测，无需 dump/silver）
 
-- [ ] T004 数据准备：对既有 gold C 预测 `out/preds-c-run-059-runc.jsonl` **先过语义 grounding**（部署管线一致），产出按行 idx 对齐的 `out/preds-c-grounded-idx.jsonl`（`conf_calibration_cv`/`confidence_calibration` 需 model_by_idx）。〔原 T004 pool-c-held dump 取消——R1 证伪 pool-c-held⊇gold C〕
-- [ ] T005 〔取消〕build_silver 银标不需要——CV 直接在 gold C 金标 + 既有预测上做（R1/R2）。保留占位以稳定后续编号
-- [ ] T006 [P] 写 `<ml>/tests/test_calibrate_tiers.py`（先行）：断言校准常量表结构（五级 tier×{precision,n,calibrated_rank}）、全 gold C 点估计与 CV held-out 均输出、校准序按 precision 降序、sql_bare 低置信
-- [ ] T007 实现 `<ml>/realeval/calibrate_tiers.py`：在 **gold C**（`real-c-arbitrated.jsonl`）+ grounded 预测上跑 `confidence_calibration.calibrate`（全 gold C 点估计 → 部署常量）+ `conf_calibration_cv`（k 折/留一 CV 去偏 → held-out 报告口径）→ `--emit-constants` 写 `realeval/tier_classify_constants.py`，报告 `out/calibrate-tiers.md`（点估计 vs CV held-out 并列，披露样本小/边界抖动）
-- [ ] T008 运行 T007 产出冻结常量 `realeval/tier_classify_constants.py` + `out/calibrate-tiers.md`；确认 CV held-out 前沿在 ≥0.95 阈下的 precision（诚实口径）；`test_calibrate_tiers.py` 转绿
+- [x] T004 数据准备：对既有 gold C 预测 `out/preds-c-run-059-runc.jsonl` **先过语义 grounding**（部署管线一致），产出按行 idx 对齐的 `out/preds-c-grounded-idx.jsonl`（`conf_calibration_cv`/`confidence_calibration` 需 model_by_idx）。〔原 T004 pool-c-held dump 取消——R1 证伪 pool-c-held⊇gold C〕
+- [x] T005 〔取消〕build_silver 银标不需要——CV 直接在 gold C 金标 + 既有预测上做（R1/R2）。保留占位以稳定后续编号
+- [x] T006 [P] 写 `<ml>/tests/test_calibrate_tiers.py`（先行）：断言校准常量表结构（五级 tier×{precision,n,calibrated_rank}）、全 gold C 点估计与 CV held-out 均输出、校准序按 precision 降序、sql_bare 低置信
+- [x] T007 实现 `<ml>/realeval/calibrate_tiers.py`：在 **gold C**（`real-c-arbitrated.jsonl`）+ grounded 预测上跑 `confidence_calibration.calibrate`（全 gold C 点估计 → 部署常量）+ `conf_calibration_cv`（k 折/留一 CV 去偏 → held-out 报告口径）→ `--emit-constants` 写 `realeval/tier_classify_constants.py`，报告 `out/calibrate-tiers.md`（点估计 vs CV held-out 并列，披露样本小/边界抖动）
+- [x] T008 运行 T007 产出冻结常量 `realeval/tier_classify_constants.py` + `out/calibrate-tiers.md`；确认 CV held-out 前沿在 ≥0.95 阈下的 precision（诚实口径）；`test_calibrate_tiers.py` 转绿
 
 ### 分层纯函数（contracts/tier-classify.md）
 
-- [ ] T009 [P] 写 `<ml>/tests/test_tier_classify.py`（先行，真实夹具）：sql_qual 进 auto、sql_bare 进 review、model-only 漏抽经 SQL 通道补回进 review、`t`+`db.t` canon 合并为一条 agree、空输入 `tiered=False`、`thr=0` 全进 auto、`thr=0.95` 仅累计≥0.95 前缀进 auto、review 按 confidence 降序、agree 方向冲突取 SQL-AST
-- [ ] T010 实现 `<ml>/realeval/tier_classify.py` 的 `classify_tiers(model_pred, content, thr=0.95)`：`extract_sql_lineage(exec_gated=True)` 取 S、`_canonical_edges(S,M)` 打 tier、读冻结常量赋 confidence、按校准序累计切 auto/review、review 降序、方向 FR-010（agree 冲突取 AST target）；纯函数无 torch
-- [ ] T011 跑 `test_tier_classify.py` 转绿；确认确定性（同输入同阈同输出）
+- [x] T009 [P] 写 `<ml>/tests/test_tier_classify.py`（先行，真实夹具）：sql_qual 进 auto、sql_bare 进 review、model-only 漏抽经 SQL 通道补回进 review、`t`+`db.t` canon 合并为一条 agree、空输入 `tiered=False`、`thr=0` 全进 auto、`thr=0.95` 仅累计≥0.95 前缀进 auto、review 按 confidence 降序、agree 方向冲突取 SQL-AST
+- [x] T010 实现 `<ml>/realeval/tier_classify.py` 的 `classify_tiers(model_pred, content, thr=0.95)`：`extract_sql_lineage(exec_gated=True)` 取 S、`_canonical_edges(S,M)` 打 tier、读冻结常量赋 confidence、按校准序累计切 auto/review、review 降序、方向 FR-010（agree 冲突取 AST target）；纯函数无 torch
+- [x] T011 跑 `test_tier_classify.py` 转绿；确认确定性（同输入同阈同输出）
 
 **Checkpoint**: 冻结常量 + `classify_tiers` 就绪且单测绿 → 各 US 可并行推进。
 
@@ -55,11 +55,11 @@
 
 **Independent Test**: gold C 上离线跑分层，`auto ∪ review` 召回 ≥0.76（vs 模型独抽 0.703），候选可按 confidence 排序。
 
-- [ ] T012 [P] [US1] 写 `<ml>/tests/test_dir_fix_serve.py` 新增用例（先行）：分层响应含 `reviewReads/reviewWrites`、模型漏抽经 SQL 补回的真表出现在 review、review 按 confidence 降序、`tiered` 标记正确
-- [ ] T013 [US1] 扩 `<ml>/serve/app.py`：`TableIo` 加 `tier:str`、`confidence:float`；`ExtractResponse` 加 `reviewReads`、`reviewWrites`、`tiered:bool`（默认值，向后兼容，见 contracts/extract-response.md）
-- [ ] T014 [US1] 扩 `<ml>/serve/app.py` 的 `postprocess`：链尾调 `classify_tiers`（解析→semantic grounding→dir_fix→**分层**），`reads/writes`=auto 层、`reviewReads/writes`=review 层，回填 `tiered`；`extract()` 组装两层响应
-- [ ] T015 [US1] 实现 `<ml>/realeval/rescore_tiered.py`：gold C 上对 `--preds label:path`（三方）跑 `classify_tiers`，量 auto∪review 召回、review 召回、复核负载（候选/脚本），报告 `out/rescore-tiered.md`
-- [ ] T016 [US1] 跑 T015 harness（三方：3b/deepseek/qwen）；确认 **SC-001**：3B `auto∪review` 召回 ≥0.76、相对 0.703 回收 ≥+5pt；`test_dir_fix_serve.py` US1 用例转绿
+- [x] T012 [P] [US1] 写 `<ml>/tests/test_dir_fix_serve.py` 新增用例（先行）：分层响应含 `reviewReads/reviewWrites`、模型漏抽经 SQL 补回的真表出现在 review、review 按 confidence 降序、`tiered` 标记正确
+- [x] T013 [US1] 扩 `<ml>/serve/app.py`：`TableIo` 加 `tier:str`、`confidence:float`；`ExtractResponse` 加 `reviewReads`、`reviewWrites`、`tiered:bool`（默认值，向后兼容，见 contracts/extract-response.md）
+- [x] T014 [US1] 扩 `<ml>/serve/app.py` 的 `postprocess`：链尾调 `classify_tiers`（解析→semantic grounding→dir_fix→**分层**），`reads/writes`=auto 层、`reviewReads/writes`=review 层，回填 `tiered`；`extract()` 组装两层响应
+- [x] T015 [US1] 实现 `<ml>/realeval/rescore_tiered.py`：gold C 上对 `--preds label:path`（三方）跑 `classify_tiers`，量 auto∪review 召回、review 召回、复核负载（候选/脚本），报告 `out/rescore-tiered.md`
+- [x] T016 [US1] 跑 T015 harness（三方：3b/deepseek/qwen）；确认 **SC-001**：3B `auto∪review` 召回 ≥0.76、相对 0.703 回收 ≥+5pt；`test_dir_fix_serve.py` US1 用例转绿
 
 **Checkpoint**: serving 返回分层响应、复核层召回回收经离线证明 → US1 可独立交付（MVP）。
 
@@ -71,9 +71,9 @@
 
 **Independent Test**: gold C CV held-out 量自动层 precision ≥ 阈；裸名低置信候选不在 auto。
 
-- [ ] T017 [P] [US2] 写 `<ml>/tests/test_tier_classify.py` 补用例（先行）：`thr=0.95` 时低置信 tier（model_bare 使累计跌破阈）降级 review、仅达阈前缀留 auto；`test_dir_fix_serve.py` 补：`reads/writes` 只含 auto 层高置信表
-- [ ] T018 [US2] `rescore_tiered.py` 增自动层度量：auto 层 gold C **CV held-out** precision（`conf_calibration_cv` 口径，级序/前沿留出）+ 与模型平铺输出精度对照（无回归）
-- [ ] T019 [US2] 跑 harness 确认 **SC-002**：自动层 CV held-out precision ≥ 治理阈（默认 0.95→1.000）；报告如实披露 ≥0.95 自动层召回过低（约 0.05，仅 sql_qual）为治理严格代价 + CV 真膝点 0.85 数据（recall 约 0.72）；US2 测试转绿
+- [x] T017 [P] [US2] 写 `<ml>/tests/test_tier_classify.py` 补用例（先行）：`thr=0.95` 时低置信 tier（model_bare 使累计跌破阈）降级 review、仅达阈前缀留 auto；`test_dir_fix_serve.py` 补：`reads/writes` 只含 auto 层高置信表
+- [x] T018 [US2] `rescore_tiered.py` 增自动层度量：auto 层 gold C **CV held-out** precision（`conf_calibration_cv` 口径，级序/前沿留出）+ 与模型平铺输出精度对照（无回归）
+- [x] T019 [US2] 跑 harness 确认 **SC-002**：自动层 CV held-out precision ≥ 治理阈（默认 0.95→1.000）；报告如实披露 ≥0.95 自动层召回过低（约 0.05，仅 sql_qual）为治理严格代价 + CV 真膝点 0.85 数据（recall 约 0.72）；US2 测试转绿
 
 **Checkpoint**: 自动层治理安全性经 held-out 证明 → US2 交付。
 
@@ -85,9 +85,9 @@
 
 **Independent Test**: 改 env 阈重跑，auto/review 随阈迁移；`LINEAGE_TIERING=0` 输出与旧单一清单等价。
 
-- [ ] T020 [P] [US3] 写 `<ml>/tests/test_dir_fix_serve.py` 补用例（先行）：`LINEAGE_AUTOACCEPT_MIN_PRECISION=0.90` 时 auto 层扩大/复核负载降；`LINEAGE_TIERING=0` 时响应等价旧单一 `reads/writes`（review 空、`tiered=False`、旧字段语义不变）；任意阈下 `auto∪review` 召回不变
-- [ ] T021 [US3] `<ml>/serve/app.py`：接 env `LINEAGE_AUTOACCEPT_MIN_PRECISION`（默认 `"0.95"`）→ `thr`；接 `LINEAGE_TIERING`（默认 `"1"`，置 0 完全跳过分层退回旧路径）；见 contracts/extract-response.md 配置表
-- [ ] T022 [US3] 跑 T020 用例转绿；确认 **SC-004**：0.95→0.85 自动层召回约 0.05→0.72 可验证（CV 真膝点；0.90 仍约 0.05）、`LINEAGE_TIERING=0` 逐字节等价 059 现状
+- [x] T020 [P] [US3] 写 `<ml>/tests/test_dir_fix_serve.py` 补用例（先行）：`LINEAGE_AUTOACCEPT_MIN_PRECISION=0.90` 时 auto 层扩大/复核负载降；`LINEAGE_TIERING=0` 时响应等价旧单一 `reads/writes`（review 空、`tiered=False`、旧字段语义不变）；任意阈下 `auto∪review` 召回不变
+- [x] T021 [US3] `<ml>/serve/app.py`：接 env `LINEAGE_AUTOACCEPT_MIN_PRECISION`（默认 `"0.95"`）→ `thr`；接 `LINEAGE_TIERING`（默认 `"1"`，置 0 完全跳过分层退回旧路径）；见 contracts/extract-response.md 配置表
+- [x] T022 [US3] 跑 T020 用例转绿；确认 **SC-004**：0.95→0.85 自动层召回约 0.05→0.72 可验证（CV 真膝点；0.90 仍约 0.05）、`LINEAGE_TIERING=0` 逐字节等价 059 现状
 
 **Checkpoint**: 阈可调 + 回滚安全阀就绪 → US3 交付。
 
@@ -95,10 +95,10 @@
 
 ## Phase 6: Polish & 收尾
 
-- [ ] T023 [P] 全量 ml 套件回归：`cd <ml> && PYTHONPATH=. python3 -m pytest -q` 全绿，无回归（含 059 既有测试）
-- [ ] T024 [P] 写 `<ml>/out/FINDINGS-063.md`：召回天花板定界（0.764）、三方分层对照、≥0.95 vs 0.90 代价、**R1 诚实披露（无独立集：测试集 A 删/pool-c-held⊇gold C/pool-c-train 泄漏→gold C CV 去偏）**、SC-001~005 达成/未达如实
-- [ ] T025 [P] 更新 `CLAUDE.md` Knowledge Map 加 063 条目（召回回收·分层复核信封，指向 specs/063）
-- [ ] T026 确认无 gitignored 数据/权重/preds 被 git add（`git status` 干净，只提交代码+spec+报告 md）
+- [x] T023 [P] 全量 ml 套件回归：`cd <ml> && PYTHONPATH=. python3 -m pytest -q` 全绿，无回归（含 059 既有测试）
+- [x] T024 [P] 写 `<ml>/out/FINDINGS-063.md`：召回天花板定界（0.764）、三方分层对照、≥0.95 vs 0.90 代价、**R1 诚实披露（无独立集：测试集 A 删/pool-c-held⊇gold C/pool-c-train 泄漏→gold C CV 去偏）**、SC-001~005 达成/未达如实
+- [x] T025 [P] 更新 `CLAUDE.md` Knowledge Map 加 063 条目（召回回收·分层复核信封，指向 specs/063）
+- [x] T026 确认无 gitignored 数据/权重/preds 被 git add（`git status` 干净，只提交代码+spec+报告 md）
 
 ---
 
