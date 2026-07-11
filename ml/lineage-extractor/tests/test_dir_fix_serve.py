@@ -6,12 +6,13 @@ from serve.app import postprocess
 
 
 def test_dir_fix_not_override():
-    # 模型抽到 SQL 通道没识别的表 → 保留（override 会丢）
-    content = 'spark.sql("SELECT a FROM ods.orders")'
-    text = '{"reads": [{"table": "ods.orders", "columns": null}, {"table": "dwd.dyn", "columns": null}], "writes": []}'
+    # 模型抽到 SQL 通道没识别、但**字面在脚本里**的表 → 保留（dir_fix override 会丢）。
+    # 注：改用 grounded 的模型独有表（dwd_extra 在变量里），与语义 grounding 兼容。
+    content = 'spark.sql("SELECT a FROM ods.orders")\ntarget = "dwd_extra"'
+    text = '{"reads": [{"table": "ods.orders", "columns": null}, {"table": "dwd_extra", "columns": null}], "writes": []}'
     out = postprocess(text, content)
     names = {i["table"] for i in out["reads"] + out["writes"]}
-    assert "dwd.dyn" in names  # 模型独有表未丢
+    assert "dwd_extra" in names  # grounded 的模型独有表未丢
 
 
 def test_dir_fix_corrects_direction():
@@ -48,3 +49,43 @@ def test_deterministic_same_input_same_output():
     a = postprocess(text, content)
     b = postprocess(text, content)
     assert a == b
+
+
+# ---- 语义 grounding 接进 serving（生产后处理，默认开，可 env 回滚） ----
+
+def test_grounding_drops_hallucination():
+    # 模型吐出脚本里根本不存在的表名（幻觉）→ 剔，grounded=True，真表保留
+    content = 'spark.sql("SELECT a FROM ods.orders")'
+    text = '{"reads": [{"table": "ods.orders"}, {"table": "phantom_tbl"}], "writes": []}'
+    out = postprocess(text, content)
+    names = {i["table"] for i in out["reads"] + out["writes"]}
+    assert "phantom_tbl" not in names
+    assert "ods.orders" in names
+    assert out["grounded"] is True
+
+
+def test_grounding_drops_comment_only_table():
+    # 表名只出现在注释里 → grounded-but-wrong，剔
+    content = '# insert into audit_log\nspark.sql("SELECT 1 FROM ods.real")'
+    text = '{"reads": [{"table": "ods.real"}], "writes": [{"table": "audit_log"}]}'
+    out = postprocess(text, content)
+    names = {i["table"] for i in out["reads"] + out["writes"]}
+    assert "audit_log" not in names
+    assert "ods.real" in names
+
+
+def test_grounding_keeps_real_table():
+    content = 'spark.sql("SELECT * FROM ods.real_tbl")'
+    text = '{"reads": [{"table": "ods.real_tbl"}], "writes": []}'
+    out = postprocess(text, content)
+    assert "ods.real_tbl" in {i["table"] for i in out["reads"]}
+    assert out["grounded"] is False  # 无剔除
+
+
+def test_grounding_can_be_disabled():
+    # env 回滚路径：ground=False 保留幻觉（旧行为）
+    content = 'spark.sql("SELECT a FROM ods.orders")'
+    text = '{"reads": [{"table": "ods.orders"}, {"table": "phantom_tbl"}], "writes": []}'
+    out = postprocess(text, content, ground=False)
+    assert "phantom_tbl" in {i["table"] for i in out["reads"]}
+    assert out["grounded"] is False
