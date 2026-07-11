@@ -33,7 +33,7 @@ export interface LineageDetailPanelProps {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">{label}</span>
+      <span className="w-20 shrink-0 text-left text-xs text-muted-foreground">{label}</span>
       <span className="flex min-w-0 flex-1 items-center">{children}</span>
     </div>
   )
