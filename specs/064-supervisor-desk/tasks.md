@@ -31,8 +31,8 @@
 
 - [x] T002 [P] Add `healByType` and `healByRefId` fields to `Incident.java` domain entity in `backend/dataweave-master/src/main/java/com/dataweave/master/domain/incident/Incident.java`
 - [x] T003 [P] Update `IncidentCard` TypeScript interface with `healByType: string | null` and `healByRefId: string | null` in `frontend/lib/incident-api.ts`
-- [ ] T004 [P] Add i18n keys for signal stream namespace (`signalStream.*`) to `frontend/messages/zh-CN.json` (at least: title, empty, filter.allTypes, filter.allSeverities, summary.TASK_FAILED, type.*, severity.*)
-- [ ] T005 [P] Add matching i18n keys to `frontend/messages/en-US.json` for parity
+- [x] T004 [P] Add i18n keys for signal stream namespace (`signalStream.*`) to `frontend/messages/zh-CN.json` (at least: title, empty, filter.allTypes, filter.allSeverities, summary.TASK_FAILED, type.*, severity.*)
+- [x] T005 [P] Add matching i18n keys to `frontend/messages/en-US.json` for parity
 
 **Checkpoint**: Foundation ready — user story implementation can now begin
 
@@ -46,9 +46,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T006 [US1] Rewrite `IncidentsView` main component using `<Tabs>` + `<TabsList>` + `<TabsTrigger>` + `<TabsContent>` (underline style, `size="md"`) instead of hand-rolled `role="tablist"` in `frontend/components/workspace/views/incidents-view.tsx`
-- [ ] T007 [P] [US1] Create `SignalStreamPanel` component with `DwScroll` scroll container, type/severity `DropdownSelect` filters, `ViewRefreshControl` (15s auto), sorted HealthEvent list using `Card` container and `Badge` semantic variants in `frontend/components/workspace/views/incident/signal-stream-panel.tsx`
-- [ ] T008 [P] [US1] Refactor ticket queue section inside `IncidentsView` to use `DwScroll` wrapping active/resolved card lists, `Card` component for incident cards with `--card-spacing`, `Badge` semantic variants for severity/state, `LoadingState` for initial load in `frontend/components/workspace/views/incidents-view.tsx`
+- [x] T006 [US1] Rewrite `IncidentsView` main component using `<Tabs>` + `<TabsList>` + `<TabsTrigger>` + `<TabsContent>` (underline style, `size="md"`) instead of hand-rolled `role="tablist"` in `frontend/components/workspace/views/incidents-view.tsx`
+- [x] T007 [P] [US1] Create `SignalStreamPanel` component with `DwScroll` scroll container, type/severity `DropdownSelect` filters, `ViewRefreshControl` (15s auto), sorted HealthEvent list using `Card` container and `Badge` semantic variants in `frontend/components/workspace/views/incident/signal-stream-panel.tsx`
+- [x] T008 [P] [US1] Refactor ticket queue section inside `IncidentsView` to use `DwScroll` wrapping active/resolved card lists, `Card` component for incident cards with `--card-spacing`, `Badge` semantic variants for severity/state, `LoadingState` for initial load in `frontend/components/workspace/views/incidents-view.tsx`
 - [ ] T009 [US1] Add `incidentOnly` query parameter support to `GET /api/events` endpoint — when `true`, JOIN `incident` table to filter only signals linked to non-CLOSED incidents in `backend/dataweave-alert/src/main/java/com/dataweave/alert/application/EventCenterService.java`
 - [ ] T010 [US1] Add vitest test for `IncidentsView` Tab switching and empty states in `frontend/components/workspace/views/incident/incidents-view.test.ts`
 
@@ -64,8 +64,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Create `IncidentTimelineDialog` component: `Dialog` container + `DetailPanelShell` (title=工单标题, `scrollBody=true`, `hasData`/`loading`/`error` state handling). Timeline entries rendered as vertical list with kind icons, actor labels, timestamps. Reuses `fetchIncidentDetail` from existing API in `frontend/components/workspace/incident-timeline-dialog.tsx`
-- [ ] T012 [US2] Remove old `TimelineDrawer` (hand-rolled `fixed right-0 w-80` div) from `frontend/components/workspace/views/incident/actions.tsx`. Wire incident card "时间线" button to open new `IncidentTimelineDialog` in `frontend/components/workspace/views/incidents-view.tsx`
+- [x] T011 [US2] Create `IncidentTimelineDialog` component: `Dialog` container + `DetailPanelShell` (title=工单标题, `scrollBody=true`, `hasData`/`loading`/`error` state handling). Timeline entries rendered as vertical list with kind icons, actor labels, timestamps. Reuses `fetchIncidentDetail` from existing API in `frontend/components/workspace/incident-timeline-dialog.tsx`
+- [x] T012 [US2] Remove old `TimelineDrawer` (hand-rolled `fixed right-0 w-80` div) from `frontend/components/workspace/views/incident/actions.tsx`. Wire incident card "时间线" button to open new `IncidentTimelineDialog` in `frontend/components/workspace/views/incidents-view.tsx`
 - [ ] T013 [US2] Add vitest test for `IncidentTimelineDialog` — loading/empty/data/error states in `frontend/components/workspace/views/incident/actions.test.tsx`
 
 **Checkpoint**: 时间线抽屉风格与 DAG/日志详情一致，旧手写 `TimelineDrawer` 已删除
@@ -80,10 +80,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Modify `IncidentSignalListener` — signature generation: replace `failureClass` normalization with raw `failureReason` string (e.g., `EXIT_CODE_-1`). Signature format unchanged: `T:<taskId>:<failureReason>` in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentSignalListener.java`
-- [ ] T015 [US3] Modify `IncidentService.openOrAttach()` — on INSERT, populate `heal_by_type`/`heal_by_ref_id` columns based on signal type (TASK_FAILED → `TASK_SUCCESS`+taskId; TASK_TIMEOUT → `TASK_SUCCESS`+taskId; NODE_OFFLINE → `NODE_ONLINE`+nodeCode; SLA_BREACH → null). On ATTACH (UPDATE), preserve existing heal conditions in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentService.java`
-- [ ] T016 [US3] Modify `IncidentService.healByTask()` — change WHERE clause from `source_kind='TASK' AND source_ref_id=?` to `heal_by_type=? AND heal_by_ref_id=? AND state IN ('OPEN','MITIGATING')` in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentService.java`
-- [ ] T017 [US3] Modify `IncidentHealListener.onTaskSucceeded()` — pass `("TASK_SUCCESS", String.valueOf(taskId))` to updated `healByTask`. Modify `onWorkflowSucceeded()` similarly. No change to `IncidentSweeper.healNodesByHeartbeat()` (node healing already precise by nodeCode) in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentHealListener.java`
+- [x] T014 [US3] Modify `IncidentSignalListener` — signature generation: replace `failureClass` normalization with raw `failureReason` string (e.g., `EXIT_CODE_-1`). Signature format unchanged: `T:<taskId>:<failureReason>` in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentSignalListener.java`
+- [x] T015 [US3] Modify `IncidentService.openOrAttach()` — on INSERT, populate `heal_by_type`/`heal_by_ref_id` columns based on signal type (TASK_FAILED → `TASK_SUCCESS`+taskId; TASK_TIMEOUT → `TASK_SUCCESS`+taskId; NODE_OFFLINE → `NODE_ONLINE`+nodeCode; SLA_BREACH → null). On ATTACH (UPDATE), preserve existing heal conditions in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentService.java`
+- [x] T016 [US3] Modify `IncidentService.healByTask()` — change WHERE clause from `source_kind='TASK' AND source_ref_id=?` to `heal_by_type=? AND heal_by_ref_id=? AND state IN ('OPEN','MITIGATING')` in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentService.java`
+- [x] T017 [US3] Modify `IncidentHealListener.onTaskSucceeded()` — pass `("TASK_SUCCESS", String.valueOf(taskId))` to updated `healByTask`. Modify `onWorkflowSucceeded()` similarly. No change to `IncidentSweeper.healNodesByHeartbeat()` (node healing already precise by nodeCode) in `backend/dataweave-master/src/main/java/com/dataweave/master/application/incident/IncidentHealListener.java`
 - [ ] T018 [US3] Add/update JUnit tests for signature generation (raw failureReason), heal condition storage, and precise heal matching in `backend/dataweave-master/src/test/java/com/dataweave/master/application/incident/`
 
 **Checkpoint**: 自动开单使用精确指纹，自动愈合使用精确匹配
@@ -98,7 +98,7 @@
 
 ### Implementation for User Story 5
 
-- [ ] T019 [US5] Add click-to-expand behavior in `SignalStreamPanel` — clicking a signal row reveals a `DetailPanelShell`-style inline panel (or reuses `IncidentTimelineDialog` pattern) showing formatted JSON (`font-mono text-xs whitespace-pre-wrap`). Empty contextJson shows localized empty message in `frontend/components/workspace/views/incident/signal-stream-panel.tsx`
+- [x] T019 [US5] Add click-to-expand behavior in `SignalStreamPanel` — clicking a signal row reveals a `DetailPanelShell`-style inline panel (or reuses `IncidentTimelineDialog` pattern) showing formatted JSON (`font-mono text-xs whitespace-pre-wrap`). Empty contextJson shows localized empty message in `frontend/components/workspace/views/incident/signal-stream-panel.tsx`
 
 **Checkpoint**: 信号详情 JSON 可展开查看
 
