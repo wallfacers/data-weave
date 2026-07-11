@@ -247,15 +247,17 @@ public class WorkflowTriggerService {
         wi.setVersion(0L);
         WorkflowInstance savedWi = workflowInstanceRepository.save(wi);
 
-        // 批量预取 task 名称+类型，避免循环内逐条查 taskDef
+        // 批量预取 task 名称+类型+long_running，避免循环内逐条查 taskDef
         java.util.Map<Long, String> taskIdToName = new java.util.HashMap<>();
         java.util.Map<Long, String> taskIdToType = new java.util.HashMap<>();
+        java.util.Map<Long, Boolean> taskIdToLongRunning = new java.util.HashMap<>();  // 062 快照源
         for (MatNode m : subNodes) {
             if (m.taskId() != null && !taskIdToName.containsKey(m.taskId())) {
                 taskDefRepository.findById(m.taskId())
                         .ifPresent(td -> {
                             taskIdToName.put(m.taskId(), td.getName());
                             taskIdToType.put(m.taskId(), td.getType());
+                            taskIdToLongRunning.put(m.taskId(), Boolean.TRUE.equals(td.getLongRunning()));
                         });
             }
         }
@@ -275,6 +277,7 @@ public class WorkflowTriggerService {
             ti.setCronExpression(wf.getCron());                 // 快照：调度 cron
             ti.setTaskDefName(m.taskId() != null ? taskIdToName.get(m.taskId()) : null);  // 快照：任务名称
             ti.setTaskType(m.taskId() != null ? taskIdToType.get(m.taskId()) : null);    // 快照：任务类型
+            ti.setLongRunning(m.taskId() != null && Boolean.TRUE.equals(taskIdToLongRunning.get(m.taskId())));  // 062 快照：long_running（免下发时 JOIN task_def）
             boolean frozen = frozenClosure.contains(m.nodeKey());
             if ("VIRTUAL".equals(m.nodeType())) {
                 // VIRTUAL：零负载锚点，物化即成功——不绑 task、不下发、不占槽；被冻结则记 SKIPPED。
@@ -449,6 +452,7 @@ public class WorkflowTriggerService {
         ti.setBizDate(bizDate);
         ti.setTaskDefName(task.getName());              // 快照：任务名称
         ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
+        ti.setLongRunning(Boolean.TRUE.equals(task.getLongRunning()));  // 062 快照：long_running
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -479,6 +483,7 @@ public class WorkflowTriggerService {
         ti.setBizDate(bizDate);
         ti.setTaskDefName(task.getName());              // 快照：任务名称
         ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
+        ti.setLongRunning(Boolean.TRUE.equals(task.getLongRunning()));  // 062 快照：long_running
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();
@@ -508,6 +513,7 @@ public class WorkflowTriggerService {
         ti.setBizDate(bizDate);
         ti.setTaskDefName(task.getName());              // 快照：任务名称
         ti.setTaskType(task.getType());                  // 快照：任务类型（独立运行，无工作流上下文）
+        ti.setLongRunning(Boolean.TRUE.equals(task.getLongRunning()));  // 062 快照：long_running
         TaskInstance saved = taskInstanceRepository.save(ti);
         wake();
         return saved.getId();

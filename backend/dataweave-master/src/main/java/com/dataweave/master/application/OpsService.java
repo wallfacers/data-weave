@@ -642,8 +642,10 @@ public class OpsService {
         }
         LocalDateTime now = LocalDateTime.now();
         // 060: 新增重置 business_attempt/infra_redispatch_count/external_job_handle（FR-028）
+        // 062: 全量重跑清 resume_checkpoint_id（干净重来、不带检查点）；long_running 快照保值（任务身份不变）
         jdbc.update("UPDATE task_instance SET state='WAITING', attempt=0, "
                 + "business_attempt=0, infra_redispatch_count=0, external_job_handle=NULL, "
+                + "resume_checkpoint_id=NULL, "
                 + "worker_node_code=NULL, lease_expire_at=NULL, failure_reason=NULL, "
                 + "finished_at=NULL, exit_code=NULL, started_at=NULL, log=NULL, updated_at=? "
                 + "WHERE id=? AND deleted=0", now, instanceId);

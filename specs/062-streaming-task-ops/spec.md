@@ -17,6 +17,11 @@
 - Q: SUSPENDED（底层故障挂起）的实时任务恢复时走哪条路径？ → A: **续跑优先**（reattach 引擎侧仍活任务 / 从检查点恢复），仅当无有效检查点时降级为全量重跑；两条路径都在，不把运维卡死在单一路径（Option C）。
 - Q: 停止 / 续跑 / 终止实时任务的操作门控等级（是否需审批）？ → A: **全部 L1 直接执行、不设审批、仅留审计痕迹**——运维自主、效率优先（Option A）。
 
+### Session 2026-07-11（实现前代码核实——060 地基缺口）
+
+- 发现（代码实证）：本特性假设「060 已提供可用的 long_running 服务端地基」**不成立**。① `task_def.long_running` 列是 060 加的（DEFAULT FALSE），但**无任何产品路径能置 TRUE**——`TaskDef` 实体不映射该字段、push 映射（`ProjectSyncService`）不复制它、`TaskDoc`/`TaskMapper` 文件契约无该字段；② 服务端下发链路（`SchedulerKernel`→`DispatchCommand`→`WorkerExecController`）**零处**读/传 long_running，`WorkerExecController` 用 `EngineSubmitRef` 7 参向后兼容构造硬编码 `longRunning=false`；仅 CLI `dw run --long-running`（`LocalRunMain`）走真 long_running。→ **服务端 cron/手动下发永不产生 long_running 实例**，060 detached/reattach 与 061 T038 真跑均经 localrun/夹具触达，非服务端产品链路。
+- Q: 062 面板按 `long_running=TRUE` 过滤会永远为空——如何定范围？ → A: **Option C（折中，用户 2026-07-11 批准）**：在 062 Foundational 内并入**最小「创作→下发」接通链路**——`TaskDoc`+`TaskMapper` 加 longRunning（文件契约往返）、`TaskDef` 实体 + push 复制（授权持久化）、`DispatchCommand`+`WorkerExecController`+两 gateway 传播 long_running（下发生效）。不做完整创作 UX（无前端 toggle / 无 MCP 专用工具）。使实时任务经产品链路真实可创建、可下发为 detached 长驻，面板方有真实数据源。
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 实时任务独立运维视图（Priority: P1）
@@ -146,7 +151,7 @@
 
 ## Assumptions
 
-- **底层流式执行框架已具备**长期运行作业的提交与外部句柄管理（detached 提交 + 失联后 reattach），以及底层故障下的非终态挂起（SUSPENDED）保护——由既有的节点容错能力（060）提供，已并入主干。本特性在其上构建可观测与可控面。
+- **底层流式执行运行时已具备**长期运行作业的执行机制（detached 提交 + 失联后 reattach + SUSPENDED 非终态保护），由 060 提供并入主干。**但服务端「创作→下发→long_running 执行」的接线在 060 未接通**（见 Clarifications 2026-07-11 代码核实）——故本特性按 Option C 在 Foundational 内并入最小接通链路（`TaskDoc`/`TaskMapper`/`TaskDef` 实体 + push 复制 + `DispatchCommand`/`WorkerExecController`/gateway 传播），再在其上构建可观测与可控面。
 - **"检查点续跑"硬依赖 061（首版不兜底过渡）**：真实流式引擎（如 Flink）的检查点 / savepoint 与运行状态查询依赖"大数据任务类型真实引擎验证"（061，进行中、尚未合入主干）。**续跑（US4 / FR-007 / SC-003）必须在 061 提供真实 checkpoint 能力后才交付——首版不采用"全量重跑兜底 + 提示"的过渡方案**（澄清 2026-07-11）。其余 US（视图 / 日志 / 停止 / 监控）不因此阻塞，可先于 061 交付。
 - **复用既有 SSE 日志流基础设施**（已支持近实时刷新、断点续传、自动滚动、多视图 keep-alive），实时任务的"最新日志"在其上挂载而非重建。
 - **复用既有的操作门控与审计机制**——所有停止 / 恢复 / 终止 / 重跑操作走统一的审批与留痕流程，不另立旁路。

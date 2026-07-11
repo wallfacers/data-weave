@@ -77,6 +77,7 @@ public class TaskMapper {
                 sparkMode,
                 jarRef,
                 mainClass,
+                Boolean.TRUE.equals(task.getLongRunning()) ? Boolean.TRUE : null,  // 062：长驻标记（false 时不落 yaml）
                 null,   // declaredSchema — TaskDef 不存声明，仅反序列化时设
                 null    // declaredColumnLineage
         );
@@ -103,6 +104,10 @@ public class TaskMapper {
         DeterministicYaml.putIfPresent(map, "sparkMode", doc.sparkMode());
         DeterministicYaml.putIfPresent(map, "jarRef", doc.jarRef());
         DeterministicYaml.putIfPresent(map, "mainClass", doc.mainClass());
+        // 062：长驻标记（非 true 不写，保持 .task.yaml 清洁，与 frozen 同风格）
+        if (doc.longRunning() != null && doc.longRunning()) {
+            DeterministicYaml.put(map, "longRunning", true);
+        }
         if (doc.params() != null && !doc.params().isEmpty()) {
             DeterministicYaml.put(map, "params", toOrderedParamsMap(doc.params()));
         }
@@ -172,6 +177,7 @@ public class TaskMapper {
         String sparkMode = optionalString(raw, "sparkMode", filePath);
         String jarRef = optionalString(raw, "jarRef", filePath);
         String mainClass = optionalString(raw, "mainClass", filePath);
+        Boolean longRunning = optionalBool(raw, "longRunning", filePath);  // 062：长驻标记
         // 024 声明列 schema + columnLineage（两块均可选，独立）
         Map<String, java.util.List<com.dataweave.master.filecontract.dto.ColumnSchemaDecl>> declaredSchema =
                 parseDeclaredSchema(raw, filePath);
@@ -179,7 +185,7 @@ public class TaskMapper {
                 parseDeclaredColumnLineage(raw, filePath);
         return new TaskDoc(formatVersion, name, type, description, priority,
                 timeoutSec, retryMax, frozen, datasource, targetDatasource, paramsMap, tags,
-                sparkMode, jarRef, mainClass, declaredSchema, declaredColumnLineage);
+                sparkMode, jarRef, mainClass, longRunning, declaredSchema, declaredColumnLineage);
     }
 
     /**
@@ -194,6 +200,7 @@ public class TaskMapper {
         task.setTimeoutSec(doc.timeoutSec());
         task.setRetryMax(doc.retryMax());
         task.setFrozen(doc.frozen() != null && doc.frozen() ? 1 : 0);
+        task.setLongRunning(doc.longRunning() != null && doc.longRunning());  // 062：长驻标记
         task.setContent(scriptContent);
         // params: map → canonical JSON string; SPARK sub-mode fields injected into params_json (_sparkMode etc.)
         Map<String, Object> params = doc.params() != null ? new LinkedHashMap<>(doc.params()) : new LinkedHashMap<>();

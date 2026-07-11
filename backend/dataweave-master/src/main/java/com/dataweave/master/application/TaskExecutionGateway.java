@@ -35,11 +35,14 @@ public interface TaskExecutionGateway {
      * @param engineMode      通用引擎任务子模式（FLINK: sql|jar；DATAX/SEATUNNEL: null）；非引擎任务为 null
      * @param engineJarRef    通用引擎 jar 形态的 application jar 引用（FLINK jar 用）；其它形态 null
      * @param engineMainClass 通用引擎 jar 形态的 --class 主类（FLINK jar 用）；其它形态 null
+     * @param longRunning       062：外部托管长驻作业标记（task_instance.long_running 快照）；true → 引擎执行器走 detached 长驻分支
+     * @param externalJobHandle 062：已有外部作业句柄（task_instance.external_job_handle）；非空 → 引擎执行器 reattach 重连而非重复提交
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
                            Integer taskVersionNo, String runMode, String bizDate, String content,
                            int timeoutSeconds, String taskType, Long datasourceId, String locale,
                            String sparkMode, String jarRef, String mainClass,
-                           String engineMode, String engineJarRef, String engineMainClass) {
+                           String engineMode, String engineJarRef, String engineMainClass,
+                           boolean longRunning, String externalJobHandle) {
     }
 }

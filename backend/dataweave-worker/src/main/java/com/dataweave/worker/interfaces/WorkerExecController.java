@@ -117,6 +117,9 @@ public class WorkerExecController {
         String engineMode = (String) body.get("engineMode");
         String engineJarRef = (String) body.get("engineJarRef");
         String engineMainClass = (String) body.get("engineMainClass");
+        // 062：外部托管长驻作业标记 + reattach 句柄（master 下发传播）→ 引擎执行器走 detached / reattach 分支
+        boolean longRunning = Boolean.TRUE.equals(body.get("longRunning"));
+        String externalJobHandle = (String) body.get("externalJobHandle");
 
         Object dsObj = body.get("datasource");
         if (!(dsObj instanceof Map)) {
@@ -124,10 +127,10 @@ public class WorkerExecController {
             ExecutionContext.SparkSubmitRef sparkNoDs = "SPARK".equals(taskType)
                     ? new ExecutionContext.SparkSubmitRef(null, null, null, null, null, sparkMode, jarRef, mainClass)
                     : null;
-            // 无数据源：引擎任务仍须带 kind/engineMode（engineHome 缺 → 执行器判 SKIPPED）
+            // 无数据源：引擎任务仍须带 kind/engineMode（engineHome 缺 → 执行器判 SKIPPED）；062 传播 longRunning/句柄
             ExecutionContext.EngineSubmitRef engineNoDs = isEngineTask(taskType)
                     ? new ExecutionContext.EngineSubmitRef(taskType, null, engineMode, engineJarRef,
-                            engineMainClass, null, null)
+                            engineMainClass, null, null, longRunning, externalJobHandle)
                     : null;
             return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
                     null, null, null, sparkNoDs, engineNoDs);
@@ -161,7 +164,8 @@ public class WorkerExecController {
                     (String) dsInfo.getOrDefault("engineKind", dsType),
                     (String) dsInfo.get("engineHome"),
                     engineMode, engineJarRef, engineMainClass, null,
-                    toStringMap(dsInfo.get("engineProps")));
+                    toStringMap(dsInfo.get("engineProps")),
+                    longRunning, externalJobHandle);  // 062：detached 长驻 / reattach 传播
             default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
         }
         return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,

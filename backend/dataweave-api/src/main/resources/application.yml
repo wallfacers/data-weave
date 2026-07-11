@@ -93,6 +93,12 @@ scheduler:
       interval-ms: 60000               # Reconciler 低频对账间隔
       window: 500                      # 单轮审计滚动窗实例数上限
 
+# 062 实时任务运维：检查点保留与过期
+streaming:
+  checkpoint:
+    retention-count: 3                 # 每个实时任务滚动保留最近 N 个成功检查点，超出按 ordinal 淘汰（EXPIRED）
+    ttl-hours: 24                      # 检查点时效：completed_at 超此时长即视为过期、不可用于续跑
+
 webclient:
   default-response-timeout-ms: 30000   # 默认 WebClient.Builder 响应超时（通用消费方：alert webhook 等，防 block() 永挂）
 

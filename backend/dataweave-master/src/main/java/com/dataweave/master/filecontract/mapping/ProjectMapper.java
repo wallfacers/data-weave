@@ -103,6 +103,7 @@ public class ProjectMapper {
                     baseDoc.params(),
                     tagNames.isEmpty() ? null : tagNames.stream().sorted().toList(),
                     baseDoc.sparkMode(), baseDoc.jarRef(), baseDoc.mainClass(),
+                    baseDoc.longRunning(),  // 062：长驻标记随导出往返
                     baseDoc.declaredSchema(), baseDoc.declaredColumnLineage());
             var taskPath = dirPath.isEmpty() ? slug + TASK_SUFFIX : dirPath + "/" + slug + TASK_SUFFIX;
             files.put(taskPath, taskMapper.serialize(docWithExtras));
