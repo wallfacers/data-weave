@@ -9,34 +9,30 @@
 ```bash
 D59=/home/wallfacers/project/dw-059-lineage-corpus-expansion/ml/lineage-extractor
 D63=/home/wallfacers/project/dw-063-recall-tiered-envelope/ml/lineage-extractor
-ln -s $D59/realeval/gold/real-c-arbitrated.jsonl   $D63/realeval/gold/   # gold C（held-out 评测）
-ln -s $D59/realeval/pool-c-held                    $D63/realeval/         # 冻结校准集（the-stack held-out）
-ln -s $D59/realeval/teacher_labels-c-held          $D63/realeval/         # 该集 teacher 标签
-ln -s $D59/out/preds-c-run-059-runc.jsonl          $D63/out/              # 3B 在 gold C 的预测（评测用）
-# teacher 在 gold C 的预测（三方对照用）
-ln -s $D59/out/preds-c-teacher-deepseek-pro.jsonl  $D63/out/
-ln -s $D59/out/preds-c-teacher-qwen-max.jsonl      $D63/out/
+ln -sfn $D59/realeval/gold/real-c-arbitrated.jsonl  $D63/realeval/gold/   # gold C（校准+CV+评测）
+ln -sfn $D59/out/preds-c-run-059-runc.jsonl         $D63/out/            # 3B 在 gold C 的预测
+ln -sfn $D59/out/preds-c-teacher-deepseek-pro.jsonl $D63/out/            # 三方对照
+ln -sfn $D59/out/preds-c-teacher-qwen-max.jsonl     $D63/out/
 ```
 
-> 测试集 A（`real.jsonl`）已删、不可用 → 用 `pool-c-held` 作冻结校准替身（见 research.md R1）。
+> **research R1**：无独立非泄漏带标集（测试集 A `real.jsonl` 已删；pool-c-held 162 条中 153 条⊇gold C，非独立；pool-c-train 模型训练过、泄漏）→ 退回 **gold C 嵌套 CV 去偏**。CV 只需 gold C 金标 + 既有预测，无需 pool-c-held/银标/新 dump。
 
-## 步骤 1：冻结校准常量（pool-c-held）
+## 步骤 1：冻结校准常量（gold C 嵌套 CV 去偏）
 
 ```bash
-cd $D63
-# 1a. 对 pool-c-held dump 模型预测（GPU 推理，无 teacher $；模型未训练此切片）
-MODEL_DIR=<3b-merged> PYTHONPATH=. python3 realeval/dump_preds.py \
-    --pool realeval/pool-c-held --out out/preds-poolheld-runc.jsonl
-# 1b. 由 teacher 标签构建 pool-c-held 银标（build_silver 一致口径）
-PYTHONPATH=. python3 realeval/build_silver.py \
-    --labels realeval/teacher_labels-c-held --out realeval/gold/pool-c-held-silver.jsonl
-# 1c. 跑校准 + CV 去偏 → 固化每级 held-out precision 常量表 + 报告
+cd $D63/ml/lineage-extractor
+# 1a. 对既有 gold C 预测先过语义 grounding（部署管线一致），按行 idx 对齐
 PYTHONPATH=. python3 realeval/calibrate_tiers.py \
-    --gold realeval/gold/pool-c-held-silver.jsonl --model out/preds-poolheld-runc.jsonl \
-    --report out/calibrate-tiers.md --emit-constants realeval/tier_classify_constants.py
+    --gold realeval/gold/real-c-arbitrated.jsonl \
+    --model out/preds-c-run-059-runc.jsonl \
+    --k 5 --thr 0.95 \
+    --report out/calibrate-tiers.md \
+    --emit-constants realeval/tier_classify_constants.py
+# 内部：confidence_calibration.calibrate（全 gold C 点估计→部署常量）
+#      + conf_calibration_cv（k折/留一→CV held-out 报告口径）
 ```
 
-## 步骤 2：离线证明（gold C 纯 held-out，三方对照）
+## 步骤 2：离线证明（gold C，三方对照；自动层精度取 CV held-out 口径）
 
 ```bash
 PYTHONPATH=. python3 realeval/rescore_tiered.py \
@@ -73,7 +69,7 @@ PYTHONPATH=. python3 -m pytest -q   # 全量不回归
 | SC | 验证 |
 |---|---|
 | SC-001 召回 ≥0.76 | 步骤 2 `rescore-tiered.md` 自动∪复核召回 |
-| SC-002 自动层 held-out P ≥ 阈 | 步骤 2 gold C 纯 held-out precision（常量冻结于 pool-c-held） |
+| SC-002 自动层 held-out P ≥ 阈 | 步骤 1 CV held-out precision（`conf_calibration_cv` 留出级序/前沿） |
 | SC-003 复核排序/负载 | 步骤 2 报告候选/脚本 + confidence 降序 |
 | SC-004 阈可调/回滚 | 步骤 3 改 env（0.95→0.90）+ `LINEAGE_TIERING=0` 等价 |
 | SC-005 三方对照落盘 | 步骤 2 报告三方 + 诚实披露 ≥0.95 代价 |

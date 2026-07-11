@@ -14,7 +14,7 @@
 | `columns` | list[str] \| null | 列（表级抽取多为 null，保留来源值，R6） |
 | `direction` | "read" \| "write" | 读/写；agree 层冲突以 SQL-AST AST target 为准（FR-010） |
 | `tier` | enum | 置信级，见 TierTaxonomy |
-| `confidence` | float | 所属 tier 的 held-out（pool-c-held CV）经验 precision 常量（R5） |
+| `confidence` | float | 所属 tier 的经验 precision 常量（全 gold C 点估计，CV 去偏校验；R5） |
 
 **来源合并规则（FR-002）**：由 `confidence_calibration._canonical_edges(S, M)` 在 canon 下把 SQL 表集 S 与模型表集 M 合并为**互斥**候选——`t` 与 `db.t` 视同一表只占一条，避免限定/裸名重复计数。
 
@@ -22,7 +22,7 @@
 
 `confidence_calibration.TIERS` 五级（通道归属 × 名字限定性）：
 
-| tier | 含义 | 部署序由 pool-c-held 校准冻结 |
+| tier | 含义 | 部署序=全 gold C 点估计，CV 校验 |
 |---|---|---|
 | `agree` | SQL∩模型（canon 互认） | held-out precision 定 |
 | `sql_qual` | SQL-only · 限定名 | held-out precision 定 |
@@ -30,7 +30,7 @@
 | `model_qual` | 模型-only · 限定名 | held-out precision 定 |
 | `model_bare` | 模型-only · 裸名 | held-out precision 定 |
 
-> 部署**校准序**（按 held-out precision 降序）冻结自 pool-c-held，非 gold C 样本内序。
+> 部署**校准序**（按 precision 降序）= 全 gold C 点估计；其泛化由 CV 去偏（留一/k 折）验证（R1：无独立集，退回 CV 诚实法）。
 
 ### AutoAcceptTier（自动采纳层）
 
@@ -50,12 +50,13 @@
 
 ### CalibrationTable（冻结校准常量表）
 
-每个 tier 的 held-out 经验 precision 常量 + 冻结出的校准序，由 `calibrate_tiers.py` 在 pool-c-held 上产出、写死进 `tier_classify.py`。
+每个 tier 的经验 precision 常量 + 冻结出的校准序，由 `calibrate_tiers.py` 在 **gold C** 上产出（全集点估计 + CV 去偏 held-out）、写死进 `tier_classify_constants.py`。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `tier` | enum | 五级之一 |
-| `heldout_precision` | float | pool-c-held CV 去偏 precision |
+| `precision` | float | 全 gold C 点估计 precision（部署常量） |
+| `cv_heldout_precision` | float | 留一/k 折 CV held-out precision（报告口径，SC-002） |
 | `n` | int | 该级样本数（披露样本规模/抖动） |
 | `calibrated_rank` | int | 冻结校准序位次 |
 
@@ -69,7 +70,7 @@
 
 - FR-002：候选 canon 互斥去重。
 - FR-004：自动层累计校准 precision ≥ thr，否则降级复核。
-- FR-005：校准常量冻结于 pool-c-held（源隔离、模型未训练），gold C 不参与定级。
+- FR-005：校准常量经 gold C 嵌套 CV 去偏产出（点估计部署 + CV held-out 报告；R1 无独立集）。
 - FR-006：复核层 confidence 降序。
 - FR-008：确定性（无随机/GPU 依赖于分层段）。
 - FR-010：方向沿用 AST 锚定；agree 冲突取 SQL-AST。

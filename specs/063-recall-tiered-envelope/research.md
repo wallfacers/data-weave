@@ -1,38 +1,37 @@
 # Phase 0 Research: 召回回收 · 置信度分层复核信封
 
-## R1. 冻结校准集：测试集 A 已删 → 用 pool-c-held 替身（决定性）
+## R1. 校准集：无独立非泄漏带标集 → gold C 嵌套 CV 去偏（决定性，经实测证伪修正）
 
-**问题**：clarify Q1=A 定「分级校准常量冻结于独立集**测试集 A**，gold C 纯 held-out」。但盘查发现 **`realeval/gold/real.jsonl`（052/054 的测试集 A 金标）已随 052/054 worktree 删除、全盘不存在**，无法复用。
+**问题**：clarify Q1=A 定「分级校准常量冻结于独立集**测试集 A**」。实测盘查三连否定：
+1. **测试集 A**（`realeval/gold/real.jsonl`）已随 052/054 worktree 删除、全盘不存在。
+2. **pool-c-held**（162 条）**经 chash 核对：153 条 ∈ gold C**（`real-c-arbitrated.jsonl` 恰 153 行），即 **pool-c-held ⊇ gold C**（就是 gold C 的候选池，仅多 9 条）——**非独立**，用它校准再评 gold C = 循环。
+3. **pool-c-train**（3000 条）与 gold C ∩=0（源隔离 ✓），但**模型在其上训练**（Run C 用其 1774 条）→ model-only 层 precision 记忆泄漏虚高，冻结阈到 gold C held-out 恐不达标，砸 SC-002。
 
-**Decision**：用 **`realeval/pool-c-held`（162 条 the-stack held-out 脚本）+ `realeval/teacher_labels-c-held`（m1/m3/m_flash teacher 标签）** 作为冻结校准集替身。流程：
-1. 由 teacher 标签构建 pool-c-held 的银标（沿用 `build_silver.py` 的一致口径，如 m_flash∩m1 共识）；
-2. 对 pool-c-held **dump 模型预测**（GPU 推理，无 teacher $，模型**未在此切片上训练**——无泄漏）；
-3. 在 pool-c-held 上跑 `confidence_calibration.calibrate` + `conf_calibration_cv`（CV 去偏）→ **固化每级 held-out precision 常量表**；
-4. 常量写死进 `tier_classify.py`，部署期不重算；
-5. gold C 作为**纯 held-out** 评测（`rescore_tiered.py`），不参与定级。
+→ **没有既独立于 gold C、又未被模型见过的带标集**（数据现实，非可绕过）。
 
-**Rationale**：pool-c-held 满足 Q1=A 的**全部实质意图**——① 与 gold C **源隔离**（the-stack vs GitHub-fresh，059 前提）；② **模型未训练**于此切片（held-out，无记忆泄漏，避免自动层 precision 虚高）；③ teacher 标签**已存在**（零新花费）；④ gold C 保持纯 held-out，消除「同集既定级又评测」的循环。它比字面的「测试集 A」更干净（A 是 gold 但会被模型见过与否不明；pool-c-held 明确 held-out）。
+**Decision**：退回 **gold C 嵌套 CV 去偏**（clarify 当时的选项 B）。复用 `conf_calibration_cv.py`（k 折/留一，文档明确「级定义固定确定性，CV 只对拟合量=级序+前沿切点做留出，口径干净」）：
+1. 对 gold C 的模型预测**先过语义 grounding**（部署管线一致），键为行 idx（gold C 与 preds 同序 153 行，无 idx 字段则按行号对齐）；
+2. `conf_calibration_cv --gold real-c-arbitrated.jsonl --model <grounded gold C preds> --k 5 --thr 0.95` → **留一/k 折 held-out** 前沿 precision/recall（无偏泛化估计，作 SC-002 报告口径）；
+3. `confidence_calibration.calibrate` 全 gold C 点估计 → **部署固化常量**（写死进 `tier_classify_constants.py`，部署期不重算）；
+4. 无需 dump pool-c-held 预测、无需 build_silver（用既有 gold C 预测，反而更简）。
+
+**Rationale**：无独立集时，CV 去偏是 054 已确立并验证的诚实法（054 记「CV 确认前沿泛化 held-out P 0.93-1.00」）。级定义确定性、CV 只留出拟合量，消除样本内乐观偏置。部署常量取全 gold C 点估计不可避（gold C 是唯一干净带标集），CV 诚实估计其泛化。
 
 **Alternatives considered**：
-- **重建测试集 A**：重跑 collect_stack + teacher_label 生成新独立金标——**拒绝**（teacher API $ 花费，违反「无花费」约束）。
-- **仅 gold C 嵌套 CV**（k-1 折定级、留 1 折评测轮转）：给无偏 held-out 估计，但**部署期固化常量仍需来自非 gold C 的集**（否则 gold C 泄进部署常量）——不满足「独立冻结集」诉求，且 gold C 非空仅 61 条再切更弱。**拒绝**为主方案，保留为 gold C 上的辅助印证。
-- **训练池 pool-c-train 定级**：模型在其上训练过→模型-tier precision 记忆泄漏虚高——**拒绝**。
+- **pool-c-train 冻结**：与 gold C 源隔离但模型训练过 → model 层泄漏虚高——**拒绝**（SC-002 风险）。
+- **重建测试集 A′**：collect 新 GitHub 源 + teacher 标注——**拒绝**（teacher $ 花费，违反「无花费」；用户已确认走 CV）。
 
-> ⚠️ 这是对 clarify Q1=A **字面**答案的一处受迫替换（A 数据已不存在），但**保全其意图**。已在完成报告显式披露，供用户否决。
+> ⚠️ 这是对 clarify Q1=A 的一次**数据证伪修正**（A 不存在、pool-c-held=gold C、pool-c-train 泄漏），经用户确认退回 CV 去偏。诚实边界：CV 只校同分布偏置、不覆盖分布漂移，真·独立 fresh 集仍待凭据/预算。
 
-## R2. 银标构建口径（pool-c-held）
+## R2.（已并入 R1）银标/独立集构建——本方案不需要
 
-**Decision**：复用 `build_silver.py` 的跨厂商一致口径构建 pool-c-held 银标——teacher 一致（如 m_flash∩m1，或该脚本既有的 bulk 口径），与 059 训练银标同源逻辑，保证校准所测的「候选正确性」与训练目标同尺子。
+CV 去偏直接在 gold C 金标 + 既有模型预测上做，**不需**构建 pool-c-held 银标（build_silver）或 dump 新预测。R2 取消。
 
-**Rationale**：分级 precision = 候选边命中银标的比例；用与训练目标一致的银标定级，再在 gold C（真 held-out）验证转移性——若银标定级的前沿在 gold C 上 precision 仍 ≥ 阈，则信封成立；不成立则 held-out 评测如实暴露（诚实）。
+## R3. 分级 taxonomy 与校准序（复用，全 gold C 点估计 + CV 校验）
 
-**Alternatives**：用单一最强 teacher（m3/deepseek-pro）当银标——备选，`build_silver` 一致口径更稳，主用一致口径。
+**Decision**：沿用 `confidence_calibration.TIERS` 五级 `{agree, sql_qual, sql_bare, model_qual, model_bare}`（通道归属 × 名字限定性），`_canonical_edges` 在 canon 下合并 model∪SQL 为互斥候选边。校准序 = 全 gold C 经验 precision 降序（部署点估计），其**泛化由 CV 去偏（R1/R8）验证**。
 
-## R3. 分级 taxonomy 与校准序（复用，冻结于 pool-c-held）
-
-**Decision**：沿用 `confidence_calibration.TIERS` 五级 `{agree, sql_qual, sql_bare, model_qual, model_bare}`（通道归属 × 名字限定性），`_canonical_edges` 在 canon 下合并 model∪SQL 为互斥候选边。校准序由 pool-c-held 经验 precision 降序 + CV 去偏产出并**冻结**（不用 gold C 的样本内序）。
-
-**Rationale**：052/054 已证「限定性是跨通道主信号、先验『SQL 恒优』被证伪」；本特性复用该机制，只把定级基准从「样本内 gold」换成「held-out pool-c-held」。gold C 上跑出的样本内序（sql_qual>model_bare>agree>model_qual>sql_bare）仅作对照，不作部署序。
+**Rationale**：052/054 已证「限定性是跨通道主信号、先验『SQL 恒优』被证伪」；本特性复用该机制。gold C 样本内序（实测 sql_qual>model_bare>agree>model_qual>sql_bare）作部署常量，CV held-out 序/前沿作诚实校验——若 CV 前沿 precision ≥ 阈则信封成立。
 
 **Alternatives**：新设分级信号（logprob/自一致）——非目标（纯确定性、复用内核）。
 
@@ -44,7 +43,7 @@
 
 ## R5. confidence 值语义
 
-**Decision**：每候选的 `confidence` = 其**所属 tier 的 held-out（pool-c-held CV）经验 precision 常量**（非累计）。复核队列按该值降序。
+**Decision**：每候选的 `confidence` = 其**所属 tier 的经验 precision 常量**（全 gold C 点估计，CV 去偏校验；非累计）。复核队列按该值降序。
 
 **Rationale**：per-tier precision 是「这条候选对的先验概率」的最直接可解释值，用于复核者「从最可能对的先看、按阈早停」（FR-006）。累计 precision 是层边界判据（R4），二者分工清晰。
 
@@ -64,6 +63,6 @@
 
 ## R8. CV 去偏方法
 
-**Decision**：复用 `conf_calibration_cv.py`（留一/k折）对 pool-c-held 的每级 precision 做去偏估计，取 held-out 均值作固化常量；披露边界抖动（样本小）。
+**Decision**：复用 `conf_calibration_cv.py`（留一/k折）对 **gold C** 的每级 precision + 前沿做去偏估计（held-out）；部署固化常量取全 gold C 点估计，CV held-out 数作 SC-002 报告口径；披露边界抖动（样本小）。
 
-**Rationale**：052/054 已用同法处理样本内乐观偏置；直接复用，保持方法一致与可复核。
+**Rationale**：052/054 已用同法处理样本内乐观偏置（054：CV 确认前沿泛化 held-out P 0.93-1.00）；直接复用，保持方法一致与可复核。

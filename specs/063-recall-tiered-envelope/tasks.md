@@ -13,7 +13,7 @@
 ## Path Conventions
 
 - 代码根：`ml/lineage-extractor/`（下称 `<ml>`）
-- 数据（gitignored，软链自 dw-059）：`<ml>/realeval/gold/`、`<ml>/realeval/pool-c-held/`、`<ml>/out/`
+- 数据（gitignored，软链自 dw-059）：`<ml>/realeval/gold/`、`<ml>/out/`（CV 去偏只需 gold C 金标 + 既有预测，无需 pool-c-held/银标——R1）
 
 ---
 
@@ -21,9 +21,9 @@
 
 **Purpose**: gitignored 数据软链到 063，确认既有内核可用。
 
-- [ ] T001 按 quickstart「前置」软链 dw-059 的 gitignored 数据到 `<ml>`：`realeval/gold/real-c-arbitrated.jsonl`、`realeval/pool-c-held/`、`realeval/teacher_labels-c-held/`、`out/preds-c-run-059-runc.jsonl`、`out/preds-c-teacher-{deepseek-pro,qwen-max}.jsonl`（均 gitignored，不入 commit）
+- [ ] T001 按 quickstart「前置」软链 dw-059 的 gitignored 数据到 `<ml>`：`realeval/gold/real-c-arbitrated.jsonl`、`out/preds-c-run-059-runc.jsonl`、`out/preds-c-teacher-{deepseek-pro,qwen-max}.jsonl`（均 gitignored，不入 commit；CV 不需 pool-c-held/teacher 标签）
 - [ ] T002 [P] 冒烟确认既有内核在 063 可导入：`cd <ml> && PYTHONPATH=. python3 -c "from realeval.channel_router import extract_sql_lineage; from realeval.confidence_calibration import _canonical_edges, TIERS; from realeval.conf_calibration_cv import main; from realeval.semantic_grounding import filter_pred_semantic; from realeval.dir_fix import apply_dir_fix; print('ok')"`
-- [ ] T003 [P] 冒烟确认 gold C（153 行）与 pool-c-held（162 文件）+ teacher 标签（m1/m3/m_flash）行数/文件数符合预期，preds-c 与 gold C 对齐 153 行
+- [ ] T003 [P] 冒烟确认 gold C（153 行）与 preds-c（153 行）对齐，三方预测（3b/deepseek/qwen）齐备
 
 ---
 
@@ -31,13 +31,13 @@
 
 **Purpose**: 冻结校准常量 + 分层纯函数 = 所有 US 的地基，必须先完成。
 
-### 冻结校准（research R1/R2/R8：pool-c-held 替身，源隔离、模型未训练、零 teacher 花费）
+### 冻结校准（research R1 修正：无独立非泄漏带标集 → gold C 嵌套 CV 去偏；复用既有 gold C 预测，无需 dump/silver）
 
-- [ ] T004 在 `<ml>/realeval/pool-c-held` 上 dump 3B 模型预测 → `out/preds-poolheld-runc.jsonl`（复用 `dump_preds.py`；GPU 推理无 teacher $；WSL2 长命令按硬规则 setsid 脱离）
-- [ ] T005 由 `teacher_labels-c-held`（m1/m3/m_flash）构建 pool-c-held 银标 → `realeval/gold/pool-c-held-silver.jsonl`（复用 `build_silver.py` 一致口径，与 059 训练银标同尺子）
-- [ ] T006 [P] 写 `<ml>/tests/test_calibrate_tiers.py`（先行）：断言校准常量表结构（五级 tier×{heldout_precision,n,calibrated_rank}）、CV 去偏输出稳定、校准序按 held-out precision 降序、sql_bare 低置信
-- [ ] T007 实现 `<ml>/realeval/calibrate_tiers.py`：在 pool-c-held 银标 + 模型预测上跑 `confidence_calibration.calibrate` + `conf_calibration_cv`（CV 去偏）→ 固化每级 held-out precision 常量，`--emit-constants` 写 `realeval/tier_classify_constants.py`，报告 `out/calibrate-tiers.md`（披露样本规模/边界抖动）
-- [ ] T008 运行 T007 产出冻结常量 `realeval/tier_classify_constants.py` + `out/calibrate-tiers.md`；`test_calibrate_tiers.py` 转绿
+- [ ] T004 数据准备：对既有 gold C 预测 `out/preds-c-run-059-runc.jsonl` **先过语义 grounding**（部署管线一致），产出按行 idx 对齐的 `out/preds-c-grounded-idx.jsonl`（`conf_calibration_cv`/`confidence_calibration` 需 model_by_idx）。〔原 T004 pool-c-held dump 取消——R1 证伪 pool-c-held⊇gold C〕
+- [ ] T005 〔取消〕build_silver 银标不需要——CV 直接在 gold C 金标 + 既有预测上做（R1/R2）。保留占位以稳定后续编号
+- [ ] T006 [P] 写 `<ml>/tests/test_calibrate_tiers.py`（先行）：断言校准常量表结构（五级 tier×{precision,n,calibrated_rank}）、全 gold C 点估计与 CV held-out 均输出、校准序按 precision 降序、sql_bare 低置信
+- [ ] T007 实现 `<ml>/realeval/calibrate_tiers.py`：在 **gold C**（`real-c-arbitrated.jsonl`）+ grounded 预测上跑 `confidence_calibration.calibrate`（全 gold C 点估计 → 部署常量）+ `conf_calibration_cv`（k 折/留一 CV 去偏 → held-out 报告口径）→ `--emit-constants` 写 `realeval/tier_classify_constants.py`，报告 `out/calibrate-tiers.md`（点估计 vs CV held-out 并列，披露样本小/边界抖动）
+- [ ] T008 运行 T007 产出冻结常量 `realeval/tier_classify_constants.py` + `out/calibrate-tiers.md`；确认 CV held-out 前沿在 ≥0.95 阈下的 precision（诚实口径）；`test_calibrate_tiers.py` 转绿
 
 ### 分层纯函数（contracts/tier-classify.md）
 
@@ -69,10 +69,10 @@
 
 **Goal**: 自动采纳层 held-out precision ≥ 治理阈；低置信候选降级复核，不自动入库。
 
-**Independent Test**: gold C 纯 held-out 量自动层 precision ≥ 阈；裸名低置信候选不在 auto。
+**Independent Test**: gold C CV held-out 量自动层 precision ≥ 阈；裸名低置信候选不在 auto。
 
 - [ ] T017 [P] [US2] 写 `<ml>/tests/test_tier_classify.py` 补用例（先行）：`thr=0.95` 时低置信 tier（model_bare 使累计跌破阈）降级 review、仅达阈前缀留 auto；`test_dir_fix_serve.py` 补：`reads/writes` 只含 auto 层高置信表
-- [ ] T018 [US2] `rescore_tiered.py` 增自动层度量：auto 层 gold C 纯 held-out precision（常量冻结于 pool-c-held、gold C 不定级）+ 与模型平铺输出精度对照（无回归）
+- [ ] T018 [US2] `rescore_tiered.py` 增自动层度量：auto 层 gold C **CV held-out** precision（`conf_calibration_cv` 口径，级序/前沿留出）+ 与模型平铺输出精度对照（无回归）
 - [ ] T019 [US2] 跑 harness 确认 **SC-002**：自动层 held-out precision ≥ 治理阈（默认 0.95）且 ≥ 平铺输出精度；报告如实披露 ≥0.95 自动层召回过低（约 0.05）为治理严格代价 + 0.90 膝点数据（约 0.45）；US2 测试转绿
 
 **Checkpoint**: 自动层治理安全性经 held-out 证明 → US2 交付。
@@ -96,7 +96,7 @@
 ## Phase 6: Polish & 收尾
 
 - [ ] T023 [P] 全量 ml 套件回归：`cd <ml> && PYTHONPATH=. python3 -m pytest -q` 全绿，无回归（含 059 既有测试）
-- [ ] T024 [P] 写 `<ml>/out/FINDINGS-063.md`：召回天花板定界（0.764）、三方分层对照、≥0.95 vs 0.90 代价、pool-c-held 校准替身（诚实披露 R1）、SC-001~005 达成/未达如实
+- [ ] T024 [P] 写 `<ml>/out/FINDINGS-063.md`：召回天花板定界（0.764）、三方分层对照、≥0.95 vs 0.90 代价、**R1 诚实披露（无独立集：测试集 A 删/pool-c-held⊇gold C/pool-c-train 泄漏→gold C CV 去偏）**、SC-001~005 达成/未达如实
 - [ ] T025 [P] 更新 `CLAUDE.md` Knowledge Map 加 063 条目（召回回收·分层复核信封，指向 specs/063）
 - [ ] T026 确认无 gitignored 数据/权重/preds 被 git add（`git status` 干净，只提交代码+spec+报告 md）
 
@@ -106,7 +106,7 @@
 
 - **Setup（T001-T003）** → 阻塞全部。
 - **Foundational（T004-T011）** → 阻塞所有 US（冻结常量 + `classify_tiers` 是共享核）。
-  - T004,T005 → T007 → T008；T006 先于 T007 实现；T009 先于 T010 → T011。
+  - T004（grounded 预测准备）→ T007 → T008；T005 取消；T006 先于 T007 实现；T009 先于 T010 → T011。
   - **T010 依赖 T008**：`tier_classify.py` import T008 生成的冻结常量 `tier_classify_constants.py`（T010 可写带回退默认的 import 以便先跑单测，正式值由 T008 覆写）。
 - **US1（T012-T016）** = MVP，依赖 Foundational；T013→T014→T015→T016，T012 先行。
 - **US2（T017-T019）** 依赖 Foundational + US1 的 `rescore_tiered.py`/serve 分层（复用同 harness/wiring，加断言）。

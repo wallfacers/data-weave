@@ -6,7 +6,7 @@
 
 ## Summary
 
-把 052/054 的置信度校准框架接进 059 的血缘抽取 serving，产出**分层复核信封**：抽取管线末端加一环确定性后处理，将「模型抽取表集 ∪ SQL-AST 通道表集」按「通道归属 × 名字限定性」分级，累计校准 precision ≥ 治理阈（默认 0.95）的进**自动采纳层**（可直接入库），其余进**复核候选层**（按 confidence 降序进人工队列）。目标：把复核者可见召回从模型独抽 0.703 推向免费天花板 0.764，同时自动层 held-out precision ≥ 阈。**分级校准常量冻结于独立源隔离集，gold C 纯 held-out 评测。本轮只做 serving 侧产出 + 离线证明，不碰 backend/frontend。**
+把 052/054 的置信度校准框架接进 059 的血缘抽取 serving，产出**分层复核信封**：抽取管线末端加一环确定性后处理，将「模型抽取表集 ∪ SQL-AST 通道表集」按「通道归属 × 名字限定性」分级，累计校准 precision ≥ 治理阈（默认 0.95）的进**自动采纳层**（可直接入库），其余进**复核候选层**（按 confidence 降序进人工队列）。目标：把复核者可见召回从模型独抽 0.703 推向免费天花板 0.764，同时自动层 CV held-out precision ≥ 阈。**分级校准常量经 gold C 嵌套 CV 去偏产出（点估计部署 + CV held-out 报告；research R1：无独立非泄漏带标集，退回 054 已验证的 CV 诚实法）。本轮只做 serving 侧产出 + 离线证明，不碰 backend/frontend。**
 
 ## Technical Context
 
@@ -24,9 +24,9 @@
 
 **Performance Goals**: 分层后处理 O(候选数)，微秒级；模型推理不变（平台侧 2s 超时预算不受影响）；确定性（同版本模型 + 同输入 + 同阈 → 同输出）。
 
-**Constraints**: 不新增 GPU（仅复用既有模型推理 + 对 pool-c-held 一次性 dump 预测）；不付费 teacher；不新增人工标注；不碰 backend/frontend。
+**Constraints**: 不新增 GPU（CV 复用既有 gold C 预测，无需新 dump）；不付费 teacher；不新增人工标注；不碰 backend/frontend。
 
-**Scale/Scope**: gold C 153 条 held-out 评测；pool-c-held 162 条冻结校准；serving 逐请求。
+**Scale/Scope**: gold C 153 条（嵌套 CV：既定级又 held-out 评测）；serving 逐请求。
 
 ## Constitution Check
 
@@ -65,7 +65,7 @@ ml/lineage-extractor/
 │   ├── semantic_grounding.py      # 复用（059 ③，管线前段）
 │   ├── dir_fix.py                 # 复用（AST 方向修正）
 │   ├── tier_classify.py           # 【新】纯函数：model∪SQL canon 去重→打 tier→按阈切自动/复核
-│   ├── calibrate_tiers.py         # 【新】冻结校准：pool-c-held 上跑校准+CV→固化 held-out precision 常量表
+│   ├── calibrate_tiers.py         # 【新】冻结校准：gold C 全集点估计+CV去偏→固化 precision 常量表
 │   └── rescore_tiered.py          # 【新】离线证明：gold C 三方分层对照报告
 ├── serve/
 │   └── app.py                     # 【改】postprocess 链尾加分层；响应加 reviewReads/Writes + tier/confidence + tiered
