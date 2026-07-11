@@ -107,6 +107,7 @@
 - **Setup（T001-T003）** → 阻塞全部。
 - **Foundational（T004-T011）** → 阻塞所有 US（冻结常量 + `classify_tiers` 是共享核）。
   - T004,T005 → T007 → T008；T006 先于 T007 实现；T009 先于 T010 → T011。
+  - **T010 依赖 T008**：`tier_classify.py` import T008 生成的冻结常量 `tier_classify_constants.py`（T010 可写带回退默认的 import 以便先跑单测，正式值由 T008 覆写）。
 - **US1（T012-T016）** = MVP，依赖 Foundational；T013→T014→T015→T016，T012 先行。
 - **US2（T017-T019）** 依赖 Foundational + US1 的 `rescore_tiered.py`/serve 分层（复用同 harness/wiring，加断言）。
 - **US3（T020-T022）** 依赖 US1 的 serve 分层（加 env 旋钮）。
