@@ -72,9 +72,9 @@
 
 ## Phase 7: Polish & 跨切面（W5 写作支撑）
 
-- [ ] T015 [P] 汇编 `out/PAPER-EVIDENCE.md`：把每条头条陈述映射到一个证据项（significance-c.md / baselines-c.md / leak-curve.md / 既有信封产物），落实 FR-010（无裸数字比较）+ **消化 rigor CHK005/CHK006**（泄漏曲线 + 信封均有证据锚点）。
+- [x] T015 [P] 汇编 `out/PAPER-EVIDENCE.md`：把每条头条陈述映射到一个证据项（significance-c.md / baselines-c.md / leak-curve.md / 既有信封产物），落实 FR-010（无裸数字比较）+ **消化 rigor CHK005/CHK006**（泄漏曲线 + 信封均有证据锚点）。
 - [ ] T016 [P] 落地时更新 `CLAUDE.md` Knowledge Map 加 065 条目 + 记忆刷新（**提交留到实现完成/合并时**，现在不写）。
-- [ ] T017 全量 `pytest`（`ml/lineage-extractor/tests/`）确认 `test_significance` + `test_sqllineage_baseline` + `test_benchmark_manifest` + 既有回归全绿；WSL2 长跑按硬规则 setsid 脱离；只认 `Tests run: N>0`。
+- [x] T017 全量 `pytest`（`ml/lineage-extractor/tests/`）确认 `test_significance` + `test_sqllineage_baseline` + `test_benchmark_manifest` + 既有回归全绿；WSL2 长跑按硬规则 setsid 脱离；只认 `Tests run: N>0`。
 
 ---
 
