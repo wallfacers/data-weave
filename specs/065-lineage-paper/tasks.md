@@ -66,14 +66,14 @@
 
 > **门控**：默认**不执行**。仅当 US1–US3 落地后有余量 + MSR 投稿周期允许时启动（待 DDL 确认）。
 
-- [ ] T014 [US4] 实现 `realeval/expand_gold_c.py`：复用 `collect_stack.py`（the-stack，HF_TOKEN）→ `teacher_label.py`（m1+m2 一致，deepseek 缺）→ `build_gold_b.py`，目标非空 ~100；按内容 sha256 **dedup 排除已在 gold C 的样本**防污染；产物打 `robustness_only=true` 标注"teacher 派生、非独立真值"。重跑 US1 CI 验 SC-006（关键指标 CI 收窄）。
+- [x] T014 [US4] 实现 `realeval/expand_gold_c.py`：复用 `collect_stack.py`（the-stack，HF_TOKEN）→ `teacher_label.py`（m1+m2 一致，deepseek 缺）→ `build_gold_b.py`，目标非空 ~100；按内容 sha256 **dedup 排除已在 gold C 的样本**防污染；产物打 `robustness_only=true` 标注"teacher 派生、非独立真值"。重跑 US1 CI 验 SC-006（关键指标 CI 收窄）。
 
 ---
 
 ## Phase 7: Polish & 跨切面（W5 写作支撑）
 
 - [x] T015 [P] 汇编 `out/PAPER-EVIDENCE.md`：把每条头条陈述映射到一个证据项（significance-c.md / baselines-c.md / leak-curve.md / 既有信封产物），落实 FR-010（无裸数字比较）+ **消化 rigor CHK005/CHK006**（泄漏曲线 + 信封均有证据锚点）。
-- [ ] T016 [P] 落地时更新 `CLAUDE.md` Knowledge Map 加 065 条目 + 记忆刷新（**提交留到实现完成/合并时**，现在不写）。
+- [x] T016 [P] 落地时更新 `CLAUDE.md` Knowledge Map 加 065 条目 + 记忆刷新（**提交留到实现完成/合并时**，现在不写）。
 - [x] T017 全量 `pytest`（`ml/lineage-extractor/tests/`）确认 `test_significance` + `test_sqllineage_baseline` + `test_benchmark_manifest` + 既有回归全绿；WSL2 长跑按硬规则 setsid 脱离；只认 `Tests run: N>0`。
 
 ---

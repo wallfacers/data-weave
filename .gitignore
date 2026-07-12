@@ -72,6 +72,8 @@ ml/lineage-extractor/out/run-*/
 # 065 论文加固：HF 拉的 merged 权重（GB 级）+ 逐行模型/teacher 预测（可由脚本+固定 seed 复现）
 ml/lineage-extractor/weights/
 ml/lineage-extractor/out/preds/
+ml/lineage-extractor/out/preds-exp/
+ml/lineage-extractor/out/preds-c-3b-wrapped.jsonl
 # 047 抗泄漏消融 B1/B2 训练集变体（MB 级 jsonl，可由 data/antileak.py 固定 SEED 复现，不入 git）
 # 注：pool.json 亦在此目录，复现即得；out/*-b*.{md,json} 评测报告是小体积论文证据，照常入库
 ml/lineage-extractor/data/out-b1/
