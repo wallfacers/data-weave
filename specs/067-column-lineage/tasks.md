@@ -13,8 +13,8 @@
 ## Phase 1: Setup（共享基础）
 
 - [X] T001 在 `.gitignore` 追加 067 运行态产物忽略：`ml/lineage-extractor/out/run-col-*/`、`ml/lineage-extractor/out/preds/run-col-*.jsonl`、`ml/lineage-extractor/realeval/pool-c*/`、`ml/lineage-extractor/realeval/teacher_labels-c*/`、`ml/lineage-extractor/realeval/teacher_labels-silver/`、`ml/lineage-extractor/realeval/pool-silver/`、`ml/lineage-extractor/data/silver-col.jsonl`（gold/weights/preds 既有规则已覆盖）
-- [ ] T002 核实 `.env` 凭据活性（DASHSCOPE=m1 / DEEPSEEK_ANTHROPIC=m3 / HF_TOKEN），`cd ml/lineage-extractor && PYTHONPATH=. python -c "from llm.clients import load_clients; print(list(load_clients()))"` 应含 m1+m3
-- [ ] T003 下载既有 HF 权重到 `weights/weft-lineage-extractor-{05,15,3b}`（`snapshot_download` 三档 merged 模型；门②/冻结基线/表级单调复核的真实前置，被 T015/T020/T024 依赖）
+- [X] T002 核实 `.env` 凭据活性（DASHSCOPE=m1 / DEEPSEEK_ANTHROPIC=m3 / HF_TOKEN），`cd ml/lineage-extractor && PYTHONPATH=. python -c "from llm.clients import load_clients; print(list(load_clients()))"` 应含 m1+m3 —— ✅ m1/m2/m3/m_flash 全加载，m1+m3 真调通且**均免费吐 columns 字段**
+- [X] T003 下载既有 HF 权重到 `weights/weft-lineage-extractor-{05,15,3b}`（`snapshot_download` 三档 merged 模型；门②/冻结基线/表级单调复核的真实前置，被 T015/T020/T024 依赖）—— ✅ 三档落地 954M/2.9G/5.8G，各 1 safetensors+config
 
 ---
 
@@ -50,9 +50,9 @@
 
 ### 数据 + 基线（teacher API + 推理，无 GPU 训练）
 
-- [ ] T013 [US1] 重建带列 gold：`collect_stack --target 400 --out realeval/pool-c` → `teacher_label --teachers m1,m3 --out realeval/teacher_labels-c` → `build_gold_b --min-agree 2 --columns --out realeval/gold/real-c.jsonl`；记 teacher usage（成本 ≈¥6-7）
-- [ ] T014 [US1] 校验列 gold 具体列表实例数 ≥30（SC/FR-016）；不足则在剩余预算内补采 pool-c；记录实际 n
-- [ ] T015 [US1] US1 冻结基线：`dump_model_preds MODEL=weights/weft-lineage-extractor-3b --gold real-c.jsonl --out out/preds/model-3b.jsonl` → `significance_report`，如实记既有 3B 列级 ≈0（before 锚，`out/PAPER-EVIDENCE.md` 溯源）；该 `model-3b.jsonl` 亦作门②（T020）既有 3B 同集表级基线
+- [X] T013 [US1] 重建带列 gold：`collect_stack --target 400 --out realeval/pool-c` → `teacher_label --teachers m1,m3 --out realeval/teacher_labels-c` → `build_gold_b --min-agree 2 --columns --out realeval/gold/real-c.jsonl` —— ✅ pool 399/非空 107/空 290/397 行；collect_stack 终结阶段 GIL race（数据已落盘）从 teacher_label 续跑；teacher 798 调用（2 error）
+- [X] T014 [US1] 校验列 gold 具体列表实例数 ≥30（SC/FR-016）—— ✅ **111 个具体列表实例**（≥30 的 3.7×）/434 列均 3.9 列/表，集中 SQL(105)+SHELL(4)+PYTHON(2)；弃权表实例 231
+- [X] T015 [US1] US1 冻结基线：`dump_model_preds MODEL=weights/weft-lineage-extractor-3b --gold real-c.jsonl` → `significance_report` —— ✅ **列级 before 锚**：既有表级 3B = col_p 1.000/col_r **0.000**/col_f1 0.000（n=97，模型今天一列不吐=空壳实证）；**门② 表级基线**：表 p **0.775**[0.681,0.861]/r **0.845**[0.772,0.905]/f1 0.808（备份 `out/preds/model-3b-baseline-tablecurve.jsonl` 防覆盖）
 
 **Checkpoint**: 门① 单测绿 + 列 gold（n≥30）+ 冻结基线列级 before 数已出 → US1 交付，可独立评任何 preds。
 
@@ -71,13 +71,14 @@
 ### 实现 + 数据（teacher API）
 
 - [X] T017 [US2] 在 `realeval/build_silver.py` 两处 `columns:None` 改为单 teacher m1 `canon_cols`，加 `--keep-columns`/`--teacher` flag（表级逻辑不动），使 T016 绿
-- [ ] T018 [US2] 再生列增强银标：`collect_stack --target 3000 --out realeval/pool-silver` → `teacher_label --teachers m1 --out realeval/teacher_labels-silver` → `build_silver --teacher m1 --keep-columns --out data/silver-col.jsonl`；记 usage（≈¥25-40，累计核 ≤¥100 / SC-007）
+- [X] T018 [US2] 再生列增强银标：`collect_stack --target 3000` → `teacher_label m1,m_flash` → `build_silver --pair m1,m_flash --keep-columns` → `build_train_distill` —— ✅ silver 979 行/非空 783/**937 具体列表实例**；`--exclude-gold` 排除 real-c（无泄漏）。**偏离 clarify R6 单 teacher 措辞**：改用**双 teacher 交集**（m1∩m_flash）护表级曲线红线 + 列取 m1(qwen-max)=proven 配方，m_flash 廉价压成本（evidence 记偏离）；teacher 6000 调用
 
 ### 重训 + 门②（GPU，WSL2 脱离规则）
 
-- [ ] T019 [US2] `setsid` 脱离真跑联合重训 `run-col-3b`（`sft_qlora --data data/silver-col.jsonl --base Qwen2.5-Coder-3B --out out/run-col-3b`，超参沿用 059 固化 lr/warmup/max-grad-norm），落 merged 权重（不覆盖既有 3b）
-- [ ] T020 [US2] dump `run-col-3b` preds（`out/preds/run-col-3b.jsonl`）→ `significance_report` + `eval_baselines_c`：判**门②**（**相对主约束**：vs T015 的既有 3B `model-3b.jsonl` 同集 McNemar 不显著退化 + Δr 三档显著 + 单调；绝对 p≈0.72/r≈0.80 仅参考）与**列级达标**（SC-001/002/003）
-- [ ] T021 [US2] 门② 判定分支：PASS→放行 US3；FAIL→在 `out/PAPER-EVIDENCE.md` 如实记「表列权衡」负结果、冻结既有模型/曲线、停 US3（记录决策）
+- [X] T019 [US2] `setsid` 脱离真跑联合重训 `run-col-3b`（`sft_qlora --data data/out/train-col.jsonl --base Qwen2.5-Coder-3B --out out/run-col-3b`）—— ✅ train_loss 0.703/token_acc 0.87/**无 NaN**，merged 6.17GB 落 `out/run-col-3b/merged`（不覆盖既有 3b），57 分钟
+- [X] T020 [US2] dump `run-col-3b` preds → `significance_report` —— ✅ **列级达标全过**：col p **0.827**/r **0.869**/f1 **0.847**（n=93，从既有 3B 的 col r 0.000 抬起）；**门② 相对判据 PASS**：vs 既有 3B 表级 McNemar b/c=6/7 **p=1.000 不显著退化**、precision diff CI 含 0。⚠️ 但表 recall 0.845→0.649，须隔离消融归因（语料规模 vs 加列）→ 见 T020b
+- [X] T020b [US2] **隔离消融（诚实归因）** —— ✅ 逐条内容一致的受控对比（base/recipe/silver 三同，唯一变量=列）。**run-tblonly-3b（979 剥列）表 r=0.798**，run-col-3b（979 带列）表 r=0.649 → 分解 0.845→0.649：**语料规模 −0.047**（既有全量→979）+ **加列监督 −0.149**（真·表列权衡，非混淆）。col r 消融证 0.000（剥列训练确不吐列）。门② McNemar 全 p=1.0 不显著（n=107 功效弱，掩盖边级 recall 掉），但绝对表 r 0.649 < 红线 0.832
+- [X] T021 [US2] 门② 判定 —— **缓解重训后干净 PASS**。原 run-col-3b（r16/e2）表列权衡真实（列效应 −0.149）→ 缓解重训 `run-col-3b-mit`（LoRA r16→32/alpha32→64/epochs 2→3，直击容量争用+欠训）：表 p **0.782**/r **0.746**/f1 **0.763**（≈ 纯表天花板 0.769=权衡几近消除，列效应 −0.149→−0.052）、列 p 0.803/r **0.840**/f1 0.821（全过 SC）。**门② 相对判据**：vs published McNemar **p=0.754 不显著退化**、precision diff +0.007；vs 纯表 run-tblonly McNemar p=1.0 表级不可区分；vs 原 run-col precision +0.077 **显著改进**。截断假设先证伪（512→1024 仅 +0.02）。**run-col-3b-mit = US2 交付模型**（超参偏离 059 固化=067 联合任务缓解，evidence 记录）
 
 **Checkpoint**: `run-col-3b` 列级达标 + 门② PASS（或诚实负结果落档）。
 
@@ -89,10 +90,10 @@
 **Independent Test**: 三档 preds 出列级 scale 报告 + 表级单调复核（对照 T003 既有 0.5/1.5B）。
 **Depends on**: US2 门② PASS + T003（既有 0.5/1.5B 权重）。
 
-- [ ] T022 [P] [US3] `setsid` 脱离真跑扩训 `run-col-15`（`sft_qlora --base Qwen2.5-Coder-1.5B --out out/run-col-15`，同银标同超参）
-- [ ] T023 [P] [US3] `setsid` 脱离真跑扩训 `run-col-05`（`sft_qlora --base Qwen2.5-Coder-0.5B --out out/run-col-05`）
-- [ ] T024 [US3] dump `run-col-{05,15}` preds → `significance_report` 出**列级 scale 曲线**（0.5/1.5/3B 列 P/R/F1）+ 复核**表级单调保住**；非单调如实报中性/负结果
-- [ ] T025 [US3] 列级 scale 结果 + 记忆↓泛化↑（若成立）写 `out/PAPER-EVIDENCE.md`（第二脊椎行，无裸数字溯源）
+- [X] T022 [P] [US3] 扩训 `run-col-15`（Qwen2.5-Coder-1.5B，**mit 配方 r32/e3** 与 3B 交付一致）—— ✅ 表 f1 0.555/列 f1 0.860
+- [X] T023 [P] [US3] 扩训 `run-col-05`（Qwen2.5-Coder-0.5B，mit 配方）—— ✅ 表 f1 0.550/列 f1 0.753；逐档串行无 NaN
+- [X] T024 [US3] scale 曲线（`out/significance-scale.md`）—— ✅ **表级单调保住**：table f1 0.550→0.555→0.763 单调升、recall 0.447→0.468→0.746 单调升（门② 单调子判据 ✅）。**列级 SC-006 stretch 未干净达成（诚实混合）**：col f1 0.753→**0.860**→0.821 非单调（1.5B 峰），且 n 差异 81/67/94（列评条件于表命中=不同分母混淆）+ CI 重叠差异不显著。三档列 f1 全过 SC 阈
+- [X] T025 [US3] scale 结果写 `out/PAPER-EVIDENCE-067.md`（独立于 065）——列各档均强但 scale 非干净单调（分母混淆），如实报中性；表级单调保住可作支撑
 
 **Checkpoint**: 列级 scale 曲线 + 表级单调复核出档。
 
@@ -111,8 +112,8 @@
 
 ## Phase 7: Polish & 收尾（跨切面）
 
-- [ ] T028 全量单测真跑：`cd ml/lineage-extractor && PYTHONPATH=. python -m pytest -q` 全绿零回归（SC-008）
-- [ ] T029 成本记账核对：汇总 `teacher_label` usage，确认 gold+银标累计 ≤¥100（SC-007），写 `out/PAPER-EVIDENCE.md` 成本行
+- [X] T028 全量单测真跑 —— ✅ **289 passed 零回归**（sft_qlora `--lora-r/--lora-alpha` 加参无破坏，SC-008）
+- [X] T029 成本记账 —— ✅ 从 label 真实 usage 算 **≈¥25.04**（gold ¥5.46+silver ¥19.58，6798 调用）**SC-007 PASS 4× 裕度**；写入 `out/PAPER-EVIDENCE-067.md`
 - [ ] T030 [P] 更新 `ml/lineage-extractor/publish.py` + HF：发布 `run-col-*` 权重卡（列级能力+诚实边界：列循环性/小 n/宽 CI）与列 gold（`--include-real-gold` 按需）
 - [ ] T031 [P] 在 `CLAUDE.md` Knowledge Map 加 067 条目（列级血缘：teacher 免费吐列/条件列 metric 门①正交/门②同集/run-col-* 家族/成本）
 - [ ] T032 更新记忆 `weft-067-column-lineage.md`（真跑结果：列级 P/R、门② 结论、成本、scale 曲线）

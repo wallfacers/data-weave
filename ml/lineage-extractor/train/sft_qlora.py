@@ -89,6 +89,10 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--warmup", type=float, default=0.03)
     ap.add_argument("--max-grad-norm", type=float, default=1.0)
+    # 067 缓解重训：LoRA 容量旋钮（默认 r16/alpha32=059 固化配方，向后兼容）。
+    # 联合表+列任务下 r16 容量争用致表 recall 掉；扩 rank 直击容量争用。
+    ap.add_argument("--lora-r", type=int, default=16)
+    ap.add_argument("--lora-alpha", type=int, default=32)
     args = ap.parse_args()
     base_model = args.base_model
 
@@ -110,7 +114,7 @@ def main() -> None:
     print(f"train rows total: {len(ds)}")
 
     peft_config = LoraConfig(
-        r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
+        r=args.lora_r, lora_alpha=args.lora_alpha, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
     )
 
