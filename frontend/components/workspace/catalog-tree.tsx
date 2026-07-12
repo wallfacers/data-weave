@@ -49,6 +49,7 @@ import {
 } from "@/lib/types"
 import { type TaskType } from "@/components/workspace/shared/params-table"
 import { useCatalogTreeStore } from "@/lib/workspace/catalog-tree-store"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import {
   Dialog,
@@ -922,7 +923,7 @@ export function CatalogTree({
   }
 
   if (loading) {
-    return <p className="p-3 text-sm text-muted-foreground">{t("catalog.loading")}</p>
+    return <LoadingState />
   }
 
   return (
