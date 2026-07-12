@@ -5,12 +5,8 @@ spring:
     web-application-type: reactive
   application:
     name: dataweave-api
-
-# 应用时区：控制 LocalDateTime.now() 和 ZoneId.systemDefault() 的行为。
-# 部署时通过环境变量 APP_TIMEZONE 或 JVM 参数 -Duser.timezone 覆盖。
-# 默认 UTC（服务端标准），本地/国内部署建议设为 Asia/Shanghai。
-app:
-  timezone: ${APP_TIMEZONE:UTC}
+  # 应用时区不放在 yaml：JVM 默认时区由 TimezoneBootstrap 在 Spring 上下文启动前设置，
+  # 此处读不到；部署经环境变量 APP_TIMEZONE 或 -Duser.timezone 覆盖（默认 UTC，本地/国内建议 Asia/Shanghai）。
   messages:
     basename: messages         # i18n 文案（classpath:messages*.properties，置于 master 模块 resources）
     encoding: UTF-8

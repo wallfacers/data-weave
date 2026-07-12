@@ -10,6 +10,9 @@ backend/**/target/
 cli/dw
 cli/dw-*
 
+# 本地 docker compose 变量覆盖（如 APP_TIMEZONE=Asia/Shanghai）；仓库默认 UTC，个人环境不上行
+/.env
+
 # Weft 本地工作副本状态（.weft/state.json 基线令牌 + .weft/datasources.local.yaml 凭据）。
 # 凭据本地持有，绝不随 push 上行（子特性 D / FR-008）。** 匹配任意目录下的 .weft/（工作副本位置不限）。
 **/.weft/

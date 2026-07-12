@@ -1,6 +1,7 @@
 package com.dataweave.worker.localrun;
 
 import com.dataweave.master.infrastructure.IsolatedDriverLoader;
+import com.dataweave.master.infrastructure.TimezoneBootstrap;
 import com.dataweave.worker.domain.ExecutionContext;
 import com.dataweave.worker.domain.TaskExecutor;
 import com.dataweave.worker.infrastructure.EchoTaskExecutor;
@@ -42,6 +43,7 @@ public class LocalRunMain {
             Pattern.compile("\"([^\"]+)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     public static void main(String[] args) {
+        TimezoneBootstrap.init();   // 与 api/worker 入口一致：dw run 本地跑与服务端同时区
         try {
             LocalRunArgs parsed = LocalRunArgs.parse(args);
             LocalRunMain m = new LocalRunMain();

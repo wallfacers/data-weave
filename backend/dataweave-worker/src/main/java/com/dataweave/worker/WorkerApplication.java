@@ -1,5 +1,6 @@
 package com.dataweave.worker;
 
+import com.dataweave.master.infrastructure.TimezoneBootstrap;
 import com.dataweave.worker.application.IncarnationManager;
 import com.dataweave.worker.application.WorkerExecService;
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import jakarta.annotation.PreDestroy;
-import java.util.TimeZone;
 
 /**
  * Worker 独立进程入口（task 3.7）。
@@ -55,27 +55,8 @@ public class WorkerApplication {
     }
 
     public static void main(String[] args) {
-        initTimezone();
+        TimezoneBootstrap.init();
         SpringApplication.run(WorkerApplication.class, args);
-    }
-
-    /**
-     * 在 Spring 上下文启动前设置 JVM 默认时区，确保所有 {@code LocalDateTime.now()} 和
-     * {@code ZoneId.systemDefault()} 使用统一时区。
-     *
-     * <p>优先级：① 系统属性 {@code user.timezone}（-D 参数）→
-     * ② 环境变量 {@code APP_TIMEZONE} → ③ 默认 {@code UTC}。
-     */
-    private static void initTimezone() {
-        String tz = System.getProperty("user.timezone");
-        if (tz == null) {
-            tz = System.getenv("APP_TIMEZONE");
-        }
-        if (tz == null) {
-            tz = "UTC";
-        }
-        TimeZone.setDefault(TimeZone.getTimeZone(tz));
-        System.setProperty("user.timezone", tz);
     }
 
     @EventListener(ApplicationReadyEvent.class)

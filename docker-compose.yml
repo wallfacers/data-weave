@@ -4,9 +4,10 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: dataweave-postgres
-    command: postgres -c max_connections=200 -c timezone='Asia/Shanghai'   # 045 cron 并行化：支撑 HikariCP 扩容(双 master×64=128 < 200)
+    # 时区不写死：与应用 APP_TIMEZONE 对齐（默认 UTC，本地/国内 export APP_TIMEZONE=Asia/Shanghai 即库+应用同步切换）。
+    command: postgres -c max_connections=200 -c timezone='${APP_TIMEZONE:-UTC}'   # 045 cron 并行化：支撑 HikariCP 扩容(双 master×64=128 < 200)
     environment:
-      TZ: Asia/Shanghai
+      TZ: ${APP_TIMEZONE:-UTC}
       POSTGRES_DB: dataweave
       POSTGRES_USER: dataweave
       POSTGRES_PASSWORD: dataweave
@@ -109,6 +110,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}        # JVM 默认时区（TimezoneBootstrap 读），与 PG timezone 对齐
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
       SPRING_DATASOURCE_USERNAME: dataweave
       SPRING_DATASOURCE_PASSWORD: dataweave
@@ -152,6 +154,7 @@ services:
     ports:
       - "8200:8000"
     environment:
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}        # JVM 默认时区（TimezoneBootstrap 读），与 PG timezone 对齐
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dataweave
       SPRING_DATASOURCE_USERNAME: dataweave
       SPRING_DATASOURCE_PASSWORD: dataweave
@@ -192,6 +195,7 @@ services:
     ports:
       - "8100:8100"
     environment:
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}        # JVM 默认时区（TimezoneBootstrap 读），与 master/PG 对齐
       DATAWEAVE_MASTER_URL: http://dataweave-master:8000
       DATAWEAVE_WORKER_NODE_CODE: worker-1
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
@@ -208,6 +212,7 @@ services:
     ports:
       - "8101:8100"
     environment:
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}        # JVM 默认时区（TimezoneBootstrap 读），与 master/PG 对齐
       DATAWEAVE_MASTER_URL: http://dataweave-master:8000
       DATAWEAVE_WORKER_NODE_CODE: worker-2
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
