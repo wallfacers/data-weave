@@ -111,3 +111,10 @@ ml/lineage-extractor/realeval/teacher_labels-c*/
 ml/lineage-extractor/data/out/*059*.jsonl
 ml/lineage-extractor/data/reasoning-corpus-059.jsonl
 ml/lineage-extractor/out/preds-c-*.jsonl
+
+# 067 列级血缘：列增强新模型家族权重 + 逐行 preds + 银标语料/标注（GB 级/可复现，走 HF）
+ml/lineage-extractor/out/run-col-*/
+ml/lineage-extractor/out/preds/run-col-*.jsonl
+ml/lineage-extractor/realeval/teacher_labels-silver/
+ml/lineage-extractor/realeval/pool-silver/
+ml/lineage-extractor/data/silver-col.jsonl

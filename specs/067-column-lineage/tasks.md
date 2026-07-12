@@ -12,7 +12,7 @@
 
 ## Phase 1: Setup（共享基础）
 
-- [ ] T001 在 `.gitignore` 追加 067 运行态产物忽略：`ml/lineage-extractor/out/run-col-*/`、`ml/lineage-extractor/out/preds/run-col-*.jsonl`、`ml/lineage-extractor/realeval/pool-c*/`、`ml/lineage-extractor/realeval/teacher_labels-c*/`、`ml/lineage-extractor/realeval/teacher_labels-silver/`、`ml/lineage-extractor/realeval/pool-silver/`、`ml/lineage-extractor/data/silver-col.jsonl`（gold/weights/preds 既有规则已覆盖）
+- [X] T001 在 `.gitignore` 追加 067 运行态产物忽略：`ml/lineage-extractor/out/run-col-*/`、`ml/lineage-extractor/out/preds/run-col-*.jsonl`、`ml/lineage-extractor/realeval/pool-c*/`、`ml/lineage-extractor/realeval/teacher_labels-c*/`、`ml/lineage-extractor/realeval/teacher_labels-silver/`、`ml/lineage-extractor/realeval/pool-silver/`、`ml/lineage-extractor/data/silver-col.jsonl`（gold/weights/preds 既有规则已覆盖）
 - [ ] T002 核实 `.env` 凭据活性（DASHSCOPE=m1 / DEEPSEEK_ANTHROPIC=m3 / HF_TOKEN），`cd ml/lineage-extractor && PYTHONPATH=. python -c "from llm.clients import load_clients; print(list(load_clients()))"` 应含 m1+m3
 - [ ] T003 下载既有 HF 权重到 `weights/weft-lineage-extractor-{05,15,3b}`（`snapshot_download` 三档 merged 模型；门②/冻结基线/表级单调复核的真实前置，被 T015/T020/T024 依赖）
 
@@ -22,8 +22,8 @@
 
 **Purpose**: `canon_col` 被 gold 列裁决（US1）与列打分（US1）共用，是所有列逻辑的地基。
 
-- [ ] T004 [P] 写 `tests/test_canon_col.py`：按 `contracts/canon_col.md` 行为表逐条断言（小写/去空白/剥单多级前缀/别名/`*`→None/空→None/通配传染 `["amount","*"]`→None）
-- [ ] T005 在 `eval/metrics.py` 实现纯函数 `canon_col(name)->str|None` 与 `canon_cols(cols)->set[str]|None`（三态：None/[]→None、含通配→None、否则归一非空集），使 T004 全绿；无 torch 依赖
+- [X] T004 [P] 写 `tests/test_canon_col.py`：按 `contracts/canon_col.md` 行为表逐条断言（小写/去空白/剥单多级前缀/别名/`*`→None/空→None/通配传染 `["amount","*"]`→None）
+- [X] T005 在 `eval/metrics.py` 实现纯函数 `canon_col(name)->str|None` 与 `canon_cols(cols)->set[str]|None`（三态：None/[]→None、含通配→None、否则归一非空集），使 T004 全绿；无 torch 依赖
 
 **Checkpoint**: `PYTHONPATH=. python -m pytest tests/test_canon_col.py -q` 绿 → 可进任意 US。
 
@@ -37,16 +37,16 @@
 
 ### 测试先行（TDD）
 
-- [ ] T006 [P] [US1] 写 `tests/test_metrics_columns.py::test_column_scoring_never_perturbs_table_counts`：对多态 fixtures（具体列/弃权/空），断言 `score_row` 带列 vs 列抹 None 下表级 `tp/fp/fn/halluc/pred_total/dir_total/dir_correct/invalid` 逐字节相等（门①）
-- [ ] T007 [P] [US1] 在 `tests/test_metrics_columns.py` 加条件列打分正确性：TP/FP/FN 集合运算、gold 弃权跳过、pred 弃权记 `col_fn`、列幻觉、按 role（reads/writes）分算、`col_eval_tables` 计数
-- [ ] T008 [P] [US1] 写 `tests/test_build_gold_columns.py`：按 `contracts/build_gold_column_mode.md` 断言列级裁决（双方交集/交集空→null/一方弃权→null/含 `*`→null/`columns=False` 零回归）
+- [X] T006 [P] [US1] 写 `tests/test_metrics_columns.py::test_column_scoring_never_perturbs_table_counts`：对多态 fixtures（具体列/弃权/空），断言 `score_row` 带列 vs 列抹 None 下表级 `tp/fp/fn/halluc/pred_total/dir_total/dir_correct/invalid` 逐字节相等（门①）
+- [X] T007 [P] [US1] 在 `tests/test_metrics_columns.py` 加条件列打分正确性：TP/FP/FN 集合运算、gold 弃权跳过、pred 弃权记 `col_fn`、列幻觉、按 role（reads/writes）分算、`col_eval_tables` 计数
+- [X] T008 [P] [US1] 写 `tests/test_build_gold_columns.py`：按 `contracts/build_gold_column_mode.md` 断言列级裁决（双方交集/交集空→null/一方弃权→null/含 `*`→null/`columns=False` 零回归）
 
 ### 实现
 
-- [ ] T009 [US1] 在 `eval/metrics.py` `score_row` 加**独立列打分块**（不改表级 8 key 赋值代码）：按 `contracts/metrics_column_scoring.md` 独立重算表对齐对 → 条件列 col_* 计数；使 T006/T007 绿
-- [ ] T010 [US1] 在 `eval/metrics.py` `aggregate` 加 `col_precision/col_recall/col_f1/col_hallucination`（表级返回值不变）；补/跑既有 `metrics.py` 单测确认零回归（SC-008）
-- [ ] T011 [US1] 在 `realeval/build_gold_b.py` 加 `_col_map` + `decide_tables(..., columns=False)` 开关与列级交集裁决（表级逻辑不动），使 T008 绿；`build_gold_b.py` main 加 `--columns` flag
-- [ ] T012 [US1] 在 `realeval/significance_report.py`（与 `eval_baselines_c.py`）报告追加列级指标行（表级行原样保留，自动发现 `out/preds/*.jsonl`）
+- [X] T009 [US1] 在 `eval/metrics.py` `score_row` 加**独立列打分块**（不改表级 8 key 赋值代码）：按 `contracts/metrics_column_scoring.md` 独立重算表对齐对 → 条件列 col_* 计数；使 T006/T007 绿
+- [X] T010 [US1] 在 `eval/metrics.py` `aggregate` 加 `col_precision/col_recall/col_f1/col_hallucination`（表级返回值不变）；补/跑既有 `metrics.py` 单测确认零回归（SC-008）
+- [X] T011 [US1] 在 `realeval/build_gold_b.py` 加 `_col_map` + `decide_tables(..., columns=False)` 开关与列级交集裁决（表级逻辑不动），使 T008 绿；`build_gold_b.py` main 加 `--columns` flag
+- [X] T012 [US1] 在 `realeval/significance_report.py`（与 `eval_baselines_c.py`）报告追加列级指标行（表级行原样保留，自动发现 `out/preds/*.jsonl`）
 
 ### 数据 + 基线（teacher API + 推理，无 GPU 训练）
 
@@ -66,11 +66,11 @@
 
 ### 测试先行
 
-- [ ] T016 [P] [US2] 写 `tests/test_build_silver_columns.py`：按 `contracts/build_silver_column_preserve.md` 断言 `--keep-columns` False 零回归 / True 携带 m1 列 / m1 弃权→null
+- [X] T016 [P] [US2] 写 `tests/test_build_silver_columns.py`：按 `contracts/build_silver_column_preserve.md` 断言 `--keep-columns` False 零回归 / True 携带 m1 列 / m1 弃权→null
 
 ### 实现 + 数据（teacher API）
 
-- [ ] T017 [US2] 在 `realeval/build_silver.py` 两处 `columns:None` 改为单 teacher m1 `canon_cols`，加 `--keep-columns`/`--teacher` flag（表级逻辑不动），使 T016 绿
+- [X] T017 [US2] 在 `realeval/build_silver.py` 两处 `columns:None` 改为单 teacher m1 `canon_cols`，加 `--keep-columns`/`--teacher` flag（表级逻辑不动），使 T016 绿
 - [ ] T018 [US2] 再生列增强银标：`collect_stack --target 3000 --out realeval/pool-silver` → `teacher_label --teachers m1 --out realeval/teacher_labels-silver` → `build_silver --teacher m1 --keep-columns --out data/silver-col.jsonl`；记 usage（≈¥25-40，累计核 ≤¥100 / SC-007）
 
 ### 重训 + 门②（GPU，WSL2 脱离规则）

@@ -19,24 +19,33 @@ import numpy as np
 from eval.metrics import aggregate
 
 # 与 metrics.aggregate 对齐的计数分量（不含 invalid，指标不用）
-_KEYS = ("tp", "fp", "fn", "halluc", "pred_total", "dir_total", "dir_correct")
-_METRICS = ("precision", "recall", "f1", "hallucination", "direction_acc")
+_KEYS = ("tp", "fp", "fn", "halluc", "pred_total", "dir_total", "dir_correct",
+         "col_tp", "col_fp", "col_fn", "col_halluc", "col_pred_total")
+_METRICS = ("precision", "recall", "f1", "hallucination", "direction_acc",
+            "col_precision", "col_recall", "col_f1", "col_hallucination")
 
 
 def _matrix(counts) -> np.ndarray:
-    return np.array([[float(c[k]) for k in _KEYS] for c in counts], dtype=float)
+    # 067：.get 兜底旧 counts（无 col_* key）→ 0，向后兼容。
+    return np.array([[float(c.get(k, 0)) for k in _KEYS] for c in counts], dtype=float)
 
 
 def _agg_from_sums(s) -> dict:
-    """从 7 维求和向量算指标——必须与 metrics.aggregate 逐字一致（test 钉住）。"""
-    tp, fp, fn, halluc, pred_total, dir_total, dir_correct = s
+    """从求和向量算指标——必须与 metrics.aggregate 逐字一致（test 钉住）。067 追加列级。"""
+    (tp, fp, fn, halluc, pred_total, dir_total, dir_correct,
+     col_tp, col_fp, col_fn, col_halluc, col_pred_total) = s
     prec = tp / (tp + fp) if (tp + fp) else 1.0
     rec = tp / (tp + fn) if (tp + fn) else 1.0
     f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+    cprec = col_tp / (col_tp + col_fp) if (col_tp + col_fp) else 1.0
+    crec = col_tp / (col_tp + col_fn) if (col_tp + col_fn) else 1.0
+    cf1 = 2 * cprec * crec / (cprec + crec) if (cprec + crec) else 0.0
     return dict(
         precision=prec, recall=rec, f1=f1,
         hallucination=halluc / pred_total if pred_total else 0.0,
         direction_acc=dir_correct / dir_total if dir_total else 1.0,
+        col_precision=cprec, col_recall=crec, col_f1=cf1,
+        col_hallucination=col_halluc / col_pred_total if col_pred_total else 0.0,
     )
 
 
