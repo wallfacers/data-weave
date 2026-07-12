@@ -22,6 +22,19 @@
 - 无人工列标注 —— 列 gold 只能是 teacher 共识银标（列级循环性须如实声明）。
 - 列增强模型是**新训练家族**（`run-col-*`），**绝不覆盖**已发布的表级模型；已发布表级曲线是只读基线。
 
+## Clarifications
+
+### Session 2026-07-12
+
+用户授权「你来决定，只要花费 < ¥100」。以下为据此做出的知情决策（clarify 阶段消歧），已集成进下方各节。前置核实：065 重建的 gold C′/teacher_labels/pool-c/059 silver **已随 dw-065 worktree 移除全部丢失**；但 `collect_stack` 从 the-stack-dedup **几分钟可免费再生**语料，`teacher_label` 重标时列在同一次 API 调用白送 → 成本仅 teacher API。
+
+- Q: 列 gold 评测集用哪批数据（065 gold C′ 同批行已丢）？ → A: **重建**——用 065 同协议（`collect_stack`→双 teacher `min-agree=2`）重建一批**带列**的 gold；exact 旧行不可复现，故门② 表级对比改为「run-col-3b 与既有 3B **在同一重建列 gold 上**对比」，比对陈旧发布数更 apples-to-apples。
+- Q: 列增强训练银标从哪来、会否撞 ¥100？ → A: `collect_stack` 再生语料（免费）+ **单 teacher m1** 打标（列白送、SFT 容噪省一半成本）造列增强银标；无列标的 item 保 `columns:null`（模型学弃权）。成本拆：gold 双 teacher ~400 候选 ≈¥6-7 + 银标单 teacher ~2-3k ≈¥25-40，**合计 ≈¥35-47 < ¥100**。语料规模若因预算受限于 059 以下，如实披露（欠训风险由门② 捕获）。
+- Q: 列 gold 极稀疏时 SC-001/002/003 还可报吗？ → A: 设**最小可报列评测 n = 30**（有具体列的表实例数）。低于下限先在剩余预算内补采；仍稀疏则如实报「n 披露 + 宽 CI」的方向性结果，不做静默 pass/fail（延续 065 诚实文化）。
+- Q: 列匹配多严、条件于哪种表命中？ → A: `canon_col` 归一后**精确集合匹配**；列评测条件于表级命中，且**沿用与表级同一 canon 设置**（canon=True，与已发布表指标一致）；列按 role 分算（reads 列 vs writes 列，镜像表级 reads/writes 循环）。
+- Q: US1 冻结既有 3B 的列基线报什么？ → A: 既有 3B 用 `columns:null` 训练 → 列输出 ≈ null/零星幻觉 → 如实报为「**重训前基线 ≈ 0**」的 before/after 锚点，非调优数字。
+- Q: gold 与训练银标用同一套 teacher 吗？ → A: 不同——**gold = 双 teacher**（`min-agree=2`，诚实裁决）；**训练银标 = 单 teacher m1**（成本 + SFT 容噪）。合计 ≤¥100。
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 列级评测基建 + 表级正交性红线（Priority: P1）
@@ -98,13 +111,13 @@
 
 ### Functional Requirements
 
-- **FR-001**: 系统 MUST 在 `build_gold_b` 增加列级一致裁决模式：仅在双 teacher 已一致的表上裁列，两方都给列集时 gold 列 = 交集（min-agree=2 列粒度），交集空或任一方弃权 → `columns=null`。
-- **FR-002**: 系统 MUST 提供纯函数 `canon_col`（小写、去空白、剥表限定前缀、`*`/通配→弃权信号），供 gold 裁决与评测共用。
-- **FR-003**: 系统 MUST 在 `metrics.py` 加**条件列打分**：只对表级已命中（TP）的表评列，用独立 key `col_tp/col_fp/col_fn/col_halluc/col_pred_total/col_eval_tables`；gold 该表弃权则跳过，pred 弃权而 gold 有列则记 `col_fn`。
+- **FR-001**: 系统 MUST **重建**一批带列的评测 gold（065 gold C′ 已丢）：`collect_stack` 再生 the-stack ETL 语料 → 双 teacher 打标 → `build_gold_b` 列级一致裁决模式：仅在双 teacher 已一致的表上裁列，两方都给列集时 gold 列 = 交集（`min-agree=2` 列粒度），交集空或任一方弃权 → `columns=null`。
+- **FR-002**: 系统 MUST 提供纯函数 `canon_col`（小写、去空白、剥表限定前缀 `t.col`/`db.t.col`→`col`、`*`/通配→弃权信号），供 gold 裁决与评测共用；列匹配为 `canon_col` 归一后的**精确集合运算**。
+- **FR-003**: 系统 MUST 在 `metrics.py` 加**条件列打分**：只对表级已命中（TP）的表评列，**沿用与表级同一 canon 设置**（canon=True），按 role 分算（reads 列 / writes 列，镜像表级 reads/writes 循环），用独立 key `col_tp/col_fp/col_fn/col_halluc/col_pred_total/col_eval_tables`；gold 该表弃权则跳过，pred 弃权而 gold 有列则记 `col_fn`。
 - **FR-004**: 系统 MUST 保证列打分对表级返回值**逐字节零扰动**：`score_row` 的 `tp/fp/fn/halluc/dir_correct/dir_total` 不变，并有断言此不变量的单测（门①）。
-- **FR-005**: 系统 MUST 在 `build_silver` 停止抹列，产出列增强训练银标（弃权表仍 `columns:null`，让模型学到「不确定就吐 null」）。
+- **FR-005**: 系统 MUST 再生列增强训练银标：`collect_stack` 免费再生语料（059 silver 已丢）+ **单 teacher m1** 打标（列白送、SFT 容噪省成本）+ `build_silver` 停止抹列（弃权表仍 `columns:null`，让模型学到「不确定就吐 null」）。
 - **FR-006**: 系统 MUST 联合表+列监督重训 3B（`run-col-3b`，同一 SFT 样本携带表结构+共识列，超参沿用 059 已固化配置）。
-- **FR-007**: 系统 MUST 复用既有 significance harness 校验门②：`run-col-3b` 表级 p/r 落既有 3B CI 带内、vs 既有 3B McNemar 不显著退化、script 救回 Δr 仍显著。
+- **FR-007**: 系统 MUST 用 significance harness 校验门②——把 `run-col-3b` 与**既有 3B 在同一重建列 gold 上**评表级：`run-col-3b` 表 p/r 落既有 3B 在该集上的 CI 带内、McNemar 不显著退化、script 救回 Δr 仍显著（对比同集而非陈旧发布数，apples-to-apples）。
 - **FR-008**: 系统 MUST 以 3B 先行为闸：门② 未过则停止扩训、不覆盖既有模型/曲线、如实记负结果。
 - **FR-009**: 系统 MUST 在 3B 过门后扩训 `run-col-05`/`run-col-15`，产出列级逐规模 scale 报告并复核表级单调性保住。
 - **FR-010**: 系统 MUST 在 `significance_report`/`eval_baselines_c` 报告加列级指标行（表级行原样保留，自动发现 `out/preds/*.jsonl`）。
@@ -112,7 +125,8 @@
 - **FR-012**: 系统 MUST 把列增强模型作为新家族 `run-col-*` 落盘，**不覆盖**既有 0.5/1.5/3B 表级模型；已发布表级曲线为只读基线。
 - **FR-013**: 系统 SHOULD（US4 可选）在 SQL 子集提供确定性列基线（SQLLineage 列级）与模型列对照。
 - **FR-014**: 系统 MUST 保证既有 `metrics.py` 与评测相关单测零回归（表级返回值不变的直接推论）。
-- **FR-015**: 系统 MUST 把 teacher 列标累计花费控制在 ≤ ¥100，并记录真实 token 用量/成本。
+- **FR-015**: 系统 MUST 把 teacher 累计花费（gold 双 teacher + 银标单 teacher）控制在 ≤ ¥100，记录真实 token 用量/成本；语料规模受预算约束低于 059 时如实披露。
+- **FR-016**: 系统 MUST 设列评测最小可报 n = 30（具体列表实例）：低于下限先在剩余预算内补采语料，仍稀疏则报「n 披露 + 宽 CI」方向性结果，不做静默 pass/fail。
 
 ### Key Entities *(include if feature involves data)*
 
@@ -126,19 +140,19 @@
 
 ### Measurable Outcomes
 
-- **SC-001**: `run-col-3b` 列级（条件表命中）**precision ≥ 0.70**，带 bootstrap 95% CI。
+- **SC-001**: `run-col-3b` 列级（条件表命中）**precision ≥ 0.70**，带 bootstrap 95% CI，评测 n ≥ 30 具体列表实例（低于下限则报方向性结果 + 披露 n）。
 - **SC-002**: `run-col-3b` 列级 **recall ≥ 0.55**，带 CI。
 - **SC-003**: `run-col-3b` 列级 **F1 ≥ 0.60**。
 - **SC-004**: 门① 正交性单测通过——列 gold 有/无两种输入下 `score_row` 表级 counts 逐字节相等。
-- **SC-005**: 门② 表级曲线复现——`run-col-3b` 表 p ≥ 0.72、r ≥ 0.80，vs 既有 3B McNemar 不显著退化，三档表级 F1 单调保住，script 救回 Δr vs SQLLineage 三档全显著。
+- **SC-005**: 门② 表级曲线复现——`run-col-3b` 与既有 3B **在同一重建列 gold 上**对比：表 p ≥ 0.72、r ≥ 0.80 且落既有 3B 于该集的 CI 带内、McNemar 不显著退化，三档表级 F1 单调保住，script 救回 Δr vs SQLLineage 三档全显著。
 - **SC-006**（stretch）: 列级逐规模 F1 单调（0.5B < 1.5B < 3B）；非单调时如实报为中性/负结果。
-- **SC-007**: teacher 列标累计花费 ≤ ¥100（真实 token 用量记录佐证）。
+- **SC-007**: teacher 累计花费 ≤ ¥100（gold 双 teacher + 银标单 teacher，真实 token 用量记录佐证；预估 ≈¥35-47）。
 - **SC-008**: 既有 `metrics.py`/评测单测零回归（全绿）。
 
 ## Assumptions
 
 - teacher（qwen-max=m1 / deepseek-v4-pro=m3）在同一次调用里已按 schema 吐 `columns`，无需改提示词；列质量比表噪，作诚实边界处理而非阻塞。
-- 语料复用既有 the-stack ETL 候选池（≤¥100 内可微扩，但不强求扩池）。
+- 065 重建的 gold C′/teacher_labels/pool-c/059 silver 已随 dw-065 worktree 移除全丢，但 `collect_stack` 从 the-stack-dedup 几分钟免费再生语料、`teacher_label` 重标列白送 → 成本仅 teacher API（gold 双 teacher ≈¥6-7 + 银标单 teacher ≈¥25-40，合计 ≈¥35-47 < ¥100）。
 - 重训超参沿用 059 已固化的 bf16 稳定性配置（lr/warmup/max-grad-norm），以最小化与表基线的训练差异。
 - 列 gold 采「交集/弃权优先」保守裁决——高精度、诚实、n 偏小；召回价值主要靠模型学习而非扩 gold。
 - 本特性只在 ml 侧（抽取器 + 评测 + serving 透传），不改后端平台 Calcite 消费面；US4 若做也仅取 SQLLineage 列级作离线基线。
