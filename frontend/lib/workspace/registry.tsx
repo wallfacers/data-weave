@@ -10,7 +10,6 @@ import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
   Alert02Icon,
-  BellIcon,
   DashboardSquare01Icon,
   Database01Icon,
   DocumentCodeIcon,
@@ -31,7 +30,6 @@ import { SettingsView } from "@/components/workspace/views/settings-view"
 import { MetricsView } from "@/components/workspace/views/metrics-view"
 import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
-import { AlertsView } from "@/components/workspace/views/alerts-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
 import { type ViewType } from "./views"
@@ -56,10 +54,6 @@ export const VIEW_RENDER: Record<ViewType, ViewRender> = {
   lineage: {
     icon: GitBranchIcon,
     component: LineageView,
-  },
-  alerts: {
-    icon: BellIcon,
-    component: AlertsView,
   },
   datasources: {
     icon: Database01Icon,

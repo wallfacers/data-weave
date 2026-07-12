@@ -45,7 +45,6 @@ describe("nav-groups 覆盖不变量", () => {
     expect(NAV_GROUPS.map((g) => g.id)).toEqual([
       "dev",
       "ops",
-      "alerting",
       "governance",
       "assets",
       "admin",

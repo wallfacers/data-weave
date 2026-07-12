@@ -71,7 +71,7 @@ class TimeoutSweeperTest {
         EventBus eventBus = mock(EventBus.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
         sm = new InstanceStateMachine(jdbc, eventBus, eventPublisher);
-        sweeper = new TimeoutSweeper(jdbc, sm, eventBus, eventPublisher);
+        sweeper = new TimeoutSweeper(jdbc, sm, eventBus);
     }
 
     /** 插入 task_def 并返回 id */

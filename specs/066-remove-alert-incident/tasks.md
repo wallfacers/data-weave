@@ -51,7 +51,7 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 - [X] T003 [US3] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `QUALITY_RULE_WRITE`/`QUALITY_RUN` 两条 policy_rule 种子（行 489-490）
 - [X] T004 [US3] grep 验证：现存 java 对 `com.dataweave.master.quality`/`com.dataweave.api.quality` 零引用；schema.sql 无 `quality_*` 表；data.sql 无 `QUALITY_*` 策略
-- [ ] T005 [US3] 提交「quality 收尾」
+- [X] T005 [US3] 提交「quality 收尾」
 
 **Checkpoint**: quality 模块彻底清零
 
@@ -65,16 +65,16 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 1
 
-- [ ] T006 [P] [US1] 删除 `backend/dataweave-alert/src/` 整目录（main + test 全部 .java + resources/messages.properties）
-- [ ] T007 [US1] 删除 `backend/dataweave-alert/pom.xml` + `backend/pom.xml` 的 `<module>dataweave-alert</module>` 声明 + `backend/dataweave-api/pom.xml` 的 `dataweave-alert` 依赖
-- [ ] T008 [P] [US1] 删除 `backend/dataweave-api/src/main/resources/schema.sql` 的 7 张 `alert_*` 表 CREATE（行 900-1050 区域：alert_rule/channel/route/event/notification/silence/poll_fire）+ DROP 段（行 82-88）+ `alert_*` project_id 回填段
-- [ ] T009 [US1] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `ALERT_RULE_WRITE`/`ALERT_TEST_SEND` 两条 policy_rule 种子（行 486-487）
-- [ ] T010 [P] [US1] 删除前端 `frontend/components/workspace/views/alerts-view.tsx` + 清理 `frontend/lib/workspace/registry.tsx`/`views.ts`/`nav-groups.ts`/`nav-permissions.test.ts` 的 alerts 注册
-- [ ] T011 [P] [US1] 删除前端 i18n `frontend/messages/zh-CN.json` + `en-US.json` 的 `alerts` 块（~40 key）+ `nav.alerts` + `leftNav.groups.alerting` + `eventVsPoll`/`eventRatio`/`btnSubscribe`（两 bundle 保 parity）
-- [ ] T012 [P] [US1] 删除 api 测试 `backend/dataweave-api/src/test/java/com/dataweave/api/AlertSeamIT.java` + `AlertCrossProjectGuardTest.java`
-- [ ] T013 [US1] 清理 `backend/dataweave-api/src/main/resources/ops-messages.properties` 的 `ops.alert.*` 模板；`application.yml` 的 `stuck-wait-alert-ms`（行 78）保留改注释、`default-response-timeout-ms`（行 103）保留改注释去 alert 举例；清理 `ProjectAuthz.java` 的 `AlertController.requireOwned` 注释
-- [ ] T014 [US1] 验证：`./dev-install.sh` 编译零错 + `pnpm typecheck` + grep alert 零命中（`grep -rni "com.dataweave.alert" backend --include='*.java' | grep -v /target/`）
-- [ ] T015 [US1] 提交「alert 整模块删除」
+- [X] T006 [P] [US1] 删除 `backend/dataweave-alert/src/` 整目录（main + test 全部 .java + resources/messages.properties）
+- [X] T007 [US1] 删除 `backend/dataweave-alert/pom.xml` + `backend/pom.xml` 的 `<module>dataweave-alert</module>` 声明 + `backend/dataweave-api/pom.xml` 的 `dataweave-alert` 依赖
+- [X] T008 [P] [US1] 删除 `backend/dataweave-api/src/main/resources/schema.sql` 的 7 张 `alert_*` 表 CREATE（行 900-1050 区域：alert_rule/channel/route/event/notification/silence/poll_fire）+ DROP 段（行 82-88）+ `alert_*` project_id 回填段
+- [X] T009 [US1] 删除 `backend/dataweave-api/src/main/resources/data.sql` 的 `ALERT_RULE_WRITE`/`ALERT_TEST_SEND` 两条 policy_rule 种子（行 486-487）
+- [X] T010 [P] [US1] 删除前端 `frontend/components/workspace/views/alerts-view.tsx` + 清理 `frontend/lib/workspace/registry.tsx`/`views.ts`/`nav-groups.ts`/`nav-permissions.test.ts` 的 alerts 注册
+- [X] T011 [P] [US1] 删除前端 i18n `frontend/messages/zh-CN.json` + `en-US.json` 的 `alerts` 块（~40 key）+ `nav.alerts` + `leftNav.groups.alerting` + `eventVsPoll`/`eventRatio`/`btnSubscribe`（两 bundle 保 parity）
+- [X] T012 [P] [US1] 删除 api 测试 `backend/dataweave-api/src/test/java/com/dataweave/api/AlertSeamIT.java` + `AlertCrossProjectGuardTest.java`
+- [X] T013 [US1] 清理 `backend/dataweave-api/src/main/resources/ops-messages.properties` 的 `ops.alert.*` 模板；`application.yml` 的 `stuck-wait-alert-ms`（行 78）保留改注释、`default-response-timeout-ms`（行 103）保留改注释去 alert 举例；清理 `ProjectAuthz.java` 的 `AlertController.requireOwned` 注释
+- [X] T014 [US1] 验证：`./dev-install.sh` 编译零错 + `pnpm typecheck` + grep alert 零命中（`grep -rni "com.dataweave.alert" backend --include='*.java' | grep -v /target/`）
+- [X] T015 [US1] 提交「alert 整模块删除」
 
 **Checkpoint**: 告警中心前后端全链下线，AlertSignal 失去唯一消费者（为 US2 铺路）
 
@@ -88,15 +88,15 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/application/InstanceStateMachine.java`：删 3 处 `publishEvent(new AlertSignal(...))`（行 414/441/467）+ 2 个 helper（`publishAlertSignalForTask`/`publishAlertSignalForWorkflow`，行 417/474）+ `import AlertSignal`；**保留** `eventPublisher` 字段（`publishTaskState`/`publishWorkflowState` 喂 DAG SSE 运行态观测仍用）
-- [ ] T017 [P] [US2] `backend/dataweave-master/.../application/LeaseReaper.java`：删 `NODE_OFFLINE` publish（行 214）+ `eventPublisher` 字段 + 构造参数 + import
-- [ ] T018 [P] [US2] `backend/dataweave-master/.../application/SlaService.java`：删 `SLA_BREACH` publish（行 237）+ `eventPublisher` 字段 + 两处构造器参数 + import
-- [ ] T019 [P] [US2] `backend/dataweave-master/.../application/StuckInstanceSweeper.java`：删 `NODE_STARVATION`/`TASK_SUSPENDED` publish（行 135/148）+ `eventPublisher` 字段 + 构造参数 + import；**保留** `stuckWaitAlertMs`（行 105 检测阈值用）；清理行 130 `ctx.put("stuckWaitAlertMs")` 若仅服务信号 payload
-- [ ] T020 [P] [US2] `backend/dataweave-master/.../application/TimeoutSweeper.java`：删 `TASK_TIMEOUT` publish（行 131）+ `eventPublisher` 字段 + 构造参数 + import
-- [ ] T021 [US2] 删除 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/signal/AlertSignal.java`
-- [ ] T022 [P] [US2] 删除/改测试：`StuckInstanceSweeperTest.java`（删 AlertSignal 断言，行 82-106）、`QualitySignalUnifiedTest.java`（删——quality 已删）、确认 `AlertSeamIT` 已由 T012 删
-- [ ] T023 [US2] 验证：`./dev-install.sh` 编译零错 + `./mvnw -pl dataweave-master test` 绿 + grep `AlertSignal` 零命中
-- [ ] T024 [US2] 提交「AlertSignal 信号桥删除」
+- [X] T016 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/application/InstanceStateMachine.java`：删 3 处 `publishEvent(new AlertSignal(...))`（行 414/441/467）+ 2 个 helper（`publishAlertSignalForTask`/`publishAlertSignalForWorkflow`，行 417/474）+ `import AlertSignal`；**保留** `eventPublisher` 字段（`publishTaskState`/`publishWorkflowState` 喂 DAG SSE 运行态观测仍用）
+- [X] T017 [P] [US2] `backend/dataweave-master/.../application/LeaseReaper.java`：删 `NODE_OFFLINE` publish（行 214）+ `eventPublisher` 字段 + 构造参数 + import
+- [X] T018 [P] [US2] `backend/dataweave-master/.../application/SlaService.java`：删 `SLA_BREACH` publish（行 237）+ `eventPublisher` 字段 + 两处构造器参数 + import
+- [X] T019 [P] [US2] `backend/dataweave-master/.../application/StuckInstanceSweeper.java`：删 `NODE_STARVATION`/`TASK_SUSPENDED` publish（行 135/148）+ `eventPublisher` 字段 + 构造参数 + import；**保留** `stuckWaitAlertMs`（行 105 检测阈值用）；清理行 130 `ctx.put("stuckWaitAlertMs")` 若仅服务信号 payload
+- [X] T020 [P] [US2] `backend/dataweave-master/.../application/TimeoutSweeper.java`：删 `TASK_TIMEOUT` publish（行 131）+ `eventPublisher` 字段 + 构造参数 + import
+- [X] T021 [US2] 删除 `backend/dataweave-master/src/main/java/com/dataweave/master/domain/signal/AlertSignal.java`
+- [X] T022 [P] [US2] 删除/改测试：`StuckInstanceSweeperTest.java`（删 AlertSignal 断言，行 82-106）、`QualitySignalUnifiedTest.java`（删——quality 已删）、确认 `AlertSeamIT` 已由 T012 删
+- [X] T023 [US2] 验证：`./dev-install.sh` 编译零错 + `./mvnw -pl dataweave-master test` 绿 + grep `AlertSignal` 零命中
+- [X] T024 [US2] 提交「AlertSignal 信号桥删除」
 
 **Checkpoint**: 故障信号桥彻底清零，调度核心逻辑不变
 
@@ -110,8 +110,8 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 ### Implementation for User Story 4
 
-- [ ] T025 [P] [US4] 删除 `backend/dataweave-master/src/main/resources/messages.properties` + `messages_en_US.properties` 的 4 条 `incident.*` 孤儿 key（`incident.not_found`/`invalid_state`/`suppress_reason_required`/`action_target_mismatch`，行 421-425）
-- [ ] T026 [US4] 确认 `specs/027`、`specs/043`、`specs/064` 保留作历史决策记录（不删规格目录）；提交「incident 残留清理」
+- [X] T025 [P] [US4] 删除 `backend/dataweave-master/src/main/resources/messages.properties` + `messages_en_US.properties` 的 4 条 `incident.*` 孤儿 key（`incident.not_found`/`invalid_state`/`suppress_reason_required`/`action_target_mismatch`，行 421-425）
+- [X] T026 [US4] 确认 `specs/027`、`specs/043`、`specs/064` 保留作历史决策记录（不删规格目录）；提交「incident 残留清理」
 
 **Checkpoint**: 065 监督席残留清零
 
@@ -121,15 +121,15 @@ description: "Task list for 066-remove-alert-incident: 移除人工告警/事件
 
 **Purpose**: 调度核心与闸门不退化验证 + schema 升版本 + 跨切收尾
 
-- [ ] T027 升级 `backend/dataweave-api/src/main/resources/schema.sql` 版本到 `0.18.0`：改文件头 `Schema Version` 注释 + `schema_version` 表 INSERT 行，标注「066 移除告警/质量体系——删 alert_* 7 表」
-- [ ] T028 全量编译（防 build-cache 假绿）：`cd backend && ./mvnw clean -Dmaven.build.cache.enabled=false compile`
-- [ ] T029 全量后端测试：`cd backend && setsid bash -c './mvnw clean -Dmaven.build.cache.enabled=false -pl dataweave-master,dataweave-api,dataweave-worker -am test >build.log 2>&1; echo $? >build.exit' </dev/null >/dev/null 2>&1 & disown`（认 `Tests run: N>0`，WSL2 setsid 脱离）
-- [ ] T030 前端验证：`cd frontend && pnpm typecheck && pnpm test`
-- [ ] T031 调度并发核验（因动 InstanceStateMachine，CLAUDE.md 硬规则）：跑 every-minute cron 端到端，确认 `started_at − created_at ≈ 0`、根节点 `attempt=1`、零「跳过下发/中止执行」stragglers；查 `task_instance` attempt-count 与延迟无异常相关
-- [ ] T032 schema 启动验证：H2（`-Dspring-boot.run.profiles=h2`）+ PostgreSQL（`docker compose up -d`）双存储启动 + `GET /api/health`
-- [ ] T033 grep 零命中全验证 + i18n parity：`AlertSignal`/`com.dataweave.alert`/`com.dataweave.master.quality`/`alert_*` 表/`ALERT_*`·`QUALITY_*` 策略全零；`diff <(jq keys zh-CN) <(jq keys en-US)` 空
-- [ ] T034 审查 `CLAUDE.md` Knowledge Map：060 条目「StuckInstanceSweeper 无节点等待告警」等过时告警/事件/质量/工单引用按需更新（恢复唤醒保留，告警语义改检测）
-- [ ] T035 最终提交 + 分支整合准备：确认 4 提交结构（quality 收尾 / alert 模块 / 信号桥 / incident 残留 + polish）落齐，工作区干净
+- [X] T027 升级 `backend/dataweave-api/src/main/resources/schema.sql` 版本到 `0.18.0`：改文件头 `Schema Version` 注释 + `schema_version` 表 INSERT 行，标注「066 移除告警/质量体系——删 alert_* 7 表」
+- [X] T028 全量编译（防 build-cache 假绿）：`cd backend && ./mvnw clean -Dmaven.build.cache.enabled=false compile`
+- [X] T029 全量后端测试：`cd backend && setsid bash -c './mvnw clean -Dmaven.build.cache.enabled=false -pl dataweave-master,dataweave-api,dataweave-worker -am test >build.log 2>&1; echo $? >build.exit' </dev/null >/dev/null 2>&1 & disown`（认 `Tests run: N>0`，WSL2 setsid 脱离）
+- [X] T030 前端验证：`cd frontend && pnpm typecheck && pnpm test`
+- [X] T031 调度并发核验（因动 InstanceStateMachine，CLAUDE.md 硬规则）：跑 every-minute cron 端到端，确认 `started_at − created_at ≈ 0`、根节点 `attempt=1`、零「跳过下发/中止执行」stragglers；查 `task_instance` attempt-count 与延迟无异常相关
+- [X] T032 schema 启动验证：H2（`-Dspring-boot.run.profiles=h2`）+ PostgreSQL（`docker compose up -d`）双存储启动 + `GET /api/health`
+- [X] T033 grep 零命中全验证 + i18n parity：`AlertSignal`/`com.dataweave.alert`/`com.dataweave.master.quality`/`alert_*` 表/`ALERT_*`·`QUALITY_*` 策略全零；`diff <(jq keys zh-CN) <(jq keys en-US)` 空
+- [X] T034 审查 `CLAUDE.md` Knowledge Map：060 条目「StuckInstanceSweeper 无节点等待告警」等过时告警/事件/质量/工单引用按需更新（恢复唤醒保留，告警语义改检测）
+- [X] T035 最终提交 + 分支整合准备：确认 4 提交结构（quality 收尾 / alert 模块 / 信号桥 / incident 残留 + polish）落齐，工作区干净
 
 ---
 

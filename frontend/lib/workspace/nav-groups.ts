@@ -22,7 +22,6 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   { id: "dev", titleKey: "groups.dev", items: ["workflow-canvas"] },
   { id: "ops", titleKey: "groups.ops", items: ["ops", "metrics", "fleet", "freshness"] },
-  { id: "alerting", titleKey: "groups.alerting", items: ["alerts"] },
   { id: "governance", titleKey: "groups.governance", items: ["lineage"] },
   { id: "assets", titleKey: "groups.assets", items: ["datasources"] },
   { id: "admin", titleKey: "groups.admin", items: ["settings"] },

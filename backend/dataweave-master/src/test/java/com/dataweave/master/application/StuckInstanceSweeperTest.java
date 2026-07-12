@@ -4,12 +4,9 @@ import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.InstanceStates;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkerNodeRepository;
-import com.dataweave.master.domain.signal.AlertSignal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -26,7 +23,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 060（T020）StuckInstanceSweeper test：无节点等待告警（不判死）+ SUSPENDED 巡检 + 兜底唤醒（FR-012/014/015）。
+ * 060（T020）StuckInstanceSweeper test：无节点等待检测（不判死）+ 兜底唤醒（FR-014/015）。
+ * 告警信号已随 alert 模块移除，本测试仅验证检测不判终态 + 兜底抽干。
  */
 class StuckInstanceSweeperTest {
 
@@ -36,7 +34,6 @@ class StuckInstanceSweeperTest {
     private JdbcTemplate jdbc;
     private WorkerNodeRepository nodeRepository;
     private EventBus eventBus;
-    private ApplicationEventPublisher eventPublisher;
     private StuckInstanceSweeper sweeper;
 
     @BeforeEach
@@ -48,8 +45,7 @@ class StuckInstanceSweeperTest {
                 + "updated_at TIMESTAMP, deleted SMALLINT DEFAULT 0)");
         nodeRepository = mock(WorkerNodeRepository.class);
         eventBus = mock(EventBus.class);
-        eventPublisher = mock(ApplicationEventPublisher.class);
-        sweeper = new StuckInstanceSweeper(jdbc, nodeRepository, eventBus, eventPublisher, 15000L, STUCK_ALERT_MS);
+        sweeper = new StuckInstanceSweeper(jdbc, nodeRepository, eventBus, 15000L, STUCK_ALERT_MS);
         when(nodeRepository.findAll()).thenReturn(List.of());  // 默认无可用节点
     }
 
@@ -73,37 +69,13 @@ class StuckInstanceSweeperTest {
     }
 
     @Test
-    void noNodeWaitingOverThreshold_alertsNotFailed() {
+    void noNodeWaitingOverThreshold_notKilled() {
         seed(InstanceStates.WAITING, true);  // 就绪等待，滞留超阈值，无可用节点
 
         sweeper.sweep();
 
-        // NODE_STARVATION 告警发出（仅可见性，不判死 FR-015）
-        ArgumentCaptor<AlertSignal> cap = ArgumentCaptor.forClass(AlertSignal.class);
-        verify(eventPublisher).publishEvent(cap.capture());
-        assertThat(cap.getValue().getType()).isEqualTo(AlertSignal.Type.NODE_STARVATION);
-        // 实例仍 WAITING（未被自动判终态）
+        // 实例仍 WAITING（卡住检测不自动判终态，FR-015）
         assertThat(firstState()).isEqualTo(InstanceStates.WAITING);
-    }
-
-    @Test
-    void noNodeWaitingUnderThreshold_noAlert() {
-        seed(InstanceStates.WAITING, false);  // 刚入队，未超阈值
-
-        sweeper.sweep();
-
-        verify(eventPublisher, never()).publishEvent(any(AlertSignal.class));
-    }
-
-    @Test
-    void suspended_patrolAlert() {
-        seed(InstanceStates.SUSPENDED, true);
-
-        sweeper.sweep();
-
-        ArgumentCaptor<AlertSignal> cap = ArgumentCaptor.forClass(AlertSignal.class);
-        verify(eventPublisher).publishEvent(cap.capture());
-        assertThat(cap.getValue().getType()).isEqualTo(AlertSignal.Type.TASK_SUSPENDED);  // FR-012 巡检告警
     }
 
     @Test

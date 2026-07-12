@@ -73,9 +73,9 @@ scheduler:
   dispatch-executor-threads: 64        # dispatchExecutor 池（异步消费队列，fan-out 下发，解除 claim↔dispatch 串行）
   dispatch-webclient-timeout-ms: 3000  # dispatch 专用 WebClient 响应超时（防慢 worker 挂 dispatchExecutor 线程）
   inproc-worker-threads: 64            # all-in-one 进程内执行池并发上限（原硬编码 max(2,核数) 是执行瓶颈；对齐 dispatch 线程数拉高并发）
-  # 060 节点容错闭环：节点可用性门 + infra 回收不烧业务 + 毒任务上限 + 无节点等待告警（保守默认可配）
-  infra-redispatch-max: 10             # 单实例连续基础设施重派上限；超限 → SUSPENDED 挂起 + 告警（毒任务/崩溃循环的机群保护边界，不判终态）
-  stuck-wait-alert-ms: 300000          # 无健康节点等待告警阈值（仅告警不判死；5min）
+  # 060 节点容错闭环：节点可用性门 + infra 回收不烧业务 + 毒任务上限 + 无节点等待检测（保守默认可配）
+  infra-redispatch-max: 10             # 单实例连续基础设施重派上限；超限 → SUSPENDED 挂起（毒任务/崩溃循环的机群保护边界，不判终态）
+  stuck-wait-alert-ms: 300000          # 无健康节点等待卡住检测阈值（仅检测不判死；5min）
   node:
     stabilization-window-ms: 15000     # incarnation 稳定窗：新注册/重启节点须稳定这么久才进派发候选（专治抖动假节点与刚重启未稳定节点）
     quarantine-threshold: 3            # 连续基础设施故障熔断阈值；跨过即隔离（quarantine-backoff-ms）
@@ -100,7 +100,7 @@ streaming:
     ttl-hours: 24                      # 检查点时效：completed_at 超此时长即视为过期、不可用于续跑
 
 webclient:
-  default-response-timeout-ms: 30000   # 默认 WebClient.Builder 响应超时（通用消费方：alert webhook 等，防 block() 永挂）
+  default-response-timeout-ms: 30000   # 默认 WebClient.Builder 响应超时（通用消费方，防 block() 永挂）
 
 cluster:
   auth:

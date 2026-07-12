@@ -44,7 +44,6 @@ describe("036-D viewRequiredPermission", () => {
     expect(viewRequiredPermission("ops")).toBeUndefined()
     expect(viewRequiredPermission("metrics")).toBeUndefined()
     expect(viewRequiredPermission("lineage")).toBeUndefined()
-    expect(viewRequiredPermission("alerts")).toBeUndefined()
   })
 })
 
@@ -73,7 +72,6 @@ describe("036-D 菜单权限过滤（三角色矩阵）", () => {
       "freshness",
       "fleet",
       "lineage",
-      "alerts",
     ] as ViewType[]) {
       expect(v.has(ro)).toBe(true)
     }
