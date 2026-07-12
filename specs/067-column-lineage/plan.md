@@ -73,10 +73,10 @@ ml/lineage-extractor/
 │   ├── build_silver.py               # ★停止抹列,单 teacher m1 列(SFT 容噪)
 │   ├── collect_stack.py              # 复用(免费再生语料,零改动)
 │   ├── teacher_label.py              # 复用(列本就免费吐,零改动)
-│   ├── dump_model_preds.py           # 复用(predict 已透传列,零改动)
+│   ├── dump_model_preds.py           # 复用(predict 已透传列,零改动;cuda 有 CPU 回退)
 │   ├── significance_report.py        # ★报告加列级指标行
-│   ├── eval_baselines_c.py           # ★报告加列级基线行
-│   └── rebuild_col_gold.py           # ★新:编排 collect→双teacher→build_gold_b 列模式
+│   └── eval_baselines_c.py           # ★报告加列级基线行
+│                                     #   (gold 重建走 collect→teacher_label→build_gold_b 内联,无需新编排脚本)
 ├── train/
 │   └── sft_qlora.py                  # 零改动(schema 已含 columns,仅训练数据变)
 ├── tests/
@@ -89,7 +89,7 @@ ml/lineage-extractor/
 
 ## Phased Delivery（对齐 spec US 优先级 + 3B 先行门）
 
-- **Phase A（US1，MVP）**：`canon_col` + `build_gold_b` 列模式 + `metrics.py` 条件列打分 + 门① 正交单测 + 重建带列 gold。产出：能对任意 preds 诚实评列，且证明表级零扰动。**不需 GPU**。
+- **Phase A（US1，MVP）**：`canon_col` + `build_gold_b` 列模式 + `metrics.py` 条件列打分 + 门① 正交单测 + 重建带列 gold + 冻结基线。产出：能对任意 preds 诚实评列，且证明表级零扰动。**无 GPU 训练**（纯函数/gold 重建 GPU-free；冻结基线 dump 为推理档，`dump_model_preds` cuda 有 CPU 回退）。前置：需先下载既有 HF 权重（门②/基线依赖）。
 - **Phase B（US2）**：`build_silver` 列保留 + 再生列增强银标 + 联合重训 `run-col-3b` + 门② 同集校验。**GPU（3B 先行闸）**。过门 → Phase C；不过 → 记表列权衡负结果、停。
 - **Phase C（US3）**：扩训 `run-col-05`/`run-col-15` + 列级 scale 曲线 + 表级单调复核。**GPU**。
 - **Phase D（US4，可选）**：SQLLineage 列级基线对照（SQL 子集）。

@@ -144,7 +144,7 @@
 - **SC-002**: `run-col-3b` 列级 **recall ≥ 0.55**，带 CI。
 - **SC-003**: `run-col-3b` 列级 **F1 ≥ 0.60**。
 - **SC-004**: 门① 正交性单测通过——列 gold 有/无两种输入下 `score_row` 表级 counts 逐字节相等。
-- **SC-005**: 门② 表级曲线复现——`run-col-3b` 与既有 3B **在同一重建列 gold 上**对比：表 p ≥ 0.72、r ≥ 0.80 且落既有 3B 于该集的 CI 带内、McNemar 不显著退化，三档表级 F1 单调保住，script 救回 Δr vs SQLLineage 三档全显著。
+- **SC-005**: 门② 表级曲线复现——**主约束（相对，binding）**：`run-col-3b` 与既有 3B **在同一重建列 gold 上**对比，表 p/r 落既有 3B 于该集的 CI 带内、McNemar **不显著退化**，且 script 救回 Δr vs SQLLineage 三档全显著、三档表级 F1 单调保住。**参考区间（绝对，informational）**：表 p≈0.72/r≈0.80（若重建集难度使既有 3B 本身偏离，以相对判据为准，不以绝对阈判 FAIL）。
 - **SC-006**（stretch）: 列级逐规模 F1 单调（0.5B < 1.5B < 3B）；非单调时如实报为中性/负结果。
 - **SC-007**: teacher 累计花费 ≤ ¥100（gold 双 teacher + 银标单 teacher，真实 token 用量记录佐证；预估 ≈¥35-47）。
 - **SC-008**: 既有 `metrics.py`/评测单测零回归（全绿）。
