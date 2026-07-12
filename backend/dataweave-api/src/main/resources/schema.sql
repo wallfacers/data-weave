@@ -80,6 +80,26 @@ DROP TABLE IF EXISTS tenants;
 -- 测试共享内存库二次跑 schema.sql 同样撞表 → context 加载失败级联。
 DROP TABLE IF EXISTS master_nodes;
 
+-- 065 监督席 + 066 告警/质量体系删除：表已移除，保留 DROP 清理旧库升级残留。
+-- （全新库 no-op；旧库从 ≤0.17.0 升级时清旧表；FK 无被引用，DROP 顺序无关。）
+-- ⚠️ 删表必须保留 DROP：否则 mode=always 在已初始化的持久 PG 上无法清旧表（H2 每次全新内存库测不到此升级路径）。
+DROP TABLE IF EXISTS incident_event;
+DROP TABLE IF EXISTS incident;
+DROP TABLE IF EXISTS health_event;
+DROP TABLE IF EXISTS event_subscription;
+DROP TABLE IF EXISTS alert_notification;
+DROP TABLE IF EXISTS alert_event;
+DROP TABLE IF EXISTS alert_poll_fire;
+DROP TABLE IF EXISTS alert_route;
+DROP TABLE IF EXISTS alert_silence;
+DROP TABLE IF EXISTS alert_channel;
+DROP TABLE IF EXISTS alert_rule;
+DROP TABLE IF EXISTS quality_check_result;
+DROP TABLE IF EXISTS quality_check_run;
+DROP TABLE IF EXISTS quality_fire;
+DROP TABLE IF EXISTS quality_scorecard;
+DROP TABLE IF EXISTS quality_rule;
+
 -- ===== schema 版本（= 项目发布版本，单行；改结构必升版本）=====
 CREATE TABLE schema_version (
     version      VARCHAR(32)  NOT NULL,
