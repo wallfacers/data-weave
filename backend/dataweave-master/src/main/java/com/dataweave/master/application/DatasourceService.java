@@ -12,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +25,6 @@ import static com.dataweave.master.application.DatasourceDtos.*;
 public class DatasourceService {
 
     private static final String MASKED_PASSWORD = "******";
-    private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final DatasourceRepository datasourceRepository;
     private final DatasourceTypeRepository datasourceTypeRepository;
@@ -325,8 +324,8 @@ public class DatasourceService {
                 connStatus,
                 ds.getDriverJarId(),
                 driverSource,
-                ds.getCreatedAt() != null ? ds.getCreatedAt().format(DT_FMT) : null,
-                ds.getUpdatedAt() != null ? ds.getUpdatedAt().format(DT_FMT) : null
+                ds.getCreatedAt() != null ? ds.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null,
+                ds.getUpdatedAt() != null ? ds.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant().toString() : null
         );
     }
 }

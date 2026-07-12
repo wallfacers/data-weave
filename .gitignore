@@ -1,6 +1,8 @@
 /tmp/
 *.log
 # build artifacts
+build.exit
+build.log
 frontend/.next/
 frontend/node_modules/
 backend/**/target/

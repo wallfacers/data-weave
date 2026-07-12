@@ -1,6 +1,12 @@
 spring:
   application:
     name: dataweave-worker
+
+# 应用时区：控制 LocalDateTime.now() 和 ZoneId.systemDefault() 的行为。
+# 部署时通过环境变量 APP_TIMEZONE 或 JVM 参数 -Duser.timezone 覆盖。
+# 默认 UTC（服务端标准），本地/国内部署建议设为 Asia/Shanghai。
+app:
+  timezone: ${APP_TIMEZONE:UTC}
   autoconfigure:
     exclude:
       - "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
