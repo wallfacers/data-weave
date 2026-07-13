@@ -127,3 +127,4 @@ ml/lineage-extractor/data/out/train-tblonly.jsonl
 ml/lineage-extractor/out/run-tblonly-*/
 ml/lineage-extractor/out/preds/run-tblonly-*.jsonl
 ml/lineage-extractor/out/preds-tri/
+ml/lineage-extractor/data/out/train-tri.jsonl

@@ -44,11 +44,11 @@
 
 **目标**：模型同时高 P 高 R。**独立测试**：run-tri-3b 表 P≥0.78/R≥0.75、列 P≥0.78/R≥0.82，门② 不显著退化。
 
-- [ ] T013 [P] [US2] 扩 `tests/test_tri_consensus.py` silver 部分：2-of-3 多数边数 ≥ 2-of-2 交集（同池）；exclude-gold 后与 gold chash 交集空。先红。
-- [ ] T014 [US2] 扩展 `realeval/build_silver.py`：支持三 teacher `--pair m1,m_flash,m_gpt --min-agree 2 --keep-columns`（2-of-3 多数，表+列，延续 067 列弃权优先）+ `--exclude-gold`。跑绿 T013。
-- [ ] T015 [US2] GPT 标 silver 池（真跑，luna 便宜档，~3000 条，setsid + timeout，最慢一步）：`teacher_label --pool realeval/pool-silver --teachers m_gpt_bulk --out realeval/teacher_labels-silver/m_gpt.jsonl`；轮询完成。
-- [ ] T016 [US2] 造 2-of-3 共识 silver（真跑）：`build_silver --pair m1,m_flash,m_gpt --min-agree 2 --keep-columns --exclude-gold realeval/gold/real-c-tri.jsonl --out data/silver-tri.jsonl`；核对边数 vs 067 silver-col（应多边）。
-- [ ] T017 [US2] 重训 run-tri-3b（真跑，fresh Qwen2.5-Coder-3B base + mit r32/e3，setsid ~2hr，轮询）：`sft_qlora --data data/silver-tri.jsonl --base-model Qwen/Qwen2.5-Coder-3B-Instruct --lora-r 32 --lora-alpha 64 --epochs 3 --out out/run-tri-3b`。
+- [X] T013 [P] [US2] 扩 `tests/test_tri_consensus.py` silver 部分：2-of-3 多数边数 ≥ 2-of-2 交集（同池）；exclude-gold 后与 gold chash 交集空。先红。
+- [X] T014 [US2] 扩展 `realeval/build_silver.py`：支持三 teacher `--pair m1,m_flash,m_gpt --min-agree 2 --keep-columns`（2-of-3 多数，表+列，延续 067 列弃权优先）+ `--exclude-gold`。跑绿 T013。
+- [X] T015 [US2] GPT 标 silver 池（真跑，luna 便宜档，~3000 条，setsid + timeout，最慢一步）：`teacher_label --pool realeval/pool-silver --teachers m_gpt_bulk --out realeval/teacher_labels-silver/m_gpt.jsonl`；轮询完成。
+- [X] T016 [US2] 造 2-of-3 共识 silver（真跑）：`build_silver --pair m1,m_flash,m_gpt --min-agree 2 --keep-columns --exclude-gold realeval/gold/real-c-tri.jsonl --out data/silver-tri.jsonl`；核对边数 vs 067 silver-col（应多边）。
+- [~] T017 [US2] 重训 run-tri-3b（真跑，fresh Qwen2.5-Coder-3B base + mit r32/e3，setsid ~2hr，轮询）：`sft_qlora --data data/silver-tri.jsonl --base-model Qwen/Qwen2.5-Coder-3B-Instruct --lora-r 32 --lora-alpha 64 --epochs 3 --out out/run-tri-3b`。
 - [ ] T018 [US2] 评测 run-tri-3b 在 real-c-tri（真跑）：表级+列级 P/R + 门② McNemar（vs model-3b 与 run-col-3b-mit 同 gold）→ `out/significance-tri-3b.md`（SC-003/005）。
 - [ ] T019 [US2] 校核 SC-003/005：表 P≥0.78/R≥0.75、列 P≥0.78/R≥0.82、vs 067 published McNemar 不显著退化；未达则如实记（不覆盖既有曲线）。
 
@@ -60,10 +60,10 @@
 
 **目标**：破循环量化 + 涨点 stretch + 限制② 缓解。
 
-- [ ] T020 [P] [US3] 写 `tests/test_governance_routing.py`（mock）：分层计数正确 / auto∪review=全集 / 精度只在 auto 层算，见 `contracts/metrics-orthogonality.md`。先红。
-- [ ] T021 [US3] 重训 run-tri-05 与 run-tri-15（真跑，fresh Qwen 0.5B/1.5B base + mit 配方，setsid，轮询）：`sft_qlora ... --base-model Qwen/Qwen2.5-Coder-{0.5,1.5}B-Instruct --out out/run-tri-{05,15}`。
+- [X] T020 [P] [US3] 写 `tests/test_governance_routing.py`（mock）：分层计数正确 / auto∪review=全集 / 精度只在 auto 层算，见 `contracts/metrics-orthogonality.md`。先红。
+- [~] T021 [US3] 重训 run-tri-05 与 run-tri-15（真跑，fresh Qwen 0.5B/1.5B base + mit 配方，setsid，轮询）：`sft_qlora ... --base-model Qwen/Qwen2.5-Coder-{0.5,1.5}B-Instruct --out out/run-tri-{05,15}`。
 - [ ] T022 [US3] scale 曲线（真跑）：三档 run-tri-{05,15,3b} 在 real-c-tri 表级 f1 单调 + 列级 → `out/significance-tri-scale.md`（SC-007）。
-- [ ] T023 [P] [US3] 写 `realeval/heldout_vendor_eval.py` + 真跑：GPT 独立确认边子集上 run-tri-3b 表级/列级 P/R → 报告（FR-009/门③/SC-006）。
+- [X] T023 [P] [US3] 写 `realeval/heldout_vendor_eval.py` + 真跑：GPT 独立确认边子集上 run-tri-3b 表级/列级 P/R → 报告（FR-009/门③/SC-006）。
 - [ ] T024 [US3] 写 `realeval/governance_routing.py` + 真跑（跑绿 T020）：real-c-tri 按 `consensus.agree.table` 分 auto(3-of-3)/review(分歧) → auto 层模型精度 + 分歧占比 + 接 063 分层信封 → `out/governance-routing-068.md`（FR-015/SC-011/限制②）。
 - [ ] T025 [US3] 校核 SC-004（3-of-3 gold 表 P≥0.80 且召回不降）+ SC-006 + SC-011；诚实记 scale/涨点方向。
 
