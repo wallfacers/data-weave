@@ -47,12 +47,48 @@ def _role_map(rec: dict) -> dict[str, str]:
     return role
 
 
-def decide_tables(content: str, teacher_recs: list[dict], min_agree: int) -> dict:
+def _col_map(rec: dict) -> dict:
+    """067 单 teacher 记录 → {规范化表名: canon_cols 结果}（弃权→None）。表两侧都扫，
+    同表具体优先于弃权、双具体取并（与 metrics._item_cols 同口径）。"""
+    from eval.metrics import canon_cols
+    cm: dict = {}
+    for side in ("writes", "reads"):
+        for it in rec.get(side) or []:
+            if not isinstance(it, dict):
+                continue
+            t = it.get("table")
+            if not t:
+                continue
+            k = str(t).strip().lower()
+            cc = canon_cols(it.get("columns"))
+            if k not in cm:
+                cm[k] = cc
+            elif cm[k] is None or cc is None:
+                cm[k] = cm[k] if cc is None else cc
+            else:
+                cm[k] = cm[k] | cc
+    return cm
+
+
+def _decide_cols(t: str, voter_idx: list[int], cmaps: list[dict]) -> list[str] | None:
+    """067 列级一致裁决：投票 teacher 中给具体列集的 ≥2 方取交集；不足双方具体或交集空 → None。"""
+    present = [cmaps[i][t] for i in voter_idx if cmaps[i].get(t) is not None]
+    if len(present) < 2:
+        return None                             # 不足双方具体列 → 弃权
+    inter = set.intersection(*present)
+    return sorted(inter) if inter else None     # 交集空 → 弃权
+
+
+def decide_tables(content: str, teacher_recs: list[dict], min_agree: int,
+                  columns: bool = False) -> dict:
     """核心裁决（纯函数）：多 teacher 角色图 + AST 方向 → gold labels。
 
     teacher_recs：本候选各 teacher 的 {reads,writes} 记录（已剔除 _error）。
+    columns=False（默认）→ 列恒 None，行为与既有完全一致（表级 gold 零回归）；
+    columns=True → 对每个入 gold 的表追加列级交集裁决（067）。
     返回 {"reads":[{table,columns}], "writes":[...], "n_agree_edges":int}。"""
     roles = [_role_map(r) for r in teacher_recs]
+    cmaps = [_col_map(r) for r in teacher_recs] if columns else []
     role_ast = sql_direction(content)
     # 候选表全集 = 任一 teacher 提到的、且过约定 A 门的表。
     all_tables = sorted({t for rm in roles for t in rm})
@@ -60,19 +96,20 @@ def decide_tables(content: str, teacher_recs: list[dict], min_agree: int) -> dic
     for t in all_tables:
         if _reject_reason(t, content):          # 约定 A：字面/动态/路径/tempview 门
             continue
-        voters = [rm for rm in roles if t in rm]
-        if len(voters) < min_agree:             # 一致票数不足 → 不入 gold
+        voter_idx = [i for i, rm in enumerate(roles) if t in rm]
+        if len(voter_idx) < min_agree:          # 一致票数不足 → 不入 gold
             continue
         # 方向：AST 优先 → teacher 共识 → 弃边。
         if t in role_ast:
             direction = role_ast[t]
         else:
-            dirs = {rm[t] for rm in voters}
+            dirs = {roles[i][t] for i in voter_idx}
             if len(dirs) == 1:
                 direction = next(iter(dirs))
             else:
                 continue                        # 方向分歧且无 AST → 弃边
-        (writes if direction == "w" else reads).append({"table": t, "columns": None})
+        gold_cols = _decide_cols(t, voter_idx, cmaps) if columns else None
+        (writes if direction == "w" else reads).append({"table": t, "columns": gold_cols})
     return {"reads": reads, "writes": writes, "n_agree_edges": len(reads) + len(writes)}
 
 
@@ -100,7 +137,8 @@ def _gold_hashes(paths) -> set[str]:
     return hs
 
 
-def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: int | None) -> tuple[list[dict], dict]:
+def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: int | None,
+          columns: bool = False) -> tuple[list[dict], dict]:
     labels_dir = Path(labels_dir)
     by_teacher = {t: _load_labels(labels_dir / f"{t}.jsonl") for t in teachers}
     exclude_hs = _gold_hashes(exclude_gold)
@@ -122,7 +160,7 @@ def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: in
         if any(r.get("error") for r in recs):
             stats["with_error"] += 1
             continue
-        labels = decide_tables(cand["content"], recs, ma)
+        labels = decide_tables(cand["content"], recs, ma, columns=columns)
         is_empty = labels["n_agree_edges"] == 0
         stats["empty" if is_empty else "nonempty"] += 1
         rows.append({
@@ -145,11 +183,14 @@ def main(argv=None) -> int:
                     help="入 gold 的最少一致 teacher 数；缺省=全体一致")
     ap.add_argument("--exclude-gold", nargs="*", default=[
         "realeval/gold/real.jsonl", "realeval/gold/real-jvm.jsonl"])
+    ap.add_argument("--columns", action="store_true",
+                    help="067：开列级一致裁决（双 teacher 交集），缺省列恒 None")
     ap.add_argument("--out", default="realeval/gold/real-b.jsonl")
     args = ap.parse_args(argv)
 
     teachers = [t for t in args.teachers.split(",") if t]
-    rows, stats = build(args.pool, args.labels, teachers, args.exclude_gold, args.min_agree)
+    rows, stats = build(args.pool, args.labels, teachers, args.exclude_gold, args.min_agree,
+                        columns=args.columns)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:

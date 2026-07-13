@@ -64,12 +64,36 @@ def _gold_hashes(gold_paths) -> set[str]:
     return hs
 
 
-def build_record(chash, content, task_type, m1, m2, synth_pool) -> dict | None:
-    """构建单条银标（无有效表 → is_empty 空样本）。teacher 缺失/报错 → None（跳过）。"""
+def _col_map(rec: dict) -> dict:
+    """067 单 teacher 记录 → {规范化表名: canon_cols 结果}（与 build_gold_b._col_map 同口径）。"""
+    from eval.metrics import canon_cols
+    cm: dict = {}
+    for side in ("writes", "reads"):
+        for it in rec.get(side) or []:
+            if not isinstance(it, dict):
+                continue
+            t = it.get("table")
+            if not t:
+                continue
+            k = str(t).strip().lower()
+            cc = canon_cols(it.get("columns"))
+            if k not in cm:
+                cm[k] = cc
+            elif cm[k] is None or cc is None:
+                cm[k] = cm[k] if cc is None else cc
+            else:
+                cm[k] = cm[k] | cc
+    return cm
+
+
+def build_record(chash, content, task_type, m1, m2, synth_pool, keep_columns: bool = False) -> dict | None:
+    """构建单条银标（无有效表 → is_empty 空样本）。teacher 缺失/报错 → None（跳过）。
+    keep_columns=True（067）→ 列取 m1（pair[0]）；缺省列恒 None（表级银标零回归）。"""
     if m1 is None or m2 is None or m1.get("error") or m2.get("error"):
         return None
     r1, r2 = _role_map(m1), _role_map(m2)
     t1, t2 = set(r1), set(r2)
+    cm1 = _col_map(m1) if keep_columns else {}
     role_ast = sql_direction(content)
 
     reads, writes = [], []
@@ -93,7 +117,8 @@ def build_record(chash, content, task_type, m1, m2, synth_pool) -> dict | None:
                 continue
             direction, dsrc = role_ast[t], "ast"
             prov = "disagreement_rescued"
-        (writes if direction == "w" else reads).append({"table": t, "columns": None})
+        cols = (sorted(cm1[t]) if cm1.get(t) else None) if keep_columns else None
+        (writes if direction == "w" else reads).append({"table": t, "columns": cols})
         edge_prov.append(prov)
         edge_dir.append(dsrc)
 
@@ -113,8 +138,9 @@ def build_record(chash, content, task_type, m1, m2, synth_pool) -> dict | None:
 
 def build(pool_dir, labels_dir, gold_paths, synth_pool: set[str],
           empty_ratio: float = 0.20, seed: int = SEED,
-          pair: tuple[str, str] = ("m1", "m2")) -> list[dict]:
-    """pair：取交集的两 teacher 名（059 bulk 用 m_flash,m1 跨厂商；默认 m1,m2 兼容旧调用）。"""
+          pair: tuple[str, str] = ("m1", "m2"), keep_columns: bool = False) -> list[dict]:
+    """pair：取交集的两 teacher 名（059 bulk 用 m_flash,m1 跨厂商；默认 m1,m2 兼容旧调用）。
+    keep_columns=True（067）→ 表级 recipe 不变（双 teacher 交集，protects 门②），列取 pair[0]。"""
     labels_dir = Path(labels_dir)
     m1 = _load_labels(labels_dir / f"{pair[0]}.jsonl")
     m2 = _load_labels(labels_dir / f"{pair[1]}.jsonl")
@@ -126,7 +152,7 @@ def build(pool_dir, labels_dir, gold_paths, synth_pool: set[str],
         if ch in gold_hs:                      # 污染护栏：训练∩测试=∅
             continue
         rec = build_record(ch, cand["content"], cand["task_type"],
-                            m1.get(ch), m2.get(ch), synth_pool)
+                            m1.get(ch), m2.get(ch), synth_pool, keep_columns=keep_columns)
         if rec is None:
             continue
         (empty if rec["is_empty"] else nonempty).append(rec)
@@ -159,12 +185,15 @@ def main(argv=None) -> int:
         "realeval/gold/real-b.jsonl", "realeval/gold/real-c.jsonl"])
     ap.add_argument("--empty-ratio", type=float, default=0.20)
     ap.add_argument("--pair", default="m1,m2", help="取交集的两 teacher（059 bulk 用 m_flash,m1）")
+    ap.add_argument("--keep-columns", action="store_true",
+                    help="067：列取 pair[0]（表级 recipe 不变），缺省列恒 None")
     ap.add_argument("--out", default="data/silver.jsonl")
     args = ap.parse_args(argv)
 
     synth = _load_synth_pool()
     pair = tuple(args.pair.split(","))
-    recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio, pair=pair)
+    recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio,
+                 pair=pair, keep_columns=args.keep_columns)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:

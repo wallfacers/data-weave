@@ -14,10 +14,12 @@ import argparse
 import json
 from pathlib import Path
 
+from eval.metrics import aggregate
 from eval.significance import bootstrap_metric_ci, mcnemar_exact, paired_bootstrap_diff
 from realeval.counts_adapter import filter_counts, per_script_counts
 
 _METRICS = ("precision", "recall", "f1")
+_COL_METRICS = ("col_precision", "col_recall", "col_f1")
 
 
 def _load_jsonl(path):
@@ -44,6 +46,21 @@ def build_report(gold_rows, preds_by_predictor, *, primary="model-3b",
             r = bootstrap_metric_ci(cs, m, n_resamples=n_resamples, seed=seed)
             cells.append(f"{r['point']:.3f} [{r['lo95']:.3f}, {r['hi95']:.3f}]")
         L.append(f"| {name} | " + " | ".join(cells) + " |")
+
+    # 067 列级指标（条件于表命中；n=有具体列 gold 的表实例数，弃权表不计）
+    L += ["", "## 列级指标 + 95% CI（067，条件于表命中）", "",
+          "| predictor | col_eval_n | " + " | ".join(f"{m} [95%CI]" for m in _COL_METRICS) + " |",
+          "| --- | --- | " + " | ".join("---" for _ in _COL_METRICS) + " |"]
+    for name, cs in counts.items():
+        n_col = aggregate(cs).get("col_eval_tables", 0)
+        cells = []
+        for m in _COL_METRICS:
+            r = bootstrap_metric_ci(cs, m, n_resamples=n_resamples, seed=seed)
+            cells.append(f"{r['point']:.3f} [{r['lo95']:.3f}, {r['hi95']:.3f}]")
+        L.append(f"| {name} | {n_col} | " + " | ".join(cells) + " |")
+    L += ["", "> **列级诚实边界**：列 gold = teacher 交集共识银标（列级循环性）；n 稀疏（弃权优先）→ "
+          "CI 偏宽、功效弱，如实呈现。SC 阈：3B 列 p≥0.70/r≥0.55/f1≥0.60，n≥30 方作定量判定，"
+          "否则报方向性结果。"]
 
     # primary vs teacher：配对差值 CI + McNemar
     if primary in counts:
