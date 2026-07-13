@@ -105,8 +105,8 @@
 **Independent Test**: SQLLineage 列 preds 并入 baseline 报告与模型列对照。
 **Depends on**: US1 列 metric（独立，可与 US2/US3 并行）。
 
-- [ ] T026 [P] [US4] 在 `eval/baselines/sqllineage_baseline.py` 加列级抽取（`get_column_lineage()`），非 SQL/解析失败→列弃权（None）
-- [ ] T027 [US4] `eval_baselines_c.py --with-columns` 在 SQL 子集出 SQLLineage 列基线 vs 模型列对照行
+- [X] T026 [P] [US4] `sqllineage_baseline.predict(..., with_columns=True)` 加 `get_column_lineage()` 列抽取（`_column_map` 聚合每表列集，表命中但无列→弃权 None，通配/非SQL→弃权，永不抛）—— ✅ +4 单测（含向后兼容 columns=None 零回归），9 passed
+- [X] T027 [US4] `realeval/eval_col_baseline.py` SQL 子集 SQLLineage 列 vs 模型列对照 —— ✅ **招牌对比（列级）**：SQLLineage 列 recall **0.143**（n=25，工具即便在 SQL 上列级也结构性弱）vs run-col-3b-mit 列 recall **0.839**（n=89），**Δ+0.696**；承 065「工具失效·模型救回」到列级。写 `out/col-baseline-c.md`
 
 ---
 

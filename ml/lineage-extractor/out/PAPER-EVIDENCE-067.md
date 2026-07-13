@@ -91,3 +91,19 @@ teacher 调用真实 token（`realeval/teacher_labels-{c,silver}/*.jsonl` 的 `u
 
 拆分：**列 gold ≈¥5.46 + 列银标 ≈¥19.58**。**SC-007 PASS**（4× 裕度；定价翻倍 ¥50 仍 <¥100）。
 （列在同一 teacher 调用白送=065 探明的免费列，故列级边际成本≈普通表级重标。）
+
+## US4：SQLLineage 列级基线对照（招牌图·列级，`out/col-baseline-c.md`）
+
+承 065 招牌对比（工具@脚本 recall≈0，模型救回）延伸到列级。SQL 子集上：
+
+| 抽取器 | col_eval_n | col_p | col_r | col_f1 |
+|---|---|---|---|---|
+| SQLLineage `get_column_lineage()` | 25 | 1.000 | **0.143** | 0.250 |
+| run-col-3b-mit（模型）| 89 | 0.830 | **0.839** | 0.834 |
+
+| 陈述 | 证据 | 真实数字 | 状态 |
+|---|---|---|---|
+| **[招牌·列级] 工具即便在 SQL 上列级也结构性弱，模型救回** | `out/col-baseline-c.md` | SQLLineage 列 r **0.143** vs 模型列 r **0.839**，**Δ+0.696** | ✅ 真跑 |
+
+**诚实边界（US4）**：col_eval_n 差异（25 vs 89）源于两者表命中集不同（列评条件于表命中）；SQLLineage 列 p 1.0
+系其仅在少数表给列（vacuous 高精度/近零召回=经典工具行为）。非 SQL/解析失败→列弃权。
