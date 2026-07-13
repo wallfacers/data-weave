@@ -12,6 +12,7 @@ pro 回传 `_reasoning`（思维链）供 059 推理蒸馏。
 from __future__ import annotations
 import json, os, re
 from pathlib import Path
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -92,6 +93,36 @@ def _anthropic_backend(base_url_env: str, token_env: str, max_tokens: int = 8192
         return out
     return call
 
+def _openai_raw_backend(base_url_env: str, key_env: str, timeout: float = 180.0):
+    """068：GPT-5.6 经中转站的 OpenAI 兼容后端，用 httpx 裸 POST。
+    关键——**不用 OpenAI SDK**：SDK 默认注入的 `x-stainless-*` 遥测头触发中转站 WAF
+    （实测 PermissionDeniedError: Your request was blocked，连 models.list/最小 hello 都拦）；
+    裸 POST 无这些头即 200。不传 temperature（reasoning 档，裸 POST 默认即可）。抓 usage 供成本核算。
+    base_url 须含 /v1（.env 的 GPT_BASE_URL 已含）。"""
+    base = os.environ[base_url_env].rstrip("/")
+    key = os.environ[key_env]
+
+    def call(model, user):
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        body = {"model": model,
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                             {"role": "user", "content": user}]}
+        try:
+            with httpx.Client(timeout=timeout) as c:
+                r = c.post(base + "/chat/completions", headers=headers, json=body)
+            if r.status_code != 200:
+                return {"reads": [], "writes": [], "_error": f"http:{r.status_code}"}
+            j = r.json()
+            content = j["choices"][0]["message"].get("content") or ""
+            out = _parse_lineage_json(content)
+            u = j.get("usage") or {}
+            out["_usage"] = {"in": u.get("prompt_tokens", 0) or 0,
+                             "out": u.get("completion_tokens", 0) or 0}
+            return out
+        except Exception as e:
+            return {"reads": [], "writes": [], "_error": f"call:{e}"}
+    return call
+
 def load_clients() -> dict[str, "LlmClient"]:
     out = {}
     # M1：DashScope qwen-max（现有 key）。
@@ -121,4 +152,12 @@ def load_clients() -> dict[str, "LlmClient"]:
                                    _anthropic_backend("DEEPSEEK_ANTHROPIC_BASE_URL", "DEEPSEEK_ANTHROPIC_TOKEN",
                                                       max_tokens=4096),
                                    os.environ.get("DEEPSEEK_FLASH_MODEL", "deepseek-v4-flash"))
+    # 068 M_GPT：GPT-5.6（OpenAI，经中转站）——跨 qwen/deepseek 的第三独立厂商，破 gold 循环。
+    # httpx 裸 POST（避 WAF）。m_gpt=sol 档作 gold 裁判；m_gpt_bulk=luna 便宜档作 silver bulk。
+    if os.environ.get("GPT_API_KEY"):
+        _gpt_backend = _openai_raw_backend("GPT_BASE_URL", "GPT_API_KEY")
+        out["m_gpt"] = LlmClient("m_gpt", _gpt_backend,
+                                 os.environ.get("GPT_MODEL", "gpt-5.6-sol"))
+        out["m_gpt_bulk"] = LlmClient("m_gpt_bulk", _gpt_backend,
+                                      os.environ.get("GPT_BULK_MODEL", "gpt-5.6-luna"))
     return out

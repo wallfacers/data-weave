@@ -121,6 +121,7 @@ ml/lineage-extractor/realeval/teacher_labels-c/
 ml/lineage-extractor/realeval/pool-c/
 ml/lineage-extractor/data/silver-col.jsonl
 ml/lineage-extractor/data/silver-tblonly.jsonl
+ml/lineage-extractor/data/silver-tri.jsonl
 ml/lineage-extractor/data/out/train-col.jsonl
 ml/lineage-extractor/data/out/train-tblonly.jsonl
 ml/lineage-extractor/out/run-tblonly-*/
