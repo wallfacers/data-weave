@@ -155,7 +155,7 @@ def _gold_hashes(paths) -> set[str]:
 
 
 def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: int | None,
-          columns: bool = False) -> tuple[list[dict], dict]:
+          columns: bool = False, error_abstain: bool = False) -> tuple[list[dict], dict]:
     labels_dir = Path(labels_dir)
     by_teacher = {t: _load_labels(labels_dir / f"{t}.jsonl") for t in teachers}
     exclude_hs = _gold_hashes(exclude_gold)
@@ -163,7 +163,7 @@ def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: in
 
     rows: list[dict] = []
     stats = {"pool": 0, "excluded_gold": 0, "missing_labels": 0, "with_error": 0,
-             "nonempty": 0, "empty": 0}
+             "error_abstained": 0, "nonempty": 0, "empty": 0}
     for cand in load_pool(pool_dir):
         stats["pool"] += 1
         ch = cand["chash"]
@@ -174,9 +174,15 @@ def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: in
         if any(r is None for r in recs):
             stats["missing_labels"] += 1
             continue
-        if any(r.get("error") for r in recs):
-            stats["with_error"] += 1
-            continue
+        errored = [r for r in recs if r.get("error")]
+        if errored:
+            if error_abstain:
+                # 068：errored teacher 弃权（视作空 reads/writes），行保留——单厂商错不杀 2-of-3 共识
+                recs = [{"reads": [], "writes": []} if r.get("error") else r for r in recs]
+                stats["error_abstained"] += len(errored)
+            else:
+                stats["with_error"] += 1
+                continue
         labels = decide_tables(cand["content"], recs, ma, columns=columns)
         is_empty = labels["n_agree_edges"] == 0
         stats["empty" if is_empty else "nonempty"] += 1
@@ -203,6 +209,8 @@ def main(argv=None) -> int:
         "realeval/gold/real.jsonl", "realeval/gold/real-jvm.jsonl"])
     ap.add_argument("--columns", action="store_true",
                     help="067：开列级一致裁决（双 teacher 交集），缺省列恒 None")
+    ap.add_argument("--error-abstain", action="store_true",
+                    help="068：errored teacher 弃权而非丢整行（单厂商错不杀 2-of-3 共识）")
     ap.add_argument("--out", default="realeval/gold/real-b.jsonl")
     ap.add_argument("--unanimous-out", default=None,
                     help="068：≥3 teacher 时附产 3-of-3 一致高置信子集路径（如 real-c-tri-unan.jsonl）")
@@ -210,7 +218,7 @@ def main(argv=None) -> int:
 
     teachers = [t for t in args.teachers.split(",") if t]
     rows, stats = build(args.pool, args.labels, teachers, args.exclude_gold, args.min_agree,
-                        columns=args.columns)
+                        columns=args.columns, error_abstain=args.error_abstain)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:
