@@ -9,9 +9,9 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 校验 067 迁入资产就位：`ls realeval/pool-c realeval/pool-silver realeval/teacher_labels-c/{m1,m3}.jsonl realeval/teacher_labels-silver/{m1,m_flash}.jsonl realeval/gold/real-c.jsonl data/silver-col.jsonl out/run-col-3b-mit/merged weights/weft-lineage-extractor-3b`（全在=可复用）。
-- [ ] T002 校验 `.env` GPT 凭据（仅变量名）：`grep -oE '^GPT_[A-Z_]+=' .env` → `GPT_API_KEY/GPT_BASE_URL/GPT_MODEL`；绝不打印 key 值。
-- [ ] T003 更新 `.gitignore` 加 068 新工件忽略：`realeval/gold/real-c-tri*.jsonl`、`data/silver-tri.jsonl`、`out/run-tri-*/`、`realeval/teacher_labels-{c,silver}/m_gpt.jsonl`、`out/preds/run-tri-*.jsonl`。
+- [X] T001 校验 067 迁入资产就位：`ls realeval/pool-c realeval/pool-silver realeval/teacher_labels-c/{m1,m3}.jsonl realeval/teacher_labels-silver/{m1,m_flash}.jsonl realeval/gold/real-c.jsonl data/silver-col.jsonl out/run-col-3b-mit/merged weights/weft-lineage-extractor-3b`（全在=可复用）。
+- [X] T002 校验 `.env` GPT 凭据（仅变量名）：`grep -oE '^GPT_[A-Z_]+=' .env` → `GPT_API_KEY/GPT_BASE_URL/GPT_MODEL`；绝不打印 key 值。
+- [X] T003 更新 `.gitignore` 加 068 新工件忽略：`realeval/gold/real-c-tri*.jsonl`、`data/silver-tri.jsonl`、`out/run-tri-*/`、`realeval/teacher_labels-{c,silver}/m_gpt.jsonl`、`out/preds/run-tri-*.jsonl`。
 
 ---
 
@@ -19,9 +19,9 @@
 
 **TDD：先测后码。**
 
-- [ ] T004 [P] 写 `tests/test_gpt_backend.py`（mock httpx）：契约 5 条（无 stainless 头 / 解析 JSON+usage / 非200 弃权 / 解析失败弃权 / 无 key 不注册），见 `contracts/gpt-client.md`。先红。
-- [ ] T005 在 `llm/clients.py` 加 `_openai_raw_backend(base_url_env, key_env)`（httpx 裸 POST，不注入 stainless 头，不传 temperature，抓 usage）+ 注册 `m_gpt`（GPT_MODEL 默认 gpt-5.6-sol）与 `m_gpt_bulk`（gpt-5.6-luna），仅当 GPT_API_KEY 存在。跑绿 T004。
-- [ ] T006 真跑冒烟复核：`python3 -c` 走 `load_clients()['m_gpt'].extract(...)` 对 1 条 SQL，确认真返回含列血缘 + usage（非 mock）。
+- [X] T004 [P] 写 `tests/test_gpt_backend.py`（mock httpx）：契约 5 条（无 stainless 头 / 解析 JSON+usage / 非200 弃权 / 解析失败弃权 / 无 key 不注册），见 `contracts/gpt-client.md`。先红。
+- [X] T005 在 `llm/clients.py` 加 `_openai_raw_backend(base_url_env, key_env)`（httpx 裸 POST，不注入 stainless 头，不传 temperature，抓 usage）+ 注册 `m_gpt`（GPT_MODEL 默认 gpt-5.6-sol）与 `m_gpt_bulk`（gpt-5.6-luna），仅当 GPT_API_KEY 存在。跑绿 T004。
+- [X] T006 真跑冒烟复核：`python3 -c` 走 `load_clients()['m_gpt'].extract(...)` 对 1 条 SQL，确认真返回含列血缘 + usage（非 mock）。
 
 ---
 
@@ -29,12 +29,12 @@
 
 **目标**：无需重训即交付破循环第一个数字。**独立测试**：产出 real-c-tri + 一致率 + 现有模型在其上 P/R。
 
-- [ ] T007 [P] [US1] 写 `tests/test_tri_consensus.py` gold 部分（mock 三 teacher 标注）：契约 6 条（三家全同→agree=3 / 两同一异→2-of-3 不入 3-of-3 / 仅一家→不入 / 一家弃权→列弃权 / 多数列裁决 / 通配→列弃权），见 `contracts/consensus.md`。先红。
-- [ ] T008 [US1] 扩展 `realeval/build_gold_b.py`：支持 `--teachers m1,m3,m_gpt --min-agree 2`，表级 min-agree=2 裁决 + 列级共识表上多数/交集弃权优先 + 附产 3-of-3 子集（`consensus.agree.table==3`）。跑绿 T007。
-- [ ] T009 [US1] GPT 标 gold 池（真跑，sol，~400 条，setsid 脱离 + timeout）：`teacher_label --pool realeval/pool-c --teachers m_gpt --out realeval/teacher_labels-c/m_gpt.jsonl`；轮询完成。
-- [ ] T010 [US1] 造三厂商共识 gold（真跑）：`build_gold_b --teachers m1,m3,m_gpt --min-agree 2 --columns --out realeval/gold/real-c-tri.jsonl`（+ real-c-tri-unan.jsonl）；核对非空/具体列实例计数。
-- [ ] T011 [P] [US1] 写 `realeval/agreement_report.py` + 真跑：GPT vs 067 gold（real-c）表级/列级一致率 → `out/agreement-068.md`（FR-004）。
-- [ ] T012 [US1] 重评现有模型（真跑）：dump preds + `significance_report` 让 model-3b（weights/weft-lineage-extractor-3b）与 run-col-3b-mit 在 real-c-tri 上出表级+列级 P/R + bootstrap CI → `out/significance-tri-c.md`（SC-001/002，破循环首个数字）。
+- [X] T007 [P] [US1] 写 `tests/test_tri_consensus.py` gold 部分（mock 三 teacher 标注）：契约 6 条（三家全同→agree=3 / 两同一异→2-of-3 不入 3-of-3 / 仅一家→不入 / 一家弃权→列弃权 / 多数列裁决 / 通配→列弃权），见 `contracts/consensus.md`。先红。
+- [X] T008 [US1] 扩展 `realeval/build_gold_b.py`：支持 `--teachers m1,m3,m_gpt --min-agree 2`，表级 min-agree=2 裁决 + 列级共识表上多数/交集弃权优先 + 附产 3-of-3 子集（`consensus.agree.table==3`）。跑绿 T007。
+- [X] T009 [US1] GPT 标 gold 池（真跑，sol，~400 条，setsid 脱离 + timeout）：`teacher_label --pool realeval/pool-c --teachers m_gpt --out realeval/teacher_labels-c/m_gpt.jsonl`；轮询完成。
+- [X] T010 [US1] 造三厂商共识 gold（真跑）：`build_gold_b --teachers m1,m3,m_gpt --min-agree 2 --columns --out realeval/gold/real-c-tri.jsonl`（+ real-c-tri-unan.jsonl）；核对非空/具体列实例计数。
+- [X] T011 [P] [US1] 写 `realeval/agreement_report.py` + 真跑：GPT vs 067 gold（real-c）表级/列级一致率 → `out/agreement-068.md`（FR-004）。
+- [X] T012 [US1] 重评现有模型（真跑）：dump preds + `significance_report` 让 model-3b（weights/weft-lineage-extractor-3b）与 run-col-3b-mit 在 real-c-tri 上出表级+列级 P/R + bootstrap CI → `out/significance-tri-c.md`（SC-001/002，破循环首个数字）。
 
 **✅ US1 检查点**：real-c-tri + unan 产出；一致率报告；现有模型重评数字。破循环 MVP 可交付。
 
