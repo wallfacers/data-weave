@@ -93,6 +93,7 @@ def decide_tables(content: str, teacher_recs: list[dict], min_agree: int,
     # 候选表全集 = 任一 teacher 提到的、且过约定 A 门的表。
     all_tables = sorted({t for rm in roles for t in rm})
     reads, writes = [], []
+    agree: dict[str, int] = {}                   # 068：每条入 gold 边的一致票数（供 3-of-3 子集+治理路由）
     for t in all_tables:
         if _reject_reason(t, content):          # 约定 A：字面/动态/路径/tempview 门
             continue
@@ -110,7 +111,23 @@ def decide_tables(content: str, teacher_recs: list[dict], min_agree: int,
                 continue                        # 方向分歧且无 AST → 弃边
         gold_cols = _decide_cols(t, voter_idx, cmaps) if columns else None
         (writes if direction == "w" else reads).append({"table": t, "columns": gold_cols})
-    return {"reads": reads, "writes": writes, "n_agree_edges": len(reads) + len(writes)}
+        agree[t] = len(voter_idx)               # 068：记录该表一致票数
+    return {"reads": reads, "writes": writes, "n_agree_edges": len(reads) + len(writes),
+            "agree": agree}
+
+
+def filter_unanimous(row: dict, n_teachers: int) -> dict:
+    """068：把一行 gold 过滤成 3-of-3 一致高置信子集——仅保留 agree==n_teachers 的边。
+    行结构不变（labels/consensus），仅 labels.reads/writes 被裁到全体一致边；行仍保留（可空）。"""
+    agree = (row.get("consensus") or {}).get("agree") or {}
+    lab = row.get("labels") or {}
+    reads = [e for e in lab.get("reads") or [] if agree.get(e["table"]) == n_teachers]
+    writes = [e for e in lab.get("writes") or [] if agree.get(e["table"]) == n_teachers]
+    new = dict(row)
+    new["labels"] = {"reads": reads, "writes": writes}
+    new["is_empty"] = not (reads or writes)
+    new["provenance"] = f"unanimous={n_teachers}/{n_teachers}"
+    return new
 
 
 def _load_labels(path: Path) -> dict[str, dict]:
@@ -169,6 +186,7 @@ def build(pool_dir, labels_dir, teachers: list[str], exclude_gold, min_agree: in
             "content": cand["content"],
             "labels": {"reads": labels["reads"], "writes": labels["writes"]},
             "is_empty": is_empty,
+            "consensus": {"agree": labels["agree"], "n_teachers": len(teachers)},  # 068
             "provenance": f"agree>={ma}/{len(teachers)}",
         })
     return rows, stats
@@ -186,6 +204,8 @@ def main(argv=None) -> int:
     ap.add_argument("--columns", action="store_true",
                     help="067：开列级一致裁决（双 teacher 交集），缺省列恒 None")
     ap.add_argument("--out", default="realeval/gold/real-b.jsonl")
+    ap.add_argument("--unanimous-out", default=None,
+                    help="068：≥3 teacher 时附产 3-of-3 一致高置信子集路径（如 real-c-tri-unan.jsonl）")
     args = ap.parse_args(argv)
 
     teachers = [t for t in args.teachers.split(",") if t]
@@ -198,6 +218,15 @@ def main(argv=None) -> int:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     print(f"build_gold_b: teachers={teachers} min_agree={args.min_agree or len(teachers)} "
           f"→ {out}\n  {stats}")
+    # 068：≥3 teacher 且 min_agree<全体 时，附产 3-of-3 一致高置信子集（unanimous）。
+    if args.unanimous_out and len(teachers) >= 3:
+        unan_rows = [filter_unanimous(r, len(teachers)) for r in rows]
+        u_nonempty = sum(1 for r in unan_rows if not r["is_empty"])
+        uo = Path(args.unanimous_out)
+        with uo.open("w", encoding="utf-8") as f:
+            for r in unan_rows:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        print(f"  + unanimous({len(teachers)}/{len(teachers)}) → {uo}  nonempty={u_nonempty}")
     return 0
 
 
