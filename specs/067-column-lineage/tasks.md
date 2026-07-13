@@ -115,8 +115,8 @@
 - [X] T028 全量单测真跑 —— ✅ **289 passed 零回归**（sft_qlora `--lora-r/--lora-alpha` 加参无破坏，SC-008）
 - [X] T029 成本记账 —— ✅ 从 label 真实 usage 算 **≈¥25.04**（gold ¥5.46+silver ¥19.58，6798 调用）**SC-007 PASS 4× 裕度**；写入 `out/PAPER-EVIDENCE-067.md`
 - [ ] T030 [P] 更新 `ml/lineage-extractor/publish.py` + HF：发布 `run-col-*` 权重卡（列级能力+诚实边界：列循环性/小 n/宽 CI）与列 gold（`--include-real-gold` 按需）
-- [ ] T031 [P] 在 `CLAUDE.md` Knowledge Map 加 067 条目（列级血缘：teacher 免费吐列/条件列 metric 门①正交/门②同集/run-col-* 家族/成本）
-- [ ] T032 更新记忆 `weft-067-column-lineage.md`（真跑结果：列级 P/R、门② 结论、成本、scale 曲线）
+- [X] T031 [P] 在 `CLAUDE.md` Knowledge Map 加 067 条目 —— ✅ 列级血缘条目（空壳两卡点/门①正交/门②新家族/表列权衡+缓解/招牌图/成本）
+- [X] T032 更新记忆 `weft-067-column-lineage.md` —— ✅ 真跑结果全录（列 P/R、门②缓解 PASS、成本 ¥25、scale 中性、US4）
 - [ ] T033 合并回 main（按并发多 Agent 硬规则：先 `git worktree list` + 读 sibling，无冲突再合）+ push；`git worktree remove` 067
 
 ---
