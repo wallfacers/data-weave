@@ -20,13 +20,19 @@ export function useEventSource(url: string): EventSourceState {
   const [reconnectKey, setReconnectKey] = useState(0)
 
   const connect = useCallback(() => {
-    // 空 URL 不建立连接
-    if (!url) return
+    // 空 URL 不建立连接（同时清空旧事件，避免切换节点时日志叠加）
+    if (!url) {
+      lastEventIdRef.current = null
+      setState({ events: [], connected: false, error: false })
+      return
+    }
 
-    // 关闭旧连接
+    // 关闭旧连接并清空旧事件（URL 切换 → 全新日志流，不叠加）
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
     }
+    lastEventIdRef.current = null
+    setState({ events: [], connected: false, error: false })
 
     // 拼接 JWT token（EventSource 不支持自定义 header，走 query param 兜底）
     const token = typeof window !== "undefined" ? localStorage.getItem("dw.auth.token") : null
