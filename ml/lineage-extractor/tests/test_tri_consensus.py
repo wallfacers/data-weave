@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from realeval.build_gold_b import decide_tables, filter_unanimous
+from realeval.build_silver import build_record_consensus
 
 
 def _rec(reads=None, writes=None):
@@ -73,3 +74,35 @@ def test_column_abstain_when_one_null():
     g = decide_tables("select id from ods.a", recs, min_agree=2, columns=True)
     cols = next(x["columns"] for x in g["reads"] if x["table"] == "ods.a")
     assert cols is None
+
+
+# ── silver：2-of-3 多数共识（无单 teacher 救回，守≥2 厂商） ──
+
+def test_silver_two_of_three_majority_includes_table():
+    # ods.a 被 2 家命名（第三家没有）→ 2-of-3 多数入 silver
+    recs = [_rec(reads=["ods.a"]), _rec(reads=["ods.a"]), _rec(reads=[])]
+    rec = build_record_consensus("h", "select * from ods.a", "SQL", recs, min_agree=2)
+    assert [x["table"] for x in rec["reads"]] == ["ods.a"]
+
+
+def test_silver_single_teacher_not_rescued():
+    # 仅 1 家命名 ods.a（脚本字面有、AST 可定向）→ 068 共识**不**单家救回（区别 067 pair 路径）
+    recs = [_rec(reads=["ods.a"]), _rec(reads=[]), _rec(reads=[])]
+    rec = build_record_consensus("h", "select * from ods.a", "SQL", recs, min_agree=2)
+    assert rec["reads"] == [] and rec["writes"] == [] and rec["is_empty"]
+
+
+def test_silver_errored_teacher_abstains_still_forms_consensus():
+    # 一家 error 弃权，另两家一致 → 仍成 2-of-3
+    recs = [_rec(reads=["ods.a"]), _rec(reads=["ods.a"]), {"reads": [], "writes": [], "error": "no_json"}]
+    rec = build_record_consensus("h", "select * from ods.a", "SQL", recs, min_agree=2)
+    assert [x["table"] for x in rec["reads"]] == ["ods.a"]
+
+
+def test_silver_columns_intersection():
+    recs = [_rec(reads=[("ods.a", ["id", "amount"])]),
+            _rec(reads=[("ods.a", ["id", "ts"])]),
+            _rec(reads=[("ods.a", ["id", "amount"])])]
+    rec = build_record_consensus("h", "select id from ods.a", "SQL", recs, min_agree=2, keep_columns=True)
+    cols = next(x["columns"] for x in rec["reads"] if x["table"] == "ods.a")
+    assert cols == ["id"]  # {id,amount}∩{id,ts}∩{id,amount} = {id}

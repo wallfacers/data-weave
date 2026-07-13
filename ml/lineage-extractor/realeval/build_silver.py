@@ -136,6 +136,79 @@ def build_record(chash, content, task_type, m1, m2, synth_pool, keep_columns: bo
     }
 
 
+def build_record_consensus(chash, content, task_type, recs: list[dict | None],
+                           min_agree: int = 2, synth_pool: set[str] | None = None,
+                           keep_columns: bool = False) -> dict | None:
+    """068：N-teacher **2-of-3 多数共识** 单条银标（区别 067 pair：无单 teacher AST 救回，
+    守≥2 独立厂商=召回宽于 2-of-2 交集、精度仍由双厂商背书）。errored/缺失 teacher 弃权（不投票）。
+    列（keep_columns）复用 build_gold_b._decide_cols：投票 teacher 中 ≥2 家给具体列取交集、否则 None。"""
+    from realeval.build_gold_b import _decide_cols as _decide_cols_gold
+    active = [r for r in recs if r is not None and not r.get("error")]
+    if len(active) < min_agree:                    # 投票方不足以成共识 → 跳过
+        return None
+    roles = [_role_map(r) for r in active]
+    cmaps = [_col_map(r) for r in active] if keep_columns else []
+    role_ast = sql_direction(content)
+    synth_pool = synth_pool or set()
+
+    reads, writes = [], []
+    for t in sorted({t for rm in roles for t in rm}):
+        if _reject_reason(t, content):             # 约定 A：字面/动态/路径/tempview 门
+            continue
+        if t in synth_pool:                        # 零合成名（防泄漏）
+            continue
+        voter_idx = [i for i, rm in enumerate(roles) if t in rm]
+        if len(voter_idx) < min_agree:             # 多数不足 → 不入
+            continue
+        if t in role_ast:
+            direction = role_ast[t]
+        else:
+            dirs = {roles[i][t] for i in voter_idx}
+            if len(dirs) == 1:
+                direction = next(iter(dirs))
+            else:
+                continue                           # 方向分歧且无 AST → 弃边
+        cols = _decide_cols_gold(t, voter_idx, cmaps) if keep_columns else None
+        (writes if direction == "w" else reads).append({"table": t, "columns": cols})
+
+    is_empty = not reads and not writes
+    return {"chash": chash, "content": content, "task_type": task_type,
+            "reads": reads, "writes": writes, "is_empty": is_empty,
+            "provenance": f"consensus>={min_agree}/{len(recs)}",
+            "dir_source": "ast_or_teacher"}
+
+
+def build_consensus(pool_dir, labels_dir, teachers: list[str], gold_paths, synth_pool: set[str],
+                    min_agree: int = 2, empty_ratio: float = 0.20, seed: int = SEED,
+                    keep_columns: bool = False) -> list[dict]:
+    """068：N-teacher 2-of-3 多数共识 silver 全量构建（表+列）。"""
+    labels_dir = Path(labels_dir)
+    by_teacher = {t: _load_labels(labels_dir / f"{t}.jsonl") for t in teachers}
+    gold_hs = _gold_hashes(gold_paths)
+
+    nonempty, empty = [], []
+    for cand in load_pool(pool_dir):
+        ch = cand["chash"]
+        if ch in gold_hs:                          # 污染护栏：训练∩测试=∅
+            continue
+        recs = [by_teacher[t].get(ch) for t in teachers]
+        rec = build_record_consensus(ch, cand["content"], cand["task_type"], recs,
+                                      min_agree=min_agree, synth_pool=synth_pool,
+                                      keep_columns=keep_columns)
+        if rec is None:
+            continue
+        (empty if rec["is_empty"] else nonempty).append(rec)
+
+    if nonempty:
+        target_e = round(empty_ratio / (1 - empty_ratio) * len(nonempty))
+        rng = random.Random(seed)
+        rng.shuffle(empty)
+        empty = empty[:target_e]
+    out = nonempty + empty
+    random.Random(seed + 1).shuffle(out)
+    return out
+
+
 def build(pool_dir, labels_dir, gold_paths, synth_pool: set[str],
           empty_ratio: float = 0.20, seed: int = SEED,
           pair: tuple[str, str] = ("m1", "m2"), keep_columns: bool = False) -> list[dict]:
@@ -185,15 +258,25 @@ def main(argv=None) -> int:
         "realeval/gold/real-b.jsonl", "realeval/gold/real-c.jsonl"])
     ap.add_argument("--empty-ratio", type=float, default=0.20)
     ap.add_argument("--pair", default="m1,m2", help="取交集的两 teacher（059 bulk 用 m_flash,m1）")
+    ap.add_argument("--teachers", default=None,
+                    help="068：≥3 teacher 逗号列表，走 2-of-3 多数共识路径（覆盖 --pair）")
+    ap.add_argument("--min-agree", type=int, default=2, help="068：多数共识最少一致 teacher 数")
     ap.add_argument("--keep-columns", action="store_true",
                     help="067：列取 pair[0]（表级 recipe 不变），缺省列恒 None")
     ap.add_argument("--out", default="data/silver.jsonl")
     args = ap.parse_args(argv)
 
     synth = _load_synth_pool()
-    pair = tuple(args.pair.split(","))
-    recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio,
-                 pair=pair, keep_columns=args.keep_columns)
+    if args.teachers:                              # 068：多数共识路径
+        teachers = [t for t in args.teachers.split(",") if t]
+        recs = build_consensus(args.pool, args.labels, teachers, args.exclude_gold, synth,
+                               min_agree=args.min_agree, empty_ratio=args.empty_ratio,
+                               keep_columns=args.keep_columns)
+        pair = teachers
+    else:                                          # 059/067 兼容：pair 交集路径
+        pair = tuple(args.pair.split(","))
+        recs = build(args.pool, args.labels, args.exclude_gold, synth, args.empty_ratio,
+                     pair=pair, keep_columns=args.keep_columns)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:
