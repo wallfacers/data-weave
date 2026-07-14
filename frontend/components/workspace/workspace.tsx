@@ -11,9 +11,11 @@ import { useWorkspacePersistence } from "@/lib/workspace/persistence"
 import { useLogPanelStore } from "@/lib/workspace/log-panel-store"
 import { VIEW_RENDER } from "@/lib/workspace/registry"
 import { VIEW_META } from "@/lib/workspace/views"
+import { resolveViewGate } from "@/lib/workspace/view-gate"
 import { useProjectPermissions } from "@/lib/project-permissions"
 import { useNavUiStore } from "@/lib/nav-ui-store"
 import { cn } from "@/lib/utils"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { WorkspaceTabBar } from "./tab-bar"
 import { WorkspaceLogPanel } from "./log-panel"
 
@@ -25,7 +27,7 @@ import { WorkspaceLogPanel } from "./log-panel"
 export function Workspace() {
   const t = useTranslations("permission")
   const tw = useTranslations("workspace")
-  const { can } = useProjectPermissions()
+  const { can, status: permStatus } = useProjectPermissions()
   const tabs = useWorkspaceStore((s) => s.tabs)
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
   const searchParams = useSearchParams()
@@ -105,8 +107,9 @@ export function Workspace() {
                 .map((tab) => {
                   const View = VIEW_RENDER[tab.view].component
                   // 036-D：视图级权限拦截——无权限的视图（深链直达）渲染占位，不暴露真实功能（FR-041）。
+                  // 权限异步加载，就绪前渲染 loading 占位而非「权限不足」，避免刷新恢复受限视图时的误判闪烁。
                   const req = VIEW_META[tab.view]?.requirePermission
-                  const denied = !!req && !can(req)
+                  const gate = resolveViewGate(req, permStatus, can)
                   return (
                     <div
                       key={tab.id}
@@ -115,7 +118,9 @@ export function Workspace() {
                         tab.id === activeTabId ? "flex" : "hidden",
                       )}
                     >
-                      {denied ? (
+                      {gate === "loading" ? (
+                        <LoadingState active />
+                      ) : gate === "denied" ? (
                         <div className="flex h-full items-center justify-center">
                           <div className="max-w-md space-y-2 text-center">
                             <p className="text-lg font-semibold text-muted-foreground">{t("deniedTitle")}</p>
