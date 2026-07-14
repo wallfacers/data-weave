@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  ArrowDown01Icon,
   Cancel01Icon,
   CheckmarkBadge01Icon,
   Copy01Icon,
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
+import { useAutoScroll } from "@/hooks/use-auto-scroll"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import * as api from "@/lib/supervision/api"
 import type {
@@ -67,6 +69,8 @@ export function IncidentThread({
   const terminal = isTerminal(incident.state)
   // Agent 正在产出（有打字流或思考态）→ composer 显示停止键。
   const agentStreaming = live.delta !== null || live.thinking.active
+  // US5 无抖动跟随滚动：切换事故（incident.id）时强制回底重新跟随。
+  const { osRef, isAtBottom, scrollToBottom } = useAutoScroll([incident.id])
 
   const run = async (fn: () => Promise<unknown>, okKey: string) => {
     if (busy) return
@@ -118,8 +122,8 @@ export function IncidentThread({
       )}
 
       {/* messages */}
-      <div className="min-h-0 flex-1 px-[var(--card-spacing)]">
-        <DwScroll className="h-full">
+      <div className="relative min-h-0 flex-1 px-[var(--card-spacing)]">
+        <DwScroll ref={osRef} className="h-full">
           <div className="space-y-2 py-2">
             {rows.map((row) =>
               row.type === "date" ? (
@@ -155,6 +159,19 @@ export function IncidentThread({
             )}
           </div>
         </DwScroll>
+        {/* 回到底部：opacity 切换（不挂卸载）避免抖动 */}
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          aria-label={t("backToBottom")}
+          title={t("backToBottom")}
+          className={cn(
+            "absolute bottom-2 right-4 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-opacity hover:text-foreground",
+            isAtBottom ? "pointer-events-none opacity-0" : "opacity-100",
+          )}
+        >
+          <HugeiconsIcon icon={ArrowDown01Icon} className="size-4" />
+        </button>
       </div>
 
       {/* pending proposal card */}

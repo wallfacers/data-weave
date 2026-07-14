@@ -1399,6 +1399,7 @@
     "dateYesterday": "昨天",
     "chatStop": "停止",
     "chatSendFailed": "发送失败",
-    "cancelFailed": "打断失败，请重试"
+    "cancelFailed": "打断失败，请重试",
+    "backToBottom": "回到底部"
   }
 }

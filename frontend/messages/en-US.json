@@ -1399,6 +1399,7 @@
     "dateYesterday": "Yesterday",
     "chatStop": "Stop",
     "chatSendFailed": "Send failed",
-    "cancelFailed": "Interrupt failed, please retry"
+    "cancelFailed": "Interrupt failed, please retry",
+    "backToBottom": "Back to bottom"
   }
 }
