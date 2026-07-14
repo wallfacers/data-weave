@@ -122,5 +122,5 @@ Multiple agents write this repo concurrently (separate or shared branches); work
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/069-agent-incident-ops/plan.md
+at specs/070-incident-chat-experience/plan.md
 <!-- SPECKIT END -->
