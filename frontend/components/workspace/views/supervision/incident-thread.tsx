@@ -20,6 +20,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
@@ -481,11 +482,11 @@ function CloseButton({ busy, onClose }: { busy: boolean; onClose: (reason: strin
   }
   return (
     <div className="flex items-center gap-1.5">
-      <input
+      <Input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder={t("closeReasonPlaceholder")}
-        className="h-6 rounded-3xl bg-muted px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="h-7 w-44 text-xs"
       />
       <Button
         size="xs"
