@@ -12,7 +12,8 @@ import { AiBrain01Icon } from "@hugeicons/core-free-icons"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { cn } from "@/lib/utils"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
-import type { Incident, IncidentLiveState } from "@/lib/supervision/types"
+import { LoadingState } from "@/components/workspace/shared/loading-state"
+import type { ConnectionPhase, Incident, IncidentLiveState } from "@/lib/supervision/types"
 import { isAgentWorking, isPending } from "@/lib/supervision/types"
 import { ClassificationBadge, PendingIcon, StateBadge, ThinkingDots, ToolChip } from "./incident-visuals"
 
@@ -21,15 +22,26 @@ export function LiveFeed({
   rest,
   liveOf,
   selectedId,
+  phase,
   onSelect,
 }: {
   pending: Incident[]
   rest: Incident[]
   liveOf: (id: string) => IncidentLiveState
   selectedId: string | null
+  phase: ConnectionPhase
   onSelect: (id: string) => void
 }) {
   const t = useTranslations("supervision")
+
+  // 首帧未达（connecting）：显示加载态而非「暂无事故」——连接未确认前不冒充真空态（FR-001/SC-001）。
+  if (phase === "connecting" && pending.length === 0 && rest.length === 0) {
+    return (
+      <div className="flex h-full flex-col">
+        <LoadingState active variant="centered" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col gap-2.5">

@@ -16,6 +16,7 @@ function renderBanner(stats: IncidentStats, onFilter = vi.fn(), activeFilter: Fe
         stats={stats}
         reportMd={null}
         connected
+        phase="live"
         activeFilter={activeFilter}
         onFilter={onFilter}
       />

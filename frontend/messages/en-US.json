@@ -1343,6 +1343,7 @@
     "thinkingDefault": "Thinking",
     "live": "Live",
     "disconnected": "Disconnected",
+    "connecting": "Connecting to live channel",
     "reconnecting": "Disconnected, reconnecting",
     "briefingEmpty": "No active incidents",
     "briefingReport": "Handover Report",
@@ -1380,6 +1381,18 @@
     "closeOk": "Incident closed",
     "approveOk": "Proposal approved & published",
     "rejectOk": "Proposal rejected",
-    "actionFailed": "Action failed"
+    "actionFailed": "Action failed",
+    "copyCode": "Copy",
+    "copied": "Copied",
+    "copyMessage": "Copy text",
+    "agentName": "Ops Agent",
+    "fallbackOperator": "Operator",
+    "interrupted": "Interrupted",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday",
+    "chatStop": "Stop",
+    "chatSendFailed": "Send failed",
+    "cancelFailed": "Interrupt failed, please retry",
+    "backToBottom": "Back to bottom"
   }
 }

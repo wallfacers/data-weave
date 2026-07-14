@@ -149,6 +149,11 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "INCIDENT_ADJUST_RESOURCES" -> incidentAdjustResources(action, locale);
             case "INCIDENT_RESUME_CHECKPOINT" -> incidentResumeCheckpoint(action, locale);
             case "INCIDENT_PUBLISH_FIX" -> incidentPublishFix(action, locale);
+            // 070 打断 Agent 输出轮次：闸门此处仅留痕+L0 裁决（真正置位取消标志在 ConversationService，
+            // 因其持有进程内轮次注册表）。故此处为确认性 ack，避免落入 unsupported-action。
+            case "INCIDENT_AGENT_CANCEL" -> new ExecOutcome(true,
+                    messages.get("executor.incident.cancel.done", locale),
+                    json(Map.of("actionType", "INCIDENT_AGENT_CANCEL")), null);
             default -> {
                 // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {

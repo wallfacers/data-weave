@@ -10,13 +10,15 @@
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 
+import { useDefaultLayout } from "react-resizable-panels"
+
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { useIncidentStream } from "@/lib/supervision/use-incident-stream"
 import { selectFeed, selectLive, selectMessages } from "@/lib/supervision/store"
 import * as api from "@/lib/supervision/api"
 import type { BriefingView, IncidentDetail } from "@/lib/supervision/types"
-import { cn } from "@/lib/utils"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import { BriefingBanner, type FeedFilterValue } from "./supervision/briefing-banner"
 import { LiveFeed } from "./supervision/live-feed"
 import { IncidentThread } from "./supervision/incident-thread"
@@ -30,6 +32,13 @@ export function SupervisionView(_: ViewProps) {
   const [filter, setFilter] = useState<FeedFilterValue>({ kind: "all" })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<IncidentDetail | null>(null)
+
+  // US5 分栏宽度持久化（feed/thread 拖拽后本地保存，下次打开保持）。
+  const split = useDefaultLayout({
+    id: "supervision-split",
+    panelIds: ["feed", "thread"],
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  })
 
   // 战况报告全文（含 report_md）：首挂载拉一次，之后每当直播播报更新（generatedAt 变）再拉。
   const briefingStamp = state.briefing?.generatedAt ?? null
@@ -102,36 +111,55 @@ export function SupervisionView(_: ViewProps) {
         stats={stats}
         reportMd={briefing?.reportMd ?? null}
         connected={state.connected}
+        phase={state.connectionPhase}
         activeFilter={filter}
         onFilter={setFilter}
       />
 
-      <div className="flex min-h-0 flex-1 gap-2.5">
-        <div className={cn("flex min-w-0 flex-col", selectedId ? "w-2/5" : "flex-1")}>
-          <LiveFeed
-            pending={shownPending}
-            rest={shownRest}
-            liveOf={(id) => selectLive(state, id)}
-            selectedId={selectedId}
-            onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
-          />
-        </div>
-
-        {selectedId && selectedInc && (
-          <div className="min-w-0 flex-1">
+      {selectedId && selectedInc ? (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
+          defaultLayout={split.defaultLayout}
+          onLayoutChanged={split.onLayoutChanged}
+        >
+          <ResizablePanel id="feed" defaultSize="40" minSize="24" className="flex min-w-0 flex-col pr-1">
+            <LiveFeed
+              pending={shownPending}
+              rest={shownRest}
+              liveOf={(id) => selectLive(state, id)}
+              selectedId={selectedId}
+              phase={state.connectionPhase}
+              onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
+            />
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id="thread" minSize="30" className="min-w-0 pl-1">
             <IncidentThread
               incident={selectedInc}
               proposals={detail?.proposals ?? []}
               messages={selectMessages(state, selectedId)}
               live={selectLive(state, selectedId)}
+              phase={state.connectionPhase}
               onReload={reload}
               onOpenLog={onOpenLog}
             />
-          </div>
-        )}
-      </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <LiveFeed
+            pending={shownPending}
+            rest={shownRest}
+            liveOf={(id) => selectLive(state, id)}
+            selectedId={selectedId}
+            phase={state.connectionPhase}
+            onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
+          />
+        </div>
+      )}
 
-      {!state.connected && (
+      {state.connectionPhase === "degraded" && (
         <p className="shrink-0 text-center text-[11px] text-muted-foreground">{t("reconnecting")}</p>
       )}
     </div>

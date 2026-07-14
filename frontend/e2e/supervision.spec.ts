@@ -20,7 +20,18 @@ const TOKEN = process.env.DW_TOKEN ?? ""
 async function login(page: Page) {
   await page.addInitScript((token) => {
     localStorage.setItem("dw.auth.token", token as string)
-    localStorage.setItem("dw.auth.user", JSON.stringify({ username: "e2e", name: "e2e" }))
+    // 对齐 AuthUser 真实结构（lib/auth.tsx）：070 起前端按 username 判定自己/他人、按 displayName 展示。
+    localStorage.setItem(
+      "dw.auth.user",
+      JSON.stringify({
+        userId: 1,
+        tenantId: 1,
+        username: "e2e",
+        displayName: "E2E 值班员",
+        roles: ["ADMIN"],
+        permissions: [],
+      }),
+    )
     localStorage.setItem("dw.project.current", "1")
   }, TOKEN)
 }

@@ -4,52 +4,48 @@
  * T037 下钻线程：六类消息形态 + 证据下钻链到实例日志 + 人工协同按钮（mark-handled/reverify/close/
  * 批准/驳回）+ 对话输入。Agent 回复的 delta 打字流实时附在消息流末尾。
  */
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  ArrowDown01Icon,
   Cancel01Icon,
   CheckmarkBadge01Icon,
+  Copy01Icon,
   DocumentCodeIcon,
   PlayIcon,
   SecurityCheckIcon,
+  Tick02Icon,
 } from "@hugeicons/core-free-icons"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DwScroll } from "@/components/ui/dw-scroll"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth"
+import { useAutoScroll } from "@/hooks/use-auto-scroll"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import * as api from "@/lib/supervision/api"
 import type {
+  ConnectionPhase,
   Incident,
   IncidentLiveState,
   IncidentMessage,
   IncidentProposal,
 } from "@/lib/supervision/types"
 import { isTerminal } from "@/lib/supervision/types"
-import { ClassificationBadge, StateBadge, ThinkingDots, ToolChip } from "./incident-visuals"
+import { groupMessages } from "@/lib/supervision/group-messages"
+import { ChatMarkdown } from "@/components/workspace/shared/chat-markdown"
+import { ClassificationBadge, DateSeparator, MessageAvatar, StateBadge, ThinkingDots, ToolChip } from "./incident-visuals"
 import { ChatComposer } from "./chat-composer"
-
-function currentUser(): string {
-  if (typeof window === "undefined") return "ui-user"
-  try {
-    const raw = localStorage.getItem("dw.auth.user")
-    if (raw) {
-      const u = JSON.parse(raw) as { username?: string; name?: string }
-      return u.username ?? u.name ?? "ui-user"
-    }
-  } catch {
-    /* ignore */
-  }
-  return "ui-user"
-}
 
 export function IncidentThread({
   incident,
   proposals,
   messages,
   live,
+  phase,
   onReload,
   onOpenLog,
 }: {
@@ -57,17 +53,25 @@ export function IncidentThread({
   proposals: IncidentProposal[]
   messages: IncidentMessage[]
   live: IncidentLiveState
+  phase: ConnectionPhase
   onReload: () => void
   onOpenLog: (instanceId: string) => void
 }) {
   const t = useTranslations("supervision")
+  const { user } = useAuth()
+  const selfUsername = user?.username ?? null
   const [busy, setBusy] = useState(false)
 
   const pendingProposal = useMemo(
     () => proposals.find((p) => p.status === "PENDING") ?? null,
     [proposals],
   )
+  const rows = useMemo(() => groupMessages(messages), [messages])
   const terminal = isTerminal(incident.state)
+  // Agent 正在产出（有打字流或思考态）→ composer 显示停止键。
+  const agentStreaming = live.delta !== null || live.thinking.active
+  // US5 无抖动跟随滚动：切换事故（incident.id）时强制回底重新跟随。
+  const { osRef, isAtBottom, scrollToBottom } = useAutoScroll([incident.id])
 
   const run = async (fn: () => Promise<unknown>, okKey: string) => {
     if (busy) return
@@ -110,13 +114,30 @@ export function IncidentThread({
         </Button>
       </div>
 
+      {/* degraded 提示条：断线重连中，已加载消息保留（FR-002） */}
+      {phase === "degraded" && (
+        <div className="mx-[var(--card-spacing)] mb-1 flex items-center gap-1.5 rounded-[var(--radius)] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+          {t("reconnecting")}
+        </div>
+      )}
+
       {/* messages */}
-      <div className="min-h-0 flex-1 px-[var(--card-spacing)]">
-        <DwScroll className="h-full">
+      <div className="relative min-h-0 flex-1 px-[var(--card-spacing)]">
+        <DwScroll ref={osRef} className="h-full">
           <div className="space-y-2 py-2">
-            {messages.map((m) => (
-              <MessageBubble key={m.id} msg={m} onOpenLog={onOpenLog} />
-            ))}
+            {rows.map((row) =>
+              row.type === "date" ? (
+                <DateSeparator key={row.key} label={formatDateLabel(row.dateKey, t)} />
+              ) : (
+                <MessageBubble
+                  key={row.key}
+                  msg={row.msg}
+                  showHeader={row.showHeader}
+                  self={row.msg.kind === "HUMAN_SAY" && row.msg.actor === selfUsername}
+                />
+              ),
+            )}
             {live.thinking.active && (
               <div className="pl-1">
                 <ThinkingDots label={live.thinking.label} />
@@ -130,13 +151,28 @@ export function IncidentThread({
               </div>
             )}
             {live.delta && (
-              <AgentBubble>
-                {live.delta.text}
-                <span className="ml-0.5 inline-block h-3 w-px translate-y-0.5 bg-foreground/60 motion-safe:animate-pulse" />
-              </AgentBubble>
+              <div className="pl-8">
+                <div className="max-w-[85%] rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">
+                  <ChatMarkdown content={live.delta.text} streaming />
+                  <span className="ml-0.5 inline-block h-3 w-px translate-y-0.5 bg-foreground/60 motion-safe:animate-pulse" />
+                </div>
+              </div>
             )}
           </div>
         </DwScroll>
+        {/* 回到底部：opacity 切换（不挂卸载）避免抖动 */}
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          aria-label={t("backToBottom")}
+          title={t("backToBottom")}
+          className={cn(
+            "absolute bottom-2 right-4 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-opacity hover:text-foreground",
+            isAtBottom ? "pointer-events-none opacity-0" : "opacity-100",
+          )}
+        >
+          <HugeiconsIcon icon={ArrowDown01Icon} className="size-4" />
+        </button>
       </div>
 
       {/* pending proposal card */}
@@ -146,13 +182,12 @@ export function IncidentThread({
           busy={busy}
           onApprove={() =>
             run(
-              () =>
-                api.approveProposal(incident.id, pendingProposal.id, currentUser(), pendingProposal.id),
+              () => api.approveProposal(incident.id, pendingProposal.id, pendingProposal.id),
               "approveOk",
             )
           }
           onReject={() =>
-            run(() => api.rejectProposal(incident.id, pendingProposal.id, currentUser()), "rejectOk")
+            run(() => api.rejectProposal(incident.id, pendingProposal.id), "rejectOk")
           }
         />
       )}
@@ -166,7 +201,7 @@ export function IncidentThread({
                 <Button
                   size="xs"
                   disabled={busy}
-                  onClick={() => run(() => api.markHandled(incident.id, undefined, currentUser()), "markHandledOk")}
+                  onClick={() => run(() => api.markHandled(incident.id), "markHandledOk")}
                 >
                   <HugeiconsIcon icon={CheckmarkBadge01Icon} />
                   {t("markHandled")}
@@ -175,7 +210,7 @@ export function IncidentThread({
                   variant="outline"
                   size="xs"
                   disabled={busy}
-                  onClick={() => run(() => api.reverify(incident.id, currentUser()), "reverifyOk")}
+                  onClick={() => run(() => api.reverify(incident.id), "reverifyOk")}
                 >
                   <HugeiconsIcon icon={PlayIcon} />
                   {t("reverify")}
@@ -184,54 +219,107 @@ export function IncidentThread({
             )}
             <CloseButton
               busy={busy}
-              onClose={(reason) => run(() => api.closeIncident(incident.id, reason, currentUser()), "closeOk")}
+              onClose={(reason) => run(() => api.closeIncident(incident.id, reason), "closeOk")}
             />
           </div>
         )}
-        <ChatComposer onSend={(text) => api.sendChat(incident.id, text, currentUser()).then(() => undefined)} disabled={terminal} />
+        <ChatComposer
+          onSend={(text) => api.sendChat(incident.id, text).then(() => undefined)}
+          onCancel={() => api.cancelAgent(incident.id).then(() => undefined)}
+          streaming={agentStreaming}
+          disabled={terminal}
+        />
       </div>
     </div>
   )
 }
 
-// ─── 消息气泡（新增原语，T038 回填 DESIGN.md）───────────────
+// ─── 消息气泡（070 US4：身份/头像/分组/hover 复制；登记 DESIGN.md）───────────────
 
-function MessageBubble({ msg, onOpenLog }: { msg: IncidentMessage; onOpenLog: (id: string) => void }) {
+/** 日期分隔标签本地化：今天/昨天/原始日期。 */
+function formatDateLabel(dateKey: string, t: ReturnType<typeof useTranslations>): string {
+  const today = new Date()
+  const y = new Date(today)
+  y.setDate(today.getDate() - 1)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  if (dateKey === iso(today)) return t("dateToday")
+  if (dateKey === iso(y)) return t("dateYesterday")
+  return dateKey
+}
+
+function MessageBubble({ msg, showHeader, self }: { msg: IncidentMessage; showHeader: boolean; self: boolean }) {
   const t = useTranslations("supervision")
   const fmt = useFormatDateTime()
   const payload = safeParse(msg.payloadJson)
+  const displayName = msg.actorName ?? (msg.actor && msg.actor !== "ui-user" ? msg.actor : t("fallbackOperator"))
 
   switch (msg.kind) {
     case "HUMAN_SAY":
-      return (
-        <div className="flex justify-end">
-          <div className="max-w-[80%] rounded-[var(--radius)] bg-primary px-3 py-1.5 text-sm text-primary-foreground">
-            {msg.content}
+      if (self) {
+        return (
+          <div className="flex justify-end" title={fmt(msg.createdAt)}>
+            <div className="max-w-[80%] rounded-[var(--radius)] bg-primary px-3 py-1.5 text-sm text-primary-foreground">
+              {msg.content}
+            </div>
           </div>
-        </div>
+        )
+      }
+      return (
+        <LeftMessage
+          showHeader={showHeader}
+          avatar={<MessageAvatar variant="human" name={displayName} />}
+          name={displayName}
+          title={fmt(msg.createdAt)}
+        >
+          <div className="rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">{msg.content}</div>
+        </LeftMessage>
       )
-    case "AGENT_SAY":
-      return <AgentBubble>{msg.content}</AgentBubble>
+    case "AGENT_SAY": {
+      const interrupted = payload?.interrupted === true
+      return (
+        <LeftMessage
+          showHeader={showHeader}
+          avatar={<MessageAvatar variant="agent" />}
+          name={t("agentName")}
+          title={fmt(msg.createdAt)}
+          hoverActions={<CopyButton text={msg.content ?? ""} />}
+        >
+          <div className="rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">
+            <ChatMarkdown content={msg.content ?? ""} />
+            {interrupted && (
+              <span className="mt-1 block text-[11px] italic text-muted-foreground">{t("interrupted")}</span>
+            )}
+          </div>
+        </LeftMessage>
+      )
+    }
     case "AGENT_STEP": {
       const lines = Array.isArray(payload?.evidenceLines) ? (payload!.evidenceLines as string[]) : []
       return (
-        <AgentBubble>
-          <p className="font-medium">{msg.content}</p>
-          {lines.length > 0 && (
-            <ul className="mt-1 space-y-0.5">
-              {lines.map((l, i) => (
-                <li key={i} className="text-xs text-muted-foreground">
-                  · {l}
-                </li>
-              ))}
-            </ul>
-          )}
-        </AgentBubble>
+        <LeftMessage
+          showHeader={showHeader}
+          avatar={<MessageAvatar variant="agent" />}
+          name={t("agentName")}
+          title={fmt(msg.createdAt)}
+        >
+          <div className="rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">
+            <p className="font-medium">{msg.content}</p>
+            {lines.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {lines.map((l, i) => (
+                  <li key={i} className="text-xs text-muted-foreground">
+                    · {l}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </LeftMessage>
       )
     }
     case "ACTION":
       return (
-        <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground" title={fmt(msg.createdAt)}>
           <HugeiconsIcon icon={PlayIcon} className="size-3 text-link" />
           <span>{msg.content}</span>
           <span className="text-muted-foreground/60">{fmt(msg.createdAt)}</span>
@@ -239,12 +327,19 @@ function MessageBubble({ msg, onOpenLog }: { msg: IncidentMessage; onOpenLog: (i
       )
     case "PROPOSAL":
       return (
-        <AgentBubble>
-          <span className="flex items-center gap-1.5">
-            <HugeiconsIcon icon={SecurityCheckIcon} className="size-3.5 text-warning" />
-            {msg.content}
-          </span>
-        </AgentBubble>
+        <LeftMessage
+          showHeader={showHeader}
+          avatar={<MessageAvatar variant="agent" />}
+          name={t("agentName")}
+          title={fmt(msg.createdAt)}
+        >
+          <div className="rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">
+            <span className="flex items-center gap-1.5">
+              <HugeiconsIcon icon={SecurityCheckIcon} className="size-3.5 text-warning" />
+              {msg.content}
+            </span>
+          </div>
+        </LeftMessage>
       )
     case "SYSTEM":
     default:
@@ -258,13 +353,65 @@ function MessageBubble({ msg, onOpenLog }: { msg: IncidentMessage; onOpenLog: (i
   }
 }
 
-function AgentBubble({ children }: { children: React.ReactNode }) {
+/** 左对齐消息布局：组首显示头像+姓名头，随后消息仅缩进对齐（分组）。hover 浮现操作条。 */
+function LeftMessage({
+  showHeader,
+  avatar,
+  name,
+  title,
+  hoverActions,
+  children,
+}: {
+  showHeader: boolean
+  avatar: React.ReactNode
+  name: string
+  title?: string
+  hoverActions?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] rounded-[var(--radius)] bg-muted/60 px-3 py-1.5 text-sm text-foreground">
-        {children}
+    <div className={cn("group/msg flex flex-col", showHeader ? "mt-1" : "-mt-1")}>
+      {showHeader && (
+        <div className="mb-0.5 flex items-center gap-1.5 pl-0.5">
+          {avatar}
+          <span className="text-[11px] font-medium text-muted-foreground">{name}</span>
+        </div>
+      )}
+      <div className="flex items-start gap-1.5 pl-8" title={title}>
+        <div className="min-w-0 max-w-[85%]">{children}</div>
+        {hoverActions && (
+          <div className="opacity-0 transition-opacity group-hover/msg:opacity-100">{hoverActions}</div>
+        )}
       </div>
     </div>
+  )
+}
+
+/** Agent 消息 hover 复制原文按钮：2s 对勾确认，幂等，卸载清理定时器。 */
+function CopyButton({ text }: { text: string }) {
+  const t = useTranslations("supervision")
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+  }, [])
+  const copy = () => {
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? t("copied") : t("copyMessage")}
+      title={copied ? t("copied") : t("copyMessage")}
+      className="mt-0.5 rounded-xs p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} className="size-3" />
+    </button>
   )
 }
 
@@ -335,11 +482,11 @@ function CloseButton({ busy, onClose }: { busy: boolean; onClose: (reason: strin
   }
   return (
     <div className="flex items-center gap-1.5">
-      <input
+      <Input
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder={t("closeReasonPlaceholder")}
-        className="h-6 rounded-3xl bg-muted px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="h-7 w-44 text-xs"
       />
       <Button
         size="xs"

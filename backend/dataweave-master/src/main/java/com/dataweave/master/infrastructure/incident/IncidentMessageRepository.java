@@ -27,8 +27,17 @@ public class IncidentMessageRepository {
         this.jdbc = jdbc;
     }
 
-    /** 追加一条线程消息，事故级递增序号发号。并发冲突自动重试（乐观，事故级写入并发通常很低）。 */
+    /** 追加一条线程消息（Agent/system 路径，无显示名）。 */
     public IncidentMessage append(UUID incidentId, String kind, String content, String payloadJson, String actor) {
+        return append(incidentId, kind, content, payloadJson, actor, null);
+    }
+
+    /**
+     * 追加一条线程消息，事故级递增序号发号。并发冲突自动重试（乐观，事故级写入并发通常很低）。
+     * actorName=发言者显示名（人类发言由服务端解析填写；Agent/system 传 null）。
+     */
+    public IncidentMessage append(UUID incidentId, String kind, String content, String payloadJson,
+                                  String actor, String actorName) {
         for (int attempt = 0; attempt < MAX_RETRY; attempt++) {
             long seq = nextSeq(incidentId);
             UUID id = Uuid7.generate();
@@ -36,9 +45,9 @@ public class IncidentMessageRepository {
             try {
                 jdbc.update(
                         "INSERT INTO incident_message (id, incident_id, seq, kind, content, payload_json, " +
-                        "  actor, created_at) VALUES (?,?,?,?,?,?,?,?)",
-                        id, incidentId, seq, kind, content, payloadJson, actor, now);
-                return new IncidentMessage(id, incidentId, seq, kind, content, payloadJson, actor, now);
+                        "  actor, actor_name, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                        id, incidentId, seq, kind, content, payloadJson, actor, actorName, now);
+                return new IncidentMessage(id, incidentId, seq, kind, content, payloadJson, actor, actorName, now);
             } catch (DuplicateKeyException e) {
                 // 并发发号撞车，重试下一个 seq
             }
@@ -74,6 +83,7 @@ public class IncidentMessageRepository {
                 rs.getString("content"),
                 rs.getString("payload_json"),
                 rs.getString("actor"),
+                rs.getString("actor_name"),
                 rs.getObject("created_at", LocalDateTime.class));
     }
 }

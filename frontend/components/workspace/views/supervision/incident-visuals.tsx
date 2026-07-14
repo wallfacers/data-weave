@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Alert02Icon,
+  AiBrain01Icon,
   CheckmarkCircle02Icon,
   CancelCircleIcon,
   Loading03Icon,
@@ -17,6 +18,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import type { ChipState, IncidentClassification, IncidentState } from "@/lib/supervision/types"
 
@@ -118,6 +120,36 @@ export function LiveDot({ connected }: { connected: boolean }) {
       </span>
       {connected ? t("live") : t("disconnected")}
     </span>
+  )
+}
+
+/**
+ * 消息头像（070 US4）：human=姓名首字母；agent=品牌图标（中性色）。左对齐气泡的组首展示。
+ */
+export function MessageAvatar({ variant, name }: { variant: "human" | "agent"; name?: string | null }) {
+  if (variant === "agent") {
+    return (
+      <Avatar className="bg-foreground/5 text-foreground">
+        <HugeiconsIcon icon={AiBrain01Icon} className="size-4" />
+      </Avatar>
+    )
+  }
+  const initial = (name ?? "").trim().charAt(0) || "?"
+  return (
+    <Avatar>
+      <AvatarFallback>{initial}</AvatarFallback>
+    </Avatar>
+  )
+}
+
+/**
+ * 日期分隔（070 US4）：跨自然日的居中胶囊；label 由调用方本地化（今天/昨天/日期）。
+ */
+export function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center py-1">
+      <span className="rounded-3xl bg-muted/60 px-2.5 py-0.5 text-[11px] text-muted-foreground">{label}</span>
+    </div>
   )
 }
 

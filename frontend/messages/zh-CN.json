@@ -1343,6 +1343,7 @@
     "thinkingDefault": "正在思考",
     "live": "直播中",
     "disconnected": "已断开",
+    "connecting": "正在连接实时通道",
     "reconnecting": "连接已断开，正在重连",
     "briefingEmpty": "当前无活跃事故",
     "briefingReport": "接班报告",
@@ -1380,6 +1381,18 @@
     "closeOk": "事故已收口",
     "approveOk": "提案已批准发布",
     "rejectOk": "提案已驳回",
-    "actionFailed": "操作失败"
+    "actionFailed": "操作失败",
+    "copyCode": "复制",
+    "copied": "已复制",
+    "copyMessage": "复制原文",
+    "agentName": "运维 Agent",
+    "fallbackOperator": "操作员",
+    "interrupted": "已打断",
+    "dateToday": "今天",
+    "dateYesterday": "昨天",
+    "chatStop": "停止",
+    "chatSendFailed": "发送失败",
+    "cancelFailed": "打断失败，请重试",
+    "backToBottom": "回到底部"
   }
 }

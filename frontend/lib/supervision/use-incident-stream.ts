@@ -36,8 +36,9 @@ export function useIncidentStream(): {
     const es = new EventSource(url)
     esRef.current = es
 
-    es.onopen = () => dispatch({ type: "connected", value: true })
-    es.onerror = () => dispatch({ type: "connected", value: false })
+    // onopen 仅表示连接已建立，数据未必到达 → 保持 connecting，待首个 snapshot 才转 live。
+    // onerror → degraded（浏览器自动重连；已加载消息保留，不清空）。
+    es.onerror = () => dispatch({ type: "phase", value: "degraded" })
 
     es.addEventListener("snapshot", (e: MessageEvent) => {
       const d = safeParse<{ incidents: Incident[]; briefingStats: IncidentStats }>(e.data)
@@ -80,7 +81,7 @@ export function useIncidentStream(): {
       if (d) dispatch({ type: "delta", incidentId: d.incidentId, streamId: d.streamId, text: d.text })
     })
     es.addEventListener("end", () => {
-      dispatch({ type: "connected", value: false })
+      dispatch({ type: "phase", value: "degraded" })
       es.close()
     })
   }, [])

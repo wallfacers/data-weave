@@ -1,11 +1,13 @@
 package com.dataweave.master.application.incident;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +60,7 @@ public class IncidentConversationService {
     private final AgentLineageConfigService agentConfigService;
     private final LlmChatClient llmChatClient;
     private final GatedActionService gatedActionService;
+    private final IncidentTurnRegistry turnRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutorService chatPool = Executors.newFixedThreadPool(2,
             r -> new Thread(r, "incident-chat"));
@@ -65,7 +68,7 @@ public class IncidentConversationService {
     public IncidentConversationService(IncidentRepository incidentRepo, IncidentMessageRepository messageRepo,
                                         IncidentEventPublisher publisher, IncidentEvidenceCollector evidenceCollector,
                                         AgentLineageConfigService agentConfigService, LlmChatClient llmChatClient,
-                                        GatedActionService gatedActionService) {
+                                        GatedActionService gatedActionService, IncidentTurnRegistry turnRegistry) {
         this.incidentRepo = incidentRepo;
         this.messageRepo = messageRepo;
         this.publisher = publisher;
@@ -73,13 +76,15 @@ public class IncidentConversationService {
         this.agentConfigService = agentConfigService;
         this.llmChatClient = llmChatClient;
         this.gatedActionService = gatedActionService;
+        this.turnRegistry = turnRegistry;
     }
 
     /**
      * 提交一条人类发言并触发 Agent 异步回复。校验：事故归属、非收口、智能运维已启用（否则对话无意义）。
      * 返回已落库的 HUMAN_SAY 消息（供接口即时回显；Agent 回复经 SSE 直播流达）。
      */
-    public IncidentMessage chat(long tenantId, long projectId, UUID incidentId, String text, String actor) {
+    public IncidentMessage chat(long tenantId, long projectId, UUID incidentId, String text,
+                                String actor, String actorName) {
         Incident inc = incidentRepo.findById(incidentId)
                 .filter(i -> i.tenantId() == tenantId && i.projectId() == projectId)
                 .orElseThrow(() -> new BizException("incident.not_found", incidentId));
@@ -93,8 +98,9 @@ public class IncidentConversationService {
         if (userText.isEmpty()) {
             throw new BizException("incident.chat_empty");
         }
+        // actor/actorName 由服务端依登录身份认定（controller 传入），不信任请求 body。
         IncidentMessage human = messageRepo.append(incidentId, MessageKinds.HUMAN_SAY, userText, null,
-                actor != null && !actor.isBlank() ? actor : "user");
+                actor != null && !actor.isBlank() ? actor : "user", actorName);
         broadcastMessage(inc.projectId(), incidentId, human);
         chatPool.submit(() -> {
             try {
@@ -125,24 +131,56 @@ public class IncidentConversationService {
 
         String streamId = UUID.randomUUID().toString();
         List<LlmChatClient.ChatMessage> history = buildHistory(inc);
-        LlmChatClient.ChatResult result = llmChatClient.streamChat(cfgOpt.get(),
-                systemPrompt(locale), buildMessages(inc, evidence, history, userText),
-                delta -> publisher.publish(inc.projectId(), new IncidentEvent.Delta(inc.id(), streamId, delta)));
+        // 注册打断句柄：读循环以 cancel 为取消检查点；无论如何结束都在 finally 清除。
+        AtomicBoolean cancel = turnRegistry.begin(inc.id());
+        try {
+            LlmChatClient.ChatResult result = llmChatClient.streamChat(cfgOpt.get(),
+                    systemPrompt(locale), buildMessages(inc, evidence, history, userText),
+                    delta -> publisher.publish(inc.projectId(), new IncidentEvent.Delta(inc.id(), streamId, delta)),
+                    cancel::get);
 
-        if (result.error() != null && (result.text() == null || result.text().isBlank())) {
-            var sys = messageRepo.append(inc.id(), MessageKinds.SYSTEM, "AI 回复失败：" + result.error(), null, "system");
-            broadcastMessage(inc.projectId(), inc.id(), sys);
-            return;
+            boolean interrupted = cancel.get();
+            if (!interrupted && result.error() != null && (result.text() == null || result.text().isBlank())) {
+                var sys = messageRepo.append(inc.id(), MessageKinds.SYSTEM, "AI 回复失败：" + result.error(), null, "system");
+                broadcastMessage(inc.projectId(), inc.id(), sys);
+                return;
+            }
+            String replyText = result.text() == null ? "" : result.text();
+            // 落 AGENT_SAY（正文剥掉 action 块，只留人读叙述；payload 带 streamId 供前端替换打字流；
+            // 被打断则标记 interrupted，前端渲染「已打断」）。
+            String narrative = ACTION_BLOCK.matcher(replyText).replaceAll("").strip();
+            String payload = interrupted
+                    ? toJson(Map.of("streamId", streamId, "interrupted", true))
+                    : toJson(Map.of("streamId", streamId));
+            var say = messageRepo.append(inc.id(), MessageKinds.AGENT_SAY,
+                    narrative.isEmpty() ? replyText : narrative, payload, "ops-agent");
+            broadcastMessage(inc.projectId(), inc.id(), say);
+
+            // 被打断的半截回复不执行任何结构化动作（对话不得因中断产生副作用）。
+            if (!interrupted) {
+                parseAndRunAction(inc, replyText);
+            }
+        } finally {
+            turnRegistry.end(inc.id(), cancel);
         }
-        String replyText = result.text() == null ? "" : result.text();
-        // 落 AGENT_SAY（正文剥掉 action 块，只留人读叙述；payload 带 streamId 供前端替换打字流）
-        String narrative = ACTION_BLOCK.matcher(replyText).replaceAll("").strip();
-        String payload = toJson(Map.of("streamId", streamId));
-        var say = messageRepo.append(inc.id(), MessageKinds.AGENT_SAY,
-                narrative.isEmpty() ? replyText : narrative, payload, "ops-agent");
-        broadcastMessage(inc.projectId(), inc.id(), say);
+    }
 
-        parseAndRunAction(inc, replyText);
+    /**
+     * 070 打断当前事故的 Agent 输出轮次：经统一写闸门（incident_agent_cancel=L0，直执行+留痕），
+     * 置位取消标志使读循环退出、半截回复以 interrupted 收尾。返回请求到达时是否确有在途轮次。
+     */
+    public boolean cancelAgent(long tenantId, long projectId, UUID incidentId, String actor, Locale locale) {
+        Incident inc = incidentRepo.findById(incidentId)
+                .filter(i -> i.tenantId() == tenantId && i.projectId() == projectId)
+                .orElseThrow(() -> new BizException("incident.not_found", incidentId));
+        ActionRequest req = ActionRequest.builder()
+                .toolName("incident_agent_cancel").actionType("INCIDENT_AGENT_CANCEL")
+                .targetType("INCIDENT").targetId(inc.id().toString())
+                .actor(actor != null && !actor.isBlank() ? actor : "user").actorSource("UI")
+                .summary("打断 Agent 输出（事故 " + inc.id() + "）")
+                .build();
+        gatedActionService.submit(req, locale); // 留痕 + L0 裁决（executor ack）
+        return turnRegistry.cancel(inc.id());   // 实际置位取消标志，返回是否有在途轮次
     }
 
     /** 解析回复尾部可选 action 块并按白名单执行；识别失败/非白名单/无块一律安全跳过。 */

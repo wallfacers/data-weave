@@ -84,6 +84,7 @@ class IncidentRepositoryIT {
                     content VARCHAR(4000),
                     payload_json VARCHAR(4000),
                     actor VARCHAR(64),
+                    actor_name VARCHAR(128),
                     created_at TIMESTAMP NOT NULL,
                     CONSTRAINT uk_incident_message_seq UNIQUE (incident_id, seq)
                 )

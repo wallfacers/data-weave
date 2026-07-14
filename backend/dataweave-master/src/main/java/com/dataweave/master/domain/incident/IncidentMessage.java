@@ -14,7 +14,8 @@ public record IncidentMessage(
         String kind,             // 见 MessageKinds
         String content,          // 面向人的正文（LLM 叙述按 agent locale 原文存储）
         String payloadJson,      // 结构化载荷：chips/证据引用/agentActionId/proposalId/分型
-        String actor,            // ops-agent | 用户名 | system
+        String actor,            // ops-agent | 用户名(服务端认定) | system
+        String actorName,        // 070：发言者显示名(displayName)；Agent/system/存量消息为空
         LocalDateTime createdAt
 ) {
 }
