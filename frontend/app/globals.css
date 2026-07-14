@@ -93,6 +93,14 @@
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
     --radius: 0.625rem;
+    /* 视图外边距 —— 视图根容器四周留白的唯一真相源。默认 20px（spacing 刻度 5），
+       密集视图（指挥台/满幅画布）经 [data-density=compact] 切 10px（spacing 刻度 2.5）。
+       禁止视图根手填 p-4/p-5/p-2.5 字面值，一律 p-(--view-spacing)。见 DESIGN.md「间距系统」。 */
+    --view-spacing: 1.25rem;
+}
+
+[data-density="compact"] {
+    --view-spacing: 0.625rem;
 }
 
 .dark {

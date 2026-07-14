@@ -59,6 +59,14 @@ colorsDark:
   chart5: "oklch(0.645 0.246 16.439)"
 rounded:
   base: "0.625rem"
+spacing:
+  base: "0.25rem"
+  view: "1.25rem"
+  viewCompact: "0.625rem"
+  section: "1.25rem"
+  cardGrid: "0.625rem"
+  card: "1.5rem"
+  cardSm: "1rem"
 typography:
   fontSans: "var(--font-sans)"
   fontHeading: "var(--font-sans)"
@@ -92,6 +100,23 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **正文 / 标题：无衬线 Inter（`--font-sans`）**。`@theme inline` 把 `--font-heading` 也映射到 `--font-sans`，`--font-serif` CSS 变量同样指向 Inter —— 因此**散落各处的显式 `font-serif` / `font-heading` 用法统一渲染为 sans**，无需逐个改。不再使用衬线字体（已移除 Merriweather）。
 - **`--font-mono`：Geist Mono**，代码、SQL、ID 等等宽场景。
 
+## 间距系统 —— 视图/区块/卡片/控件四级节奏
+
+**设计立场：间距不是手感，是刻度上的 token。** 全站留白基于 Tailwind 4 的 spacing 刻度（1 单位 = `0.25rem` = **4px**），**禁止裸 px / 魔法数值**（`20px`、`p-[13px]` 等）。节奏分四级，每级钉死语义 token / 取值 / 场景，新页面按级取值，不再各写 `p-4`/`p-5`/`p-2.5`：
+
+| 层级 | token / 类 | 值 | 场景 |
+|---|---|---|---|
+| **视图外边距** | `--view-spacing`（默认） | `1.25rem` = **20px**（刻度 5） | 视图根容器四周留白（`p-(--view-spacing)`，由 `ViewContainer` 承载） |
+| **视图外边距**（`data-[density=compact]`） | `--view-spacing` | `0.625rem` = **10px**（刻度 2.5） | 密集指挥台 / 满幅画布（supervision、lineage 画布），经 `density="compact"` 切换 |
+| **区块间距** | `gap-5` | 20px | 视图内主区块纵向堆叠（section 之间） |
+| **卡片栅格** | `gap-2.5` | 10px | 卡片网格间距（沿用 034 约定） |
+| **卡片内边距** | `--card-spacing` | 24 / 16px | Card 内容留白（见[卡片内容内边距](#卡片内容内边距--单一-token---card-spacing)） |
+| **控件微间距** | `gap-1`..`gap-2` | ≤8px | 工具条 / 按钮组 / 徽章内部，**明确豁免**卡片级 token |
+
+**真相源**：`--view-spacing` 定义在 `app/globals.css`（`:root` 默认 20px，`[data-density="compact"]` 覆盖为 10px），与 Card 的 `--card-spacing` 对称。级联可用：token 在任意作用域内 `p-(--view-spacing)` 都可解析，`data-density="compact"` 挂在任意祖先即向下切紧凑。
+
+**硬规则**（对齐 reuse-first）：**新增视图根容器一律用 `ViewContainer`（`p-(--view-spacing)`），禁止手填 `p-4`/`p-5`/`p-2.5` 字面值**；密集视图通过 `density="compact"`（而非另写数值）切紧凑变体。根为滚动区（`DwScroll`）的视图，把 `p-(--view-spacing)` 写在 `innerClassName` 上，紧凑时于外层加 `data-density="compact"`。为什么设 default+compact 两档而非单值：常规管理视图（fleet/freshness/metrics/settings）需要 20px 呼吸感，密集指挥台（supervision）与满幅画布信息密度高、留白应收到 10px，两类诉求不同，用一个 token 的两档变体统一表达，避免各页私造数值。
+
 ## 布局：无分割线（项目偏好）
 
 页面采用 **header / content(body) / footer** 结构。**header 与 content、content 与 footer 之间不放任何分割线**——不要 `border-b` / `border-t` / 横向 `<Separator>` / `<hr>`。靠留白（padding/间距）和背景层次区分区域，不靠线。
@@ -104,7 +129,7 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 
 - 用语义 token，不写裸色值：`bg-primary` 而非 `bg-[#...]`。
 - 暗色靠 `.dark` 下的变量覆盖，不手写 `dark:` 颜色覆盖。
-- 间距用 `gap-*`，等宽高用 `size-*`。
+- 间距用 `gap-*`，等宽高用 `size-*`；页面/区块/卡片/控件的留白按[间距系统](#间距系统--视图区块卡片控件四级节奏)四级取值，视图根走 `ViewContainer`，禁裸 px 与手填 `p-4`/`p-5`。
 
 ## 公共组件目录（先查此处 · reuse-first）
 
@@ -143,6 +168,7 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 | 段控（互斥分段切换） | `Segmented` | `components/ui/segmented.tsx` | 见下方段控条目 |
 | 数值步进 | `Stepper` | `components/ui/stepper.tsx` | 见下方步进器条目 |
 | 卡片容器 | `Card` | `components/ui/card.tsx` | 见 [卡片内容内边距](#卡片内容内边距--单一-token---card-spacing) |
+| 视图根容器（外边距节奏） | `ViewContainer` | `components/ui/view-container.tsx` | 见下方视图根容器条目 · [间距系统](#间距系统--视图区块卡片控件四级节奏) |
 | 监督席直播原语（069） | `StateBadge`/`ClassificationBadge`/`ToolChip`/`ThinkingDots`/`LiveDot`/`PendingIcon` | `components/workspace/views/supervision/incident-visuals.tsx` | 见下方监督席条目 |
 | 事故线程消息气泡（069） | `MessageBubble`/`AgentBubble` | `components/workspace/views/supervision/incident-thread.tsx` | 见下方监督席条目 |
 
@@ -167,6 +193,13 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **何时不用/禁写**：**禁止**页面级手写内边距（`p-5`/`20px`/`px-4 py-3` 等）；必须走 `--card-spacing` token。卡片间网格间距统一 `gap-2.5`。
 - **关键 props/变体**：`size="default"`（24px 内边距）/ `size="sm"`（16px）; 子组件 = `CardHeader` / `CardContent` / `CardFooter` / `CardTitle` / `CardDescription` / `CardAction`。
 - **token/间距引用**：`--card-spacing`（见上方卡片内边距小节）。注：034 面包屑已撤回，本特性不恢复。
+
+### 视图根容器 —— `ViewContainer`
+
+- **用途/何时用**：每个 workspace 视图的**最外层根容器**，统一「视图外边距」节奏。承载 [间距系统](#间距系统--视图区块卡片控件四级节奏) 的 `--view-spacing` token（default 20px / compact 10px）。
+- **何时不用/禁写**：**禁止**在视图根手填 `p-4`/`p-5`/`p-2.5` 等字面值内边距；紧凑靠 `density="compact"` 而非另写数值。根为滚动区（`DwScroll`）时不套本组件，改在 `innerClassName` 写 `p-(--view-spacing)`，紧凑时于外层加 `data-density="compact"`。
+- **关键 props/变体**：`density="default"`（20px，默认）/ `density="compact"`（10px，密集指挥台/满幅画布）；内建 `flex min-h-0 min-w-0 flex-1 flex-col`，直接作三段式布局的外壳；`className` 透传。
+- **token/间距引用**：`--view-spacing`（`app/globals.css`，与 Card 的 `--card-spacing` 对称）。区块间距用 `gap-5`、卡片栅格 `gap-2.5`，见间距系统四级表。
 
 ### 表格 —— `DataTable` + `DataTableToolbar`
 

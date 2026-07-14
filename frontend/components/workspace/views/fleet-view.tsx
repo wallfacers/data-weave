@@ -10,6 +10,7 @@ import { type WorkerNode } from "@/lib/types"
 import { fetchApi, useLiveData } from "@/lib/workspace/use-api"
 import type { ViewProps } from "@/lib/workspace/registry"
 import { DwScroll } from "@/components/ui/dw-scroll"
+import { ViewContainer } from "@/components/ui/view-container"
 import { ViewRefreshControl } from "./view-refresh-control"
 
 export function FleetView({ active }: ViewProps) {
@@ -30,7 +31,7 @@ export function FleetView({ active }: ViewProps) {
   })
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-5">
+    <ViewContainer>
       <div className="shrink-0 flex items-center justify-between pb-3">
         <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
         <ViewRefreshControl
@@ -60,6 +61,6 @@ export function FleetView({ active }: ViewProps) {
           </div>
         )}
       </DwScroll>
-    </div>
+    </ViewContainer>
   )
 }
