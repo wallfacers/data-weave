@@ -73,8 +73,8 @@ export function ChatComposer({
   return (
     <div
       className={cn(
-        "flex items-end gap-2 rounded-[var(--radius)] bg-muted px-2 py-1.5",
-        "focus-within:ring-2 focus-within:ring-ring/40",
+        "flex items-end gap-2 rounded-[var(--radius)] border border-transparent bg-muted px-3 py-2 transition-[border-color,box-shadow]",
+        "focus-within:border-ring/40 focus-within:ring-2 focus-within:ring-ring/30",
         disabled && "opacity-60",
       )}
     >

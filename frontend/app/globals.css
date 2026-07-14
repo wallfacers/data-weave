@@ -97,6 +97,11 @@
        密集视图（指挥台/满幅画布）经 [data-density=compact] 切 10px（spacing 刻度 2.5）。
        禁止视图根手填 p-4/p-5/p-2.5 字面值，一律 p-(--view-spacing)。见 DESIGN.md「间距系统」。 */
     --view-spacing: 1.25rem;
+    /* 卡片内容内边距 —— 替代 Card 组件的表面容器引用此变量保持一致留白。
+       Card 组件通过 [--card-spacing:--spacing(6)] 自设值（默认 24px，sm 变体 16px），
+       此处为不使用 Card 的表面容器（如监督席战况横幅/feed 卡/线程面板）提供全局默认。
+       见 DESIGN.md「卡片内容内边距」。 */
+    --card-spacing: 1.5rem;
 }
 
 [data-density="compact"] {

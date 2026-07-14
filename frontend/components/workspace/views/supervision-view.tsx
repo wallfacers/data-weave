@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 
 import { useDefaultLayout } from "react-resizable-panels"
+import { Separator } from "react-resizable-panels"
 
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import type { ViewProps } from "@/lib/workspace/registry"
@@ -18,7 +19,8 @@ import { useIncidentStream } from "@/lib/supervision/use-incident-stream"
 import { selectFeed, selectLive, selectMessages } from "@/lib/supervision/store"
 import * as api from "@/lib/supervision/api"
 import type { BriefingView, IncidentDetail } from "@/lib/supervision/types"
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
+import { ViewContainer } from "@/components/ui/view-container"
+import { ResizablePanelGroup, ResizablePanel } from "@/components/ui/resizable"
 import { BriefingBanner, type FeedFilterValue } from "./supervision/briefing-banner"
 import { LiveFeed } from "./supervision/live-feed"
 import { IncidentThread } from "./supervision/incident-thread"
@@ -105,7 +107,7 @@ export function SupervisionView(_: ViewProps) {
   const summaryLine = state.briefing?.summaryLine ?? briefing?.summaryLine ?? null
 
   return (
-    <div className="flex h-full flex-col gap-2.5 p-2.5">
+    <ViewContainer density="compact" className="gap-2.5 [--card-spacing:--spacing(3)]">
       <BriefingBanner
         summaryLine={summaryLine}
         stats={stats}
@@ -123,7 +125,7 @@ export function SupervisionView(_: ViewProps) {
           defaultLayout={split.defaultLayout}
           onLayoutChanged={split.onLayoutChanged}
         >
-          <ResizablePanel id="feed" defaultSize="40" minSize="24" className="flex min-w-0 flex-col pr-1">
+          <ResizablePanel id="feed" defaultSize="40" minSize="24" className="flex min-w-0 flex-col">
             <LiveFeed
               pending={shownPending}
               rest={shownRest}
@@ -133,8 +135,12 @@ export function SupervisionView(_: ViewProps) {
               onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
             />
           </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="thread" minSize="30" className="min-w-0 pl-1">
+          <Separator
+            className="group/resize relative flex w-2 shrink-0 cursor-ew-resize touch-none items-center justify-center outline-none data-[resize-handle-state=hover]:cursor-ew-resize data-[resize-handle-state=drag]:cursor-ew-resize"
+          >
+            <div className="h-12 w-0.5 rounded-full bg-border/0 transition-colors group-hover/resize:bg-border group-data-[resize-handle-state=hover]/resize:bg-border group-data-[resize-handle-state=drag]/resize:bg-border" />
+          </Separator>
+          <ResizablePanel id="thread" minSize="30" className="min-w-0">
             <IncidentThread
               incident={selectedInc}
               proposals={detail?.proposals ?? []}
@@ -162,6 +168,6 @@ export function SupervisionView(_: ViewProps) {
       {state.connectionPhase === "degraded" && (
         <p className="shrink-0 text-center text-[11px] text-muted-foreground">{t("reconnecting")}</p>
       )}
-    </div>
+    </ViewContainer>
   )
 }

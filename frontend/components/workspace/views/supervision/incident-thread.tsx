@@ -88,7 +88,7 @@ export function IncidentThread({
   }
 
   return (
-    <div className="flex h-full flex-col rounded-[var(--radius)] bg-card">
+    <div className="flex h-full flex-col rounded-[var(--radius)] border border-border bg-card shadow-sm">
       {/* header */}
       <div className="flex items-start justify-between gap-2 p-[var(--card-spacing)] pb-2">
         <div className="min-w-0">

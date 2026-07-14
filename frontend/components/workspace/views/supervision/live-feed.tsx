@@ -110,11 +110,11 @@ function IncidentCard({
       type="button"
       onClick={() => onSelect(inc.id)}
       className={cn(
-        "w-full rounded-[var(--radius)] bg-card p-[var(--card-spacing)] text-left transition-all",
+        "w-full rounded-[var(--radius)] border border-transparent bg-card p-[var(--card-spacing)] text-left transition-all",
         "hover:bg-muted/40",
-        selected && "ring-2 ring-ring",
-        pending && "border-l-2 border-l-destructive",
-        pending && inc.state === "AWAITING_APPROVAL" && "border-l-warning",
+        selected && "border-ring ring-2 ring-ring/40",
+        !selected && pending && "border-l-2 border-l-destructive",
+        !selected && pending && inc.state === "AWAITING_APPROVAL" && "border-l-warning",
       )}
     >
       <div className="flex items-start justify-between gap-2">
