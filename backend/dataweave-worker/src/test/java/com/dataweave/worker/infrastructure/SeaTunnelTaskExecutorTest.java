@@ -136,6 +136,35 @@ class SeaTunnelTaskExecutorTest {
         assertThat(argv.get(configIdx + 1)).endsWith(".conf");
     }
 
+    // ---- 067 T018: 资源提示（JVM_ARGS 环境变量，seatunnel.sh 无 CLI flag）----
+
+    @Test
+    void execute_withMemoryHint_setsJvmArgsEnvVar(@TempDir Path tmp) throws IOException {
+        Path bin = Files.createDirectories(tmp.resolve("bin"));
+        Path seatunnelSh = bin.resolve("seatunnel.sh");
+        Files.writeString(seatunnelSh, "#!/bin/bash\necho \"JVM_ARGS=$JVM_ARGS\"\nexit 0\n");
+        seatunnelSh.toFile().setExecutable(true);
+        EngineSubmitRef ref = new EngineSubmitRef("SEATUNNEL", tmp.toString(), null, null, null, null, null,
+                false, null, null, 4096, null);
+        StringBuilder out = new StringBuilder();
+        ExecutionResult r = executor.execute(seatunnelCtx("env {}", ref), line -> out.append(line).append('\n'));
+        assertThat(r.exitCode()).isEqualTo(0);
+        assertThat(out.toString()).contains("JVM_ARGS=-Xms4096m -Xmx4096m");
+    }
+
+    @Test
+    void execute_noMemoryHint_leavesJvmArgsUnset(@TempDir Path tmp) throws IOException {
+        Path home = fakeSeatunnelHomeIn(tmp, "0");
+        Path seatunnelSh = Path.of(home.toString(), "bin", "seatunnel.sh");
+        Files.writeString(seatunnelSh, "#!/bin/bash\necho \"JVM_ARGS=[$JVM_ARGS]\"\nexit 0\n");
+        seatunnelSh.toFile().setExecutable(true);
+        EngineSubmitRef ref = new EngineSubmitRef("SEATUNNEL", home.toString(), null, null, null, null, null);
+        StringBuilder out = new StringBuilder();
+        ExecutionResult r = executor.execute(seatunnelCtx("env {}", ref), line -> out.append(line).append('\n'));
+        assertThat(r.exitCode()).isEqualTo(0);
+        assertThat(out.toString()).contains("JVM_ARGS=[]");
+    }
+
     // ---- 超时断言（FR-013）----
 
     @Test

@@ -371,7 +371,8 @@
     "settings": "系统设置",
     "datasources": "数据源管理",
     "instanceLog": "实例日志",
-    "workflowInstanceDetail": "工作流实例"
+    "workflowInstanceDetail": "工作流实例",
+    "supervision": "监督席"
   },
   "catalog": {
     "title": "类目",
@@ -1095,7 +1096,14 @@
       "saving": "保存中"
     },
     "testOk": "连通正常（{latencyMs}ms）",
-    "testFailed": "连通失败"
+    "testFailed": "连通失败",
+    "ops": {
+      "title": "智能运维",
+      "desc": "任务失败时由 Agent 自动诊断与处置（复用上方 AI 配置）",
+      "enabledOk": "智能运维已启用",
+      "disabledOk": "智能运维已停用",
+      "toggleFailed": "切换失败"
+    }
   },
   "lineageView": {
     "actionConfirm": "确认",
@@ -1275,7 +1283,7 @@
     "colWorker": "节点",
     "colActions": "操作",
     "filterState": "状态",
-    "filterKeyword": "搜索",
+    "filterKeyword": "搜索任务",
     "clickToCopy": "点击复制",
     "copySuccessId": "已复制 {value}",
     "copyFailedId": "复制失败",
@@ -1318,8 +1326,66 @@
     "healthProgress": "进度",
     "healthLag": "堆积延迟",
     "healthCheckpointAge": "检查点时效",
-    "healthRestarts": "重启次数",
-    "filterState": "状态",
-    "filterKeyword": "搜索任务"
+    "healthRestarts": "重启次数"
+  },
+  "supervision": {
+    "state": {
+      "OPEN": "待处理",
+      "ANALYZING": "诊断中",
+      "ACTING": "处置中",
+      "AWAITING_APPROVAL": "待审批",
+      "NEEDS_HUMAN": "需人工",
+      "RESOLVED": "已收口",
+      "DIAG_UNAVAILABLE": "诊断不可用"
+    },
+    "classification": {
+      "TRANSIENT": "瞬时故障",
+      "RESOURCE": "资源不足",
+      "CODE": "代码缺陷",
+      "UPSTREAM_DATA": "上游数据",
+      "CONFIG_CREDENTIAL": "配置/凭据",
+      "UNKNOWN": "未知"
+    },
+    "thinkingDefault": "正在思考",
+    "live": "直播中",
+    "disconnected": "已断开",
+    "reconnecting": "连接已断开，正在重连",
+    "briefingEmpty": "当前无活跃事故",
+    "briefingReport": "接班报告",
+    "stat": {
+      "active": "活跃",
+      "needsHuman": "需人工",
+      "awaitingApproval": "待审批",
+      "agentWorking": "处理中",
+      "resolvedToday": "今日收口"
+    },
+    "needsYou": "需要你处理（{count}）",
+    "feedEmpty": "暂无事故，系统运行正常",
+    "unnamedTask": "(未命名任务)",
+    "failCount": "失败 {count} 次",
+    "autoActions": "自动处置 {count} 次",
+    "chatPlaceholder": "向运维 Agent 提问或下指令…",
+    "chatDisabled": "智能运维未启用",
+    "chatSend": "发送",
+    "openLog": "查看日志",
+    "markHandled": "标记已处理",
+    "reverify": "触发复验",
+    "closeManual": "直接收口",
+    "closeReasonPlaceholder": "收口原因（必填）",
+    "closeConfirm": "确认收口",
+    "closeReasonRequired": "请填写收口原因",
+    "cancel": "取消",
+    "proposalTitle": "修复提案待审批",
+    "proposalBaseVersion": "基线版本 v{v}",
+    "proposalConfirmHint": "发布后将重跑验证，确认？",
+    "proposalConfirm": "确认发布",
+    "approve": "批准",
+    "reject": "驳回",
+    "markHandledOk": "已标记处理，正在复验",
+    "reverifyOk": "已触发复验",
+    "closeOk": "事故已收口",
+    "approveOk": "提案已批准发布",
+    "rejectOk": "提案已驳回",
+    "actionFailed": "操作失败"
   }
 }

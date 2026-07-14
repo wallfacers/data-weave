@@ -90,7 +90,7 @@ public class LineageAgentConfigController {
                 : (existing != null ? existing.maxColumns() : DEFAULT_MAX_COLUMNS);
 
         LineageAgentConfig testCfg = new LineageAgentConfig(
-                null, tenantId, protocol, baseUrl, model, apiKeyEnc, true,
+                null, tenantId, protocol, baseUrl, model, apiKeyEnc, true, false,
                 timeoutMs, rateLimitPerMin, maxColumns, userId, userId, null, null, 0, 0);
         LlmAgentClient.CallResult call = client.test(testCfg);
         boolean ok = call.error() == null;

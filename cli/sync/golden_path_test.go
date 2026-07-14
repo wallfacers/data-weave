@@ -91,6 +91,38 @@ func TestGoldenPathPullAuthorDiffPush(t *testing.T) {
 	}
 }
 
+// TestGoldenPathTaskResourcesRoundTrip 验证 067 声明式资源节（<slug>.task.yaml 的 resources: 块）
+// 经 pull → push → pull 全程字节级往返不丢不改——CLI 按 D2 边界只搬运原始字节，
+// 不解析文件契约格式，故新增 YAML 节天然透传，此测试锁定该行为不被回归破坏。
+func TestGoldenPathTaskResourcesRoundTrip(t *testing.T) {
+	taskYAML := "name: spark-job\ntype: SPARK\nresources:\n  cpuCores: 2\n  memoryMb: 4096\n"
+	initial := map[string]string{
+		"catalog/etl/spark-job.task.yaml": taskYAML,
+		"catalog/etl/spark-job.py":        "print(1)\n",
+	}
+	m, cfg := newMockSyncServer(t, initial)
+	dir := t.TempDir()
+
+	if code := exitCodeOf(t, RunPull(PullOpts{WorkDir: dir, Project: "demo"}, cfg)); code != 0 {
+		t.Fatalf("pull exit = %d, want 0", code)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "catalog", "etl", "spark-job.task.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != taskYAML {
+		t.Fatalf("pulled task.yaml resources block mismatch:\ngot:  %q\nwant: %q", string(got), taskYAML)
+	}
+
+	// push 不改内容，仅验证往返链路（写回同内容）不丢块
+	if code := exitCodeOf(t, RunPush(PushOpts{WorkDir: dir, Remark: "resources-round-trip"}, cfg)); code != 0 {
+		t.Fatalf("push exit = %d, want 0", code)
+	}
+	if m.files["catalog/etl/spark-job.task.yaml"] != taskYAML {
+		t.Fatalf("server-side task.yaml after push lost resources block: %q", m.files["catalog/etl/spark-job.task.yaml"])
+	}
+}
+
 // TestGoldenPathStaleBaseline 验证基线过期时的可读提示与处置建议（FR-018）。
 func TestGoldenPathStaleBaseline(t *testing.T) {
 	initial := map[string]string{

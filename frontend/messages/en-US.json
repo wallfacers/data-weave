@@ -371,7 +371,8 @@
     "settings": "Settings",
     "datasources": "Datasources",
     "instanceLog": "Instance Log",
-    "workflowInstanceDetail": "Workflow Instance"
+    "workflowInstanceDetail": "Workflow Instance",
+    "supervision": "Supervision"
   },
   "catalog": {
     "title": "Catalog",
@@ -1095,7 +1096,14 @@
       "saving": "Saving"
     },
     "testOk": "Connection OK ({latencyMs}ms)",
-    "testFailed": "Connection failed"
+    "testFailed": "Connection failed",
+    "ops": {
+      "title": "Agent Ops",
+      "desc": "Agent auto-diagnoses and remediates task failures (reuses the AI config above)",
+      "enabledOk": "Agent ops enabled",
+      "disabledOk": "Agent ops disabled",
+      "toggleFailed": "Toggle failed"
+    }
   },
   "lineageView": {
     "actionConfirm": "Confirm",
@@ -1275,7 +1283,7 @@
     "colWorker": "Node",
     "colActions": "Actions",
     "filterState": "State",
-    "filterKeyword": "Search",
+    "filterKeyword": "Search tasks",
     "clickToCopy": "Click to copy",
     "copySuccessId": "Copied {value}",
     "copyFailedId": "Copy failed",
@@ -1318,8 +1326,66 @@
     "healthProgress": "Progress",
     "healthLag": "Backlog Lag",
     "healthCheckpointAge": "Checkpoint Age",
-    "healthRestarts": "Restarts",
-    "filterState": "State",
-    "filterKeyword": "Search tasks"
+    "healthRestarts": "Restarts"
+  },
+  "supervision": {
+    "state": {
+      "OPEN": "Open",
+      "ANALYZING": "Analyzing",
+      "ACTING": "Acting",
+      "AWAITING_APPROVAL": "Awaiting Approval",
+      "NEEDS_HUMAN": "Needs Human",
+      "RESOLVED": "Resolved",
+      "DIAG_UNAVAILABLE": "Diagnosis Unavailable"
+    },
+    "classification": {
+      "TRANSIENT": "Transient",
+      "RESOURCE": "Resource",
+      "CODE": "Code Defect",
+      "UPSTREAM_DATA": "Upstream Data",
+      "CONFIG_CREDENTIAL": "Config/Credential",
+      "UNKNOWN": "Unknown"
+    },
+    "thinkingDefault": "Thinking",
+    "live": "Live",
+    "disconnected": "Disconnected",
+    "reconnecting": "Disconnected, reconnecting",
+    "briefingEmpty": "No active incidents",
+    "briefingReport": "Handover Report",
+    "stat": {
+      "active": "Active",
+      "needsHuman": "Needs Human",
+      "awaitingApproval": "Awaiting",
+      "agentWorking": "Working",
+      "resolvedToday": "Resolved Today"
+    },
+    "needsYou": "Needs your attention ({count})",
+    "feedEmpty": "No incidents, all systems normal",
+    "unnamedTask": "(unnamed task)",
+    "failCount": "{count} failures",
+    "autoActions": "{count} auto actions",
+    "chatPlaceholder": "Ask the ops agent or give a command…",
+    "chatDisabled": "Agent ops disabled",
+    "chatSend": "Send",
+    "openLog": "View Log",
+    "markHandled": "Mark Handled",
+    "reverify": "Reverify",
+    "closeManual": "Close",
+    "closeReasonPlaceholder": "Close reason (required)",
+    "closeConfirm": "Confirm Close",
+    "closeReasonRequired": "A close reason is required",
+    "cancel": "Cancel",
+    "proposalTitle": "Fix proposal awaiting approval",
+    "proposalBaseVersion": "Baseline v{v}",
+    "proposalConfirmHint": "Publishing will rerun to verify. Confirm?",
+    "proposalConfirm": "Confirm Publish",
+    "approve": "Approve",
+    "reject": "Reject",
+    "markHandledOk": "Marked handled, reverifying",
+    "reverifyOk": "Reverify triggered",
+    "closeOk": "Incident closed",
+    "approveOk": "Proposal approved & published",
+    "rejectOk": "Proposal rejected",
+    "actionFailed": "Action failed"
   }
 }

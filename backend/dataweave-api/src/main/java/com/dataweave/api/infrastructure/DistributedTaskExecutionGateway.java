@@ -130,6 +130,10 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
         if (cmd.resumeSavepointPath() != null && !cmd.resumeSavepointPath().isBlank()) {
             body.put("resumeSavepointPath", cmd.resumeSavepointPath());
         }
+        // 067：声明式资源提示透传（worker 合成 SparkSubmitRef/EngineSubmitRef 的 memoryMb/cpuCores）
+        if (cmd.resourcesJson() != null && !cmd.resourcesJson().isBlank()) {
+            body.put("resourcesJson", cmd.resourcesJson());
+        }
 
         // C4.2：解析数据源 → 序列化连接信息进 body（worker 不新增 DB 依赖）
         Map<String, Object> dsInfo = resolveDatasourceForWire(cmd.datasourceId(), taskType);

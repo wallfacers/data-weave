@@ -21,7 +21,7 @@ class AgentLineageExtractorTest {
 
     private static final String SCRIPT = "INSERT INTO dw.real SELECT * FROM user";
     private static final LineageAgentConfig CFG = new LineageAgentConfig(
-            1L, 1L, "OPENAI", "https://x", "m", "enc", true, 30000, 60, 2000, null, null, null, null, 0, 0);
+            1L, 1L, "OPENAI", "https://x", "m", "enc", true, false, 30000, 60, 2000, null, null, null, null, 0, 0);
 
     @Test
     void rejectsTableNotLocatableInScript() {

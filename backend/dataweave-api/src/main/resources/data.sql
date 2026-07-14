@@ -481,9 +481,15 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (53, 'TOOL', 'LINEAGE_EDGE_CONFIRM',      NULL, 'L1', '血缘推断边人工确认（可撤销）',          1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (54, 'TOOL', 'LINEAGE_EDGE_REMOVE',       NULL, 'L1', '血缘推断边人工剔除（抑制展示，可撤销）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (55, 'TOOL', 'LINEAGE_CORRECTION_REVOKE', NULL, 'L1', '血缘修正裁决撤销',                    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+-- 067 智能运维 Agent 动作（低风险自动执行 L1；改代码类默认人审 L3）
+(56, 'TOOL', 'incident_rerun',             NULL, 'L1', '智能运维自动重跑（瞬态故障自愈）',      1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(57, 'TOOL', 'incident_adjust_resources',  NULL, 'L1', '智能运维调资源后重跑（护栏内自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(58, 'TOOL', 'incident_resume_checkpoint', NULL, 'L1', '智能运维检查点续跑（实时任务自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(59, 'TOOL', 'incident_reverify',          NULL, 'L1', '智能运维复验（人工处理后触发）',        1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+	(60, 'TOOL', 'incident_publish_fix',    NULL, 'L3', '智能运维发布代码修复（需人审确认）', 1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO orders (id, order_amount, city, created_at) VALUES
 (1, 120.50, '上海', TIMESTAMP '2026-06-01 09:12:00'),

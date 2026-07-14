@@ -22,6 +22,7 @@ import {
   Share08Icon,
 } from "@hugeicons/core-free-icons"
 
+import { SupervisionView } from "@/components/workspace/views/supervision-view"
 import { OpsView } from "@/components/workspace/views/ops-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
@@ -46,6 +47,7 @@ interface ViewRender {
 }
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
+  supervision: { icon: Alert02Icon, component: SupervisionView },
   ops: { icon: SettingDone02Icon, component: OpsView },
   "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },

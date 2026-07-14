@@ -86,10 +86,17 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
      * @param sparkMode  pyspark | spark-sql | jar（内容形态判别，FR-002）
      * @param jarPath    jar 形态的 application jar 路径（其它形态 null）
      * @param mainClass  jar 形态的 --class 主类（其它形态 null）
+     * @param memoryMb   067：声明式内存提示（MB，driver/executor 同值）；null=引擎默认
+     * @param cpuCores   067：声明式 CPU 核数提示（driver/executor 同值）；null=引擎默认
      */
     public record SparkSubmitRef(String sparkHome, String master, String deployMode, String queue,
                                  Map<String, String> conf, String sparkMode, String jarPath,
-                                 String mainClass) {
+                                 String mainClass, Integer memoryMb, Integer cpuCores) {
+        /** 向后兼容构造（无 067 资源提示字段）。 */
+        public SparkSubmitRef(String sparkHome, String master, String deployMode, String queue,
+                              Map<String, String> conf, String sparkMode, String jarPath, String mainClass) {
+            this(sparkHome, master, deployMode, queue, conf, sparkMode, jarPath, mainClass, null, null);
+        }
     }
 
     /**
@@ -104,23 +111,33 @@ public record ExecutionContext(String content, String bizDate, int attempt, int 
      * @param props      集群/引擎附加配置（jobmanager/parallelism 等，可空）
      * @param longRunning 外部托管长驻作业标记（Flink 流式=true；有界/批=false）—— 060 节点容错闭环
      * @param externalJobHandle 已持久化的外部作业句柄（reattach 用；null=首次提交）—— 060 节点容错闭环
+     * @param memoryMb   067：声明式内存提示（MB，Flink taskmanager/DataX·SeaTunnel JVM 堆）；null=引擎默认
+     * @param cpuCores   067：声明式 CPU 核数提示（Flink taskmanager slot 数参考）；null=引擎默认
      */
     public record EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
                                    String mainClass, String configPath, Map<String, String> props,
                                    boolean longRunning, String externalJobHandle,
-                                   String savepointRestorePath) {
-        /** 向后兼容构造（无 long_running/external_job_handle/savepoint 字段，默认 false/null/null）。 */
+                                   String savepointRestorePath, Integer memoryMb, Integer cpuCores) {
+        /** 向后兼容构造（无 long_running/external_job_handle/savepoint/067 资源字段，默认 false/null/null/null/null）。 */
         public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
                               String mainClass, String configPath, Map<String, String> props) {
-            this(kind, engineHome, mode, jarPath, mainClass, configPath, props, false, null, null);
+            this(kind, engineHome, mode, jarPath, mainClass, configPath, props, false, null, null, null, null);
         }
 
-        /** 062 向后兼容构造（含 long_running/external_job_handle，无 savepoint 恢复路径）。 */
+        /** 062 向后兼容构造（含 long_running/external_job_handle，无 savepoint/067 资源字段）。 */
         public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
                               String mainClass, String configPath, Map<String, String> props,
                               boolean longRunning, String externalJobHandle) {
             this(kind, engineHome, mode, jarPath, mainClass, configPath, props,
-                    longRunning, externalJobHandle, null);
+                    longRunning, externalJobHandle, null, null, null);
+        }
+
+        /** D2 向后兼容构造（含 savepoint 恢复路径，无 067 资源字段）。 */
+        public EngineSubmitRef(String kind, String engineHome, String mode, String jarPath,
+                              String mainClass, String configPath, Map<String, String> props,
+                              boolean longRunning, String externalJobHandle, String savepointRestorePath) {
+            this(kind, engineHome, mode, jarPath, mainClass, configPath, props,
+                    longRunning, externalJobHandle, savepointRestorePath, null, null);
         }
     }
 }

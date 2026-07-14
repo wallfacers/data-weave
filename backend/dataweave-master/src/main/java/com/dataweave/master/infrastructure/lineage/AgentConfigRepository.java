@@ -76,6 +76,14 @@ public class AgentConfigRepository {
         return key != null ? key.longValue() : -1L;
     }
 
+    /** 067：智能运维用途独立开关（与 enabled 分离，不影响血缘富化用途）；无生效配置时返回 0（不存在）。 */
+    public int updateOpsEnabled(long tenantId, boolean opsEnabled) {
+        return jdbc.update(
+                "UPDATE lineage_agent_config SET ops_enabled = ?, updated_at = ?, version = version + 1 " +
+                "WHERE tenant_id = ? AND deleted = 0",
+                opsEnabled ? 1 : 0, LocalDateTime.now(), tenantId);
+    }
+
     /** 写一次外呼审计记录（FR-021）。不含明文密钥/脚本。 */
     public void insertCall(long tenantId, long projectId, long configId, String protocol, Long taskDefId,
                            Integer latencyMs, String status, int edgesEmitted, String note) {
@@ -133,6 +141,7 @@ public class AgentConfigRepository {
                 rs.getString("model"),
                 rs.getString("api_key_enc"),
                 rs.getInt("enabled") == 1,
+                rs.getInt("ops_enabled") == 1,
                 rs.getInt("timeout_ms"),
                 rs.getInt("rate_limit_per_min"),
                 rs.getInt("max_columns"),

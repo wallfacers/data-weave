@@ -86,4 +86,71 @@ public class AnthropicProtocolAdapter implements LlmProtocolAdapter {
             throw new IllegalStateException("anthropic response parse failed", e);
         }
     }
+
+    // ===== 067：通用对话（无 emit_lineage 工具约束，纯文本回复）=====
+
+    @Override
+    public HttpRequest buildChatRequest(com.dataweave.master.domain.lineage.LineageAgentConfig cfg, String systemPrompt,
+                                         List<LlmChatClient.ChatMessage> messages, String apiKeyPlain, boolean stream) {
+        String url = LlmProtocolAdapter.stripTrailingSlash(cfg.baseUrl()) + "/v1/messages";
+        List<Map<String, Object>> msgs = messages.stream()
+                .map(m -> (Map<String, Object>) Map.<String, Object>of("role", m.role(), "content", m.content()))
+                .toList();
+        java.util.LinkedHashMap<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("model", cfg.model());
+        body.put("max_tokens", MAX_OUTPUT_TOKENS);
+        body.put("system", systemPrompt);
+        body.put("messages", msgs);
+        if (stream) {
+            body.put("stream", true);
+        }
+        try {
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofMillis(Math.max(500, cfg.timeoutMs())))
+                    .header("content-type", "application/json")
+                    .header("anthropic-version", ANTHROPIC_VERSION)
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
+            if (apiKeyPlain != null && !apiKeyPlain.isEmpty()) {
+                b.header("x-api-key", apiKeyPlain);
+            }
+            return b.build();
+        } catch (Exception e) {
+            throw new IllegalStateException("anthropic chat request build failed", e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public String parseChatText(String body) {
+        try {
+            Map<String, Object> root = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {});
+            Object contentRaw = root.get("content");
+            StringBuilder sb = new StringBuilder();
+            if (contentRaw instanceof List<?> list) {
+                for (Object block : list) {
+                    if (block instanceof Map<?, ?> m && "text".equals(m.get("type")) && m.get("text") instanceof String t) {
+                        sb.append(t);
+                    }
+                }
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public String parseChatDelta(String sseDataLine) {
+        try {
+            Map<String, Object> ev = objectMapper.readValue(sseDataLine, new TypeReference<Map<String, Object>>() {});
+            if ("content_block_delta".equals(ev.get("type")) && ev.get("delta") instanceof Map<?, ?> delta
+                    && "text_delta".equals(delta.get("type")) && delta.get("text") instanceof String t) {
+                return t;
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

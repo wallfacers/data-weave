@@ -36,6 +36,20 @@ class DataXTaskExecutorTest {
         assertThat(cmd).hasSize(2);
     }
 
+    // ---- 067 T018: 资源提示（-j JVM 堆内存透传）----
+
+    @Test
+    void buildCommand_withMemoryHint_addsJvmFlagBeforeJobPath() {
+        List<String> cmd = DataXTaskExecutor.buildCommand("/opt/datax", "/tmp/job.json", 2048);
+        assertThat(cmd).containsExactly("/opt/datax/bin/datax.py", "-j", "-Xms2048m -Xmx2048m", "/tmp/job.json");
+    }
+
+    @Test
+    void buildCommand_noMemoryHint_omitsJvmFlag() {
+        List<String> cmd = DataXTaskExecutor.buildCommand("/opt/datax", "/tmp/job.json", null);
+        assertThat(cmd).containsExactly("/opt/datax/bin/datax.py", "/tmp/job.json");
+    }
+
     // ---- SKIPPED 判定 ----
 
     @Test

@@ -89,6 +89,26 @@ class SparkTaskExecutorTest {
         assertThat(cmd.get(cmd.size() - 1)).isEqualTo("/tmp/app.jar");
     }
 
+    // ---- 067 T018: 资源提示（driver/executor memory+cores）----
+
+    @Test
+    void buildCommand_withResourceHints_addsDriverExecutorMemoryAndCores() {
+        SparkSubmitRef ref = new SparkSubmitRef("/opt/spark", "yarn", null, null, null,
+                null, null, null, 4096, 2);
+        List<String> cmd = SparkTaskExecutor.buildCommand(ref, "/tmp/b.py", "pyspark", null, null);
+        assertThat(cmd.get(idx(cmd, "--driver-memory") + 1)).isEqualTo("4096m");
+        assertThat(cmd.get(idx(cmd, "--executor-memory") + 1)).isEqualTo("4096m");
+        assertThat(cmd.get(idx(cmd, "--driver-cores") + 1)).isEqualTo("2");
+        assertThat(cmd.get(idx(cmd, "--executor-cores") + 1)).isEqualTo("2");
+    }
+
+    @Test
+    void buildCommand_noResourceHints_omitsMemoryAndCoreFlags() {
+        SparkSubmitRef ref = ref("/opt/spark", "yarn", null, null, null);
+        List<String> cmd = SparkTaskExecutor.buildCommand(ref, "/tmp/b.py", "pyspark", null, null);
+        assertThat(cmd).doesNotContain("--driver-memory", "--executor-memory", "--driver-cores", "--executor-cores");
+    }
+
     // ---- SKIPPED 判定 ----
 
     @Test
