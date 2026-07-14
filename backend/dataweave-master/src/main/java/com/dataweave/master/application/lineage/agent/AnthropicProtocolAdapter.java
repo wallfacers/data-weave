@@ -49,7 +49,8 @@ public class AnthropicProtocolAdapter implements LlmProtocolAdapter {
                         "name", "emit_lineage",
                         "description", "Emit extracted table-level reads/writes and column-level derivations.",
                         "input_schema", EMISSION_SCHEMA)),
-                "tool_choice", Map.of("type", "tool", "name", "emit_lineage"));
+                // 069: DeepSeek V4 不支持强制指定 tool name（400），改用 auto 让模型自行决定
+                "tool_choice", Map.of("type", "auto"));
         try {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
                     .timeout(Duration.ofMillis(Math.max(500, cfg.timeoutMs())))
