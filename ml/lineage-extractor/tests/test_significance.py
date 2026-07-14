@@ -5,6 +5,8 @@ import random
 
 from eval.metrics import aggregate
 from eval.significance import (
+    _KEYS,
+    _METRICS,
     _agg_from_sums,
     bootstrap_metric_ci,
     mcnemar_exact,
@@ -24,11 +26,10 @@ def test_agg_from_sums_matches_metrics_aggregate():
     rng = random.Random(0)
     counts = [_c(rng.randint(0, 5), rng.randint(0, 4), rng.randint(0, 4),
                  dir_total=rng.randint(1, 3), dir_correct=rng.randint(0, 1)) for _ in range(20)]
-    s = [sum(c[k] for c in counts) for k in
-         ("tp", "fp", "fn", "halluc", "pred_total", "dir_total", "dir_correct")]
+    s = [sum(c.get(k, 0) for c in counts) for k in _KEYS]   # 067：随 _KEYS 同步（含列级分量）
     a_ref = aggregate(counts)
     a_boot = _agg_from_sums(s)
-    for m in ("precision", "recall", "f1", "hallucination", "direction_acc"):
+    for m in _METRICS:                                       # 含列级指标；逐字一致
         assert abs(a_ref[m] - a_boot[m]) < 1e-12, m
 
 

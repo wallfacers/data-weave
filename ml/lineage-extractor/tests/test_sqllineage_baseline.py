@@ -41,3 +41,38 @@ def test_write_table_not_double_counted_as_read():
     out = predict(row)
     assert _tables(out["writes"]) == ["t"]
     assert "t" not in _tables(out["reads"])
+
+
+# ── 067 US4：get_column_lineage 列抽取 ──
+
+def _cols(items, table):
+    for x in items:
+        if x["table"] == table:
+            return x["columns"]
+    return "MISSING"
+
+
+def test_with_columns_false_backward_compat():
+    # 默认（无 with_columns）列恒 None——守既有契约零回归
+    row = {"content": "insert into analytics.daily select user_id, amount from raw.orders"}
+    out = predict(row)
+    assert all(x["columns"] is None for x in out["reads"] + out["writes"])
+
+
+def test_with_columns_extracts_source_and_target_columns():
+    row = {"content": "insert into analytics.daily select user_id, amount from raw.orders"}
+    out = predict(row, with_columns=True)
+    assert _cols(out["reads"], "raw.orders") == ["amount", "user_id"]
+    assert _cols(out["writes"], "analytics.daily") == ["amount", "user_id"]
+
+
+def test_with_columns_non_sql_still_empty():
+    row = {"content": "import pandas as pd\ndf.to_sql('t', con)"}
+    assert predict(row, with_columns=True) == {"reads": [], "writes": []}
+
+
+def test_with_columns_table_without_column_info_abstains():
+    # 工具解析出表但给不出列 → columns=None（弃权，非空集），守三态列语义
+    row = {"content": "select * from raw.orders"}
+    out = predict(row, with_columns=True)
+    assert all(x["columns"] is None for x in out["reads"] + out["writes"])
