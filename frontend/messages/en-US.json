@@ -287,6 +287,7 @@
     "copySuccessId": "Copied {value}",
     "copyFailedId": "Copy failed",
     "colWorkflowName": "Workflow",
+    "colDescription": "Description",
     "colCron": "Cron",
     "colVersion": "Version",
     "colLastFireTime": "Last Run",
@@ -1066,9 +1067,9 @@
     "filterType": "Type",
     "presetDisconnected": "Disconnected"
   },
-  "lineageAgent": {
-    "title": "Lineage AI Agent",
-    "description": "Configure the LLM Agent connection used for lineage extraction",
+  "aiAgent": {
+    "title": "AI Agent",
+    "description": "Configure the global LLM Agent connection",
     "globalHint": "This configuration applies globally to all projects in the current tenant.",
     "emptyHint": "AI Agent not configured yet. Fill in the form below and save to enable globally.",
     "openBtn": "AI Agent",

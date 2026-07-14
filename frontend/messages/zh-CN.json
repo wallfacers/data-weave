@@ -287,6 +287,7 @@
     "copySuccessId": "已复制 {value}",
     "copyFailedId": "复制失败",
     "colWorkflowName": "任务流名称",
+    "colDescription": "描述",
     "colCron": "Cron",
     "colVersion": "版本",
     "colLastFireTime": "上次运行",
@@ -1066,9 +1067,9 @@
     "filterType": "类型",
     "presetDisconnected": "连接异常"
   },
-  "lineageAgent": {
-    "title": "血缘 AI Agent",
-    "description": "配置用于血缘解析的 LLM Agent 连接",
+  "aiAgent": {
+    "title": "AI Agent",
+    "description": "配置全局 LLM Agent 连接",
     "globalHint": "此配置全局生效，当前租户所有项目共用一份。",
     "emptyHint": "尚未配置 AI Agent，填写下方表单并保存即可全局启用。",
     "openBtn": "AI Agent",

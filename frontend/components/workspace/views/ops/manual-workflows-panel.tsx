@@ -108,15 +108,18 @@ export function ManualWorkflowsPanel() {
       {
         key: "name",
         header: t("colWorkflowName"),
-        widthPct: 22,
+        widthPct: 14,
         cell: (w) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium" title={w.name}>{w.name}</div>
-            {w.description && (
-              <div className="truncate text-xs text-muted-foreground" title={w.description}>
-                {w.description}
-              </div>
-            )}
+          <div className="truncate font-medium" title={w.name}>{w.name}</div>
+        ),
+      },
+      {
+        key: "description",
+        header: t("colDescription"),
+        widthPct: 16,
+        cell: (w) => (
+          <div className="truncate text-xs text-muted-foreground" title={w.description ?? undefined}>
+            {w.description ?? "—"}
           </div>
         ),
       },
