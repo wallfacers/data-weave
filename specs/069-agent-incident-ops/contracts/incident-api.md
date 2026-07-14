@@ -42,8 +42,7 @@
 
 ## 配置
 
-### GET /api/incidents/agent-config · PUT /api/incidents/agent-config
-读/写 `ops_enabled` 开关（连接四元组仍走 053 既有血缘 Agent 配置端点，不重复暴露）。PUT body `{opsEnabled: boolean}`。
+智能运维不单独暴露开关端点：诊断/对话/简报的启用判定统一看全局 AI Agent 配置的 `enabled`（`GET/PUT /api/settings/agent-config`，053/057 既有端点）。AI Agent 配置启用后，血缘富化与运维诊断同时生效。
 
 ## 闸门种子（policy_rules 新增，随 schema seed）
 

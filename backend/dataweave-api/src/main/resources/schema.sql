@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.19.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.19.1（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 036 项目隔离收口=0.5.0（alert_* 补 project_id + 索引 + 回填）。
 --     → 038 实例定时时间快照=0.6.0（workflow_instance +scheduled_fire_time；cron/fixed_rate 触发时刻落库，与 cron_expression 同源快照）。
@@ -22,6 +22,7 @@
 --     → 066 移除告警/质量体系=0.18.0（删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除）。
 --     → 069 任务失败智能运维=0.19.0（+incident/incident_message/incident_proposal/incident_briefing 4 表：
 --       巡检开单+LLM诊断+梯度处置+审批+监督席直播流；task_def(_version) +resources_json；lineage_agent_config +ops_enabled；+incident_* policy_rule 种子）。
+--     → 智能运维开关并入全局 enabled=0.19.1（删除 lineage_agent_config.ops_enabled 列与 ck_lineage_agent_ops_enabled；运维诊断/对话/简报改判 enabled，与血缘富化共用单一开关）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -152,6 +153,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.18.0', CURRENT_TIMESTAMP, '066 移除告警/质量体系：删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.19.0', CURRENT_TIMESTAMP, '069 任务失败智能运维：+incident/incident_message/incident_proposal/incident_briefing 4 表；task_def(_version) +resources_json；lineage_agent_config +ops_enabled；+incident_* policy_rule 种子');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.19.1', CURRENT_TIMESTAMP, '智能运维开关并入全局 enabled：删除 lineage_agent_config.ops_enabled 列与 ck_lineage_agent_ops_enabled 约束；运维诊断/对话/简报改判 enabled，与血缘富化共用单一开关');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -1052,8 +1055,7 @@ CREATE TABLE lineage_agent_config (
     base_url           VARCHAR(512) NOT NULL,           -- 兼容端点根 URL（http/https）
     model              VARCHAR(128) NOT NULL,           -- 模型名
     api_key_enc        VARCHAR(1024),                   -- 加密密钥；NULL=免鉴权网关（明文绝不入库/日志）
-    enabled            SMALLINT NOT NULL DEFAULT 0,     -- 默认 0=关闭（FR-019）；1=启用（血缘富化用途）
-    ops_enabled        SMALLINT NOT NULL DEFAULT 0,     -- 069 智能运维用途独立开关；默认 0=关闭；与 enabled 分离互不影响
+    enabled            SMALLINT NOT NULL DEFAULT 0,     -- 默认 0=关闭（FR-019）；1=启用（血缘富化与智能运维共用）
     timeout_ms         INTEGER NOT NULL DEFAULT 30000,  -- 单次外呼预算（FR-022）
     rate_limit_per_min INTEGER NOT NULL DEFAULT 60,     -- 每分钟外呼上限（FR-023）
     max_columns        INTEGER NOT NULL DEFAULT 2000,   -- schema 抓取列数上限（FR-014）
@@ -1067,7 +1069,6 @@ CREATE TABLE lineage_agent_config (
     CONSTRAINT uk_lineage_agent_config_tenant UNIQUE (tenant_id, deleted),
     CONSTRAINT ck_lineage_agent_protocol CHECK (protocol IN ('ANTHROPIC','OPENAI')),
     CONSTRAINT ck_lineage_agent_enabled CHECK (enabled IN (0,1)),
-    CONSTRAINT ck_lineage_agent_ops_enabled CHECK (ops_enabled IN (0,1)),
     CONSTRAINT ck_lineage_agent_deleted CHECK (deleted IN (0,1))
 );
 

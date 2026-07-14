@@ -17,7 +17,7 @@ class ProtocolAdapterTest {
     private static final String MODEL = "test-model";
 
     private static LineageAgentConfig cfg(String protocol, String baseUrl) {
-        return new LineageAgentConfig(null, 1L, protocol, baseUrl, MODEL, "enc", true, false,
+        return new LineageAgentConfig(null, 1L, protocol, baseUrl, MODEL, "enc", true,
                 30000, 60, 2000, null, null, null, null, 0, 0);
     }
 

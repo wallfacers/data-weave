@@ -107,9 +107,8 @@ public class IncidentBriefingService {
         String summaryLine = deterministic;
         String reportMd = deterministicReport(stats, open);
 
-        boolean opsEnabled = agentConfigService.isOpsEnabledFor(tenantId);
-        Optional<LineageAgentConfig> cfgOpt = opsEnabled ? agentConfigService.getActive(tenantId) : Optional.empty();
-        if (cfgOpt.isPresent() && cfgOpt.get().opsEnabled()) {
+        Optional<LineageAgentConfig> cfgOpt = agentConfigService.getActive(tenantId);
+        if (cfgOpt.isPresent() && cfgOpt.get().enabled()) {
             LlmChatClient.ChatResult result = llmChatClient.chat(cfgOpt.get(),
                     briefingSystemPrompt(), List.of(new LlmChatClient.ChatMessage("user",
                             briefingUserPrompt(stats, open))));

@@ -30,7 +30,6 @@ import {
   type AgentProtocol,
   type AgentTestResult,
 } from "@/lib/lineage-api"
-import { getAgentConfig as getOpsConfig, setAgentConfig as setOpsConfig } from "@/lib/supervision/api"
 
 /** 默认值（无既有配置时回显，对齐后端 defaults）。 */
 const DEFAULT_TIMEOUT_MS = 30000
@@ -38,7 +37,7 @@ const DEFAULT_RATE_LIMIT = 60
 const DEFAULT_MAX_COLUMNS = 2000
 
 export function AiAgentConfigSection() {
-  const t = useTranslations("lineageAgent")
+  const t = useTranslations("aiAgent")
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -56,9 +55,6 @@ export function AiAgentConfigSection() {
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_TIMEOUT_MS)
   const [rateLimitPerMin, setRateLimitPerMin] = useState(DEFAULT_RATE_LIMIT)
   const [maxColumns, setMaxColumns] = useState(DEFAULT_MAX_COLUMNS)
-  // 069 T046：智能运维启停（租户级，独立于血缘富化 enabled）。切换即持久化（PUT /api/incidents/agent-config）。
-  const [opsEnabled, setOpsEnabledState] = useState(false)
-  const [opsSaving, setOpsSaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -95,32 +91,6 @@ export function AiAgentConfigSection() {
       cancelled = true
     }
   }, [])
-
-  // 069 T046：读取智能运维开关当前值（tenant admin 权限，失败静默保持 false）。
-  useEffect(() => {
-    let cancelled = false
-    getOpsConfig()
-      .then((c) => {
-        if (!cancelled) setOpsEnabledState(c.opsEnabled)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const toggleOps = async (v: boolean) => {
-    setOpsSaving(true)
-    try {
-      const r = await setOpsConfig(v)
-      setOpsEnabledState(r.opsEnabled)
-      toast.success(t(r.opsEnabled ? "ops.enabledOk" : "ops.disabledOk"))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("ops.toggleFailed"))
-    } finally {
-      setOpsSaving(false)
-    }
-  }
 
   const buildReq = (): AgentConfigRequest => ({
     protocol,
@@ -277,15 +247,6 @@ export function AiAgentConfigSection() {
 
         <label className="text-sm text-muted-foreground">{t("form.enabled")}</label>
         <Switch checked={enabled} onCheckedChange={setEnabled} />
-      </div>
-
-      {/* 069 T046：智能运维启停（独立开关，切换即生效） */}
-      <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] bg-muted/40 px-3 py-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">{t("ops.title")}</p>
-          <p className="text-xs text-muted-foreground">{t("ops.desc")}</p>
-        </div>
-        <Switch checked={opsEnabled} disabled={opsSaving} onCheckedChange={(v) => void toggleOps(v)} />
       </div>
 
       {/* 测试结果反馈 */}

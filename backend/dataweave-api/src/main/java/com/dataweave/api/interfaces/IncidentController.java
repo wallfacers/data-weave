@@ -21,7 +21,6 @@ import com.dataweave.master.application.incident.IncidentEventPublisher;
 import com.dataweave.master.application.incident.IncidentQueryService;
 import com.dataweave.master.application.incident.IncidentQueryService.Detail;
 import com.dataweave.master.application.incident.IncidentQueryService.Snapshot;
-import com.dataweave.master.application.lineage.agent.AgentLineageConfigService;
 import com.dataweave.master.domain.EventBus;
 import com.dataweave.master.domain.incident.Incident;
 import com.dataweave.master.domain.incident.IncidentMessage;
@@ -43,15 +42,13 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 069 事故域 REST（契约：specs/069-agent-incident-ops/contracts/incident-api.md）。
- * 基址 /api/incidents，项目隔离经 {@link ProjectScope#require}；智能运维开关走同一基址下的
- * /agent-config 子路径（租户级，复用 053 lineage_agent_config 行，仅切 ops_enabled）。
+ * 基址 /api/incidents，项目隔离经 {@link ProjectScope#require}。
  */
 @RestController
 @RequestMapping("/api/incidents")
 public class IncidentController {
 
     private final IncidentQueryService queryService;
-    private final AgentLineageConfigService agentConfigService;
     private final ProjectScope projectScope;
     private final ProjectRoleService projectRoleService;
     private final IncidentAgentService agentService;
@@ -61,13 +58,12 @@ public class IncidentController {
     private final EventBus eventBus;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public IncidentController(IncidentQueryService queryService, AgentLineageConfigService agentConfigService,
+    public IncidentController(IncidentQueryService queryService,
                               ProjectScope projectScope, ProjectRoleService projectRoleService,
                               IncidentAgentService agentService, ProjectAuthz projectAuthz,
                               IncidentConversationService conversationService, IncidentBriefingService briefingService,
                               EventBus eventBus) {
         this.queryService = queryService;
-        this.agentConfigService = agentConfigService;
         this.projectScope = projectScope;
         this.projectRoleService = projectRoleService;
         this.agentService = agentService;
@@ -279,24 +275,6 @@ public class IncidentController {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CloseRequest(String reason, String actor) {
-    }
-
-    /** 智能运维启停开关（FR-012，租户级，独立于 053 血缘富化 enabled）。 */
-    @GetMapping("/agent-config")
-    public ApiResponse<AgentConfigStatus> getAgentConfig() {
-        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
-        boolean opsEnabled = agentConfigService.isOpsEnabledFor(TenantContext.tenantId());
-        return ApiResponse.ok(new AgentConfigStatus(opsEnabled));
-    }
-
-    @PutMapping("/agent-config")
-    public ApiResponse<AgentConfigStatus> putAgentConfig(@RequestBody AgentConfigStatus req) {
-        projectRoleService.requireTenantAdmin(TenantContext.tenantId(), TenantContext.userId());
-        agentConfigService.setOpsEnabled(TenantContext.tenantId(), req.opsEnabled());
-        return ApiResponse.ok(new AgentConfigStatus(agentConfigService.isOpsEnabledFor(TenantContext.tenantId())));
-    }
-
-    public record AgentConfigStatus(boolean opsEnabled) {
     }
 
     private long resolveProjectId(Long requestProjectId) {

@@ -116,10 +116,9 @@ public class IncidentAgentService {
         broadcastIncident(incidentId);
         briefingService.markDirty(inc.tenantId(), inc.projectId()); // 开单进入处理面：播报置脏（防抖后重生成）
 
-        boolean opsEnabled = agentConfigService.isOpsEnabledFor(inc.tenantId());
-        Optional<LineageAgentConfig> cfgOpt = opsEnabled ? agentConfigService.getActive(inc.tenantId()) : Optional.empty();
-        if (cfgOpt.isEmpty() || !cfgOpt.get().opsEnabled()) {
-            degradeUnavailable(incidentId, "智能运维未启用或未配置 AI Agent");
+        Optional<LineageAgentConfig> cfgOpt = agentConfigService.getActive(inc.tenantId());
+        if (cfgOpt.isEmpty() || !cfgOpt.get().enabled()) {
+            degradeUnavailable(incidentId, "AI Agent 未启用或未配置");
             return;
         }
         LineageAgentConfig cfg = cfgOpt.get();
@@ -338,10 +337,9 @@ public class IncidentAgentService {
             escalate(inc, "任务定义已被删除，无法生成修复提案，转人工介入");
             return;
         }
-        boolean opsEnabled = agentConfigService.isOpsEnabledFor(inc.tenantId());
-        Optional<LineageAgentConfig> cfgOpt = opsEnabled ? agentConfigService.getActive(inc.tenantId()) : Optional.empty();
-        if (cfgOpt.isEmpty() || !cfgOpt.get().opsEnabled()) {
-            escalate(inc, "智能运维未启用或未配置 AI Agent，无法生成修复提案，转人工介入");
+        Optional<LineageAgentConfig> cfgOpt = agentConfigService.getActive(inc.tenantId());
+        if (cfgOpt.isEmpty() || !cfgOpt.get().enabled()) {
+            escalate(inc, "AI Agent 未启用或未配置，无法生成修复提案，转人工介入");
             return;
         }
         if (!rateLimiter.tryAcquire()) {

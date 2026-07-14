@@ -1097,14 +1097,7 @@
       "saving": "保存中"
     },
     "testOk": "连通正常（{latencyMs}ms）",
-    "testFailed": "连通失败",
-    "ops": {
-      "title": "智能运维",
-      "desc": "任务失败时由 Agent 自动诊断与处置（复用上方 AI 配置）",
-      "enabledOk": "智能运维已启用",
-      "disabledOk": "智能运维已停用",
-      "toggleFailed": "切换失败"
-    }
+    "testFailed": "连通失败"
   },
   "lineageView": {
     "actionConfirm": "确认",

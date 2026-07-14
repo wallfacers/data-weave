@@ -1097,14 +1097,7 @@
       "saving": "Saving"
     },
     "testOk": "Connection OK ({latencyMs}ms)",
-    "testFailed": "Connection failed",
-    "ops": {
-      "title": "Agent Ops",
-      "desc": "Agent auto-diagnoses and remediates task failures (reuses the AI config above)",
-      "enabledOk": "Agent ops enabled",
-      "disabledOk": "Agent ops disabled",
-      "toggleFailed": "Toggle failed"
-    }
+    "testFailed": "Connection failed"
   },
   "lineageView": {
     "actionConfirm": "Confirm",

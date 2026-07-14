@@ -10,7 +10,7 @@ cd backend && docker compose up -d && ./dev-install.sh
 cd frontend && pnpm dev                            # :4000
 ```
 
-配置 Agent：设置页（053 血缘 Agent 配置）填协议/端点/模型/密钥并启用 → `PUT /api/incidents/agent-config {"opsEnabled": true}`（或 UI 开关）。
+配置 Agent：设置页（053 血缘 Agent 配置）填协议/端点/模型/密钥并启用即可——血缘富化与智能运维共用此单一开关。
 
 ## 场景 1 · 诊断闭环（US1）
 

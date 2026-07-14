@@ -86,7 +86,7 @@ public class IncidentConversationService {
         if (IncidentStates.isTerminal(inc.state())) {
             throw new BizException("incident.closed");
         }
-        if (!agentConfigService.isOpsEnabledFor(tenantId)) {
+        if (!agentConfigService.isEnabledFor(tenantId)) {
             throw new BizException("incident.agent_disabled");
         }
         String userText = text == null ? "" : text.strip();
@@ -109,8 +109,8 @@ public class IncidentConversationService {
     /** 后台：组装上下文 → 流式外呼 → 落 AGENT_SAY → 解析并执行白名单动作。 */
     private void respond(Incident inc, String userText) {
         Optional<LineageAgentConfig> cfgOpt = agentConfigService.getActive(inc.tenantId());
-        if (cfgOpt.isEmpty() || !cfgOpt.get().opsEnabled()) {
-            var sys = messageRepo.append(inc.id(), MessageKinds.SYSTEM, "智能运维未启用，无法回复", null, "system");
+        if (cfgOpt.isEmpty() || !cfgOpt.get().enabled()) {
+            var sys = messageRepo.append(inc.id(), MessageKinds.SYSTEM, "AI Agent 未启用，无法回复", null, "system");
             broadcastMessage(inc.projectId(), inc.id(), sys);
             return;
         }

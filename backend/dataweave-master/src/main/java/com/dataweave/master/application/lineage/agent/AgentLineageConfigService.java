@@ -39,22 +39,9 @@ public class AgentLineageConfigService {
         return repo.findActive(tenantId);
     }
 
-    /** 057：全局配置是否启用（血缘富化用途）。 */
+    /** 全局配置是否启用（血缘富化与智能运维共用此开关）。 */
     public boolean isEnabledFor(long tenantId) {
         return repo.findActive(tenantId).map(LineageAgentConfig::enabled).orElse(false);
-    }
-
-    /** 069：智能运维用途是否启用（独立于 enabled，FR-012）。无生效配置视为未启用。 */
-    public boolean isOpsEnabledFor(long tenantId) {
-        return repo.findActive(tenantId).map(LineageAgentConfig::opsEnabled).orElse(false);
-    }
-
-    /** 069：切换智能运维开关；无生效配置（未配置协议/端点）时抛错，不能凭空开启。 */
-    public void setOpsEnabled(long tenantId, boolean opsEnabled) {
-        int rows = repo.updateOpsEnabled(tenantId, opsEnabled);
-        if (rows == 0) {
-            throw new BizException("lineage_agent.config_incomplete");
-        }
     }
 
     /** 057：创建或更新（租户级全局单例，upsert）；返回脱敏 VO。 */

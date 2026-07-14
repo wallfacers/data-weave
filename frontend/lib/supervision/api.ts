@@ -121,23 +121,3 @@ export async function closeIncident(id: string, reason: string, actor?: string):
     }),
   )
 }
-
-// ─── T046 智能运维启停开关（租户级）──────────────────────────
-
-export interface AgentOpsConfig {
-  opsEnabled: boolean
-}
-
-export async function getAgentConfig(): Promise<AgentOpsConfig> {
-  return unwrap<AgentOpsConfig>(await authFetch(`/api/incidents/agent-config`))
-}
-
-export async function setAgentConfig(opsEnabled: boolean): Promise<AgentOpsConfig> {
-  return unwrap<AgentOpsConfig>(
-    await authFetch(`/api/incidents/agent-config`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opsEnabled }),
-    }),
-  )
-}

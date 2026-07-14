@@ -198,14 +198,4 @@ class IncidentControllerIT {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].kind").isEqualTo("SYSTEM");
     }
-
-    @Test
-    @DisplayName("智能运维开关 GET/PUT 契约（FR-012）")
-    void agentConfigToggleContract() {
-        client.get().uri("/api/incidents/agent-config")
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.opsEnabled").isEqualTo(false);
-    }
 }

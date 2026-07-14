@@ -16,7 +16,6 @@ public record LineageAgentConfig(
         String model,
         String apiKeyEnc,      // 加密密文；null=免鉴权网关
         boolean enabled,
-        boolean opsEnabled,    // 069 智能运维用途独立开关；与 enabled（血缘富化）分离互不影响
         int timeoutMs,
         int rateLimitPerMin,
         int maxColumns,
