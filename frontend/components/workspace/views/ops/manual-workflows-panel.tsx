@@ -181,6 +181,22 @@ export function ManualWorkflowsPanel() {
         widthPct: 24,
         cell: (w) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    disabled={busyId === w.id}
+                    onClick={() => runOnce(w)}
+                  >
+                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("runOnce")}</TooltipContent>
+            </Tooltip>
             {w.status === "ONLINE" && (
               <Tooltip>
                 <TooltipTrigger
@@ -198,22 +214,6 @@ export function ManualWorkflowsPanel() {
                 <TooltipContent>{t("viewDag")}</TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7"
-                    disabled={busyId === w.id}
-                    onClick={() => runOnce(w)}
-                  >
-                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("runOnce")}</TooltipContent>
-            </Tooltip>
           </div>
         ),
       },
