@@ -1390,6 +1390,15 @@
     "rejectOk": "提案已驳回",
     "actionFailed": "操作失败",
     "copyCode": "复制",
-    "copied": "已复制"
+    "copied": "已复制",
+    "copyMessage": "复制原文",
+    "agentName": "运维 Agent",
+    "fallbackOperator": "操作员",
+    "interrupted": "已打断",
+    "dateToday": "今天",
+    "dateYesterday": "昨天",
+    "chatStop": "停止",
+    "chatSendFailed": "发送失败",
+    "cancelFailed": "打断失败，请重试"
   }
 }

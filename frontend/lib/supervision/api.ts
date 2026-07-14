@@ -53,71 +53,76 @@ export async function getBriefing(): Promise<BriefingView> {
   return unwrap<BriefingView>(await authFetch(`/api/incidents/briefing`))
 }
 
-export async function sendChat(id: string, text: string, actor?: string): Promise<IncidentMessage> {
+// 070：发言者身份由服务端依登录凭证认定，前端不再传 actor（传了也被后端忽略）。
+
+export async function sendChat(id: string, text: string): Promise<IncidentMessage> {
   return unwrap<IncidentMessage>(
     await authFetch(`/api/incidents/${id}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, actor }),
+      body: JSON.stringify({ text }),
     }),
   )
+}
+
+/** 070：打断当前事故的 Agent 输出轮次；返回是否确有在途轮次被打断。 */
+export async function cancelAgent(id: string): Promise<boolean> {
+  const r = await unwrap<{ cancelled: boolean }>(
+    await authFetch(`/api/incidents/${id}/agent/cancel`, { method: "POST" }),
+  )
+  return r.cancelled
 }
 
 export async function approveProposal(
   id: string,
   proposalId: string,
-  approver: string,
   confirmation: string,
 ): Promise<unknown> {
   return unwrap<unknown>(
     await authFetch(`/api/incidents/${id}/proposals/${proposalId}/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approver, confirmation }),
+      body: JSON.stringify({ confirmation }),
     }),
   )
 }
 
-export async function rejectProposal(
-  id: string,
-  proposalId: string,
-  approver: string,
-): Promise<unknown> {
+export async function rejectProposal(id: string, proposalId: string): Promise<unknown> {
   return unwrap<unknown>(
     await authFetch(`/api/incidents/${id}/proposals/${proposalId}/reject`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approver }),
+      body: JSON.stringify({}),
     }),
   )
 }
 
-export async function markHandled(id: string, note?: string, actor?: string): Promise<void> {
+export async function markHandled(id: string, note?: string): Promise<void> {
   await unwrap<void>(
     await authFetch(`/api/incidents/${id}/mark-handled`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note, actor }),
+      body: JSON.stringify({ note }),
     }),
   )
 }
 
-export async function reverify(id: string, actor?: string): Promise<void> {
+export async function reverify(id: string): Promise<void> {
   await unwrap<void>(
     await authFetch(`/api/incidents/${id}/reverify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actor }),
+      body: JSON.stringify({}),
     }),
   )
 }
 
-export async function closeIncident(id: string, reason: string, actor?: string): Promise<void> {
+export async function closeIncident(id: string, reason: string): Promise<void> {
   await unwrap<void>(
     await authFetch(`/api/incidents/${id}/close`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason, actor }),
+      body: JSON.stringify({ reason }),
     }),
   )
 }

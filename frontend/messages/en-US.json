@@ -1390,6 +1390,15 @@
     "rejectOk": "Proposal rejected",
     "actionFailed": "Action failed",
     "copyCode": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyMessage": "Copy text",
+    "agentName": "Ops Agent",
+    "fallbackOperator": "Operator",
+    "interrupted": "Interrupted",
+    "dateToday": "Today",
+    "dateYesterday": "Yesterday",
+    "chatStop": "Stop",
+    "chatSendFailed": "Send failed",
+    "cancelFailed": "Interrupt failed, please retry"
   }
 }

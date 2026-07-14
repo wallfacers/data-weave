@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import com.dataweave.master.application.DatasourceEncryptor;
@@ -74,13 +75,22 @@ public class LlmChatClient {
         }
     }
 
+    /** 无取消信号的流式对话（既有调用者兼容入口）。 */
+    public ChatResult streamChat(LineageAgentConfig cfg, String systemPrompt, List<ChatMessage> messages,
+                                  Consumer<String> onDelta) {
+        return streamChat(cfg, systemPrompt, messages, onDelta, () -> false);
+    }
+
     /**
      * 流式对话：逐段回调 {@code onDelta}（直播 UX 用），返回值含拼接后的完整文本供落库。
      * SSE 逐行读取；仅识别 {@code data: } 前缀行，其余（event:/id:/心跳空行）忽略；
      * OpenAI 的 {@code data: [DONE]} 终止标记不视为增量。
+     *
+     * <p>070 打断：每读一行检查 {@code cancelled}，置位即停止读取并关闭流退出——已拼接的部分文本正常返回，
+     * 由调用方决定如何收尾落库（不粗暴中断线程，读循环检查点行为可预期可测）。
      */
     public ChatResult streamChat(LineageAgentConfig cfg, String systemPrompt, List<ChatMessage> messages,
-                                  Consumer<String> onDelta) {
+                                  Consumer<String> onDelta, BooleanSupplier cancelled) {
         long t0 = System.nanoTime();
         LlmProtocolAdapter adapter = adapters.get(cfg.protocol());
         if (adapter == null) {
@@ -100,6 +110,11 @@ public class LlmChatClient {
                     new java.io.InputStreamReader(resp.body(), java.nio.charset.StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    if (cancelled.getAsBoolean()) {
+                        log.info("[LlmChat] {} stream cancelled by request; returning partial ({} chars)",
+                                cfg.protocol(), full.length());
+                        break;
+                    }
                     if (!line.startsWith("data:")) continue;
                     String data = line.substring(5).trim();
                     if (data.isEmpty() || "[DONE]".equals(data)) continue;

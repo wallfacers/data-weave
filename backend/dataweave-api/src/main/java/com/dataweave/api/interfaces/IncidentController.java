@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import java.util.ArrayList;
 
+import com.dataweave.api.application.DisplayNameResolver;
 import com.dataweave.api.infrastructure.ApiResponse;
 import com.dataweave.api.infrastructure.Locales;
 import com.dataweave.api.infrastructure.ProjectAuthz;
@@ -59,13 +60,14 @@ public class IncidentController {
     private final IncidentConversationService conversationService;
     private final IncidentBriefingService briefingService;
     private final EventBus eventBus;
+    private final DisplayNameResolver displayNameResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public IncidentController(IncidentQueryService queryService, AgentLineageConfigService agentConfigService,
                               ProjectScope projectScope, ProjectRoleService projectRoleService,
                               IncidentAgentService agentService, ProjectAuthz projectAuthz,
                               IncidentConversationService conversationService, IncidentBriefingService briefingService,
-                              EventBus eventBus) {
+                              EventBus eventBus, DisplayNameResolver displayNameResolver) {
         this.queryService = queryService;
         this.agentConfigService = agentConfigService;
         this.projectScope = projectScope;
@@ -75,6 +77,18 @@ public class IncidentController {
         this.conversationService = conversationService;
         this.briefingService = briefingService;
         this.eventBus = eventBus;
+        this.displayNameResolver = displayNameResolver;
+    }
+
+    /** 服务端认定的发言者标识（username，稳定）。body 自报的 actor 一律忽略（FR-010）。 */
+    private String currentActor() {
+        String username = TenantContext.username();
+        return username != null && !username.isBlank() ? username : "user";
+    }
+
+    /** 服务端解析的发言者显示名（displayName，可变），查不到回退 username。 */
+    private String currentActorName() {
+        return displayNameResolver.resolve(TenantContext.userId(), currentActor());
     }
 
     @GetMapping
@@ -194,19 +208,33 @@ public class IncidentController {
         return ApiResponse.ok(briefingService.get(TenantContext.tenantId(), pid));
     }
 
-    /** T030 事故线程对话：落 HUMAN_SAY 即时回显，Agent 回复经直播流达（delta→AGENT_SAY）。 */
+    /** T030 事故线程对话：落 HUMAN_SAY 即时回显，Agent 回复经直播流达（delta→AGENT_SAY）。
+     *  发言者身份由服务端依登录凭证认定（actor=username、actor_name=displayName），body.actor 忽略。 */
     @PostMapping("/{id}/chat")
     public ApiResponse<IncidentMessage> chat(@PathVariable UUID id, @RequestBody(required = false) ChatRequest body,
                                              @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
-        String actor = body != null ? body.actor() : null;
         IncidentMessage human = conversationService.chat(TenantContext.tenantId(), pid, id,
-                body != null ? body.text() : null, actor);
+                body != null ? body.text() : null, currentActor(), currentActorName());
         return ApiResponse.ok(human);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ChatRequest(String text, String actor) {
+    }
+
+    /** 070 打断当前事故的 Agent 输出轮次（经写闸门 incident_agent_cancel=L0，直执行+留痕）。 */
+    @PostMapping("/{id}/agent/cancel")
+    public ApiResponse<CancelResult> cancelAgent(@PathVariable UUID id,
+                                                 @RequestParam(required = false) Long projectId,
+                                                 ServerWebExchange exchange) {
+        long pid = resolveProjectId(projectId);
+        boolean cancelled = conversationService.cancelAgent(TenantContext.tenantId(), pid, id, currentActor(),
+                Locales.uiLocale(exchange.getRequest().getHeaders()));
+        return ApiResponse.ok(new CancelResult(cancelled));
+    }
+
+    public record CancelResult(boolean cancelled) {
     }
 
     /**
@@ -221,9 +249,8 @@ public class IncidentController {
         long pid = resolveProjectId(projectId);
         queryService.detail(TenantContext.tenantId(), pid, id); // 归属核验（非本项目事故一律不存在）
         projectAuthz.require("project:manage", pid);
-        String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
         String confirmation = body != null ? body.confirmation() : null;
-        return ApiResponse.ok(agentService.approveProposal(id, proposalId, approver, confirmation,
+        return ApiResponse.ok(agentService.approveProposal(id, proposalId, currentActor(), confirmation,
                 Locales.uiLocale(exchange.getRequest().getHeaders())));
     }
 
@@ -235,8 +262,7 @@ public class IncidentController {
         long pid = resolveProjectId(projectId);
         queryService.detail(TenantContext.tenantId(), pid, id);
         projectAuthz.require("project:manage", pid);
-        String approver = body != null && body.approver() != null ? body.approver() : "ui-user";
-        return ApiResponse.ok(agentService.rejectProposal(id, proposalId, approver));
+        return ApiResponse.ok(agentService.rejectProposal(id, proposalId, currentActor()));
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -249,7 +275,7 @@ public class IncidentController {
                                           @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
         queryService.detail(TenantContext.tenantId(), pid, id);
-        agentService.markHandled(id, body != null ? body.note() : null, body != null ? body.actor() : null);
+        agentService.markHandled(id, body != null ? body.note() : null, currentActor());
         return ApiResponse.ok(null);
     }
 
@@ -259,7 +285,7 @@ public class IncidentController {
                                        @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
         queryService.detail(TenantContext.tenantId(), pid, id);
-        agentService.reverify(id, body != null ? body.actor() : null);
+        agentService.reverify(id, currentActor());
         return ApiResponse.ok(null);
     }
 
@@ -269,7 +295,7 @@ public class IncidentController {
                                     @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
         queryService.detail(TenantContext.tenantId(), pid, id);
-        agentService.closeManual(id, body != null ? body.reason() : null, body != null ? body.actor() : null);
+        agentService.closeManual(id, body != null ? body.reason() : null, currentActor());
         return ApiResponse.ok(null);
     }
 

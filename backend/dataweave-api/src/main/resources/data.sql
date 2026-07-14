@@ -486,6 +486,7 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (57, 'TOOL', 'incident_adjust_resources',  NULL, 'L1', '智能运维调资源后重跑（护栏内自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (58, 'TOOL', 'incident_resume_checkpoint', NULL, 'L1', '智能运维检查点续跑（实时任务自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (59, 'TOOL', 'incident_reverify',          NULL, 'L1', '智能运维复验（人工处理后触发）',        1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(61, 'TOOL', 'incident_agent_cancel',      NULL, 'L0', '打断当前事故 Agent 输出轮次（低风险防护性操作，直执行+留痕）', 1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
