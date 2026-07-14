@@ -11,7 +11,7 @@ import java.util.Map;
  * @param jarRef      jar asset reference (jar mode); null otherwise
  * @param mainClass   {@code --class} main class (jar mode); null otherwise
  * @param longRunning 062: external long-running (streaming) job marker (Flink streaming=true); null≡false
- * @param resources   067: declarative resource hints (e.g. {@code memoryMb}/{@code cpuCores}); null=engine default
+ * @param resources   069: declarative resource hints (e.g. {@code memoryMb}/{@code cpuCores}); null=engine default
  */
 public record TaskDoc(
         int formatVersion,

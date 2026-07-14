@@ -91,7 +91,7 @@ func TestGoldenPathPullAuthorDiffPush(t *testing.T) {
 	}
 }
 
-// TestGoldenPathTaskResourcesRoundTrip 验证 067 声明式资源节（<slug>.task.yaml 的 resources: 块）
+// TestGoldenPathTaskResourcesRoundTrip 验证 069 声明式资源节（<slug>.task.yaml 的 resources: 块）
 // 经 pull → push → pull 全程字节级往返不丢不改——CLI 按 D2 边界只搬运原始字节，
 // 不解析文件契约格式，故新增 YAML 节天然透传，此测试锁定该行为不被回归破坏。
 func TestGoldenPathTaskResourcesRoundTrip(t *testing.T) {

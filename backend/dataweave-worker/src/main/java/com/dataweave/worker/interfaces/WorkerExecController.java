@@ -121,7 +121,7 @@ public class WorkerExecController {
         boolean longRunning = Boolean.TRUE.equals(body.get("longRunning"));
         String externalJobHandle = (String) body.get("externalJobHandle");
         String resumeSavepointPath = (String) body.get("resumeSavepointPath");  // D2：续跑 savepoint 恢复路径
-        Integer[] resources = parseResourceHints((String) body.get("resourcesJson"));  // 067：memoryMb/cpuCores
+        Integer[] resources = parseResourceHints((String) body.get("resourcesJson"));  // 069：memoryMb/cpuCores
 
         Object dsObj = body.get("datasource");
         if (!(dsObj instanceof Map)) {
@@ -164,14 +164,14 @@ public class WorkerExecController {
                     (String) dsInfo.get("sparkHome"), (String) dsInfo.get("master"),
                     (String) dsInfo.get("deployMode"), (String) dsInfo.get("queue"),
                     toStringMap(dsInfo.get("conf")), sparkMode, jarRef, mainClass,
-                    resources[0], resources[1]);  // 067：memoryMb/cpuCores
+                    resources[0], resources[1]);  // 069：memoryMb/cpuCores
             case "FLINK", "DATAX", "SEATUNNEL" -> engine = new ExecutionContext.EngineSubmitRef(
                     (String) dsInfo.getOrDefault("engineKind", dsType),
                     (String) dsInfo.get("engineHome"),
                     engineMode, engineJarRef, engineMainClass, null,
                     toStringMap(dsInfo.get("engineProps")),
                     longRunning, externalJobHandle, resumeSavepointPath,  // 062 detached/reattach + D2 savepoint 恢复
-                    resources[0], resources[1]);  // 067：memoryMb/cpuCores
+                    resources[0], resources[1]);  // 069：memoryMb/cpuCores
             default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
         }
         return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
@@ -183,7 +183,7 @@ public class WorkerExecController {
         return "FLINK".equals(taskType) || "DATAX".equals(taskType) || "SEATUNNEL".equals(taskType);
     }
 
-    /** 067：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
+    /** 069：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
     private static Integer[] parseResourceHints(String resourcesJson) {
         if (resourcesJson == null || resourcesJson.isBlank()) {
             return new Integer[]{null, null};

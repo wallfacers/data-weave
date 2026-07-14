@@ -22,7 +22,7 @@ import java.util.function.BooleanSupplier;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 US1 契约测试（quickstart 场景 1）：Sweeper 开单/归并/TEST·BACKFILL 排除、
+ * 069 US1 契约测试（quickstart 场景 1）：Sweeper 开单/归并/TEST·BACKFILL 排除、
  * DIAG_UNAVAILABLE 降级（未配置模型）、Controller HTTP 契约（200+$.code/$.data，401 未鉴权）。
  * 独立 H2 库（防串台），LLM 未配置故诊断走确定性降级路径，无需真外呼。
  */
@@ -30,9 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("h2")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-067;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-069;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
 })
-@DisplayName("Incident US1 诊断闭环 HTTP 契约（067）")
+@DisplayName("Incident US1 诊断闭环 HTTP 契约（069）")
 class IncidentControllerIT {
 
     @LocalServerPort

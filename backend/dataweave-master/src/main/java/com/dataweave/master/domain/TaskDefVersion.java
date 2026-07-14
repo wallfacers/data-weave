@@ -23,7 +23,7 @@ public class TaskDefVersion {
     private Integer priority;
     private String description;
     private String remark;
-    // 067 声明式资源快照 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认
+    // 069 声明式资源快照 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认
     private String resourcesJson;
     private Long publishedBy;
     private LocalDateTime publishedAt;

@@ -92,7 +92,7 @@ class FlinkTaskExecutorTest {
         assertThat(ten.savepointRestorePath()).isEqualTo("file:///savepoints/sp-1");
     }
 
-    // ---- 067 T018: 资源提示（taskmanager memory/slots）----
+    // ---- 069 T018: 资源提示（taskmanager memory/slots）----
 
     @Test
     void buildCommand_withResourceHints_addsTaskManagerDynamicProps() {

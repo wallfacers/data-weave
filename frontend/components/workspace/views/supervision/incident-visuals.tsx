@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * 067 监督席共享视觉原语（新增，T038 回填 DESIGN.md 公共组件目录）：
+ * 069 监督席共享视觉原语（新增，T038 回填 DESIGN.md 公共组件目录）：
  * 事故状态徽章 / 分型徽章 / 工具动作 chip / 思考态呼吸点 / 直播连接脉冲。
  * 全部走语义 token（无裸色值）+ `motion-safe:` 动效，`prefers-reduced-motion` 降级为静态状态文本。
  */

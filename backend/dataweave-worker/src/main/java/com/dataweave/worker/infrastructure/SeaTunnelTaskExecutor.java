@@ -123,7 +123,7 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
         }
-        // 067：声明式内存提示——seatunnel.sh 从 JVM_ARGS 环境变量读取 JVM 堆配置（无 CLI flag）
+        // 069：声明式内存提示——seatunnel.sh 从 JVM_ARGS 环境变量读取 JVM 堆配置（无 CLI flag）
         if (memoryMb != null) {
             pb.environment().put("JVM_ARGS", "-Xms" + memoryMb + "m -Xmx" + memoryMb + "m");
         }

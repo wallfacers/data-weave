@@ -143,10 +143,10 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 | 段控（互斥分段切换） | `Segmented` | `components/ui/segmented.tsx` | 见下方段控条目 |
 | 数值步进 | `Stepper` | `components/ui/stepper.tsx` | 见下方步进器条目 |
 | 卡片容器 | `Card` | `components/ui/card.tsx` | 见 [卡片内容内边距](#卡片内容内边距--单一-token---card-spacing) |
-| 监督席直播原语（067） | `StateBadge`/`ClassificationBadge`/`ToolChip`/`ThinkingDots`/`LiveDot`/`PendingIcon` | `components/workspace/views/supervision/incident-visuals.tsx` | 见下方监督席条目 |
-| 事故线程消息气泡（067） | `MessageBubble`/`AgentBubble` | `components/workspace/views/supervision/incident-thread.tsx` | 见下方监督席条目 |
+| 监督席直播原语（069） | `StateBadge`/`ClassificationBadge`/`ToolChip`/`ThinkingDots`/`LiveDot`/`PendingIcon` | `components/workspace/views/supervision/incident-visuals.tsx` | 见下方监督席条目 |
+| 事故线程消息气泡（069） | `MessageBubble`/`AgentBubble` | `components/workspace/views/supervision/incident-thread.tsx` | 见下方监督席条目 |
 
-### 监督席直播原语（067 指挥中心）
+### 监督席直播原语（069 指挥中心）
 
 - **用途/何时用**：`supervision` 视图的事故直播 feed 与下钻线程；任何需要「Agent 处理态智能感」的场景可复用这组原语。
 - **何时不用**：普通静态状态展示用 `Badge` 即可，无需引入直播动效原语。

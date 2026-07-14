@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * 067 监督席 REST 客户端（复用既有 authFetch + X-Project-Id 注入；统一 code===0 解包）。
+ * 069 监督席 REST 客户端（复用既有 authFetch + X-Project-Id 注入；统一 code===0 解包）。
  * 写操作错误消息由后端本地化（GlobalExceptionHandler），前端 toast 直接透出 message（不硬编码兜底）。
  */
 import { authFetch, type ApiResponse } from "@/lib/types"

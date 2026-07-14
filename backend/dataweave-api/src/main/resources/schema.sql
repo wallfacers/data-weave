@@ -20,7 +20,7 @@
 --       task_instance +long_running 快照列（面板按此过滤，免 JOIN task_def）+resume_checkpoint_id（续跑所选回滚点引用））。
 --     → 065 移除监督席=0.17.0（删除 incident/incident_event/health_event/event_subscription 4 表；删除 agent_action.incident_id 列）。
 --     → 066 移除告警/质量体系=0.18.0（删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除）。
---     → 067 任务失败智能运维=0.19.0（+incident/incident_message/incident_proposal/incident_briefing 4 表：
+--     → 069 任务失败智能运维=0.19.0（+incident/incident_message/incident_proposal/incident_briefing 4 表：
 --       巡检开单+LLM诊断+梯度处置+审批+监督席直播流；task_def(_version) +resources_json；lineage_agent_config +ops_enabled；+incident_* policy_rule 种子）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
@@ -89,7 +89,7 @@ DROP TABLE IF EXISTS incident_event;
 DROP TABLE IF EXISTS incident;
 DROP TABLE IF EXISTS health_event;
 DROP TABLE IF EXISTS event_subscription;
--- 067 智能运维事故域（与 065 已移除的旧 incident/incident_event 同名重建，结构全新，见下方 CREATE）。
+-- 069 智能运维事故域（与 065 已移除的旧 incident/incident_event 同名重建，结构全新，见下方 CREATE）。
 DROP TABLE IF EXISTS incident_instance;
 DROP TABLE IF EXISTS incident_message;
 DROP TABLE IF EXISTS incident_proposal;
@@ -151,7 +151,7 @@ VALUES ('0.17.0', CURRENT_TIMESTAMP, '065 移除监督席：删除 incident/inci
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.18.0', CURRENT_TIMESTAMP, '066 移除告警/质量体系：删除 alert_* 7 表 + quality_* 表 + alert_*/QUALITY_* policy_rule 种子；AlertSignal 信号桥移除');
 INSERT INTO schema_version (version, applied_at, description)
-VALUES ('0.19.0', CURRENT_TIMESTAMP, '067 任务失败智能运维：+incident/incident_message/incident_proposal/incident_briefing 4 表；task_def(_version) +resources_json；lineage_agent_config +ops_enabled；+incident_* policy_rule 种子');
+VALUES ('0.19.0', CURRENT_TIMESTAMP, '069 任务失败智能运维：+incident/incident_message/incident_proposal/incident_briefing 4 表；task_def(_version) +resources_json；lineage_agent_config +ops_enabled；+incident_* policy_rule 种子');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -355,7 +355,7 @@ CREATE TABLE task_def (
     timeout_sec         INTEGER,
     retry_max           INTEGER DEFAULT 0,
     long_running        BOOLEAN DEFAULT FALSE,  -- 060 外部托管长驻作业标记（Flink 流式=true）；决定 detached+reattach 容错路径与 timeout/自我中止豁免（FR-022/026）
-    resources_json      VARCHAR(512),        -- 067 声明式资源 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认；智能运维资源自愈的调整落点
+    resources_json      VARCHAR(512),        -- 069 声明式资源 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认；智能运维资源自愈的调整落点
     status              VARCHAR(32) DEFAULT 'DRAFT',
     current_version_no  INTEGER DEFAULT 0,   -- 最后发布版本号（0=未发布）
     has_draft_change    SMALLINT DEFAULT 1,  -- 有未发布改动
@@ -388,7 +388,7 @@ CREATE TABLE task_def_version (
     timeout_sec          INTEGER,
     retry_max            INTEGER,
     long_running         BOOLEAN,              -- 060 发布时 long_running 快照（外部托管长驻作业标记；与 task_def 同步）
-    resources_json       VARCHAR(512),         -- 067 发布时资源声明快照（与 task_def 同步）
+    resources_json       VARCHAR(512),         -- 069 发布时资源声明快照（与 task_def 同步）
     priority             INTEGER,              -- 发布时优先级快照
     description          VARCHAR(512),         -- 发布时描述快照
     remark               VARCHAR(512),
@@ -1053,7 +1053,7 @@ CREATE TABLE lineage_agent_config (
     model              VARCHAR(128) NOT NULL,           -- 模型名
     api_key_enc        VARCHAR(1024),                   -- 加密密钥；NULL=免鉴权网关（明文绝不入库/日志）
     enabled            SMALLINT NOT NULL DEFAULT 0,     -- 默认 0=关闭（FR-019）；1=启用（血缘富化用途）
-    ops_enabled        SMALLINT NOT NULL DEFAULT 0,     -- 067 智能运维用途独立开关；默认 0=关闭；与 enabled 分离互不影响
+    ops_enabled        SMALLINT NOT NULL DEFAULT 0,     -- 069 智能运维用途独立开关；默认 0=关闭；与 enabled 分离互不影响
     timeout_ms         INTEGER NOT NULL DEFAULT 30000,  -- 单次外呼预算（FR-022）
     rate_limit_per_min INTEGER NOT NULL DEFAULT 60,     -- 每分钟外呼上限（FR-023）
     max_columns        INTEGER NOT NULL DEFAULT 2000,   -- schema 抓取列数上限（FR-014）
@@ -1114,7 +1114,7 @@ CREATE TABLE lineage_grounding_disposition (
 CREATE INDEX idx_grounding_disp_task ON lineage_grounding_disposition (tenant_id, project_id, task_def_id);
 
 -- ============================================================
--- 域 G · 067 任务失败智能运维（事故域）
+-- 域 G · 069 任务失败智能运维（事故域）
 -- Incident 是一次故障响应的一等载体：巡检开单 → 采证 → LLM 分型诊断 → 梯度处置 → 验证收口/升级人工。
 -- open_key = task_def_id（开着时）/ NULL（收口后）；UNIQUE(tenant_id, open_key) 靠 NULL 不参与唯一冲突的标准语义
 -- 实现"同一任务至多一个未收口事故"，插入冲突即视为归并（H2/PG 均遵循 ANSI NULL-distinct 语义，无需 partial index）。

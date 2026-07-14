@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 067 诊断证据采集（US1/FR-002）：失败实例日志尾部 + 任务定义 + 近期运行历史 + 实时任务外部句柄/检查点可用性。
+ * 069 诊断证据采集（US1/FR-002）：失败实例日志尾部 + 任务定义 + 近期运行历史 + 实时任务外部句柄/检查点可用性。
  * 全部证据源复用既有读取口（task_instance.log 已持久化全量日志、task_def、task_checkpoint），零新采集设施。
  */
 @Component

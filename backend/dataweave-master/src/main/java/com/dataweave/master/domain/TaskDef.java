@@ -35,7 +35,7 @@ public class TaskDef {
     // 060 外部托管长驻作业标记（Flink 流式=true）；062 接通创作→下发链路后经产品路径可写。
     // 决定实例物化 long_running 快照 + 下发 detached 长驻分支 + timeout/自我中止豁免。
     private Boolean longRunning;
-    // 067 声明式资源 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认
+    // 069 声明式资源 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认
     private String resourcesJson;
 
     public TaskDef() {}

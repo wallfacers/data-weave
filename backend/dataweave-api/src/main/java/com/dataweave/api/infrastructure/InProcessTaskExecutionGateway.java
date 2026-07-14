@@ -228,7 +228,7 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 s != null ? s.queue() : null,
                 s != null ? s.conf() : null,
                 cmd.sparkMode(), cmd.jarRef(), cmd.mainClass(),
-                resources[0], resources[1]);  // 067：memoryMb/cpuCores 声明式提示
+                resources[0], resources[1]);  // 069：memoryMb/cpuCores 声明式提示
     }
 
     /**
@@ -254,10 +254,10 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 cmd.longRunning(),            // 062：detached 长驻分支
                 cmd.externalJobHandle(),      // 062：reattach 句柄（非空则重连不重复提交）
                 cmd.resumeSavepointPath(),    // D2：savepoint 恢复路径（优先于 reattach，全新提交 -s 恢复）
-                resources[0], resources[1]);  // 067：memoryMb/cpuCores 声明式提示
+                resources[0], resources[1]);  // 069：memoryMb/cpuCores 声明式提示
     }
 
-    /** 067：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
+    /** 069：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
     private static Integer[] parseResourceHints(String resourcesJson) {
         if (resourcesJson == null || resourcesJson.isBlank()) {
             return new Integer[]{null, null};

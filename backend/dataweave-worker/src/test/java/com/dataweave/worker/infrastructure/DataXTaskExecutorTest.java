@@ -36,7 +36,7 @@ class DataXTaskExecutorTest {
         assertThat(cmd).hasSize(2);
     }
 
-    // ---- 067 T018: 资源提示（-j JVM 堆内存透传）----
+    // ---- 069 T018: 资源提示（-j JVM 堆内存透传）----
 
     @Test
     void buildCommand_withMemoryHint_addsJvmFlagBeforeJobPath() {

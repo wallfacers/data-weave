@@ -143,7 +143,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "LINEAGE_EDGE_REMOVE" -> lineageCorrection(action, "REMOVE", locale);
             case "LINEAGE_CORRECTION_REVOKE" -> lineageCorrection(action, "REVOKE", locale);
             case "BACKFILL" -> backfill(action, locale);
-            // 067 运维 Agent 自愈动作：targetType=TASK_INSTANCE（rerun/resume-checkpoint/reverify）
+            // 069 运维 Agent 自愈动作：targetType=TASK_INSTANCE（rerun/resume-checkpoint/reverify）
             // 或 TASK（adjust-resources 改 task_def）；command 携带结构化参数（同 backfill/lineage 惯例）。
             case "INCIDENT_RERUN", "INCIDENT_REVERIFY" -> incidentRerun(action, locale);
             case "INCIDENT_ADJUST_RESOURCES" -> incidentAdjustResources(action, locale);
@@ -517,7 +517,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         }
     }
 
-    // ---- 067 运维 Agent 自愈动作 ----
+    // ---- 069 运维 Agent 自愈动作 ----
 
     /** incident_rerun / incident_reverify：targetId=taskInstanceId，直接复用 OpsService.rerunInstance。 */
     private ExecOutcome incidentRerun(AgentAction action, Locale locale) {
@@ -614,7 +614,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 "memoryMb", ((Number) memoryMbObj).intValue(), "cpuCores", ((Number) cpuCoresObj).intValue()));
         task.setResourcesJson(resourcesJson);
         taskDefRepository.save(task);
-        taskService.writeTaskVersionSnapshot(task, null, "067 运维 Agent 自动调资源（护栏内自愈）");
+        taskService.writeTaskVersionSnapshot(task, null, "069 运维 Agent 自动调资源（护栏内自愈）");
         try {
             TaskInstance ti = opsService.getObject().rerunInstance(instanceId);
             return new ExecOutcome(true,
@@ -673,7 +673,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         task.setContent(proposal.proposedContent());
         taskDefRepository.save(task);
         int newVersion = taskService.writeTaskVersionSnapshot(task, null,
-                "067 修复提案发布（事故 " + incidentId + "，提案 " + proposalId + "）");
+                "069 修复提案发布（事故 " + incidentId + "，提案 " + proposalId + "）");
         incidentProposalRepository.markPublished(proposalId, newVersion);
 
         Incident inc = incidentRepository.findById(incidentId).orElse(null);
@@ -695,7 +695,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                 resultInstanceId);
     }
 
-    /** 067 事故消息追加 + 直播广播（镜像 IncidentAgentService 同名逻辑，执行器侧独立小闭环，避免反向依赖 application.incident）。 */
+    /** 069 事故消息追加 + 直播广播（镜像 IncidentAgentService 同名逻辑，执行器侧独立小闭环，避免反向依赖 application.incident）。 */
     private void appendIncidentMessage(UUID incidentId, String kind, String content, String payloadJson, String actor) {
         var msg = incidentMessageRepository.append(incidentId, kind, content, payloadJson, actor);
         incidentRepository.findById(incidentId).ifPresent(inc -> {

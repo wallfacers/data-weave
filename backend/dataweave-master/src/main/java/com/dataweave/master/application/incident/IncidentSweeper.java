@@ -21,7 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * 067 巡检开单器（US1/FR-001/FR-015）：周期扫描 FAILED/SUSPENDED 实例，自动开单或归并进既有未收口事故；
+ * 069 巡检开单器（US1/FR-001/FR-015）：周期扫描 FAILED/SUSPENDED 实例，自动开单或归并进既有未收口事故；
  * 对调度内核零侵入——纯只读观察 task_instance，不改状态机/CAS/锁序（守 SC-008 红线）。
  * 多 master 防重靠 {@link IncidentRepository#tryOpen} 的 {@code UNIQUE(tenant_id, open_key)} 单赢，
  * 同任务重复失败的幂等归并靠 {@code incident_instance} 关联表（不用 SKIP LOCKED，属乐观 CAS 单赢模式，同既有巡检器惯例）。
@@ -64,7 +64,7 @@ public class IncidentSweeper {
         for (Incident pending : incidentRepo.findAllByState(IncidentStates.OPEN)) {
             submitDiagnosis(pending.id());
         }
-        // 067 T021/T022：追踪处置后 latest_instance 终态——成功收口/失败进入下一梯度处置或升级人工
+        // 069 T021/T022：追踪处置后 latest_instance 终态——成功收口/失败进入下一梯度处置或升级人工
         for (Incident acting : incidentRepo.findAllByState(IncidentStates.ACTING)) {
             submitAction(acting.id());
         }
@@ -142,7 +142,7 @@ public class IncidentSweeper {
         });
     }
 
-    /** 067 T021/T022：ACTING 事故验证/下一步处置，复用同一风暴闸门+线程池（诊断与处置互斥竞争，行为符合预期）。 */
+    /** 069 T021/T022：ACTING 事故验证/下一步处置，复用同一风暴闸门+线程池（诊断与处置互斥竞争，行为符合预期）。 */
     private void submitAction(UUID incidentId) {
         if (!stormGate.tryAcquire()) {
             log.info("[IncidentSweeper] storm gate saturated, incident {} action deferred to next sweep", incidentId);

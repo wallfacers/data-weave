@@ -16,7 +16,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 诊断提示组装 + 结构化输出解析（US1/FR-003）。系统提示要求模型只回复单个 JSON 对象
+ * 069 诊断提示组装 + 结构化输出解析（US1/FR-003）。系统提示要求模型只回复单个 JSON 对象
  * （无强制 tool_call，普通 chat 通道即可）；解析失败一律降级 UNKNOWN，绝不抛异常拖垮编排。
  */
 @Component

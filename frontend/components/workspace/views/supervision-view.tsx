@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * 067 US4 监督席·指挥中心（首屏）。T038 总装：
+ * 069 US4 监督席·指挥中心（首屏）。T038 总装：
  * 战况播报横幅（实时数字）+ 全量直播 feed（thinking/chip/delta 智能感层）+ 下钻线程自由对话/结构化裁决。
  *
  * 数据层：{@link useIncidentStream} 直连 SSE（snapshot 先发→实时增量）；数字永远来自 store.stats（SC-010）；

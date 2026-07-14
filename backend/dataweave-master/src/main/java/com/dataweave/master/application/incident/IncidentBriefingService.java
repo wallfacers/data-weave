@@ -20,7 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * 067 T031 战况播报：一句话综述 + 完整接班报告（Markdown）。
+ * 069 T031 战况播报：一句话综述 + 完整接班报告（Markdown）。
  *
  * <p><b>SC-010 结构保证</b>：播报文字可滞后（防抖，避免每次事故变动都重外呼 LLM），但接口返回的数字
  * 永远由 {@link IncidentQueryService#stats} 直算 incident 表当下事实——绝不读 incident_briefing.stats_json

@@ -76,7 +76,7 @@ public class AgentConfigRepository {
         return key != null ? key.longValue() : -1L;
     }
 
-    /** 067：智能运维用途独立开关（与 enabled 分离，不影响血缘富化用途）；无生效配置时返回 0（不存在）。 */
+    /** 069：智能运维用途独立开关（与 enabled 分离，不影响血缘富化用途）；无生效配置时返回 0（不存在）。 */
     public int updateOpsEnabled(long tenantId, boolean opsEnabled) {
         return jdbc.update(
                 "UPDATE lineage_agent_config SET ops_enabled = ?, updated_at = ?, version = version + 1 " +

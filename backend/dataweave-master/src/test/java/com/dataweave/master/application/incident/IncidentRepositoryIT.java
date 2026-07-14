@@ -24,7 +24,7 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 Phase 2 地基测试：开单唯一约束单赢/归并、CAS 状态推进、消息 seq 单调、briefing upsert。
+ * 069 Phase 2 地基测试：开单唯一约束单赢/归并、CAS 状态推进、消息 seq 单调、briefing upsert。
  * 隔离 H2 库（对齐 SlotManagerDistributedIT 模式），不依赖 @SpringBootTest，避免上下文污染（记忆：H2 共享内存库测试串台）。
  */
 class IncidentRepositoryIT {

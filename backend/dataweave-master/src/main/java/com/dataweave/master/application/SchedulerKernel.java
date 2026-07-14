@@ -78,7 +78,7 @@ public class SchedulerKernel {
     // 消除 assign() 每行查 task_def_version / task_def 的 N+1（50 行 × 2-4 查询 → 首轮后全命中）。
     private final java.util.concurrent.ConcurrentHashMap<String, String> contentCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentHashMap<String, String> paramsCache = new java.util.concurrent.ConcurrentHashMap<>();
-    // 067：resources_json 同 params_json 版本冻结缓存模式
+    // 069：resources_json 同 params_json 版本冻结缓存模式
     private final java.util.concurrent.ConcurrentHashMap<String, String> resourcesCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public SchedulerKernel(JdbcTemplate jdbc,
@@ -357,7 +357,7 @@ public class SchedulerKernel {
                 engineJarRef = jsonStr(pj, "_jarRef");
                 engineMainClass = jsonStr(pj, "_mainClass");
             }
-            // 067：声明式资源提示——仅对可映射的引擎类任务查（Spark/Flink/DataX/SeaTunnel），其余类型免查询开销
+            // 069：声明式资源提示——仅对可映射的引擎类任务查（Spark/Flink/DataX/SeaTunnel），其余类型免查询开销
             String resourcesJson = null;
             if ("SPARK".equalsIgnoreCase(r.taskType) || "FLINK".equalsIgnoreCase(r.taskType)
                     || "DATAX".equalsIgnoreCase(r.taskType) || "SEATUNNEL".equalsIgnoreCase(r.taskType)) {
@@ -369,7 +369,7 @@ public class SchedulerKernel {
                     engineMode, engineJarRef, engineMainClass,
                     r.longRunning, r.externalJobHandle,  // 062：传播 long_running + reattach 句柄
                     r.resumeSavepointPath,  // D2：从 savepoint 恢复续跑路径（resume_checkpoint_id → checkpoint_path）
-                    resourcesJson));  // 067：声明式资源提示（memoryMb/cpuCores）
+                    resourcesJson));  // 069：声明式资源提示（memoryMb/cpuCores）
             // DISPATCHED 事件延迟到事务提交后发布(runRound);content 失败实例已被 casFailed 发 FAILED,不再发 DISPATCHED。
             events.add(new InstanceStateMachine.DispatchedEvent(r.id, r.workflowInstanceId));
         }
@@ -796,7 +796,7 @@ public class SchedulerKernel {
         return p.isEmpty() ? null : p.get(0);
     }
 
-    /** 取声明式资源提示 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。067：按版本缓存。 */
+    /** 取声明式资源提示 JSON：与 {@link #contentOf} 同源（按版本优先 task_def_version）。069：按版本缓存。 */
     private String resourcesJsonOf(Row r) {
         if (r.taskId == null) {
             return null;
@@ -811,7 +811,7 @@ public class SchedulerKernel {
         return resourcesCache.computeIfAbsent(r.taskId + ":v" + r.taskVersionNo, k -> loadResources(r));
     }
 
-    /** 067：resourcesJsonOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */
+    /** 069：resourcesJsonOf 的 DB 加载(computeIfAbsent 首次 miss 时填 cache)。 */
     private String loadResources(Row r) {
         if (r.taskVersionNo != null) {
             List<String> res = jdbc.query(

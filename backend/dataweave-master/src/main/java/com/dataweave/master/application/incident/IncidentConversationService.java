@@ -31,7 +31,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 T030 事故线程自由对话：监督席在事故线程内向运维 Agent 发问/下指令。
+ * 069 T030 事故线程自由对话：监督席在事故线程内向运维 Agent 发问/下指令。
  *
  * <p>时序：HUMAN_SAY 立即落库+广播（人看到自己发言回显）→ 异步后台线程组装上下文（系统提示 + 证据包 +
  * 线程历史，按预算截断）→ {@link LlmChatClient#streamChat} 流式外呼，逐段广播 {@code delta}（streamId 串联）→

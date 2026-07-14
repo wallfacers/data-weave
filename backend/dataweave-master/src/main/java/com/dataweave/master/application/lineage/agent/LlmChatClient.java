@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 import static java.util.stream.Collectors.toMap;
 
 /**
- * 067 通用多轮对话客户端：诊断/对话/修复提案/战况播报复用同一 053 AI Agent 配置通道（协议/端点/模型/密钥），
+ * 069 通用多轮对话客户端：诊断/对话/修复提案/战况播报复用同一 053 AI Agent 配置通道（协议/端点/模型/密钥），
  * 与 {@link LlmAgentClient}（血缘专用 emit_lineage 强制工具调用）并列，不改动其语义。
  * 同 053 三条硬约束：降级永不抛、apiKey 即用即弃不进日志、超时=cfg.timeoutMs。
  */

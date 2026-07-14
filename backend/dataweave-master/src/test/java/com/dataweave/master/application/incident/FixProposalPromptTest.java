@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 T023：修复提案解析必须严格——绝不能拿半截/空白脚本覆盖任务定义。
+ * 069 T023：修复提案解析必须严格——绝不能拿半截/空白脚本覆盖任务定义。
  */
 class FixProposalPromptTest {
 

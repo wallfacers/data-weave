@@ -44,12 +44,12 @@ public class AgentLineageConfigService {
         return repo.findActive(tenantId).map(LineageAgentConfig::enabled).orElse(false);
     }
 
-    /** 067：智能运维用途是否启用（独立于 enabled，FR-012）。无生效配置视为未启用。 */
+    /** 069：智能运维用途是否启用（独立于 enabled，FR-012）。无生效配置视为未启用。 */
     public boolean isOpsEnabledFor(long tenantId) {
         return repo.findActive(tenantId).map(LineageAgentConfig::opsEnabled).orElse(false);
     }
 
-    /** 067：切换智能运维开关；无生效配置（未配置协议/端点）时抛错，不能凭空开启。 */
+    /** 069：切换智能运维开关；无生效配置（未配置协议/端点）时抛错，不能凭空开启。 */
     public void setOpsEnabled(long tenantId, boolean opsEnabled) {
         int rows = repo.updateOpsEnabled(tenantId, opsEnabled);
         if (rows == 0) {

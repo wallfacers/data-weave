@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 T020/T024：RemediationPlanner 确定性梯度映射全分支单测（纯函数，无需 Spring 上下文）。
+ * 069 T020/T024：RemediationPlanner 确定性梯度映射全分支单测（纯函数，无需 Spring 上下文）。
  */
 class RemediationPlannerTest {
 

@@ -1,8 +1,8 @@
 # Implementation Plan: 任务失败智能运维——Agent 自动诊断处置闭环 + 监督席指挥中心
 
-**Branch**: `067-agent-incident-ops` | **Date**: 2026-07-13 | **Spec**: [spec.md](spec.md)
+**Branch**: `069-agent-incident-ops` | **Date**: 2026-07-13 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `specs/067-agent-incident-ops/spec.md`
+**Input**: Feature specification from `specs/069-agent-incident-ops/spec.md`
 
 ## Summary
 
@@ -47,7 +47,7 @@
 ### Documentation (this feature)
 
 ```text
-specs/067-agent-incident-ops/
+specs/069-agent-incident-ops/
 ├── plan.md              # 本文件
 ├── research.md          # Phase 0（R1–R13 全裁决）
 ├── data-model.md        # Phase 1（4 新表/3 列变更/状态机/校验）

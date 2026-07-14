@@ -1,6 +1,6 @@
 # Feature Specification: 任务失败智能运维——Agent 自动诊断处置闭环 + 监督席聊天室
 
-**Feature Branch**: `067-agent-incident-ops`
+**Feature Branch**: `069-agent-incident-ops`
 
 **Created**: 2026-07-13
 

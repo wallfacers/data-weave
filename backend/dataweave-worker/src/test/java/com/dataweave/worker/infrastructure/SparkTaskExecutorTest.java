@@ -89,7 +89,7 @@ class SparkTaskExecutorTest {
         assertThat(cmd.get(cmd.size() - 1)).isEqualTo("/tmp/app.jar");
     }
 
-    // ---- 067 T018: 资源提示（driver/executor memory+cores）----
+    // ---- 069 T018: 资源提示（driver/executor memory+cores）----
 
     @Test
     void buildCommand_withResourceHints_addsDriverExecutorMemoryAndCores() {

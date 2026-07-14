@@ -41,7 +41,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 运维 Agent 编排（US1 诊断段）：CAS 认领 → 采证（chip 直播）→ 确定性凭据指纹前置 → LLM 分型诊断
+ * 069 运维 Agent 编排（US1 诊断段）：CAS 认领 → 采证（chip 直播）→ 确定性凭据指纹前置 → LLM 分型诊断
  * → 结论落库+推进 ACTING。全部经确定性 Java 代码编排，LLM 只做分型判断与文本生成（research R1）。
  * 处置/验证段属 US2/US3（RemediationPlanner 及后续），本类只负责把事故从 OPEN 推进到「已诊断待处置」。
  */
@@ -189,7 +189,7 @@ public class IncidentAgentService {
     }
 
     /**
-     * 067 US2/US3 处置与验证段：对处于 ACTING 的事故决定「验证已处置结果」或「决策下一步处置动作」。
+     * 069 US2/US3 处置与验证段：对处于 ACTING 的事故决定「验证已处置结果」或「决策下一步处置动作」。
      * 由 {@link #applyDiagnosis} 诊断刚完成后调用一次（首次处置），也由 {@link IncidentSweeper} 每轮对所有
      * ACTING 事故重试调用（追踪处置后 latest_instance 终态，成功收口/失败进入下一梯度，T022 验证收口循环）。
      * 永不抛异常——内部各阶段失败均转 NEEDS_HUMAN（宁可保守升级人工，不可静默卡死事故）。
@@ -276,7 +276,7 @@ public class IncidentAgentService {
         task.setResourcesJson(baseVer.getResourcesJson());
         taskDefRepository.save(task);
         int rollbackVersionNo = taskService.writeTaskVersionSnapshot(task, null,
-                "067 修复验证失败自动回滚至基线版本（事故 " + proposal.incidentId() + "）");
+                "069 修复验证失败自动回滚至基线版本（事故 " + proposal.incidentId() + "）");
         proposalRepository.markRolledBack(proposal.id(), rollbackVersionNo);
     }
 

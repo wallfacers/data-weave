@@ -73,7 +73,7 @@ public class OpenAiProtocolAdapter implements LlmProtocolAdapter {
         }
     }
 
-    // ===== 067：通用对话（无 response_format 约束，纯文本回复）=====
+    // ===== 069：通用对话（无 response_format 约束，纯文本回复）=====
 
     @Override
     public HttpRequest buildChatRequest(com.dataweave.master.domain.lineage.LineageAgentConfig cfg, String systemPrompt,

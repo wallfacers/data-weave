@@ -11,7 +11,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 修复提案提示组装 + 结构化输出解析（US2/FR-007 CODE 分型）：产出全量新脚本内容 + 变更说明，
+ * 069 修复提案提示组装 + 结构化输出解析（US2/FR-007 CODE 分型）：产出全量新脚本内容 + 变更说明，
  * 与 push 幂等覆盖语义一致（非 diff）。解析失败一律返回空，绝不产出半截/空白脚本覆盖任务。
  */
 @Component

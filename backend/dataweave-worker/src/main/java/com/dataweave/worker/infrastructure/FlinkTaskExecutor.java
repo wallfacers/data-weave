@@ -447,7 +447,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
     }
 
     /**
-     * 构造 Flink 提交命令（067：声明式资源提示 → {@code -D taskmanager.memory.process.size}/
+     * 构造 Flink 提交命令（069：声明式资源提示 → {@code -D taskmanager.memory.process.size}/
      * {@code -D taskmanager.numberOfTaskSlots}，jar/sql 两形态通用）。
      *
      * @param memoryMb TaskManager 进程内存（MB）；null=引擎默认
@@ -491,7 +491,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
         return cmd;
     }
 
-    /** 067：追加 {@code -D taskmanager.memory.process.size}/{@code -D taskmanager.numberOfTaskSlots}（非空才写）。 */
+    /** 069：追加 {@code -D taskmanager.memory.process.size}/{@code -D taskmanager.numberOfTaskSlots}（非空才写）。 */
     private static void addResourceProps(List<String> cmd, Integer memoryMb, Integer cpuCores) {
         if (memoryMb != null) {
             cmd.add("-D");

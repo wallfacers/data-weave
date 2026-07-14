@@ -116,7 +116,7 @@ public class TaskMapper {
         if (doc.params() != null && !doc.params().isEmpty()) {
             DeterministicYaml.put(map, "params", toOrderedParamsMap(doc.params()));
         }
-        // 067 声明式资源（非空才写，保持 .task.yaml 清洁，与 params 同风格）
+        // 069 声明式资源（非空才写，保持 .task.yaml 清洁，与 params 同风格）
         if (doc.resources() != null && !doc.resources().isEmpty()) {
             DeterministicYaml.put(map, "resources", toOrderedParamsMap(doc.resources()));
         }

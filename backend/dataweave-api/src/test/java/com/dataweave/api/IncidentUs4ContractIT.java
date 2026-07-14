@@ -24,16 +24,16 @@ import reactor.test.StepVerifier;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 US4 指挥中心后端契约（T032）：SSE 快照 + Last-Event-ID 补齐、战况播报数字与事实一致（SC-010）、
+ * 069 US4 指挥中心后端契约（T032）：SSE 快照 + Last-Event-ID 补齐、战况播报数字与事实一致（SC-010）、
  * 对话前置校验（agent_disabled / 空发言 / 已收口）。独立 H2 库防串台；无真 LLM，只验确定性路径。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("h2")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-us4-067;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-us4-069;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
 })
-@DisplayName("Incident US4 指挥中心直播/播报/对话 契约（067）")
+@DisplayName("Incident US4 指挥中心直播/播报/对话 契约（069）")
 class IncidentUs4ContractIT {
 
     @LocalServerPort

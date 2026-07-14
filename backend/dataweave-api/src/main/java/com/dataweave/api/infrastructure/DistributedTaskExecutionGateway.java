@@ -130,7 +130,7 @@ public class DistributedTaskExecutionGateway implements TaskExecutionGateway {
         if (cmd.resumeSavepointPath() != null && !cmd.resumeSavepointPath().isBlank()) {
             body.put("resumeSavepointPath", cmd.resumeSavepointPath());
         }
-        // 067：声明式资源提示透传（worker 合成 SparkSubmitRef/EngineSubmitRef 的 memoryMb/cpuCores）
+        // 069：声明式资源提示透传（worker 合成 SparkSubmitRef/EngineSubmitRef 的 memoryMb/cpuCores）
         if (cmd.resourcesJson() != null && !cmd.resourcesJson().isBlank()) {
             body.put("resourcesJson", cmd.resourcesJson());
         }

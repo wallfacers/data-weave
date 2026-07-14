@@ -1,5 +1,5 @@
 /**
- * 067 T040 监督席指挥中心 · Playwright 浏览器门（SC-009/SC-010/SC-011）。
+ * 069 T040 监督席指挥中心 · Playwright 浏览器门（SC-009/SC-010/SC-011）。
  *
  * 运行前置（真栈，非 mock）：
  *   1) 后端：cd backend && ./mvnw -pl dataweave-api spring-boot:run -Dspring-boot.run.profiles=h2   # :8000

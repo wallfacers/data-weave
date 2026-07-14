@@ -1,5 +1,5 @@
 /**
- * 067 监督席直播流归约（纯函数，无 React 依赖，node/vitest 可直接 import）。
+ * 069 监督席直播流归约（纯函数，无 React 依赖，node/vitest 可直接 import）。
  *
  * SSE 事件 → 状态：snapshot/incident/message 为持久化背书（可作真相），
  * thinking/chip/delta 为瞬态智能感层（断线丢失无损）。delta 打字流以对应持久化 message

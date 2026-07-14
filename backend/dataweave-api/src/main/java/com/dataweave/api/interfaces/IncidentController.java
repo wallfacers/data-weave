@@ -42,7 +42,7 @@ import reactor.core.publisher.Sinks;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 事故域 REST（契约：specs/067-agent-incident-ops/contracts/incident-api.md）。
+ * 069 事故域 REST（契约：specs/069-agent-incident-ops/contracts/incident-api.md）。
  * 基址 /api/incidents，项目隔离经 {@link ProjectScope#require}；智能运维开关走同一基址下的
  * /agent-config 子路径（租户级，复用 053 lineage_agent_config 行，仅切 ops_enabled）。
  */

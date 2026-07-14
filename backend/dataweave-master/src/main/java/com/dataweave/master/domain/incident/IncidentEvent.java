@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 指挥中心直播流事件族（契约：specs/067-agent-incident-ops/contracts/sse-live-feed.md）。
+ * 指挥中心直播流事件族（契约：specs/069-agent-incident-ops/contracts/sse-live-feed.md）。
  * 持久化背书、可重放：Snapshot / IncidentChanged / MessageAppended / BriefingUpdated。
  * 瞬态直播、不重放（智能感层）：Thinking / Chip / Delta / End。
  * {@link #eventName()} 对应 SSE {@code event:} 字段；record 本体经 Jackson3 序列化为 {@code data:}。

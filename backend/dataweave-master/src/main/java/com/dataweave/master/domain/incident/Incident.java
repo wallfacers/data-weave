@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 事故（Incident）：一次故障响应的一等载体，人机共同的工作单位（067）。
+ * 事故（Incident）：一次故障响应的一等载体，人机共同的工作单位（069）。
  * 不变量：① 同一任务至多一个未收口事故（openKey 唯一，收口=null）；
  * ② state=RESOLVED ⇔ closedAt≠null ⇔ openKey=null；③ autoActionCount 只增不减；
  * ④ 只读观察调度，绝不反向锁 task_instance 行（守调度锁序红线）。

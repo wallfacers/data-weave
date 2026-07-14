@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 067 T027：确定性凭据故障指纹——命中即免 LLM 直判 CONFIG_CREDENTIAL（US1/research R4）。
+ * 069 T027：确定性凭据故障指纹——命中即免 LLM 直判 CONFIG_CREDENTIAL（US1/research R4）。
  */
 class CredentialFingerprintTest {
 

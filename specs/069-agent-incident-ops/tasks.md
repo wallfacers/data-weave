@@ -1,6 +1,6 @@
 # Tasks: 任务失败智能运维——Agent 自动诊断处置闭环 + 监督席指挥中心
 
-**Input**: Design documents from `specs/067-agent-incident-ops/`
+**Input**: Design documents from `specs/069-agent-incident-ops/`
 
 **Prerequisites**: plan.md, spec.md, research.md（R1–R13）, data-model.md, contracts/, quickstart.md
 
@@ -118,9 +118,9 @@
 
 - [X] T041 [P] MCP 面：`McpToolRegistry.registerTools()` 追加 `query_incidents`（只读，复用 IncidentQueryService）+ `incident_reverify`（写，过闸门）；每工具 `requireTenant(ctx)`。File: `backend/dataweave-api/src/main/java/…/application/mcp/McpToolRegistry.java`
 - [ ] T042 [P] 宪法修订案：起草原则 IV 重定义（authoring AI 归位本地不变；Trust 层运维编队允许服务端有界存在，三条不可让渡内核等价物），MAJOR bump 提案连同 Sync Impact Report——**提交用户批准，未批准前保留 plan.md Complexity Tracking 记录**。File: `.specify/memory/constitution.md`
-- [X] T043 [P] 文档收口：CLAUDE.md Knowledge Map 增 067 行（一句话+关键类+spec 链接）；README/docs 涉及首屏说明处同步。Files: `CLAUDE.md` 等
+- [X] T043 [P] 文档收口：CLAUDE.md Knowledge Map 增 069 行（一句话+关键类+spec 链接）；README/docs 涉及首屏说明处同步。Files: `CLAUDE.md` 等
 - [ ] T044 全量回归：H2 与 PG 双 profile 后端测试全绿（setsid 脱离 + mvnd 禁缓存防假绿）；**调度红线真并发 dispatch 回归**（resources 传播动了 DispatchCommand 链——每分钟 cron 真跑确认 `started_at−created_at≈0`、根节点 `attempt=1`、零「跳过下发/中止执行」stragglers）；i18n 双 bundle 键集 CI 检查过。
-- [ ] T045 quickstart.md 场景 1–7 端到端真验（真 LLM 端点）+ SC-001…SC-011 全量核对留痕（结果记录进 specs/067-agent-incident-ops/）。
+- [ ] T045 quickstart.md 场景 1–7 端到端真验（真 LLM 端点）+ SC-001…SC-011 全量核对留痕（结果记录进 specs/069-agent-incident-ops/）。
 
 ---
 

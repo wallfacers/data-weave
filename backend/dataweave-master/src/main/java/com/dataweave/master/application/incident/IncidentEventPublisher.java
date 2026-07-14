@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 指挥中心直播流事件发布器（067）：把 {@link IncidentEvent} 序列化后发到项目域频道
+ * 指挥中心直播流事件发布器（069）：把 {@link IncidentEvent} 序列化后发到项目域频道
  * {@code dw:incident:evt:{projectId}}，供 SSE 端桥接（契约：sse-live-feed.md）。
  * EventBus 全丢不影响正确性（事件是观测层，非状态推进本身）；序列化异常吞掉不拖垮主链路。
  */

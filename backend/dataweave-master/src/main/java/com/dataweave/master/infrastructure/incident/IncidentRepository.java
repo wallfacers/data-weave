@@ -19,7 +19,7 @@ import org.springframework.stereotype.Repository;
 /**
  * incident 表 JdbcTemplate 仓储。开单单赢靠 {@code UNIQUE(tenant_id, open_key)}——
  * 开着时 open_key=task_def_id，收口置 NULL（ANSI NULL-distinct 语义使收口后可重新开单，免 partial index）。
- * 全部状态推进走乐观 CAS（{@code WHERE state=?}），守 060/067 调度锁序与内核零侵入红线。
+ * 全部状态推进走乐观 CAS（{@code WHERE state=?}），守 060/069 调度锁序与内核零侵入红线。
  */
 @Repository
 public class IncidentRepository {
@@ -169,7 +169,7 @@ public class IncidentRepository {
     }
 
     /**
-     * 067 T026：CAS 状态推进 + 同时预置收口口径提示位（{@code close_kind}）。人工标记已处理/显式复验
+     * 069 T026：CAS 状态推进 + 同时预置收口口径提示位（{@code close_kind}）。人工标记已处理/显式复验
      * 触发的 NEEDS_HUMAN→ACTING 转移专用——通用 {@code actOrVerify} 循环日后 SUCCESS 收口时据此判定
      * AUTO/HUMAN_ASSISTED（未收口前 close_kind 非空只是「提示位」，不代表已收口，见 escalate 清位对偶）。
      */

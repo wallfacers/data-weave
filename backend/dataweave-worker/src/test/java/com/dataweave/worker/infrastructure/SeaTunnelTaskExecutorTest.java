@@ -136,7 +136,7 @@ class SeaTunnelTaskExecutorTest {
         assertThat(argv.get(configIdx + 1)).endsWith(".conf");
     }
 
-    // ---- 067 T018: 资源提示（JVM_ARGS 环境变量，seatunnel.sh 无 CLI flag）----
+    // ---- 069 T018: 资源提示（JVM_ARGS 环境变量，seatunnel.sh 无 CLI flag）----
 
     @Test
     void execute_withMemoryHint_setsJvmArgsEnvVar(@TempDir Path tmp) throws IOException {

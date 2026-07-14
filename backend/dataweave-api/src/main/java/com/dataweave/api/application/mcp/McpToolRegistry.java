@@ -334,7 +334,7 @@ public class McpToolRegistry {
                             TenantContext.tenantId(), pid != null ? pid : 0L, taskDefId);
                 });
 
-        // ---- 067 智能运维事故域（query 只读 + reverify 经闸门写）----
+        // ---- 069 智能运维事故域（query 只读 + reverify 经闸门写）----
         register("query_incidents",
                 "返回本项目未收口事故列表（可按状态过滤，如 NEEDS_HUMAN/AWAITING_APPROVAL；纯读，租户+项目隔离）",
                 schema(prop("state", "string", "按状态过滤；缺省=全部"),

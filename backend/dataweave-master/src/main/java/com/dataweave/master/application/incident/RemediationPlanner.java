@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 067 确定性梯度处置映射（US2/US3，research R1：LLM 只判分型，处置路径全由 Java 确定性编排）。
+ * 069 确定性梯度处置映射（US2/US3，research R1：LLM 只判分型，处置路径全由 Java 确定性编排）。
  * 输入分型+当前状态，输出唯一处置动作，无副作用、无外呼、无状态——纯函数，天然单测友好。
  */
 @Component

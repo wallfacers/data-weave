@@ -56,7 +56,7 @@ export function AiAgentConfigSection() {
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_TIMEOUT_MS)
   const [rateLimitPerMin, setRateLimitPerMin] = useState(DEFAULT_RATE_LIMIT)
   const [maxColumns, setMaxColumns] = useState(DEFAULT_MAX_COLUMNS)
-  // 067 T046：智能运维启停（租户级，独立于血缘富化 enabled）。切换即持久化（PUT /api/incidents/agent-config）。
+  // 069 T046：智能运维启停（租户级，独立于血缘富化 enabled）。切换即持久化（PUT /api/incidents/agent-config）。
   const [opsEnabled, setOpsEnabledState] = useState(false)
   const [opsSaving, setOpsSaving] = useState(false)
 
@@ -96,7 +96,7 @@ export function AiAgentConfigSection() {
     }
   }, [])
 
-  // 067 T046：读取智能运维开关当前值（tenant admin 权限，失败静默保持 false）。
+  // 069 T046：读取智能运维开关当前值（tenant admin 权限，失败静默保持 false）。
   useEffect(() => {
     let cancelled = false
     getOpsConfig()
@@ -279,7 +279,7 @@ export function AiAgentConfigSection() {
         <Switch checked={enabled} onCheckedChange={setEnabled} />
       </div>
 
-      {/* 067 T046：智能运维启停（独立开关，切换即生效） */}
+      {/* 069 T046：智能运维启停（独立开关，切换即生效） */}
       <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] bg-muted/40 px-3 py-2">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">{t("ops.title")}</p>

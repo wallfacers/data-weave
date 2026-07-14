@@ -1,5 +1,5 @@
 /**
- * 067 监督席指挥中心 —— 领域类型（镜像后端 record，camelCase）。
+ * 069 监督席指挥中心 —— 领域类型（镜像后端 record，camelCase）。
  * 纯类型，无 React 依赖，可在 node 测试环境直接 import。
  */
 

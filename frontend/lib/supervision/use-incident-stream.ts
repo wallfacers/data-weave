@@ -13,7 +13,7 @@ import {
 import type { Incident, IncidentMessage, IncidentStats } from "./types"
 
 /**
- * 067 指挥中心直播流 hook：直连 SSE_BASE（绕过 Next rewrite 缓冲，既有硬约定），
+ * 069 指挥中心直播流 hook：直连 SSE_BASE（绕过 Next rewrite 缓冲，既有硬约定），
  * 监听 snapshot/incident/message/briefing/thinking/chip/delta/end 八类事件归约进 store。
  * token/projectId 走 query（EventSource 无自定义 header）；Last-Event-ID 由浏览器自动回传续传。
  */

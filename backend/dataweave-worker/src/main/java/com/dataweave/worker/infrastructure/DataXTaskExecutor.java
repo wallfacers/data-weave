@@ -96,7 +96,7 @@ public class DataXTaskExecutor extends AbstractTaskExecutor {
     }
 
     /**
-     * 构造 datax.py 命令（067：声明式内存提示 → {@code -j "-Xms<N>m -Xmx<N>m"}，datax.py 官方 JVM 透传 flag）。
+     * 构造 datax.py 命令（069：声明式内存提示 → {@code -j "-Xms<N>m -Xmx<N>m"}，datax.py 官方 JVM 透传 flag）。
      *
      * @param memoryMb 子进程 JVM 堆内存（MB）；null=引擎默认
      */

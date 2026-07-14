@@ -208,7 +208,7 @@ public class SparkTaskExecutor extends AbstractTaskExecutor {
             cmd.add("--queue");
             cmd.add(ref.queue());
         }
-        // 067：声明式资源提示 → driver/executor 同值（无独立 driver/executor 拆分声明）
+        // 069：声明式资源提示 → driver/executor 同值（无独立 driver/executor 拆分声明）
         if (ref.memoryMb() != null) {
             cmd.add("--driver-memory");
             cmd.add(ref.memoryMb() + "m");

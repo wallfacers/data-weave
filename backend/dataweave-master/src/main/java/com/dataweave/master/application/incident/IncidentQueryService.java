@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * 067 事故只读查询面（US1/FR-011 数据来源，US4 指挥中心复用同一服务）。
+ * 069 事故只读查询面（US1/FR-011 数据来源，US4 指挥中心复用同一服务）。
  * 项目隔离由调用方（Controller）经 ProjectScope 校验后传入 projectId；本层再做归属核验防越权直取。
  */
 @Service

@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 067 T023/T024：{@code IncidentAgentService.actOrVerify} 的确定性验证收口分支——
+ * 069 T023/T024：{@code IncidentAgentService.actOrVerify} 的确定性验证收口分支——
  * 防循环上限、已发布提案验证成功收口、验证失败回滚基线版本+转人工（绝不生成第二份提案）。
  * 全部分支零 LLM 依赖，真 Spring 上下文复用全部真实协作者（TaskService/仓储），非桩件假绿。
  */
@@ -33,9 +33,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("h2")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-action-067;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:dataweave-incident-action-069;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
 })
-@DisplayName("067 T023/T024 actOrVerify 验证收口分支（提案回滚/防循环）")
+@DisplayName("069 T023/T024 actOrVerify 验证收口分支（提案回滚/防循环）")
 class IncidentAgentServiceActionIT {
 
     @Autowired
@@ -159,7 +159,7 @@ class IncidentAgentServiceActionIT {
         assertThat(proposalCount).isEqualTo(1); // 未生成第二份提案（防循环）
     }
 
-    // ---- 067 T025/T027: 不可自愈分型零徒劳重试 ----
+    // ---- 069 T025/T027: 不可自愈分型零徒劳重试 ----
 
     @Test
     @DisplayName("CONFIG_CREDENTIAL：零自动重跑，直接转 NEEDS_HUMAN，实例状态不变")
@@ -190,7 +190,7 @@ class IncidentAgentServiceActionIT {
                 .isEqualTo("FAILED");
     }
 
-    // ---- 067 T026/T027: 人工协同 ----
+    // ---- 069 T026/T027: 人工协同 ----
 
     @Test
     @DisplayName("mark-handled 后复验成功：事故收口 close_kind=HUMAN_ASSISTED")

@@ -155,7 +155,7 @@ lineage:
     enabled: ${LINEAGE_GROUNDING_ENABLED:true}
     system-schemas: ${LINEAGE_GROUNDING_SYSTEM_SCHEMAS:}
 
-# 067 任务失败智能运维：巡检开单+LLM 分型诊断+梯度处置+监督席直播流。
+# 069 任务失败智能运维：巡检开单+LLM 分型诊断+梯度处置+监督席直播流。
 # LLM 通道复用 lineage_agent_config（协议/端点/模型/密钥），本节仅调运维专属节奏/护栏/成本参数。
 ops:
   incident:

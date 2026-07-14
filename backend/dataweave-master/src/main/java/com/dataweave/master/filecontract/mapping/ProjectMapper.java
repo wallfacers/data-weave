@@ -105,7 +105,7 @@ public class ProjectMapper {
                     baseDoc.sparkMode(), baseDoc.jarRef(), baseDoc.mainClass(),
                     baseDoc.longRunning(),  // 062：长驻标记随导出往返
                     baseDoc.declaredSchema(), baseDoc.declaredColumnLineage(),
-                    baseDoc.resources());  // 067：声明式资源随导出往返
+                    baseDoc.resources());  // 069：声明式资源随导出往返
             var taskPath = dirPath.isEmpty() ? slug + TASK_SUFFIX : dirPath + "/" + slug + TASK_SUFFIX;
             files.put(taskPath, taskMapper.serialize(docWithExtras));
 
