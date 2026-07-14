@@ -22,12 +22,14 @@ import { cn } from "@/lib/utils"
 import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import * as api from "@/lib/supervision/api"
 import type {
+  ConnectionPhase,
   Incident,
   IncidentLiveState,
   IncidentMessage,
   IncidentProposal,
 } from "@/lib/supervision/types"
 import { isTerminal } from "@/lib/supervision/types"
+import { ChatMarkdown } from "@/components/workspace/shared/chat-markdown"
 import { ClassificationBadge, StateBadge, ThinkingDots, ToolChip } from "./incident-visuals"
 import { ChatComposer } from "./chat-composer"
 
@@ -50,6 +52,7 @@ export function IncidentThread({
   proposals,
   messages,
   live,
+  phase,
   onReload,
   onOpenLog,
 }: {
@@ -57,6 +60,7 @@ export function IncidentThread({
   proposals: IncidentProposal[]
   messages: IncidentMessage[]
   live: IncidentLiveState
+  phase: ConnectionPhase
   onReload: () => void
   onOpenLog: (instanceId: string) => void
 }) {
@@ -110,6 +114,14 @@ export function IncidentThread({
         </Button>
       </div>
 
+      {/* degraded 提示条：断线重连中，已加载消息保留（FR-002） */}
+      {phase === "degraded" && (
+        <div className="mx-[var(--card-spacing)] mb-1 flex items-center gap-1.5 rounded-[var(--radius)] bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+          {t("reconnecting")}
+        </div>
+      )}
+
       {/* messages */}
       <div className="min-h-0 flex-1 px-[var(--card-spacing)]">
         <DwScroll className="h-full">
@@ -131,7 +143,7 @@ export function IncidentThread({
             )}
             {live.delta && (
               <AgentBubble>
-                {live.delta.text}
+                <ChatMarkdown content={live.delta.text} streaming />
                 <span className="ml-0.5 inline-block h-3 w-px translate-y-0.5 bg-foreground/60 motion-safe:animate-pulse" />
               </AgentBubble>
             )}
@@ -211,7 +223,11 @@ function MessageBubble({ msg, onOpenLog }: { msg: IncidentMessage; onOpenLog: (i
         </div>
       )
     case "AGENT_SAY":
-      return <AgentBubble>{msg.content}</AgentBubble>
+      return (
+        <AgentBubble>
+          <ChatMarkdown content={msg.content ?? ""} />
+        </AgentBubble>
+      )
     case "AGENT_STEP": {
       const lines = Array.isArray(payload?.evidenceLines) ? (payload!.evidenceLines as string[]) : []
       return (

@@ -102,6 +102,7 @@ export function SupervisionView(_: ViewProps) {
         stats={stats}
         reportMd={briefing?.reportMd ?? null}
         connected={state.connected}
+        phase={state.connectionPhase}
         activeFilter={filter}
         onFilter={setFilter}
       />
@@ -113,6 +114,7 @@ export function SupervisionView(_: ViewProps) {
             rest={shownRest}
             liveOf={(id) => selectLive(state, id)}
             selectedId={selectedId}
+            phase={state.connectionPhase}
             onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           />
         </div>
@@ -124,6 +126,7 @@ export function SupervisionView(_: ViewProps) {
               proposals={detail?.proposals ?? []}
               messages={selectMessages(state, selectedId)}
               live={selectLive(state, selectedId)}
+              phase={state.connectionPhase}
               onReload={reload}
               onOpenLog={onOpenLog}
             />
@@ -131,7 +134,7 @@ export function SupervisionView(_: ViewProps) {
         )}
       </div>
 
-      {!state.connected && (
+      {state.connectionPhase === "degraded" && (
         <p className="shrink-0 text-center text-[11px] text-muted-foreground">{t("reconnecting")}</p>
       )}
     </div>

@@ -1350,6 +1350,7 @@
     "thinkingDefault": "Thinking",
     "live": "Live",
     "disconnected": "Disconnected",
+    "connecting": "Connecting to live channel",
     "reconnecting": "Disconnected, reconnecting",
     "briefingEmpty": "No active incidents",
     "briefingReport": "Handover Report",
@@ -1387,6 +1388,8 @@
     "closeOk": "Incident closed",
     "approveOk": "Proposal approved & published",
     "rejectOk": "Proposal rejected",
-    "actionFailed": "Action failed"
+    "actionFailed": "Action failed",
+    "copyCode": "Copy",
+    "copied": "Copied"
   }
 }

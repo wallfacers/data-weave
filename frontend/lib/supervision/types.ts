@@ -63,9 +63,18 @@ export interface IncidentMessage {
   kind: MessageKind
   content: string | null
   payloadJson: string | null
+  /** 发言者标识：`ops-agent` | username（服务端认定） | `system`；存量数据可能为遗留假名。 */
   actor: string | null
+  /** 发言者显示名（displayName，服务端填写）；Agent/system/存量消息为空，展示层兜底中性称谓。 */
+  actorName: string | null
   createdAt: string | null
 }
+
+/**
+ * 页面级实时通道状态（US2）：驱动加载态/空态/降级提示的展示逻辑。
+ * connecting=首帧未达（显示 LoadingState）；live=已收 snapshot（可判真空态）；degraded=断线重连中（保留消息 + 提示条）。
+ */
+export type ConnectionPhase = "connecting" | "live" | "degraded"
 
 export interface IncidentProposal {
   id: string

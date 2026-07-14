@@ -31,7 +31,7 @@ function incident(id: string, state: Incident["state"], openedAt = "2026-07-14T0
 }
 
 function message(incidentId: string, seq: number, kind: IncidentMessage["kind"], content: string, payloadJson: string | null = null): IncidentMessage {
-  return { id: `${incidentId}-${seq}`, incidentId, seq, kind, content, payloadJson, actor: "ops-agent", createdAt: "2026-07-14T00:00:00" }
+  return { id: `${incidentId}-${seq}`, incidentId, seq, kind, content, payloadJson, actor: "ops-agent", actorName: null, createdAt: "2026-07-14T00:00:00" }
 }
 
 describe("supervision store reducer", () => {
@@ -119,5 +119,40 @@ describe("supervision store reducer", () => {
     })
     expect(s.briefing?.summaryLine).toBe("3 起活跃")
     expect(s.stats?.active).toBe(3)
+  })
+})
+
+describe("US2 连接三态（connectionPhase）", () => {
+  it("初始为 connecting（首帧未达，不冒充真空态）", () => {
+    const s = initialState()
+    expect(s.connectionPhase).toBe("connecting")
+    expect(s.connected).toBe(false)
+  })
+
+  it("首个 snapshot 到达 → live（此后空 feed 才是真无事故）", () => {
+    const s = reduce(initialState(), { type: "snapshot", incidents: [], stats: null })
+    expect(s.connectionPhase).toBe("live")
+    expect(s.connected).toBe(true)
+  })
+
+  it("phase=degraded 断线不清空已加载消息", () => {
+    let s = initialState()
+    s = reduce(s, { type: "message", incidentId: "a", message: message("a", 1, "AGENT_SAY", "已诊断") })
+    s = reduce(s, { type: "phase", value: "degraded" })
+    expect(s.connectionPhase).toBe("degraded")
+    expect(s.connected).toBe(false)
+    expect(selectMessages(s, "a")).toHaveLength(1) // 消息保留
+  })
+
+  it("degraded 后重新 snapshot → 回 live", () => {
+    let s = reduce(initialState(), { type: "phase", value: "degraded" })
+    s = reduce(s, { type: "snapshot", incidents: [incident("a", "ACTING")], stats: null })
+    expect(s.connectionPhase).toBe("live")
+    expect(s.connected).toBe(true)
+  })
+
+  it("兼容旧 connected 派发映射到相位", () => {
+    expect(reduce(initialState(), { type: "connected", value: true }).connectionPhase).toBe("live")
+    expect(reduce(initialState(), { type: "connected", value: false }).connectionPhase).toBe("degraded")
   })
 })

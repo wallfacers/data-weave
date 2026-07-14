@@ -6,6 +6,7 @@
  * （payload.streamId 匹配）收尾即清空缓冲——前端永远以落库消息为最终真相（SC-005）。
  */
 import {
+  type ConnectionPhase,
   type Incident,
   type IncidentLiveState,
   type IncidentMessage,
@@ -23,14 +24,26 @@ export interface SupervisionState {
   live: Record<string, IncidentLiveState>
   stats: IncidentStats | null
   briefing: { summaryLine: string | null; generatedAt: string | null } | null
+  /** 实时通道状态（US2）：connecting=首帧未达、live=已收 snapshot、degraded=断线重连中。 */
+  connectionPhase: ConnectionPhase
+  /** 便捷派生：是否处于 live（LiveDot/直播脉冲用）；= connectionPhase === "live"。 */
   connected: boolean
 }
 
 export function initialState(): SupervisionState {
-  return { incidents: {}, messages: {}, live: {}, stats: null, briefing: null, connected: false }
+  return {
+    incidents: {},
+    messages: {},
+    live: {},
+    stats: null,
+    briefing: null,
+    connectionPhase: "connecting",
+    connected: false,
+  }
 }
 
 export type SupervisionAction =
+  | { type: "phase"; value: ConnectionPhase }
   | { type: "connected"; value: boolean }
   | { type: "snapshot"; incidents: Incident[]; stats: IncidentStats | null }
   | { type: "incident"; incident: Incident }
@@ -49,13 +62,22 @@ function liveOf(state: SupervisionState, id: string): IncidentLiveState {
 
 export function reduce(state: SupervisionState, action: SupervisionAction): SupervisionState {
   switch (action.type) {
+    case "phase":
+      return { ...state, connectionPhase: action.value, connected: action.value === "live" }
+
     case "connected":
-      return { ...state, connected: action.value }
+      // 兼容旧派发：布尔 → 相位（true=live、false=degraded），degraded 不清空消息。
+      return {
+        ...state,
+        connectionPhase: action.value ? "live" : "degraded",
+        connected: action.value,
+      }
 
     case "snapshot": {
       const incidents: Record<string, Incident> = {}
       for (const inc of action.incidents) incidents[inc.id] = inc
-      return { ...state, incidents, stats: action.stats ?? state.stats }
+      // 首帧到达 = 通道确认可信，转 live（此后空 feed 才是真「无事故」）。
+      return { ...state, incidents, stats: action.stats ?? state.stats, connectionPhase: "live", connected: true }
     }
 
     case "incident": {
