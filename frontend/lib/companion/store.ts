@@ -34,6 +34,8 @@ interface CompanionStore {
   appendDelta: (messageId: string, chunk: string) => void
   /** 完成一条流式消息 */
   endMessage: (messageId: string, interrupted: boolean) => void
+  /** 进行中的流式消息 id(turnId);null=无在途流(驱动发送-停止状态机与播报) */
+  streamingId: string | null
 
   /** SSE 连接状态 */
   connection: ConnectionStatus
@@ -77,23 +79,24 @@ export const useCompanionStore = create<CompanionStore>((set) => ({
           content: chunk,
           createdAt: new Date().toISOString(),
         }
-        return { messages: [...s.messages, placeholder] }
+        return { messages: [...s.messages, placeholder], streamingId: messageId }
       }
       const next = [...s.messages]
       next[idx] = { ...next[idx], content: next[idx].content + chunk }
-      return { messages: next }
+      return { messages: next, streamingId: messageId }
     }),
   endMessage: (messageId, interrupted) =>
     set((s) => {
       const idx = s.messages.findIndex((m) => m.id === messageId)
-      if (idx < 0) return s
+      if (idx < 0) return { ...s, streamingId: null }
       const next = [...s.messages]
       next[idx] = {
         ...next[idx],
         content: next[idx].content + (interrupted ? " ⌟" : ""),
       }
-      return { messages: next }
+      return { messages: next, streamingId: null }
     }),
+  streamingId: null,
 
   connection: "disconnected",
   setConnection: (c) => set({ connection: c }),

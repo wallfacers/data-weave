@@ -8,7 +8,7 @@
  * - FR-019：查看详情跳转监督席或对象详情
  * - M5：关闭失败 toast 后端本地化消息 + 恢复 closing 态
  */
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -19,6 +19,7 @@ import { ChatMarkdown } from "@/components/workspace/shared/chat-markdown"
 import type { ReportView } from "@/lib/companion/types"
 import { closeReport, sendChat, cancelChat } from "@/lib/companion/api"
 import { useCompanionStore } from "@/lib/companion/store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
 
 const SEVERITY_STYLE: Record<string, string> = {
   DANGER: "bg-destructive shadow-[0_0_8px_var(--destructive)]",
@@ -64,16 +65,18 @@ export function ReportCard({ report }: ReportCardProps) {
   }, [t])
 
   /* M7: 查看详情跳转（FR-019：跳监督席或对象详情） */
+  const openView = useWorkspaceStore((s) => s.open)
   const handleViewDetail = useCallback(() => {
-    // 打开监督席视图并锚定相关实例
-    window.dispatchEvent(new CustomEvent("weft:open-view", {
-      detail: { view: "supervision", params: { reportId: report.id } },
-    }))
-  }, [report.id])
+    openView("supervision", { reportId: report.id })
+  }, [openView, report.id])
 
-  /* 此汇报的 SSE 消息（filter by reportId） */
-  const chatMessages = useCompanionStore((s) =>
-    s.messages.filter((m) => m.reportId === report.id)
+  /* 此汇报的 SSE 消息（filter by reportId）。
+     selector 只取原始数组引用,filter 放 useMemo——selector 内 filter 每渲染返回新数组
+     会触发 getSnapshot 无限循环(评审收口实测崩视图)。 */
+  const allMessages = useCompanionStore((s) => s.messages)
+  const chatMessages = useMemo(
+    () => allMessages.filter((m) => m.reportId === report.id),
+    [allMessages, report.id]
   )
 
   const severityDot = SEVERITY_STYLE[report.severity] ?? SEVERITY_STYLE.INFO
@@ -84,16 +87,19 @@ export function ReportCard({ report }: ReportCardProps) {
         closing ? "translate-x-[60px] opacity-0" : ""
       }`}
     >
-      {/* 头部 */}
+      {/* 头部:标题=汇报 title(缺省回落领域名),领域+本地化时间为辅 */}
       <div className="flex items-center gap-2">
         <span className={`size-2 shrink-0 rounded-full ${severityDot}`} />
         <span className="flex-1 text-[13.5px] font-semibold">
-          {t(`report.domain.${report.domain}`)}
+          {report.title || t(`report.domain.${report.domain}`)}
           {report.aggregateCount > 1 && (
             <span className="ml-1 text-[11px] text-muted-foreground">×{report.aggregateCount}</span>
           )}
         </span>
-        <span className="text-[11px] text-muted-foreground">{report.createdAt}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {t(`report.domain.${report.domain}`)} ·{" "}
+          {new Date(report.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
         <Button
           size="icon" variant="ghost"
           className="size-6 text-muted-foreground hover:text-foreground"

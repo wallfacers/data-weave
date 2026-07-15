@@ -1354,7 +1354,7 @@
       },
       "domain": {
         "TASK_FAILURE": "任务失败巡检",
-        "MACHINE_STATUS": "机器状态巡检",
+        "MACHINE": "机器状态巡检",
         "DATA_QUALITY": "数据质量巡检",
         "CODE_QUALITY": "代码质量巡检"
       }

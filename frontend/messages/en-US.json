@@ -1354,7 +1354,7 @@
       },
       "domain": {
         "TASK_FAILURE": "Task Failure Patrol",
-        "MACHINE_STATUS": "Machine Status Patrol",
+        "MACHINE": "Machine Status Patrol",
         "DATA_QUALITY": "Data Quality Patrol",
         "CODE_QUALITY": "Code Quality Patrol"
       }

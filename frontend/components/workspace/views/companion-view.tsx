@@ -5,7 +5,7 @@
  *
  * 布局：全出血 3D canvas 底层 + UI overlay（顶部概况 → 字幕 → 右侧卡片栈 → 底部输入框）
  */
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import dynamic from "next/dynamic"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -34,6 +34,8 @@ export function CompanionView() {
   const state = useCompanionStore((s) => s.state)
   const briefing = useCompanionStore((s) => s.briefing)
   const connection = useCompanionStore((s) => s.connection)
+  const streamingId = useCompanionStore((s) => s.streamingId)
+  const allMessages = useCompanionStore((s) => s.messages)
 
   const [webglFailed, setWebglFailed] = useState(false)
   const [speechText, setSpeechText] = useState<string | null>(null)
@@ -51,6 +53,19 @@ export function CompanionView() {
     clearTimeout(speechTimerRef.current)
     speechTimerRef.current = setTimeout(() => setSpeechText(null), Math.max(2400, text.length * 130))
   }, [])
+
+  /* 管家最新一条(流式中的)回复 → 字幕实时播报;流结束后按长度停留再隐藏 */
+  const latestAgentReply = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const m = allMessages[i]
+      if (m.role === "AGENT" && !m.reportId && m.content) return m
+    }
+    return null
+  }, [allMessages])
+  useEffect(() => {
+    if (latestAgentReply?.content) speak(latestAgentReply.content)
+    // speak 自带隐藏 timer;依赖 content 使流式增量持续刷新字幕
+  }, [latestAgentReply?.id, latestAgentReply?.content, speak])
 
   /* 发送消息 */
   const handleSend = useCallback(async (text: string) => {
@@ -199,7 +214,7 @@ export function CompanionView() {
               <ChatComposer
                 onSend={handleSend}
                 onCancel={handleCancel}
-                streaming={streaming}
+                streaming={streaming || streamingId != null}
               />
             </div>
             {/* 语音输入占位 T027 */}
