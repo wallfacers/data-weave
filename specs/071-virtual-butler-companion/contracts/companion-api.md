@@ -38,7 +38,9 @@
 - `GET /api/companion/routines` — 四领域例程与状态
 - `PATCH /api/companion/routines/{id}` — body `{enabled?, cronExpression?, scopeJson?}`(缺失=不改,显式 null=清空 scope;PATCH 需在 CORS allowedMethods 中)
 - `POST /api/companion/routines/{id}/trigger` — 手动触发一轮(返回 runId)
-- `GET /api/companion/routines/{id}/runs?limit=` — 执行历史(触发时间/耗时/结论/关联汇报 id)
+- `GET /api/companion/routines/{id}/runs?limit=` — 执行历史,返回 `RunView[]`:
+  `RunView = {id, triggerType, state, scheduledFireTime, startedAt, finishedAt, summary, error, reportIds}`
+  (评审期补冻结:两轨字段命名以此为准,前端 durationMs 由 startedAt/finishedAt 派生,不做传输字段)
 
 ### 降级语义
 
