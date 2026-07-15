@@ -119,6 +119,27 @@ public class JdbcPatrolReportRepository {
         return c == null ? 0 : c;
     }
 
+    /**
+     * FR-011 聚合窗口：同领域 {@code since} 之后最近的未关闭异常汇报（聚合 anchor）。无则 empty。
+     */
+    public Optional<PatrolReport> findRecentOpenAnomaly(long tenantId, long projectId, String domain,
+                                                        LocalDateTime since) {
+        List<PatrolReport> rows = jdbc.query(
+                "SELECT * FROM patrol_report WHERE tenant_id = ? AND project_id = ? AND domain = ? " +
+                "AND status <> ? AND severity IN (?, ?) AND created_at >= ? " +
+                "ORDER BY created_at DESC, id DESC LIMIT 1",
+                (rs, n) -> map(rs), tenantId, projectId, domain, ReportStatuses.CLOSED,
+                com.dataweave.master.companion.domain.ReportSeverities.DANGER,
+                com.dataweave.master.companion.domain.ReportSeverities.WARN, since);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /** FR-011 聚合：异常条数 +1（聚合进既有卡片，不新建）。 */
+    public boolean incrementAggregate(long id) {
+        int rows = jdbc.update("UPDATE patrol_report SET aggregate_count = aggregate_count + 1 WHERE id = ?", id);
+        return rows == 1;
+    }
+
     /** 状态归一"alert"形态：是否存在未关闭异常（DANGER/WARN）。 */
     public boolean existsOpenAnomaly(long tenantId, long projectId) {
         return countOpenAnomalies(tenantId, projectId) > 0;

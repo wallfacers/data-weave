@@ -55,8 +55,8 @@
 
 **Independent Test**: quickstart US2 六步(触发产出/播报/双浏览器关闭同步/未完成兜底/离线补看)。
 
-- [ ] T018 🅰 [US2] 巡检调度器:`master/companion/infrastructure/PatrolScheduler.java`——cron 解析 + `patrol_run` UNIQUE(routine_id, scheduled_fire_time) 幂等落 CLAIMED + SKIP LOCKED 认领 + CAS 状态推进 + 超时 reaper(→TIMEOUT);**遵守调度不变量①-④,持久化在事务内、brain 调用在事务外**
-- [ ] T019 🅰 [US2] 巡检编排:`application/PatrolService.java`——runPatrol(领域提示词模板→CompanionBrain.runPatrol→结构化 JSON 解析落 patrol_report;解析失败/超时/brain 不可用→INFO"未完成"汇报;同领域 10 分钟聚合窗口 aggregate_count)+ 手动触发入口;单测覆盖三条失败路径
+- [x] T018 🅰 [US2] 巡检调度器:`master/companion/infrastructure/PatrolScheduler.java`——cron 解析 + `patrol_run` UNIQUE(routine_id, scheduled_fire_time) 幂等落 CLAIMED + SKIP LOCKED 认领 + CAS 状态推进 + 超时 reaper(→TIMEOUT);**遵守调度不变量①-④,持久化在事务内、brain 调用在事务外**
+- [x] T019 🅰 [US2] 巡检编排:`application/PatrolService.java`——runPatrol(领域提示词模板→CompanionBrain.runPatrol→结构化 JSON 解析落 patrol_report;解析失败/超时/brain 不可用→INFO"未完成"汇报;同领域 10 分钟聚合窗口 aggregate_count)+ 手动触发入口;单测覆盖三条失败路径
 - [ ] T020 🅰 [US2] 汇报服务与接口:`application/ReportService.java`(close 项目级幂等含 closed_by/closed_at、read、列表)+ `interfaces/companion/CompanionController.java` 挂 `GET /reports`、`POST /reports/{id}/close`、`POST /reports/{id}/read` + `report` SSE 事件(created/closed)
 - [ ] T021 🅰 [US2] 调度测试:双实例同 fire_time 只执行一次的幂等 IT + 未完成兜底 IT + close 幂等/同步 IT(H2 独立库名)
 - [ ] T022 🅱 [US2] 卡片栈:`companion/report-stack.tsx`(倒序堆叠/未读徽标/整栈收起展开)+ `report-card.tsx`(severity 色点/时间/摘要/aggregate_count/关闭按钮/「查看详情」跳转监督席或对象详情——FR-019 直达处置口径);关闭调 API 后以 SSE `report:closed` 为准移除

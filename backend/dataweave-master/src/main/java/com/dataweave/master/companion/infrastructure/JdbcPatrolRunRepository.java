@@ -116,6 +116,15 @@ public class JdbcPatrolRunRepository {
                 (rs, n) -> map(rs), routineId, limit);
     }
 
+    /** arm 阶段：例程已 arm 的最近触发时刻（max scheduled_fire_time）；无则 empty。 */
+    public Optional<LocalDateTime> findLastFireTime(long routineId) {
+        List<LocalDateTime> rows = jdbc.queryForList(
+                "SELECT MAX(scheduled_fire_time) FROM patrol_run WHERE routine_id = ?",
+                LocalDateTime.class, routineId);
+        return (rows == null || rows.isEmpty() || rows.get(0) == null)
+                ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
     /** 概况"今日巡检轮次"：今日创建的 run 数（任意状态）。 */
     public int countToday(long tenantId, long projectId, LocalDateTime todayStart) {
         Integer c = jdbc.queryForObject(

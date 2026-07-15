@@ -29,7 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("h2")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
-        "spring.datasource.url=jdbc:h2:mem:dataweave-companion-us1-071;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:dataweave-companion-us1-071;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE",
+        "companion.patrol.enabled=false"   // 禁调度器：本 IT 只验 snapshot/状态，不让巡检 tick 制造 RUNNING run 干扰 idle 断言
 })
 @DisplayName("Companion US1 SSE snapshot/状态 契约（071）")
 class CompanionStreamIT {
