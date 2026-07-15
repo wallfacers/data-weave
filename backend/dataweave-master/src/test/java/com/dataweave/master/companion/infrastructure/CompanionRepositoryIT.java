@@ -1,4 +1,4 @@
-package com.dataweave.master.application.companion;
+package com.dataweave.master.companion.infrastructure;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,10 +15,6 @@ import com.dataweave.master.companion.domain.PatrolRun;
 import com.dataweave.master.companion.domain.PatrolRunStates;
 import com.dataweave.master.companion.domain.ReportSeverities;
 import com.dataweave.master.companion.domain.ReportStatuses;
-import com.dataweave.master.companion.infrastructure.JdbcCompanionMessageRepository;
-import com.dataweave.master.companion.infrastructure.JdbcPatrolReportRepository;
-import com.dataweave.master.companion.infrastructure.JdbcPatrolRoutineRepository;
-import com.dataweave.master.companion.infrastructure.JdbcPatrolRunRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,7 +182,6 @@ class CompanionRepositoryIT {
 
     @Test
     void routineInsert_duplicateDomainConflicts() {
-        // UNIQUE(project_id, domain) 冲突 → 抛 DuplicateKeyException（未 catch，测试断言异常）
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                         routineRepo.insert(TENANT, PROJECT, PatrolDomains.MACHINE, true, "0 0 * * * *", null, 60, 1L))
                 .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
@@ -226,7 +221,6 @@ class CompanionRepositoryIT {
         assertThat(done.state()).isEqualTo(PatrolRunStates.SUCCEEDED);
         assertThat(done.summary()).isEqualTo("all green");
         assertThat(done.finishedAt()).isNotNull();
-        // 已终态再 casFinish 失败
         assertThat(runRepo.casFinish(runId, PatrolRunStates.FAILED, "x", null)).isFalse();
     }
 
@@ -271,7 +265,7 @@ class CompanionRepositoryIT {
         assertThat(reportRepo.findOpenByProject(TENANT, PROJECT, 10)).hasSize(2);
 
         assertThat(reportRepo.close(danger, TENANT, PROJECT, "admin")).isTrue();
-        assertThat(reportRepo.close(danger, TENANT, PROJECT, "admin")).isFalse(); // 已关闭
+        assertThat(reportRepo.close(danger, TENANT, PROJECT, "admin")).isFalse();
         PatrolReport closed = reportRepo.findById(danger).orElseThrow();
         assertThat(closed.status()).isEqualTo(ReportStatuses.CLOSED);
         assertThat(closed.closedBy()).isEqualTo("admin");

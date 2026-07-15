@@ -44,7 +44,7 @@
 - [ ] T013 🅱 [US1] 场景组件:`companion-stage.tsx`("use client" + next/dynamic ssr:false;three 场景生命周期含 dispose;**token 取色**:getComputedStyle 读 `--companion-*`/语义 token → THREE.Color,`useTheme().resolvedTheme` 变化重取色不重建;WebGL 探测失败切 T014)
 - [ ] T014 [P] 🅱 [US1] 降级形象:`companion/orb-fallback.tsx`(CSS 能量球,同一状态机换色/脉动)+ `prefers-reduced-motion` 停粒子摆动
 - [ ] T015 🅱 [US1] 视图总装:`companion-view.tsx` 接 use-companion-stream(state→stage、briefing→`briefing-bar.tsx`、播报→`speech-bubble.tsx`);连接三态(加载用 LoadingState/断线提示/空态);权限不足走 view-gate 既有守卫
-- [ ] T016 🅰 [US1] 后端测试:StateResolver 优先级单测 + stream 接入 IT(WebTestClient+JwtTestSupport:snapshot 结构、异常种子→state=alert)
+- [x] T016 🅰 [US1] 后端测试:StateResolver 优先级单测 + stream 接入 IT(WebTestClient+JwtTestSupport:snapshot 结构、异常种子→state=alert)
 - [ ] T017 🅱 [US1] 浏览器门:playwright 跑 quickstart US1 全六步,**亮/暗主题各截图一张**,vitest 补 store 归约单测
 
 **Checkpoint**: US1 可独立交付演示(MVP)。
