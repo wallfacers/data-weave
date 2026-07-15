@@ -82,7 +82,7 @@
 
 **Independent Test**: quickstart US4 四步。
 
-- [ ] T029 🅰 [US4] 治理接口:`CompanionController` 挂 `GET /routines`、`PATCH /routines/{id}`(缺失=不改/显式 null=清空 scope;确认 CORS allowedMethods 含 PATCH)、`POST /routines/{id}/trigger`、`GET /routines/{id}/runs`;变更落 updated_by 审计;IT 覆盖 PATCH 语义与隔离
+- [x] T029 🅰 [US4] 治理接口:`CompanionController` 挂 `GET /routines`、`PATCH /routines/{id}`(缺失=不改/显式 null=清空 scope;确认 CORS allowedMethods 含 PATCH)、`POST /routines/{id}/trigger`、`GET /routines/{id}/runs`;变更落 updated_by 审计;IT 覆盖 PATCH 语义与隔离
 - [ ] T030 🅱 [US4] 治理面板:`companion/routine-panel.tsx`(视图内设置抽屉:四领域启停开关/cron 编辑/手动触发按钮/执行历史列表),briefing「下轮巡检」随改动联动
 - [ ] T031 🅱 [US4] 浏览器门:quickstart US4 前三步(停用不产出/改 cron 联动/历史可见)
 
