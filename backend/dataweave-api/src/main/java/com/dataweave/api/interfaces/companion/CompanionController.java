@@ -45,6 +45,7 @@ public class CompanionController {
     private final RoutineService routineService;
     private final ProjectScope projectScope;
     private final DisplayNameResolver displayNameResolver;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CompanionController(ReportService reportService, PatrolService patrolService,
                                CompanionChatService chatService, RoutineService routineService,
@@ -106,7 +107,7 @@ public class CompanionController {
                                                    @RequestBody(required = false) JsonNode body,
                                                    @RequestParam(required = false) Long projectId) {
         long pid = resolveProjectId(projectId);
-        JsonNode patch = body != null ? body : new ObjectMapper().createObjectNode();
+        JsonNode patch = body != null ? body : objectMapper.createObjectNode();   // MINOR⑤：复用共享 mapper
         return ApiResponse.ok(routineService.patch(TenantContext.tenantId(), pid, id, patch, TenantContext.userId()));
     }
 

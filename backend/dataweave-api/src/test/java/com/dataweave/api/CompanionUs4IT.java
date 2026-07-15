@@ -120,6 +120,15 @@ class CompanionUs4IT {
     }
 
     @Test
+    @DisplayName("PATCH 非法 cron → companion.cron_invalid（专用码，禁复用 domain_unknown）")
+    void patch_invalidCron() {
+        client.patch().uri("/api/companion/routines/{id}", 1)
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"cronExpression\":\"not-a-cron\"}")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.errorCode").isEqualTo("companion.cron_invalid");
+    }
+
+    @Test
     @DisplayName("GET /routines/{id}/runs 执行历史可见（trigger 后产生 run）")
     void runs_history() {
         client.post().uri("/api/companion/routines/{id}/trigger", 1).exchange()

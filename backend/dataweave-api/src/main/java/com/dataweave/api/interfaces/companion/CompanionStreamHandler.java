@@ -137,8 +137,15 @@ public class CompanionStreamHandler {
         try {
             JsonNode node = objectMapper.readTree(envelopeJson);
             String event = node.hasNonNull("event") ? node.get("event").asString() : "message";
-            String data = node.has("data") ? node.get("data").toString() : "{}";
-            return ServerSentEvent.<String>builder().event(event).data(data).build();
+            JsonNode dataNode = node.has("data") ? node.get("data") : null;
+            String data = dataNode != null ? dataNode.toString() : "{}";
+            var builder = ServerSentEvent.<String>builder().event(event).data(data);
+            // M6：message 事件携带 SSE id（MessageView.id）——EventSource 原生 Last-Event-ID 续传才生效
+            // （replay 路径已设 id；此前实时 message 帧漏设，断线重连补不齐离线期间落库的会话消息）
+            if ("message".equals(event) && dataNode != null && dataNode.hasNonNull("id")) {
+                builder.id(dataNode.get("id").asString());
+            }
+            return builder.build();
         } catch (Exception e) {
             return ServerSentEvent.<String>builder().event("message").data(envelopeJson).build();
         }

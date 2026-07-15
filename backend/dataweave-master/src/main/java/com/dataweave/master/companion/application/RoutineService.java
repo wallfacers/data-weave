@@ -55,7 +55,7 @@ public class RoutineService {
         try {
             CronExpression.parse(cron);
         } catch (IllegalArgumentException e) {
-            throw new BizException("companion.routine_domain_unknown", cron);   // 复用：cron 非法
+            throw new BizException("companion.cron_invalid", cron);   // MINOR③：专用码（禁复用语义不符的 routine_domain_unknown）
         }
 
         // scopeJson：缺失=不改；显式 null=清空(null)；有值=设值
@@ -65,7 +65,7 @@ public class RoutineService {
         }
 
         boolean ok = routineRepo.update(routineId, tenantId, projectId, enabled, cron, scope, updatedBy, r.version());
-        if (!ok) throw new BizException("companion.routine_busy");   // version 不符（并发改动）
+        if (!ok) throw new BizException("companion.routine_conflict", routineId);   // MINOR③：version 不符（并发改动，专用码不复用 routine_busy）
         briefingService.computeAndNotify(tenantId, projectId);        // 下轮巡检时间随 cron 联动
         return routineRepo.findById(routineId).orElseThrow();
     }
