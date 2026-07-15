@@ -14,6 +14,11 @@ import org.springframework.stereotype.Component;
  * 据此判定 think/speak 形态（优先级 speak &gt; think）。
  *
  * <p>项目级聚合：同项目内任一会话有活跃 turn 即驱动管家进入对应形态（spec FR-003）。
+ *
+ * <p><b>TODO（挂账·多 master 局限）</b>：think/speak 计数是<b>本 master 进程内</b>的内存态——
+ * 对等多 master 部署下，A master 的 turn 不会让 B master 感知 think/speak，管家形态在 master 间
+ * 可能短暂不一致（最终由 SSE snapshot/state 归一兜底）。要跨 master 一致需把活跃轮次下沉到共享存储
+ * （Redis 计数 + TTL），当前单 master / all-in-one 场景下内存态足够，留待 distributed 规模化时再做。
  */
 @Component
 public class CompanionTurnRegistry {

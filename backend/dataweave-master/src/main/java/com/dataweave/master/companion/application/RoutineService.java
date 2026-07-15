@@ -37,6 +37,10 @@ public class RoutineService {
     }
 
     public List<PatrolRoutine> list(long tenantId, long projectId) {
+        // TODO（挂账·多项目 lazy-seed）：四领域默认例程目前仅 data.sql 为单一 seed 项目预置；
+        // 新项目首次访问 routines/巡检时此处为空 → 管家对该项目无巡检。需在首次 list（或项目创建钩子）
+        // 按领域模板 lazy-seed 四条默认例程（enabled=true、各自 cron），使每个项目开箱即有巡检。
+        // 当前由部署期 data.sql 为存量项目补 seed 兜底，多项目动态化留待后续。
         return routineRepo.findByProject(tenantId, projectId);
     }
 
