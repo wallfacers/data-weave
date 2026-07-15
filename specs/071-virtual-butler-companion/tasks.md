@@ -88,7 +88,7 @@
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T032 🅰 分布式回归:`scheduler.mode=distributed` 双 master 实跑,`patrol_run` 无重复无 straggler(quickstart US4 步 4 + 回归门);长跑注意 H2 心跳过期坑
+- [x] T032 🅰 分布式回归:`scheduler.mode=distributed` 双 master 实跑,`patrol_run` 无重复无 straggler(quickstart US4 步 4 + 回归门);长跑注意 H2 心跳过期坑
 - [ ] T033 [P] 🅱 前端收口:`pnpm typecheck` + `pnpm design:lint` + i18n 双 bundle diff 校验 + vitest 全绿;检查无 `…` 表加载态、无手写 dark:
 - [ ] T034 [P] 🅰 后端收口:`mvnd -pl dataweave-master,dataweave-api`(禁 build-cache,grep "Cache disabled" 确认真编译)compile+test 全绿;H2 与 PG 双方言各起一遍验 DDL
 - [ ] T035 主Claude 兜底:跨轨集成验收(quickstart 全量)+ /code-review 双轨 diff + FR-019 处置闭环核对 + 070 监督席并存回归(既有 IT 不红)+ constitution IV MINOR 修订提案落 `.specify/memory/constitution.md` 议题
