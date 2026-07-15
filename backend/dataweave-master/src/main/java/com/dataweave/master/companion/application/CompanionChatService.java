@@ -3,6 +3,7 @@ package com.dataweave.master.companion.application;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -21,6 +22,7 @@ import com.dataweave.master.companion.infrastructure.JdbcCompanionMessageReposit
 import com.dataweave.master.companion.infrastructure.JdbcPatrolReportRepository;
 import com.dataweave.master.application.ActionRequest;
 import com.dataweave.master.application.GatedActionService;
+import com.dataweave.master.application.GateResult;
 import com.dataweave.master.i18n.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +88,10 @@ public class CompanionChatService {
         }
         // brain 不可用：同步降级提示（FR-016，非静默、非空白）
         if (brainSelector.forChat().isEmpty()) throw new BizException("companion.brain_unavailable");
+        // MINOR①：同会话已有进行中的流式轮次 → 拒绝（防 handle 覆盖/误删，对齐 070 session-busy 先例）
+        if (activeHandles.containsKey(sessionKey(projectId, reportId))) {
+            throw new BizException("companion.chat_busy");
+        }
 
         long userMsgId = messageRepo.insert(tenantId, projectId, reportId, CompanionRoles.USER, actor, actorName, text, null);
         CompanionMessage userMsg = findMessage(userMsgId);
@@ -101,7 +107,12 @@ public class CompanionChatService {
         return MessageView.from(userMsg);
     }
 
-    /** 异步流式回复：注入上下文 → markThink → openChat+send（delta 回调发 SSE）→ 落 AGENT → message/end。 */
+    /**
+     * 异步流式回复。markThink→(复用/新建 brain session)→send 全程在同一 try/finally（M1：openChat 抛异常时
+     * turnRegistry 仍被 clear，不致项目永久卡 think）；失败补系统兜底消息 + StreamEnd（非空白）。
+     * M4：优先复用同 sessionKey 的既有 brain session 续聊，复用句柄首条 send 失效(404/过期)则新建重试一次。
+     * MINOR①：putIfAbsent 并发轮次互斥——同会话已有进行中轮次则本轮放弃。
+     */
     private void respond(long tenantId, long projectId, Long reportId, String userText, Locale locale) {
         CompanionBrain brain = brainSelector.forChat().orElse(null);
         if (brain == null) {
@@ -116,6 +127,7 @@ public class CompanionChatService {
         String sessionKey = sessionKey(projectId, reportId);
         StringBuilder full = new StringBuilder();
         AtomicBoolean interrupted = new AtomicBoolean(false);
+        AtomicBoolean brainError = new AtomicBoolean(false);   // 区分 brain 报错与用户打断
 
         ChatCallbacks cb = new ChatCallbacks() {
             @Override public void onDelta(String chunk) {
@@ -127,6 +139,7 @@ public class CompanionChatService {
                 interrupted.set(irpt);
             }
             @Override public void onError(Throwable error) {
+                brainError.set(true);
                 interrupted.set(true);
                 log.warn("[CompanionChat] brain stream error project={}: {}", projectId, error.toString());
             }
@@ -134,26 +147,59 @@ public class CompanionChatService {
 
         turnRegistry.markThink(projectId);   // 接到指令未回流 → think 形态
         stateResolver.resolveAndNotify(tenantId, projectId);
-        ChatHandle handle = brain.openChat(projectId, contextPrompt, cb);
-        activeHandles.put(sessionKey, handle);
-        String brainSessionId = handle.sessionId();
+        ChatHandle handle = null;
+        boolean reused = false;
         try {
-            handle.send(userText);   // 阻塞至本轮结束；期间经 cb 回调 delta
+            // M4：复用同 sessionKey 的既有 brain session 续聊（多轮记忆）；无则新建
+            Optional<String> existing = messageRepo.findLatestBrainSession(tenantId, projectId, reportId);
+            if (existing.isPresent()) {
+                Optional<ChatHandle> resumed = brain.resumeChat(existing.get(), cb);
+                if (resumed.isPresent()) { handle = resumed.get(); reused = true; }
+            }
+            if (handle == null) handle = brain.openChat(projectId, contextPrompt, cb);
+
+            if (activeHandles.putIfAbsent(sessionKey, handle) != null) return;   // MINOR①：并发轮次互斥，本轮放弃
+            try {
+                handle.send(userText);   // 阻塞至本轮结束；期间经 cb 回调 delta
+            } catch (RuntimeException e) {
+                if (!reused) throw e;   // 非复用句柄的失败由外层兜底
+                // 复用 session 失效(404/过期) → 新建重试一次
+                log.debug("[CompanionChat] 复用 session={} 失效，新建重试: {}", existing.orElse("?"), e.toString());
+                activeHandles.remove(sessionKey, handle);
+                handle = brain.openChat(projectId, contextPrompt, cb);
+                activeHandles.put(sessionKey, handle);
+                handle.send(userText);
+            }
         } catch (Exception e) {
+            brainError.set(true);
             interrupted.set(true);
+            log.warn("[CompanionChat] respond brain 异常 project={}: {}", projectId, e.toString());
         } finally {
-            activeHandles.remove(sessionKey);
+            // M1：无论 openChat/send 成败都清活跃句柄 + 形态，绝不卡 think
+            if (handle != null) activeHandles.remove(sessionKey, handle);
             turnRegistry.clear(projectId);
         }
 
-        long agentMsgId = messageRepo.insert(tenantId, projectId, reportId, CompanionRoles.AGENT,
-                "companion-agent", "Vega", full.toString(), brainSessionId);
-        publisher.publish(projectId, new CompanionEvent.MessageAppended(MessageView.from(findMessage(agentMsgId))));
+        String brainSessionId = handle != null ? handle.sessionId() : null;
+        if (brainError.get() && full.length() == 0) {
+            // M1：brain 报错且无半截输出 → 系统兜底消息（非空白）
+            long sysId = messageRepo.insert(tenantId, projectId, reportId, CompanionRoles.SYSTEM, "system", null,
+                    "管家回复时出错，请稍后重试。", null);
+            publisher.publish(projectId, new CompanionEvent.MessageAppended(MessageView.from(findMessage(sysId))));
+        } else {
+            long agentMsgId = messageRepo.insert(tenantId, projectId, reportId, CompanionRoles.AGENT,
+                    "companion-agent", "Vega", full.toString(), brainSessionId);
+            publisher.publish(projectId, new CompanionEvent.MessageAppended(MessageView.from(findMessage(agentMsgId))));
+        }
         publisher.publish(projectId, new CompanionEvent.StreamEnd(turnId, interrupted.get()));
         stateResolver.resolveAndNotify(tenantId, projectId);   // think/speak → idle 回落
     }
 
-    /** 打断当前会话的流式输出（L0 免审批走闸门留痕 + handle.cancel，1s 内 end{interrupted:true}）。 */
+    /**
+     * 打断当前会话的流式输出（L0 免审批走闸门留痕 + handle.cancel，1s 内 end{interrupted:true}）。
+     * MINOR②：仅 {@link GateResult#executed()}（L0 实际执行）才发 cancel——防持久卷无 seed 时默认 L2
+     * 却照样执行的技术性旁路。
+     */
     public boolean cancel(long tenantId, long projectId, Long reportId, String actor, Locale locale) {
         String sessionKey = sessionKey(projectId, reportId);
         ActionRequest req = ActionRequest.builder()
@@ -162,7 +208,8 @@ public class CompanionChatService {
                 .actor(actor != null && !actor.isBlank() ? actor : "user").actorSource("UI")
                 .summary("打断管家流式输出（会话 " + sessionKey + "）")
                 .build();
-        gatedActionService.submit(req, locale);   // 留痕 + L0 裁决
+        GateResult result = gatedActionService.submit(req, locale);   // 留痕 + 裁决
+        if (!result.executed()) return false;   // 非 EXECUTED（默认 L2 待审批/被拒）不执行打断
         ChatHandle h = activeHandles.get(sessionKey);
         if (h != null) {
             h.cancel();   // → brain interrupted → send 返回半截 → end{interrupted:true}

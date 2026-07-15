@@ -174,6 +174,34 @@ class CompanionChatServiceTest {
         assertThat(messageRepo.findByProject(TENANT, PROJECT, null, null, 10)).isEmpty();
     }
 
+    @Test
+    void sessionReuse_continuesSameBrainSession() {
+        // 预置一条带 brain_session_id 的 AGENT 消息（模拟上一轮）
+        messageRepo.insert(TENANT, PROJECT, null, CompanionRoles.AGENT, "companion-agent", "Vega",
+                "上一轮回复", "sess-old");
+        brain = streamingBrain(new String[]{"第二轮"}, false, new AtomicBoolean());
+
+        service.chat(TENANT, PROJECT, null, "继续", "admin", "管理员", Locale.ENGLISH);
+        CompanionMessage agent = awaitAgent(null);
+
+        // M4：复用既有 session（sess-old）续聊，不新建；新 AGENT 消息带同一 brain_session_id
+        assertThat(agent.brainSessionId()).isEqualTo("sess-old");
+    }
+
+    @Test
+    void chat_busy_rejectsConcurrentTurn() throws Exception {
+        AtomicBoolean cancelFlag = new AtomicBoolean();
+        brain = streamingBrain(new String[]{"a", "b", "c"}, true, cancelFlag);   // slow：send 占据 handle
+        service.chat(TENANT, PROJECT, null, "第一轮", "admin", "管理员", Locale.ENGLISH);
+        sleepQuiet(120);   // 等 respond 注册 handle 进入慢速 send
+
+        // MINOR①：同会话已有进行中轮次 → 拒绝 companion.chat_busy
+        assertThatThrownBy(() -> service.chat(TENANT, PROJECT, null, "第二轮", "admin", "管理员", Locale.ENGLISH))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("companion.chat_busy");
+        cancelFlag.set(true);   // 释放第一轮
+    }
+
     /** 等异步 respond 落 AGENT 消息（轮询，≤5s）。{@code sessionReportId} 指定会话（null=全局）。 */
     private CompanionMessage awaitAgent(Long sessionReportId) {
         long t0 = System.currentTimeMillis();
@@ -186,31 +214,40 @@ class CompanionChatServiceTest {
         throw new IllegalStateException("AGENT 消息未在 5s 内出现 (session=" + sessionReportId + ")");
     }
 
-    /** 构造一个 scripted brain：send 按 deltas 吐增量，slow 时每段 sleep 80ms 便于打断。 */
+    /** 构造一个 scripted brain：send 按 deltas 吐增量，slow 时每段 sleep 80ms 便于打断。
+     *  覆写 resumeChat：复用既有 sessionId 续聊（M4 验证用）。 */
     private CompanionBrain streamingBrain(String[] deltas, boolean slow, AtomicBoolean cancelFlag) {
         return new CompanionBrain() {
             @Override public ChatHandle openChat(long projectId, String contextPrompt, ChatCallbacks cb) {
                 capturedContext = contextPrompt;
-                return new ChatHandle() {
-                    @Override public String sessionId() { return "sess-test"; }
-                    @Override public String send(String userText) {
-                        StringBuilder full = new StringBuilder();
-                        boolean interrupted = false;
-                        for (String d : deltas) {
-                            if (cancelFlag.get()) { interrupted = true; break; }
-                            cb.onDelta(d);
-                            full.append(d);
-                            if (slow) sleepQuiet(80);
-                        }
-                        cb.onEnd(full.toString(), interrupted);
-                        return full.toString();
-                    }
-                    @Override public void cancel() { cancelFlag.set(true); }
-                };
+                return scriptedHandle("sess-test", deltas, slow, cancelFlag, cb);
+            }
+            @Override public java.util.Optional<ChatHandle> resumeChat(String sessionId, ChatCallbacks cb) {
+                return java.util.Optional.of(scriptedHandle(sessionId, deltas, slow, cancelFlag, cb));   // M4：乐观复用
             }
             @Override public PatrolResult runPatrol(PatrolRoutine r, String s, int t) { return null; }
             @Override public boolean healthy() { return true; }
             @Override public String name() { return "scripted"; }
+        };
+    }
+
+    private ChatHandle scriptedHandle(String sessionId, String[] deltas, boolean slow,
+                                      AtomicBoolean cancelFlag, ChatCallbacks cb) {
+        return new ChatHandle() {
+            @Override public String sessionId() { return sessionId; }
+            @Override public String send(String userText) {
+                StringBuilder full = new StringBuilder();
+                boolean interrupted = false;
+                for (String d : deltas) {
+                    if (cancelFlag.get()) { interrupted = true; break; }
+                    cb.onDelta(d);
+                    full.append(d);
+                    if (slow) sleepQuiet(80);
+                }
+                cb.onEnd(full.toString(), interrupted);
+                return full.toString();
+            }
+            @Override public void cancel() { cancelFlag.set(true); }
         };
     }
 

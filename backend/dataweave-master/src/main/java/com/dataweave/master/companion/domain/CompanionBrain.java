@@ -20,6 +20,17 @@ public interface CompanionBrain {
     ChatHandle openChat(long projectId, String contextPrompt, ChatCallbacks callbacks);
 
     /**
+     * 复用既有 brain 会话续聊（多轮记忆，M4）。{@code sessionId} 来自上一条 AGENT 消息的 {@code brain_session_id}
+     * （同 sessionKey=projectId:reportId 共享）。brain 不支持续聊或会话已失效时返回 {@link java.util.Optional#empty()}，
+     * 由调用方 {@link #openChat} 新建；复用句柄首条 {@link ChatHandle#send} 若抛（404/过期）亦应回退新建。
+     *
+     * <p>默认实现返回 empty（始终新建，保持旧行为）；{@code WorkhorseBrainClient} 覆写为乐观复用既有 sessionId。
+     */
+    default java.util.Optional<ChatHandle> resumeChat(String sessionId, ChatCallbacks callbacks) {
+        return java.util.Optional.empty();
+    }
+
+    /**
      * headless 单轮巡检：按领域模板提示 sidecar，消费到 turn 结束，返回结构化产出。
      * 解析失败/超时/brain 不可用 → 返回 {@link PatrolResult#failed}（由调用方产 INFO"未完成"汇报，SC-007 零静默丢失）。
      */

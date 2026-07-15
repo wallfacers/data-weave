@@ -106,6 +106,13 @@ public class WorkhorseBrainClient implements CompanionBrain {
         return new WorkhorseChatHandle(sessionId, callbacks);
     }
 
+    /** M4：乐观复用既有 workhorse session（同 sessionKey 续聊）；首条 send 若 404/过期抛出由调用方回退新建。 */
+    @Override
+    public java.util.Optional<ChatHandle> resumeChat(String sessionId, ChatCallbacks callbacks) {
+        if (sessionId == null || sessionId.isBlank()) return java.util.Optional.empty();
+        return java.util.Optional.of(new WorkhorseChatHandle(sessionId, callbacks));
+    }
+
     // ===== HTTP 原语 =====
 
     private String createSession(String instructions, boolean ephemeral) {
