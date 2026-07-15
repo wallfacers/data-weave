@@ -92,14 +92,15 @@ export interface PatrolRoutine {
   scopeJson?: unknown
 }
 
-/** 巡检执行记录 */
+/** 巡检执行记录 — 契约 RunView(75d301ce 冻结):耗时由 startedAt/finishedAt 前端派生 */
 export interface PatrolRun {
   id: string
-  routineId: string
+  triggerType: string
   state: string
-  startedAt: string
+  scheduledFireTime?: string
+  startedAt?: string
   finishedAt?: string
-  durationMs?: number
-  resultSummary?: string
+  summary?: string
+  error?: string
   reportIds?: string[]
 }

@@ -153,7 +153,7 @@ export function RoutinePanel({ open, onClose }: RoutinePanelProps) {
                       <div key={run.id} className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span>{run.startedAt}</span>
                         <span>{duration}</span>
-                        <span>{run.resultSummary ?? run.state}</span>
+                        <span>{run.summary ?? run.error ?? run.state}</span>
                       </div>
                     )
                   })}
