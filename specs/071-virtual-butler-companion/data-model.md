@@ -9,7 +9,7 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| tenant_id / project_id | VARCHAR | 隔离 |
+| tenant_id / project_id | BIGINT | 隔离 |
 | domain | VARCHAR(32) | `TASK_FAILURE` / `MACHINE` / `DATA_QUALITY` / `CODE_QUALITY`,项目内唯一 |
 | enabled | BOOLEAN default true | 单独启停(FR-006) |
 | cron_expression | VARCHAR(64) | 计划频率(seed 默认见 research R7) |
@@ -24,7 +24,7 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| tenant_id / project_id | VARCHAR | |
+| tenant_id / project_id | BIGINT | |
 | routine_id | BIGINT FK→patrol_routine | |
 | trigger_type | VARCHAR(16) | `SCHEDULED` / `MANUAL` |
 | scheduled_fire_time | TIMESTAMP | 计划触发时刻(guard 幂等键的一部分) |
@@ -40,7 +40,7 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| tenant_id / project_id | VARCHAR | |
+| tenant_id / project_id | BIGINT | |
 | run_id | BIGINT FK→patrol_run | 产出来源(执行历史↔汇报关联,US4-AS2) |
 | domain | VARCHAR(32) | 冗余自 routine,查询友好 |
 | severity | VARCHAR(16) | `DANGER` / `WARN` / `OK` / `INFO`(`INFO` 含"未完成"汇报) |
@@ -58,7 +58,7 @@
 | 列 | 类型 | 说明 |
 |---|---|---|
 | id | BIGSERIAL PK | |
-| tenant_id / project_id | VARCHAR | |
+| tenant_id / project_id | BIGINT | |
 | report_id | BIGINT NULL FK→patrol_report | NULL=全局会话;非 NULL=锚定该汇报的上下文会话(FR-013) |
 | role | VARCHAR(16) | `USER` / `AGENT` / `SYSTEM` |
 | actor / actor_name | VARCHAR | 发言者服务端认定(070 身份标准延续) |
