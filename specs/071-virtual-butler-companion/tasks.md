@@ -16,7 +16,7 @@
 ## Phase 1: Setup
 
 - [ ] T001 [P] 🅱 前端引入 `three`(r169+)与 `@types/three`:`cd frontend && pnpm add three && pnpm add -D @types/three`,`pnpm typecheck` 零错基线
-- [ ] T002 [P] 🅰 新增管家 agent 角色 `deploy/workhorse/agents/companion.yaml`:管家人设 system prompt(值班运维管家 Vega、结构化汇报要求)+ 工具白名单(只读 `dataweave__*` 优先,写工具依赖 MCP 细闸),参照 `deploy/workhorse/config.runtime.yaml` 既有双闸门约定
+- [x] T002 [P] 🅰 新增管家 agent 角色 `deploy/workhorse/agents/companion.yaml`:管家人设 system prompt(值班运维管家 Vega、结构化汇报要求)+ 工具白名单(只读 `dataweave__*` 优先,写工具依赖 MCP 细闸),参照 `deploy/workhorse/config.runtime.yaml` 既有双闸门约定
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
