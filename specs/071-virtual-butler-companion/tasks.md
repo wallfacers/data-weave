@@ -22,7 +22,7 @@
 
 **⚠️ 两轨的用户故事任务都依赖本阶段;T003 是 🅰 全部任务的前置,T007/T008/T009 是 🅱 全部任务的前置。**
 
-- [ ] T003 🅰 `backend/dataweave-api/src/main/resources/schema.sql` 升 **0.21.0**:+`patrol_routine`/`patrol_run`/`patrol_report`/`companion_message` 4 表(列/约束/索引严格按 data-model.md;UNIQUE(routine_id, scheduled_fire_time) 幂等;隔离列+索引)+ seed 四领域默认例程(research R7 频率)+ 文件头与 `schema_version` INSERT 同步;PG/H2 双方言兼容(IF NOT EXISTS、无 `||` 拼接)
+- [x] T003 🅰 `backend/dataweave-api/src/main/resources/schema.sql` 升 **0.21.0**:+`patrol_routine`/`patrol_run`/`patrol_report`/`companion_message` 4 表(列/约束/索引严格按 data-model.md;UNIQUE(routine_id, scheduled_fire_time) 幂等;隔离列+索引)+ seed 四领域默认例程(research R7 频率)+ 文件头与 `schema_version` INSERT 同步;PG/H2 双方言兼容(IF NOT EXISTS、无 `||` 拼接)
 - [ ] T004 [P] 🅰 领域对象与仓储:`backend/dataweave-master/src/main/java/com/dataweave/master/companion/domain/`(PatrolRoutine/PatrolRun/PatrolReport/CompanionMessage + 状态枚举)+ `infrastructure/`(Jdbc 四仓储,自增主键用 GeneratedKeyHolder——CALL IDENTITY 跨方言坑)+ H2 仓储 IT(`@TestPropertySource` 独立库名防串台)
 - [ ] T005 [P] 🅰 大脑端口与适配器:`domain/CompanionBrain.java`(openChat/runPatrol/healthy,契约见 companion-api.md 内部端口节)+ `infrastructure/WorkhorseBrainClient.java`(HTTP 8300:POST /v1/sessions、GET/POST stream SSE 消费、cancel;JDK HttpClient)+ `infrastructure/MockBrain.java`(降级固定话术/未完成产出)+ 健康探测选择逻辑 + 单测
 - [ ] T006 🅰 SSE 通道骨架:`backend/dataweave-api/.../interfaces/companion/CompanionStreamHandler.java`(`GET /api/companion/stream?projectId&token`:鉴权、snapshot 事件、心跳、Last-Event-ID)+ `master/companion/infrastructure/CompanionEventPublisher.java`(Redis EventBus 扇出,套 incident stream 骨架);依赖 T003/T004

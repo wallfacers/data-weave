@@ -35,7 +35,7 @@ public class SchemaVersionGuard implements CommandLineRunner {
      * 代码预期的 schema 版本。必须与 {@code schema.sql} 中 {@code schema_version} 表的最新
      * INSERT 值保持一致，否则应用拒绝启动。
      */
-    static final String EXPECTED_VERSION = "0.20.0";
+    static final String EXPECTED_VERSION = "0.21.0";
 
     private final JdbcTemplate jdbc;
 
