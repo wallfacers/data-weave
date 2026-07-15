@@ -2,11 +2,15 @@
 
 /**
  * 虚拟管家 SSE 流 hook。
- * 直连 SSE_BASE 绕 Next rewrite（代理会缓冲 SSE），
- * 事件集对齐 contracts/companion-api.md：
- *   snapshot / state / report / briefing / message / delta / end
+ * 直连 SSE_BASE 绕 Next rewrite（代理会缓冲 SSE，既有硬约定），
+ * 事件集对齐 contracts/companion-api.md。
+ *
+ * 参照 use-incident-stream.ts 骨架：SSE_BASE from @/lib/types、
+ * readProjectId() from @/lib/project-header、safeParse、reconnect。
  */
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
+import { SSE_BASE } from "@/lib/types"
+import { readProjectId } from "@/lib/project-header"
 import { useCompanionStore } from "./store"
 import type {
   SnapshotData,
@@ -18,88 +22,76 @@ import type {
   EndEvent,
 } from "./types"
 
-/** SSE_BASE 由构建时注入（Next.js public env），缺省直连 localhost:8000 */
-const SSE_BASE = process.env.NEXT_PUBLIC_SSE_BASE ?? "http://localhost:8000"
-
-function buildStreamUrl(): string {
-  // SSE 鉴权走 query（EventSource API 不支持自定义 headers，与 070 监督席 SSE 一致；
-  // 后端需配合 no-referrer + HTTPS + 审计日志脱敏 query 中的 token）。
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("dw.auth.token") ?? ""
-      : ""
-  // projectId 由 X-Project-Id 头在 authFetch 中管理，SSE 走 query
-  const projectId =
-    typeof window !== "undefined"
-      ? localStorage.getItem("dw.auth.projectId") ?? ""
-      : ""
-  const sp = new URLSearchParams({ token, projectId })
-  return `${SSE_BASE}/api/companion/stream?${sp.toString()}`
+function safeParse<T>(raw: string): T | null {
+  try { return JSON.parse(raw) as T } catch { return null }
 }
 
 export function useCompanionStream() {
   const esRef = useRef<EventSource | null>(null)
-  const store = useCompanionStore
 
-  useEffect(() => {
-    const url = buildStreamUrl()
+  const connect = useCallback(() => {
+    if (typeof window === "undefined") return
+    if (esRef.current) esRef.current.close()
+
+    const token = localStorage.getItem("dw.auth.token")
+    // SSE 鉴权走 query（EventSource API 不支持自定义 headers，与 070 监督席一致）
+    let url = `${SSE_BASE}/api/companion/stream?projectId=${readProjectId()}`
+    if (token) url += `&token=${encodeURIComponent(token)}`
+
     const es = new EventSource(url)
     esRef.current = es
+    useCompanionStore.getState().setConnection("connecting")
 
-    store.setState({ connection: "connecting" } as any)
+    es.onerror = () => useCompanionStore.getState().setConnection("disconnected")
 
     es.addEventListener("snapshot", (e: MessageEvent) => {
-      const data: SnapshotData = JSON.parse(e.data)
-      store.setState({ state: data.state } as any)
-      store.setState({ briefing: data.briefing } as any)
-      store.setState({ reports: data.reports } as any)
-      store.setState({ connection: "live" } as any)
+      const d = safeParse<SnapshotData>(e.data)
+      if (!d) return
+      useCompanionStore.getState().setCompanionState(d.state)
+      useCompanionStore.getState().setBriefing(d.briefing)
+      useCompanionStore.getState().setReports(d.reports ?? [])
+      useCompanionStore.getState().setConnection("live")
     })
 
     es.addEventListener("state", (e: MessageEvent) => {
-      const data: StateEvent = JSON.parse(e.data)
-      store.setState({ state: data.state } as any)
+      const d = safeParse<StateEvent>(e.data)
+      if (d) useCompanionStore.getState().setCompanionState(d.state)
     })
 
     es.addEventListener("report", (e: MessageEvent) => {
-      const data: ReportEvent = JSON.parse(e.data)
-      if (data.type === "created") {
-        store.getState().addReport(data.report)
-      } else if (data.type === "closed") {
-        store.getState().removeReport(data.report.id)
-      }
+      const d = safeParse<ReportEvent>(e.data)
+      if (!d) return
+      if (d.type === "created") useCompanionStore.getState().addReport(d.report)
+      else if (d.type === "closed") useCompanionStore.getState().removeReport(d.report.id)
     })
 
     es.addEventListener("briefing", (e: MessageEvent) => {
-      const data: Briefing = JSON.parse(e.data)
-      store.setState({ briefing: data } as any)
+      const d = safeParse<Briefing>(e.data)
+      if (d) useCompanionStore.getState().setBriefing(d)
     })
 
     es.addEventListener("message", (e: MessageEvent) => {
-      const data: MessageView = JSON.parse(e.data)
-      store.getState().addMessage(data)
+      const d = safeParse<MessageView>(e.data)
+      if (d) useCompanionStore.getState().addMessage(d)
     })
 
     es.addEventListener("delta", (e: MessageEvent) => {
-      const data: DeltaEvent = JSON.parse(e.data)
-      store.getState().appendDelta(data.messageId, data.chunk)
+      const d = safeParse<DeltaEvent>(e.data)
+      if (d) useCompanionStore.getState().appendDelta(d.messageId, d.chunk)
     })
 
     es.addEventListener("end", (e: MessageEvent) => {
-      const data: EndEvent = JSON.parse(e.data)
-      store.getState().endMessage(data.messageId, data.interrupted)
+      const d = safeParse<EndEvent>(e.data)
+      if (d) useCompanionStore.getState().endMessage(d.messageId, d.interrupted)
     })
-
-    es.onerror = () => {
-      store.setState({ connection: "disconnected" } as any)
-    }
-
-    return () => {
-      es.close()
-      esRef.current = null
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { store }
+  useEffect(() => {
+    connect()
+    return () => { esRef.current?.close() }
+  }, [connect])
+
+  const reconnect = useCallback(() => connect(), [connect])
+
+  return { reconnect }
 }

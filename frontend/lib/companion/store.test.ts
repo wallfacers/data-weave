@@ -42,8 +42,8 @@ describe("useCompanionStore", () => {
     expect(useCompanionStore.getState().state).toBe("idle")
   })
 
-  it("setState 切换管家形态", () => {
-    useCompanionStore.getState().setState("alert")
+  it("setCompanionState 切换管家形态", () => {
+    useCompanionStore.getState().setCompanionState("alert")
     expect(useCompanionStore.getState().state).toBe("alert")
   })
 
@@ -100,9 +100,13 @@ describe("useCompanionStore", () => {
     expect(msgs[0].content).toBe("Hello World")
   })
 
-  it("appendDelta 对不存在的 messageId 无操作", () => {
-    useCompanionStore.getState().appendDelta("nonexistent", "chunk")
-    expect(useCompanionStore.getState().messages).toHaveLength(0)
+  it("appendDelta 对不存在的 messageId 创建占位消息（delta 早于 message 事件）", () => {
+    useCompanionStore.getState().appendDelta("early", "chunk")
+    const msgs = useCompanionStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].id).toBe("early")
+    expect(msgs[0].content).toBe("chunk")
+    expect(msgs[0].role).toBe("AGENT")
   })
 
   it("setConnection 更新连接状态", () => {
@@ -113,8 +117,28 @@ describe("useCompanionStore", () => {
   it("五形态全量遍历无误", () => {
     const states = ["idle", "patrol", "alert", "think", "speak"] as const
     for (const s of states) {
-      useCompanionStore.getState().setState(s)
+      useCompanionStore.getState().setCompanionState(s)
       expect(useCompanionStore.getState().state).toBe(s)
     }
+  })
+
+  it("endMessage 设置 interrupted 标记", () => {
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m1", content: "Hello" }))
+    useCompanionStore.getState().endMessage("m1", true)
+    expect(useCompanionStore.getState().messages[0].content).toContain("⌟")
+  })
+
+  it("endMessage 不设置 interrupted 标记", () => {
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m2", content: "World" }))
+    useCompanionStore.getState().endMessage("m2", false)
+    expect(useCompanionStore.getState().messages[0].content).toBe("World")
+  })
+
+  it("appendDelta 早于 message 时创建占位消息", () => {
+    useCompanionStore.getState().appendDelta("early", "chunk")
+    const msgs = useCompanionStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].id).toBe("early")
+    expect(msgs[0].content).toBe("chunk")
   })
 })

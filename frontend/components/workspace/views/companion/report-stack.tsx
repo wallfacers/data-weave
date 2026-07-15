@@ -3,34 +3,36 @@
 /**
  * 虚拟管家汇报卡片栈。
  *
- * - 时间倒序堆叠（最新在上）
- * - 未读徽标计数
- * - 整栈可收起/展开
+ * - 时间倒序堆叠 + 未读徽标 + 整栈可收起/展开
  * - 项目级共享关闭（SSE report:closed → store.removeReport）
+ * - 离线补看：fetchReports 加载未关闭汇报
  */
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
+import { Button } from "@/components/ui/button"
 import { useCompanionStore } from "@/lib/companion/store"
+import { fetchReports } from "@/lib/companion/api"
 import { ReportCard } from "./report-card"
 
 export function ReportStack() {
   const t = useTranslations("companion")
   const reports = useCompanionStore((s) => s.reports)
+  const setReports = useCompanionStore((s) => s.setReports)
   const [hidden, setHidden] = useState(false)
+
+  /* 离线补看：加载未关闭汇报 */
+  useEffect(() => {
+    fetchReports().then(setReports).catch(() => {})
+  }, [setReports])
 
   const unreadCount = reports.filter((r) => r.status === "UNREAD").length
 
   return (
     <div className="flex flex-col gap-2.5">
-      {/* 标题栏 */}
-      <div className="flex items-center justify-end gap-2">
-        {unreadCount > 0 && (
-          <span className="flex h-5 min-w-[18px] items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
-            {unreadCount}
-          </span>
-        )}
-        <button
-          className="rounded-lg border border-border/50 bg-card/70 px-3.5 py-1.5 text-[13px] text-foreground backdrop-blur-sm hover:border-primary/50"
+      <div className="flex items-center justify-end">
+        <Button
+          size="sm" variant="outline"
+          className="text-[13px] backdrop-blur-sm"
           onClick={() => setHidden(!hidden)}
         >
           {t("report.title")}
@@ -39,10 +41,9 @@ export function ReportStack() {
               {unreadCount}
             </span>
           )}
-        </button>
+        </Button>
       </div>
 
-      {/* 卡片栈 */}
       <div
         className={`flex flex-col gap-2.5 overflow-y-auto transition-all duration-400 ease-[cubic-bezier(.2,.8,.2,1)] ${
           hidden ? "translate-x-[110%] opacity-0" : ""
@@ -54,8 +55,8 @@ export function ReportStack() {
             {t("report.empty")}
           </div>
         ) : (
-          reports.map((r, i) => (
-            <div key={r.id} style={{ animationDelay: `${i * 0.08}s` }}>
+          reports.map((r) => (
+            <div key={r.id}>
               <ReportCard report={r} />
             </div>
           ))

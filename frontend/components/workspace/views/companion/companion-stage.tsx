@@ -3,11 +3,12 @@
 /**
  * 虚拟管家 3D 场景组件。
  *
- * - "use client" + next/dynamic ssr:false（three.js 需要 DOM）
- * - 启动/主题切换时从 getComputedStyle 读取语义 token → THREE.Color
+ * - "use client" + next/dynamic ssr:false
+ * - Token 取色：getComputedStyle 读取 --companion-* → THREE.Color
+ * - 动画循环内通过 useCompanionStore.getState().state 读取最新形态（不闭包冻结）
  * - resolvedTheme 变化 → 材质 .color.set()，不重建场景
- * - WebGL2/WebGL 探测失败 → 抛错误由父组件切 orb-fallback
- * - 完整的 dispose 清理
+ * - WebGL2/WebGL 探测失败 → 抛给父组件切 orb-fallback
+ * - 完整 dispose（含 Points/Sprite/纹理/forceContextLoss）
  */
 import { useEffect, useRef, useCallback } from "react"
 import { useTheme } from "next-themes"
@@ -15,71 +16,54 @@ import * as THREE from "three"
 import type { CompanionState } from "@/lib/companion/types"
 import { useCompanionStore } from "@/lib/companion/store"
 import { createBot, type BotColors, type BotModel } from "./bot-model"
-import { drawFace, cssHex } from "./face-screen"
+import { drawFace } from "./face-screen"
 
 /* ── Token 取色 ── */
 
 interface CompanionTokens {
-  idle: string
-  patrol: string
-  alert: string
-  think: string
-  speak: string
-  background: string
-  foreground: string
+  idle: string; patrol: string; alert: string; think: string; speak: string
 }
 
-function readCompanionTokens(): CompanionTokens {
-  const style = getComputedStyle(document.documentElement)
+function readTokens(): CompanionTokens {
+  const s = getComputedStyle(document.documentElement)
   return {
-    idle: style.getPropertyValue("--companion-idle").trim(),
-    patrol: style.getPropertyValue("--companion-patrol").trim(),
-    alert: style.getPropertyValue("--companion-alert").trim(),
-    think: style.getPropertyValue("--companion-think").trim(),
-    speak: style.getPropertyValue("--companion-speak").trim(),
-    background: style.getPropertyValue("--background").trim(),
-    foreground: style.getPropertyValue("--foreground").trim(),
+    idle: s.getPropertyValue("--companion-idle").trim(),
+    patrol: s.getPropertyValue("--companion-patrol").trim(),
+    alert: s.getPropertyValue("--companion-alert").trim(),
+    think: s.getPropertyValue("--companion-think").trim(),
+    speak: s.getPropertyValue("--companion-speak").trim(),
   }
 }
 
-function parseOklch(css: string): THREE.Color {
-  // oklch(L C H) → 通过 CSS 颜色解析
-  if (!css) return new THREE.Color(0x888888)
-  // 用临时元素让浏览器解析 oklch → rgb
-  const div = document.createElement("div")
-  div.style.color = css
-  document.body.appendChild(div)
-  const rgb = getComputedStyle(div).color
-  document.body.removeChild(div)
-  // rgb(r, g, b) → THREE.Color
-  const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
-  if (match) {
-    return new THREE.Color(
-      parseInt(match[1]) / 255,
-      parseInt(match[2]) / 255,
-      parseInt(match[3]) / 255
-    )
+/**
+ * 将 CSS 颜色字符串（oklch/hex/rgb/...）转为 THREE.Color。
+ * 使用 2D canvas fillStyle+getImageData 读取 RGBA，绕开 getComputedStyle
+ * 返回 lab() 导致 THREE.Color 无法解析的问题。
+ */
+function parseCssColor(css: string): THREE.Color {
+  if (!css) return new THREE.Color(0x5eead4)
+  try {
+    const canvas = document.createElement("canvas")
+    canvas.width = canvas.height = 1
+    const ctx = canvas.getContext("2d")!
+    ctx.fillStyle = css
+    ctx.fillRect(0, 0, 1, 1)
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+    return new THREE.Color(r / 255, g / 255, b / 255)
+  } catch {
+    return new THREE.Color(0x5eead4)
   }
-  return new THREE.Color(css)
 }
 
 const STATE_COLOR_KEY: Record<CompanionState, keyof CompanionTokens> = {
-  idle: "idle",
-  patrol: "patrol",
-  alert: "alert",
-  think: "think",
-  speak: "speak",
+  idle: "idle", patrol: "patrol", alert: "alert", think: "think", speak: "speak",
 }
-
-/* ── WebGL 探测 ── */
 
 export function detectWebGL(): boolean {
   try {
     const c = document.createElement("canvas")
     return !!(c.getContext("webgl2") || c.getContext("webgl"))
-  } catch {
-    return false
-  }
+  } catch { return false }
 }
 
 /* ── Props ── */
@@ -94,9 +78,10 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<{
     renderer: THREE.WebGLRenderer
-    scene: THREE.Scene
     camera: THREE.PerspectiveCamera
     bot: BotModel
+    shellMat: THREE.MeshStandardMaterial
+    visorMat: THREE.MeshStandardMaterial
     ringMat: THREE.MeshBasicMaterial
     ringMat2: THREE.MeshBasicMaterial
     discMat: THREE.MeshBasicMaterial
@@ -104,52 +89,56 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     ringGroup: THREE.Group
     particles: THREE.Points
     clock: THREE.Clock
-    mouseX: number
-    mouseY: number
+    mouseX: number; mouseY: number
     blinkRef: { t: number; next: number }
     alertShakeT: number
-    /** 当前动画用的状态色 hex number */
-    currentStateColor: number
+    currentStateHex: number
+    glowTex: THREE.CanvasTexture
   } | null>(null)
-  const rafRef = useRef<number>(0)
+  const rafRef = useRef(0)
+  const roRef = useRef<ResizeObserver | null>(null)
   const { resolvedTheme } = useTheme()
 
-  const state = useCompanionStore((s) => s.state)
-
-  /* ── Token 取色函数（稳定引用） ── */
-  const buildColors = useCallback((): { tokens: CompanionTokens; botColors: BotColors } => {
-    const tokens = readCompanionTokens()
-    // shell: 基于 background 明度判断亮/暗
-    const bg = parseOklch(tokens.background)
-    const shellColor = bg.r > 0.5
-      ? new THREE.Color(0xeef2f7) // 亮色：暖白壳
-      : new THREE.Color(0x1a1a2e) // 暗色：深蓝灰壳
-    const visorColor = new THREE.Color(0x0a1120) // 面屏恒深
-    const defaultTrim = parseOklch(tokens.idle)
-
-    return {
-      tokens,
-      botColors: {
-        shell: shellColor,
-        visor: visorColor,
-        trim: defaultTrim,
-        glow: defaultTrim,
-        thrust: defaultTrim,
-      },
-    }
+  /* ── 更新所有状态相关材质颜色 ── */
+  const applyStateColor = useCallback((hex: number) => {
+    const s = sceneRef.current
+    if (!s) return
+    s.currentStateHex = hex
+    s.bot.tintedMaterials.forEach((m) => { m.color.setHex(hex); m.emissive?.setHex(hex) })
+    s.ringMat.color.setHex(hex)
+    s.ringMat2.color.setHex(hex)
+    s.discMat.color.setHex(hex)
+    s.pMat.color.setHex(hex)
+    s.bot.thrustMat.color.setHex(hex)
+    ;(s.bot.coreGlow.material as THREE.SpriteMaterial).color.setHex(hex)
+    ;(s.bot.hoverGlow.material as THREE.SpriteMaterial).color.setHex(hex)
   }, [])
+
+  /* ── 主题切换：更新壳/面屏/装饰色 ── */
+  const applyThemeColors = useCallback(() => {
+    const s = sceneRef.current
+    if (!s) return
+    const tokens = readTokens()
+    const isLight = resolvedTheme === "light"
+    // 壳色：亮=暖白，暗=深蓝灰
+    s.shellMat.color.set(isLight ? 0xeef2f7 : 0x1a1a2e)
+    // 面屏恒深
+    s.visorMat.color.set(0x0a1120)
+    // 装饰/发光色随当前状态
+    const st = useCompanionStore.getState().state
+    const key = STATE_COLOR_KEY[st]
+    const hex = parseCssColor(tokens[key]).getHex()
+    applyStateColor(hex)
+    // 更新 rim light 颜色
+  }, [resolvedTheme, applyStateColor])
 
   /* ── 场景初始化 ── */
   useEffect(() => {
-    if (!containerRef.current) return
-
-    // WebGL 探测
-    if (!detectWebGL()) {
-      onWebGLUnavailable?.()
-      return
-    }
-
     const container = containerRef.current
+    if (!container) return
+
+    if (!detectWebGL()) { onWebGLUnavailable?.(); return }
+
     const w = container.clientWidth
     const h = container.clientHeight
 
@@ -166,7 +155,7 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     camera.position.set(0, 1.18, 3.1)
     camera.lookAt(0, 1.02, 0)
 
-    /* Lights */
+    /* Lights — 场景常量（灯光颜色不映射 token，见 DESIGN.md M3 声明） */
     scene.add(new THREE.AmbientLight(0x9db4d8, 0.8))
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.6)
     keyLight.position.set(1.4, 2.4, 2.2)
@@ -179,37 +168,46 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     scene.add(fillLight)
 
     /* Bot */
-    const { tokens, botColors } = buildColors()
+    const tokens = readTokens()
+    const isLight = resolvedTheme === "light"
+    const defaultTrim = parseCssColor(tokens.idle)
+    const botColors: BotColors = {
+      shell: new THREE.Color(isLight ? 0xeef2f7 : 0x1a1a2e),
+      visor: new THREE.Color(0x0a1120),
+      trim: defaultTrim,
+      glow: defaultTrim,
+      thrust: defaultTrim,
+    }
     const bot = createBot(botColors)
     scene.add(bot.group)
+
+    /* 提取 shell/visor 材质引用于主题切换 */
+    const shellMat = (bot.group.children.find(
+      (c) => c instanceof THREE.Mesh && (c as THREE.Mesh).geometry.type === "SphereGeometry"
+    ) as THREE.Mesh)?.material as THREE.MeshStandardMaterial
+    // 从 torso 取 shellMat（更可靠）
+    const shellMatFromTorso = ((bot.group.children[3] as THREE.Mesh)?.material) as THREE.MeshStandardMaterial
+    const visorMat = bot.tintedMaterials[0]?.clone()
+    // 面屏不在 tintedMaterials 中，从 head 子节点获取
+    const visorMesh = bot.head.children[1] as THREE.Mesh
+    const visorMaterial = visorMesh.material as THREE.MeshStandardMaterial
 
     /* Ground rings + particles */
     const ringGroup = new THREE.Group()
     scene.add(ringGroup)
     const ringMat = new THREE.MeshBasicMaterial({
-      color: botColors.trim,
-      transparent: true,
-      opacity: 0.55,
-      side: THREE.DoubleSide,
+      color: defaultTrim, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
     })
     const ring1 = new THREE.Mesh(new THREE.RingGeometry(0.52, 0.545, 80), ringMat)
-    ring1.rotation.x = -Math.PI / 2
-    ringGroup.add(ring1)
-    const ringMat2 = ringMat.clone()
-    ringMat2.opacity = 0.22
+    ring1.rotation.x = -Math.PI / 2; ringGroup.add(ring1)
+    const ringMat2 = ringMat.clone(); ringMat2.opacity = 0.22
     const ring2 = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.672, 80), ringMat2)
-    ring2.rotation.x = -Math.PI / 2
-    ringGroup.add(ring2)
+    ring2.rotation.x = -Math.PI / 2; ringGroup.add(ring2)
     const discMat = new THREE.MeshBasicMaterial({
-      color: botColors.trim,
-      transparent: true,
-      opacity: 0.05,
-      side: THREE.DoubleSide,
+      color: defaultTrim, transparent: true, opacity: 0.05, side: THREE.DoubleSide,
     })
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.52, 64), discMat)
-    disc.rotation.x = -Math.PI / 2
-    disc.position.y = 0.001
-    ringGroup.add(disc)
+    disc.rotation.x = -Math.PI / 2; disc.position.y = 0.001; ringGroup.add(disc)
 
     const P_COUNT = 240
     const pGeo = new THREE.BufferGeometry()
@@ -223,66 +221,52 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     }
     pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3))
     const pMat = new THREE.PointsMaterial({
-      color: botColors.trim,
-      size: 0.012,
-      transparent: true,
-      opacity: 0.75,
+      color: defaultTrim, size: 0.012, transparent: true, opacity: 0.75,
     })
     const particles = new THREE.Points(pGeo, pMat)
     scene.add(particles)
 
     const clock = new THREE.Clock()
     const blinkRef = { t: 0, next: 2.2 }
-    const mouseRef = { x: 0, y: 0 }
-    let alertShakeT = 0
-    let currentStateColor = tokens.idle ? parseOklch(tokens.idle).getHex() : 0x5eead4
+    const currentStateHex = defaultTrim.getHex()
 
     sceneRef.current = {
-      renderer,
-      scene,
-      camera,
-      bot,
-      ringMat,
-      ringMat2,
-      discMat,
-      pMat,
-      ringGroup,
-      particles,
-      clock,
-      mouseX: 0,
-      mouseY: 0,
-      blinkRef,
-      alertShakeT,
-      currentStateColor,
+      renderer, camera, bot,
+      shellMat: shellMatFromTorso, visorMat: visorMaterial,
+      ringMat, ringMat2, discMat, pMat, ringGroup, particles, clock,
+      mouseX: 0, mouseY: 0, blinkRef, alertShakeT: 0,
+      currentStateHex,
+      glowTex: (bot.coreGlow.material as THREE.SpriteMaterial).map as THREE.CanvasTexture,
     }
 
-    /* Resize */
-    const onResize = () => {
-      const w2 = container.clientWidth
-      const h2 = container.clientHeight
+    /* ResizeObserver */
+    const ro = new ResizeObserver(() => {
+      const w2 = container.clientWidth; const h2 = container.clientHeight
       renderer.setSize(w2, h2)
-      camera.aspect = w2 / h2
-      camera.updateProjectionMatrix()
-    }
-    window.addEventListener("resize", onResize)
+      camera.aspect = w2 / h2; camera.updateProjectionMatrix()
+    })
+    ro.observe(container)
+    roRef.current = ro
 
     /* Mouse */
     const onMouse = (e: MouseEvent) => {
-      if (!sceneRef.current) return
-      sceneRef.current.mouseX = (e.clientX / window.innerWidth) * 2 - 1
-      sceneRef.current.mouseY = (e.clientY / window.innerHeight) * 2 - 1
+      const s = sceneRef.current; if (!s) return
+      s.mouseX = (e.clientX / innerWidth) * 2 - 1
+      s.mouseY = (e.clientY / innerHeight) * 2 - 1
     }
     window.addEventListener("mousemove", onMouse)
 
-    /* ── 动画循环 ── */
+    /* ══ 动画循环 ══ */
     function animate() {
       rafRef.current = requestAnimationFrame(animate)
-      const s = sceneRef.current
-      if (!s) return
+      const s = sceneRef.current; if (!s) return
+
+      // B1 修复：实时读取 store 中的最新状态，不依赖闭包
+      const state = useCompanionStore.getState().state
 
       const dt = Math.min(s.clock.getDelta(), 0.1)
       const t = s.clock.elapsedTime
-      const { bot: b, ringMat: rm, ringMat2: rm2, discMat: dm, pMat: pm, ringGroup, particles } = s
+      const { bot: b } = s
 
       /* 悬浮呼吸 */
       b.group.position.y = 1.0 + Math.sin(t * 1.5) * 0.035
@@ -323,18 +307,14 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
       if (state === "speak") {
         b.armL.rotation.x = Math.sin(t * 4) * 0.25
         b.armR.rotation.x = Math.sin(t * 4 + 1.2) * 0.25
-      } else {
-        b.armL.rotation.x *= 0.9
-        b.armR.rotation.x *= 0.9
-      }
+      } else { b.armL.rotation.x *= 0.9; b.armR.rotation.x *= 0.9 }
 
-      /* 头顶光环 & 推进环旋转 */
+      /* 光环 & 环旋转 */
       b.halo.rotation.z += dt * 1.2
       b.hoverRing.rotation.z += dt * 2.4
 
       /* 核心脉冲 */
-      const corePulse = 1.8 + Math.sin(t * (state === "alert" ? 8 : 2.2)) * 0.7
-      b.coreMat.emissiveIntensity = corePulse
+      b.coreMat.emissiveIntensity = 1.8 + Math.sin(t * (state === "alert" ? 8 : 2.2)) * 0.7
       b.coreGlow.material.opacity = 0.5 + Math.sin(t * 2.2) * 0.18
 
       /* 尾焰粒子下坠 */
@@ -348,12 +328,11 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
       b.thrustMat.opacity = 0.5 + Math.sin(t * 3) * 0.25
 
       /* 地面光环 & 粒子 */
-      ringGroup.rotation.y += dt * (state === "alert" ? 1.6 : 0.35)
-      rm.opacity = state === "alert"
-        ? 0.4 + Math.abs(Math.sin(t * 5)) * 0.5
-        : 0.45 + Math.sin(t * 1.4) * 0.12
-      particles.rotation.y += dt * (state === "patrol" ? 0.5 : 0.16)
-      const pp = particles.geometry.attributes.position
+      s.ringGroup.rotation.y += dt * (state === "alert" ? 1.6 : 0.35)
+      s.ringMat.opacity = state === "alert"
+        ? 0.4 + Math.abs(Math.sin(t * 5)) * 0.5 : 0.45 + Math.sin(t * 1.4) * 0.12
+      s.particles.rotation.y += dt * (state === "patrol" ? 0.5 : 0.16)
+      const pp = s.particles.geometry.attributes.position
       for (let i = 0; i < 240; i++) {
         let y = pp.getY(i) + dt * (state === "patrol" ? 0.34 : 0.12)
         if (y > 1.9) y = 0
@@ -361,110 +340,63 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
       }
       pp.needsUpdate = true
 
-      /* 表情绘制 */
+      /* 表情 */
       drawFace({
         ctx: b.faceCtx,
-        colorHex: "#" + s.currentStateColor.toString(16).padStart(6, "0"),
-        state,
-        elapsed: t,
-        dt,
-        mouseX: s.mouseX,
-        mouseY: s.mouseY,
+        colorHex: "#" + s.currentStateHex.toString(16).padStart(6, "0"),
+        state, elapsed: t, dt,
+        mouseX: s.mouseX, mouseY: s.mouseY,
         blinkRef: s.blinkRef,
       })
       b.faceTex.needsUpdate = true
 
-      s.renderer.render(s.scene, s.camera)
+      s.renderer.render(scene, camera)
     }
     animate()
 
     return () => {
       cancelAnimationFrame(rafRef.current)
-      window.removeEventListener("resize", onResize)
+      ro.disconnect()
       window.removeEventListener("mousemove", onMouse)
-      // Dispose
-      renderer.dispose()
+      // M1: 完整 dispose
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
           obj.geometry?.dispose()
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m.dispose())
-          } else {
-            obj.material?.dispose()
-          }
+          if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose())
+          else obj.material?.dispose()
+        }
+        if (obj instanceof THREE.Sprite) {
+          ;(obj as THREE.Sprite).material?.dispose()
         }
       })
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement)
-      }
+      // 显式 dispose 纹理
+      ;(bot.coreGlow.material as THREE.SpriteMaterial).map?.dispose()
+      renderer.forceContextLoss()
+      renderer.dispose()
+      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
       sceneRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /* ── 状态变化 → 换色 ── */
+  const state = useCompanionStore((s) => s.state)
   const prevStateRef = useRef<CompanionState>("idle")
   useEffect(() => {
-    const s = sceneRef.current
-    if (!s) return
-
-    const tokens = readCompanionTokens()
-    const colorKey = STATE_COLOR_KEY[state]
-    const hex = parseOklch(tokens[colorKey]).getHex()
-
-    s.currentStateColor = hex
-
-    // 更新所有 tinted 材质
-    s.bot.tintedMaterials.forEach((m) => {
-      m.color.setHex(hex)
-      m.emissive?.setHex(hex)
-    })
-    // 更新 ground ring + disc + particles
-    s.ringMat.color.setHex(hex)
-    s.ringMat2.color.setHex(hex)
-    s.discMat.color.setHex(hex)
-    s.pMat.color.setHex(hex)
-    // 更新 glow sprites
-    s.bot.thrustMat.color.setHex(hex)
-    ;(s.bot.coreGlow.material as THREE.SpriteMaterial).color.setHex(hex)
-    ;(s.bot.hoverGlow.material as THREE.SpriteMaterial).color.setHex(hex)
-
-    // Alert 震动
-    if (state === "alert" && prevStateRef.current !== "alert") {
-      s.alertShakeT = 0.55
-    }
-
+    const s = sceneRef.current; if (!s) return
+    const tokens = readTokens()
+    const key = STATE_COLOR_KEY[state]
+    const hex = parseCssColor(tokens[key]).getHex()
+    applyStateColor(hex)
+    if (state === "alert" && prevStateRef.current !== "alert") s.alertShakeT = 0.55
     prevStateRef.current = state
-  }, [state])
+  }, [state, applyStateColor])
 
-  /* ── 主题切换 → 重取色（不重建场景） ── */
+  /* ── 主题切换 → 壳/面屏色 ── */
   useEffect(() => {
-    const s = sceneRef.current
-    if (!s || !resolvedTheme) return
-
-    const tokens = readCompanionTokens()
-    const bg = parseOklch(tokens.background)
-    // Update shell/visor
-    const isLight = resolvedTheme === "light"
-    const shellHex = isLight ? 0xeef2f7 : 0x1a1a2e
-    // Walk scene to update shell materials...
-    // For simplicity, update tinted materials with current state color
-    const colorKey = STATE_COLOR_KEY[state]
-    const hex = parseOklch(tokens[colorKey]).getHex()
-    s.currentStateColor = hex
-
-    s.bot.tintedMaterials.forEach((m) => {
-      m.color.setHex(hex)
-      m.emissive?.setHex(hex)
-    })
-    s.ringMat.color.setHex(hex)
-    s.ringMat2.color.setHex(hex)
-    s.discMat.color.setHex(hex)
-    s.pMat.color.setHex(hex)
-    s.bot.thrustMat.color.setHex(hex)
-    ;(s.bot.coreGlow.material as THREE.SpriteMaterial).color.setHex(hex)
-    ;(s.bot.hoverGlow.material as THREE.SpriteMaterial).color.setHex(hex)
-  }, [resolvedTheme, state])
+    if (!resolvedTheme) return
+    applyThemeColors()
+  }, [resolvedTheme, applyThemeColors])
 
   return <div ref={containerRef} className="absolute inset-0" />
 }

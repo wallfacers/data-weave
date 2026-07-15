@@ -1,6 +1,5 @@
 /**
  * 虚拟管家前端状态 store（zustand）。
- * 管理管家形态、概况、汇报列表、消息缓存、连接状态。
  */
 import { create } from "zustand"
 import type {
@@ -15,7 +14,8 @@ export type ConnectionStatus = "connecting" | "live" | "disconnected"
 interface CompanionStore {
   /** 管家形态 */
   state: CompanionState
-  setState: (s: CompanionState) => void
+  /** 注意：命名 avoid "setState" 撞 zustand 内置 */
+  setCompanionState: (s: CompanionState) => void
 
   /** 巡检概况 */
   briefing: Briefing
@@ -26,7 +26,6 @@ interface CompanionStore {
   setReports: (r: ReportView[]) => void
   addReport: (r: ReportView) => void
   removeReport: (id: string) => void
-  updateReport: (r: ReportView) => void
 
   /** 全局消息 */
   messages: MessageView[]
@@ -43,7 +42,7 @@ interface CompanionStore {
 
 export const useCompanionStore = create<CompanionStore>((set) => ({
   state: "idle",
-  setState: (s) => set({ state: s }),
+  setCompanionState: (s) => set({ state: s }),
 
   briefing: { todayRuns: 0, openAnomalies: 0, nextPatrolAt: null },
   setBriefing: (b) => set({ briefing: b }),
@@ -62,14 +61,6 @@ export const useCompanionStore = create<CompanionStore>((set) => ({
     }),
   removeReport: (id) =>
     set((s) => ({ reports: s.reports.filter((r) => r.id !== id) })),
-  updateReport: (r) =>
-    set((s) => {
-      const idx = s.reports.findIndex((x) => x.id === r.id)
-      if (idx < 0) return s
-      const next = [...s.reports]
-      next[idx] = r
-      return { reports: next }
-    }),
 
   messages: [],
   addMessage: (m) =>
@@ -77,14 +68,32 @@ export const useCompanionStore = create<CompanionStore>((set) => ({
   appendDelta: (messageId, chunk) =>
     set((s) => {
       const idx = s.messages.findIndex((m) => m.id === messageId)
-      if (idx < 0) return s
+      if (idx < 0) {
+        // delta 可能早于 message 事件到达，创建占位
+        const placeholder: MessageView = {
+          id: messageId,
+          role: "AGENT",
+          actorName: "",
+          content: chunk,
+          createdAt: new Date().toISOString(),
+        }
+        return { messages: [...s.messages, placeholder] }
+      }
       const next = [...s.messages]
       next[idx] = { ...next[idx], content: next[idx].content + chunk }
       return { messages: next }
     }),
-  endMessage: (_messageId, _interrupted) => {
-    // placeholder: message completion handled by SSE end event
-  },
+  endMessage: (messageId, interrupted) =>
+    set((s) => {
+      const idx = s.messages.findIndex((m) => m.id === messageId)
+      if (idx < 0) return s
+      const next = [...s.messages]
+      next[idx] = {
+        ...next[idx],
+        content: next[idx].content + (interrupted ? " ⌟" : ""),
+      }
+      return { messages: next }
+    }),
 
   connection: "disconnected",
   setConnection: (c) => set({ connection: c }),
