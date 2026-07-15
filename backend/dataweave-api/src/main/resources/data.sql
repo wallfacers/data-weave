@@ -491,6 +491,9 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 	(60, 'TOOL', 'incident_publish_fix',    NULL, 'L3', '智能运维发布代码修复（需人审确认）', 1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+-- 071 管家对话打断：L0 直执行+留痕（对齐 incident_agent_cancel 先例，打断用户当前会话的 brain 流式输出）
+INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, description, enabled, sort_order, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(62, 'TOOL', 'companion_chat_cancel', NULL, 'L0', '打断管家当前会话的流式输出（低风险防护性操作，直执行+留痕）', 1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 -- ============================================================
 -- 域 · 虚拟管家监督席种子（companion：071）

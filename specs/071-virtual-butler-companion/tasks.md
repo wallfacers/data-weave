@@ -70,8 +70,8 @@
 
 **Independent Test**: quickstart US3 五步(流式/锚定/打断/审批回报/降级)。
 
-- [ ] T024 🅰 [US3] 会话服务:`application/CompanionChatService.java`——chat(actor 服务端认定沿 070 标准;reportId 非空时注入该汇报巡检上下文到 brain 会话;身份透传注意 ThreadLocal 不过线程池)+ cancel(L0 免审批,1s 内生效)+ 消息落库 + `message/delta/end` SSE;`CompanionController` 挂 chat/cancel/messages 端点;brain 不可用返回 `companion.brain_unavailable`(BizException 本地化)
-- [ ] T025 🅰 [US3] 会话测试:chat 流式 IT + 打断 IT(end.interrupted=true)+ 降级错误码 IT + 锚定上下文注入单测
+- [x] T024 🅰 [US3] 会话服务:`application/CompanionChatService.java`——chat(actor 服务端认定沿 070 标准;reportId 非空时注入该汇报巡检上下文到 brain 会话;身份透传注意 ThreadLocal 不过线程池)+ cancel(L0 免审批,1s 内生效)+ 消息落库 + `message/delta/end` SSE;`CompanionController` 挂 chat/cancel/messages 端点;brain 不可用返回 `companion.brain_unavailable`(BizException 本地化)
+- [x] T025 🅰 [US3] 会话测试:chat 流式 IT + 打断 IT(end.interrupted=true)+ 降级错误码 IT + 锚定上下文注入单测
 - [ ] T026 🅱 [US3] 对话 UI:`report-card.tsx` 内迷你对话 + 视图底部全局 composer——复用 `ChatMarkdown`(流式富文本/崩溃隔离)与 `ChatComposer`(auto-grow/IME 组字保护/发送-停止状态机);写操作回复按 outcome 分流展示审批状态(勿只看 code===0);形象联动 think/speak
 - [ ] T027 [P] 🅱 [US3] 语音占位:composer 内禁用态麦克风按钮 + 「规划中」i18n tooltip(FR-020)
 - [ ] T028 🅱 [US3] 浏览器门:playwright 跑 quickstart US3 五步(流式首片段/中途打断/锚定 vs 全局回答差异/停 brain 降级提示非空白)

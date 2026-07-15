@@ -57,6 +57,11 @@ public class JdbcCompanionMessageRepository {
         return key.longValue();
     }
 
+    public CompanionMessage findById(long id) {
+        List<CompanionMessage> rows = jdbc.query("SELECT * FROM companion_message WHERE id = ?", (rs, n) -> map(rs), id);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     /**
      * 历史消息（全局或锚定会话）。{@code reportId=null}→全局（report_id IS NULL）；非空→锚定。
      * {@code before}（可空）=游标（created_at &lt; before），向前翻页。
