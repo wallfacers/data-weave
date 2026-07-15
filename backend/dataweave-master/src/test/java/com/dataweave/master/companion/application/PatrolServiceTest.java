@@ -139,6 +139,28 @@ class PatrolServiceTest {
         assertThat(createdEvents).isEqualTo(1);
     }
 
+    @Test
+    void reaperWinsTimeout_noDoubleReport() {
+        // M3：brain 执行期间 reaper 赢得 TIMEOUT 终态 → executeRun 的 casFinish(SUCCEEDED) 输 → 不 publishReport（无双汇报）
+        long runId = newRunningRun();
+        scriptedBrain = new CompanionBrain() {
+            @Override public com.dataweave.master.companion.domain.ChatHandle openChat(long p, String c, com.dataweave.master.companion.domain.ChatCallbacks cb) { return null; }
+            @Override public PatrolResult runPatrol(PatrolRoutine r, String s, int t) {
+                runRepo.markTimeout(runId, "reaper 模拟超时");   // reaper 在 brain 执行期间赢 TIMEOUT
+                return PatrolResult.ok(ReportSeverities.WARN, "2 任务失败", "ETL 失败", "{}");
+            }
+            @Override public boolean healthy() { return true; }
+            @Override public String name() { return "racey"; }
+        };
+
+        service.executeRun(runId);
+
+        // casFinish 输给 TIMEOUT → won=false → executeRun 不产汇报（reaper 那条由调用方另产）
+        assertThat(runRepo.findById(runId).orElseThrow().state()).isEqualTo(PatrolRunStates.TIMEOUT);
+        assertThat(reportRepo.findOpenByProject(TENANT, PROJECT, 10)).isEmpty();
+        assertThat(published.stream().filter(s -> s.contains("\"created\""))).isEmpty();
+    }
+
     /** 建一条 CLAIMED→RUNNING 的 run，供 executeRun 处理。 */
     private long newRunningRun() {
         long runId = runRepo.tryClaimCreate(TENANT, PROJECT, routineId, "MANUAL",

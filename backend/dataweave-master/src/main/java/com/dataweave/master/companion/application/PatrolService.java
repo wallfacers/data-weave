@@ -97,14 +97,22 @@ public class PatrolService {
             result = PatrolResult.failed("brain 异常: " + e.getMessage());
         }
 
+        // M3：先 CAS 终态（单赢，与 reaper markTimeout 互斥），赢得终态才 publishReport——
+        // 此前 publishReport 在 casFinish 之前且忽略返回值，与 reaper 竞态会一 run 双汇报。
+        boolean won;
+        if (result.ok()) {
+            won = runRepo.casFinish(runId, PatrolRunStates.SUCCEEDED, result.title(), null);
+        } else {
+            won = runRepo.casFinish(runId, PatrolRunStates.FAILED, null, safe(result.error()));
+        }
+        if (!won) return;   // reaper 已赢 TIMEOUT 终态并产超时汇报，本次让出，不双汇报（reaper 自带 state/briefing 刷新）
+
         if (result.ok()) {
             publishReport(run, routine, result.severity(), result.title(), result.summary(), result.detailJson());
-            runRepo.casFinish(runId, PatrolRunStates.SUCCEEDED, result.title(), null);
         } else {
             // 兜底"未完成"汇报（SC-007）：brain 不可用/超时/解析失败都不静默丢失
             publishReport(run, routine, ReportSeverities.INFO, "巡检未完成",
                     "巡检未完成：" + safe(result.error()), "{}");
-            runRepo.casFinish(runId, PatrolRunStates.FAILED, null, safe(result.error()));
         }
         // 刷新形态/概况（异常增删驱动 alert/briefing 变化）
         stateResolver.resolveAndNotify(run.tenantId(), run.projectId());
