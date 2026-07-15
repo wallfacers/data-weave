@@ -8,6 +8,7 @@
 
 export type ViewType =
   | "supervision"
+  | "companion"
   | "ops"
   | "workflow-canvas"
   | "freshness"
@@ -34,6 +35,7 @@ export interface ViewMeta {
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
   supervision: { title: "views.supervision" },
+  companion: { title: "views.companion" },
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas", requirePermission: "workflow:manage" },
   freshness: { title: "views.freshness" },

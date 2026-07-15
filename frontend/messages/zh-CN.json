@@ -373,7 +373,8 @@
     "datasources": "数据源管理",
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例",
-    "supervision": "监督席"
+    "supervision": "监督席",
+    "companion": "虚拟管家"
   },
   "catalog": {
     "title": "类目",
@@ -1321,6 +1322,70 @@
     "healthLag": "堆积延迟",
     "healthCheckpointAge": "检查点时效",
     "healthRestarts": "重启次数"
+  },
+  "companion": {
+    "name": "Vega",
+    "role": "Weft 虚拟管家",
+    "state": {
+      "idle": "待机 · 一切正常，随时吩咐",
+      "patrol": "巡检中 · 正在核对系统状态",
+      "alert": "发现异常 · 已生成汇报",
+      "think": "思考中 · 正在分析",
+      "speak": "汇报中"
+    },
+    "briefing": {
+      "todayRuns": "今日已巡检 {count} 轮",
+      "openAnomalies": "{count} 项异常待处理",
+      "nextPatrol": "下轮巡检 {time}",
+      "noAnomalies": "系统运行正常"
+    },
+    "report": {
+      "title": "汇报",
+      "empty": "暂无汇报",
+      "close": "关闭",
+      "closed": "已关闭",
+      "chat": "继续对话",
+      "viewDetail": "查看详情",
+      "severity": {
+        "DANGER": "危险",
+        "WARN": "警告",
+        "OK": "正常",
+        "INFO": "信息"
+      },
+      "domain": {
+        "TASK_FAILURE": "任务失败巡检",
+        "MACHINE_STATUS": "机器状态巡检",
+        "DATA_QUALITY": "数据质量巡检",
+        "CODE_QUALITY": "代码质量巡检"
+      }
+    },
+    "chat": {
+      "placeholder": "对 Vega 说点什么，让它替你干活…",
+      "send": "发送",
+      "stop": "停止",
+      "voiceDisabled": "语音输入（规划中）",
+      "interrupted": "已打断",
+      "brainUnavailable": "管家大脑暂不可用，请稍后重试",
+      "sendFailed": "发送失败"
+    },
+    "routine": {
+      "title": "巡检设置",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "cronLabel": "巡检频率",
+      "trigger": "手动触发",
+      "triggering": "触发中",
+      "history": "执行历史",
+      "runColTime": "触发时间",
+      "runColDuration": "耗时",
+      "runColResult": "结论",
+      "noHistory": "暂无执行记录"
+    },
+    "connect": {
+      "connecting": "正在连接实时通道",
+      "disconnected": "连接已断开",
+      "live": "实时"
+    }
   },
   "supervision": {
     "state": {

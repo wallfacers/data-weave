@@ -93,6 +93,15 @@
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
     --radius: 0.625rem;
+    /* ── 虚拟管家五状态色 token（071）──
+       idle=待机 teal · patrol=巡检 blue · alert=异常 red · think=思考 purple · speak=播报 green
+       3D 场景经 getComputedStyle 读取 → THREE.Color；主题切换时材质 .color.set() 无需重建。
+       亮色取更饱和/更深以保证在白底上可辨；暗色取更亮以贴近原型科幻观感。 */
+    --companion-idle: oklch(0.65 0.15 180);
+    --companion-patrol: oklch(0.55 0.18 258);
+    --companion-alert: oklch(0.52 0.24 20);
+    --companion-think: oklch(0.52 0.22 295);
+    --companion-speak: oklch(0.55 0.18 150);
     /* 视图外边距 —— 视图根容器四周留白的唯一真相源。默认 20px（spacing 刻度 5），
        密集视图（指挥台/满幅画布）经 [data-density=compact] 切 10px（spacing 刻度 2.5）。
        禁止视图根手填 p-4/p-5/p-2.5 字面值，一律 p-(--view-spacing)。见 DESIGN.md「间距系统」。 */
@@ -145,6 +154,12 @@
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
+    /* ── 虚拟管家五状态色（暗色：贴近原型科幻观感）── */
+    --companion-idle: oklch(0.85 0.12 180);
+    --companion-patrol: oklch(0.72 0.15 260);
+    --companion-alert: oklch(0.68 0.2 15);
+    --companion-think: oklch(0.7 0.2 300);
+    --companion-speak: oklch(0.78 0.15 150);
 }
 
 @layer base {

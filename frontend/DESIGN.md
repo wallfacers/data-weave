@@ -184,6 +184,25 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **token 引用**：状态色走功能色 token（`text-destructive`/`text-warning`/`text-success`/`text-link`），承载走 `bg-card`/`bg-muted`；无裸色值。i18n 命名空间 `supervision.*`。
 - **面板容器的 surface 惯例（070 写明）**：监督席的战况横幅 / feed 卡 / 线程容器用轻量 surface 惯例 `rounded-[var(--radius)] bg-card`（+ `p-[var(--card-spacing)]`），**有意不套 `Card` 组件**——`Card` 自带 `shadow-lg` + `rounded-[var(--radius-lg)]` + 强制 gap/py 结构，与监督席「密排、无阴影、贴近直播密度」的视觉语言冲突。这是对 reuse-first 的一处**书面豁免**（Design Contract Gate 选项③）：结构性面板 ≠ 内容卡，套 `Card` 会引入不合此场景的阴影与更大圆角。交互输入原语（`Input`/`Textarea`/`Button`）仍一律复用组件，不手写。
 
+### 虚拟管家沉浸式 surface（071 豁免条目）
+
+管家视图（`companion`）是全屏沉浸式表面，与监督席同样适用 DESIGN.md 的书面豁免（Design Contract Gate 选项③）：
+
+- **豁免范围**：3D canvas 全出血背景、CSS 氛围层（网格地板/径向光晕）、字幕气泡（speech bubble）、汇报卡片栈容器。这些为管家视图独有原语，不套 `Card` 组件。
+- **不退让范围**：交互输入原语（`Input`/`Button`/`Textarea`）仍复用既有组件；严重度色（DANGER/WARN/OK/INFO）复用平台功能色 token（`--destructive`/`--warning`/`--success`/`--info`）；间距走 `gap-*`/`p-(--view-spacing)` 刻度，禁裸 px。
+- **3D 场景颜色策略**：状态相关材质颜色（装饰/发光/光环/粒子/尾焰）通过 `getComputedStyle` 读取 `--companion-*` 语义 token 转为 `THREE.Color`；主题切换时 `resolvedTheme` 变化触发重取色（材质 `.color.set()`），无需重建场景。**灯光颜色（AmbientLight/DirectionalLight）与壳体/面屏色为场景常量（暖白壳 `#eef2f7`/深蓝灰壳 `#1a1a2e`/面屏恒深 `#0a1120`），不映射 CSS token**——通过亮/暗主题二分选择。
+- **`--companion-*` 五状态色 token**（定义在 `app/globals.css` 亮/暗两套值）：
+
+| token | 状态 | 用途 |
+|---|---|---|
+| `--companion-idle` | 待机 | 默认形态：光环、能量核心、尾焰、表情色 |
+| `--companion-patrol` | 巡检中 | 扫视动画、粒子加速 |
+| `--companion-alert` | 发现异常 | 警觉形态：震动、锐利眼型、快速脉冲 |
+| `--companion-think` | 思考中 | 思考形态：头部倾斜、三点渐次点亮 |
+| `--companion-speak` | 播报中 | 说话形态：波形嘴、双臂比划、光环旋转 |
+
+- **版权说明**：管家形象为项目原创程序化机器人（纯代码生成，零第三方模型/贴图资产），版权归项目所有。`NOTICE.md` 约束：产品文案不得关联任何影视角色名；管家名 Vega 为 i18n 文案中的产品名，不翻译。
+
 ### 滚动条/滚动区 —— `DwScroll`
 
 - **用途/何时用**：任何需要可滚动内容的容器——视图主内容区、表格水平滚动区、下拉浮层列表、侧面板。

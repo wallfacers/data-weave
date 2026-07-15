@@ -373,7 +373,8 @@
     "datasources": "Datasources",
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance",
-    "supervision": "Supervision"
+    "supervision": "Supervision",
+    "companion": "Virtual Butler"
   },
   "catalog": {
     "title": "Catalog",
@@ -1321,6 +1322,70 @@
     "healthLag": "Backlog Lag",
     "healthCheckpointAge": "Checkpoint Age",
     "healthRestarts": "Restarts"
+  },
+  "companion": {
+    "name": "Vega",
+    "role": "Weft Virtual Butler",
+    "state": {
+      "idle": "Idle · All systems normal",
+      "patrol": "Patrolling · Checking system status",
+      "alert": "Alert · Anomalies detected",
+      "think": "Thinking · Analyzing",
+      "speak": "Reporting"
+    },
+    "briefing": {
+      "todayRuns": "{count} patrols today",
+      "openAnomalies": "{count} open anomalies",
+      "nextPatrol": "Next patrol {time}",
+      "noAnomalies": "All systems normal"
+    },
+    "report": {
+      "title": "Reports",
+      "empty": "No reports",
+      "close": "Close",
+      "closed": "Closed",
+      "chat": "Continue Chat",
+      "viewDetail": "View Details",
+      "severity": {
+        "DANGER": "Danger",
+        "WARN": "Warning",
+        "OK": "OK",
+        "INFO": "Info"
+      },
+      "domain": {
+        "TASK_FAILURE": "Task Failure Patrol",
+        "MACHINE_STATUS": "Machine Status Patrol",
+        "DATA_QUALITY": "Data Quality Patrol",
+        "CODE_QUALITY": "Code Quality Patrol"
+      }
+    },
+    "chat": {
+      "placeholder": "Ask Vega to do something…",
+      "send": "Send",
+      "stop": "Stop",
+      "voiceDisabled": "Voice input (planned)",
+      "interrupted": "Interrupted",
+      "brainUnavailable": "Butler brain is unavailable, please retry later",
+      "sendFailed": "Send failed"
+    },
+    "routine": {
+      "title": "Patrol Settings",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "cronLabel": "Patrol frequency",
+      "trigger": "Trigger Now",
+      "triggering": "Triggering",
+      "history": "Run History",
+      "runColTime": "Trigger Time",
+      "runColDuration": "Duration",
+      "runColResult": "Result",
+      "noHistory": "No run history"
+    },
+    "connect": {
+      "connecting": "Connecting to live channel",
+      "disconnected": "Connection lost",
+      "live": "Live"
+    }
   },
   "supervision": {
     "state": {
