@@ -22,6 +22,8 @@ import type {
 const SSE_BASE = process.env.NEXT_PUBLIC_SSE_BASE ?? "http://localhost:8000"
 
 function buildStreamUrl(): string {
+  // SSE 鉴权走 query（EventSource API 不支持自定义 headers，与 070 监督席 SSE 一致；
+  // 后端需配合 no-referrer + HTTPS + 审计日志脱敏 query 中的 token）。
   const token =
     typeof window !== "undefined"
       ? localStorage.getItem("dw.auth.token") ?? ""
