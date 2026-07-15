@@ -60,7 +60,7 @@
 - [x] T020 🅰 [US2] 汇报服务与接口:`application/ReportService.java`(close 项目级幂等含 closed_by/closed_at、read、列表)+ `interfaces/companion/CompanionController.java` 挂 `GET /reports`、`POST /reports/{id}/close`、`POST /reports/{id}/read` + `report` SSE 事件(created/closed)
 - [x] T021 🅰 [US2] 调度测试:双实例同 fire_time 只执行一次的幂等 IT + 未完成兜底 IT + close 幂等/同步 IT(H2 独立库名)
 - [x] T022 🅱 [US2] 卡片栈:`companion/report-stack.tsx`(倒序堆叠/未读徽标/整栈收起展开)+ `report-card.tsx`(severity 色点/时间/摘要/aggregate_count/关闭按钮/「查看详情」跳转监督席或对象详情——FR-019 直达处置口径);关闭调 API 后以 SSE `report:closed` 为准移除
-- [ ] T023 🅱 [US2] 浏览器门（待 🅰 端点就绪后联调）:playwright 双 context 验项目级关闭同步 + 离线补看 + 新汇报播报联动(quickstart US2);store 单测补 report 归约
+- [x] T023 🅱 [US2] 浏览器门（待 🅰 端点就绪后联调）:playwright 双 context 验项目级关闭同步 + 离线补看 + 新汇报播报联动(quickstart US2);store 单测补 report 归约
 
 **Checkpoint**: US1+US2 = 可试运行的"主动值班管家"。
 
@@ -74,7 +74,7 @@
 - [x] T025 🅰 [US3] 会话测试:chat 流式 IT + 打断 IT(end.interrupted=true)+ 降级错误码 IT + 锚定上下文注入单测
 - [x] T026 🅱 [US3] 对话 UI:`report-card.tsx` 内迷你对话 + 视图底部全局 composer——复用 `ChatMarkdown`(流式富文本/崩溃隔离)与 `ChatComposer`(auto-grow/IME 组字保护/发送-停止状态机);写操作回复按 outcome 分流展示审批状态(勿只看 code===0);形象联动 think/speak
 - [x] T027 [P] 🅱 [US3] 语音占位:composer 内禁用态麦克风按钮 + 「规划中」i18n tooltip(FR-020)
-- [ ] T028 🅱 [US3] 浏览器门（待 🅰 端点就绪后联调）:playwright 跑 quickstart US3 五步(流式首片段/中途打断/锚定 vs 全局回答差异/停 brain 降级提示非空白)
+- [x] T028 🅱 [US3] 浏览器门（待 🅰 端点就绪后联调）:playwright 跑 quickstart US3 五步(流式首片段/中途打断/锚定 vs 全局回答差异/停 brain 降级提示非空白)
 
 ## Phase 6: User Story 4 - 巡检例程的平台化治理 (Priority: P4)
 
@@ -84,14 +84,14 @@
 
 - [x] T029 🅰 [US4] 治理接口:`CompanionController` 挂 `GET /routines`、`PATCH /routines/{id}`(缺失=不改/显式 null=清空 scope;确认 CORS allowedMethods 含 PATCH)、`POST /routines/{id}/trigger`、`GET /routines/{id}/runs`;变更落 updated_by 审计;IT 覆盖 PATCH 语义与隔离
 - [x] T030 🅱 [US4] 治理面板:`companion/routine-panel.tsx`(视图内设置抽屉:四领域启停开关/cron 编辑/手动触发按钮/执行历史列表),briefing「下轮巡检」随改动联动
-- [ ] T031 🅱 [US4] 浏览器门（待 🅰 端点就绪后联调）:quickstart US4 前三步(停用不产出/改 cron 联动/历史可见)
+- [x] T031 🅱 [US4] 浏览器门（待 🅰 端点就绪后联调）:quickstart US4 前三步(停用不产出/改 cron 联动/历史可见)
 
 ## Phase 7: Polish & Cross-Cutting
 
 - [x] T032 🅰 分布式回归:`scheduler.mode=distributed` 双 master 实跑,`patrol_run` 无重复无 straggler(quickstart US4 步 4 + 回归门);长跑注意 H2 心跳过期坑
 - [x] T033 [P] 🅱 前端收口:`pnpm typecheck` + `pnpm design:lint` + i18n 双 bundle diff 校验 + vitest 全绿;检查无 `…` 表加载态、无手写 dark:
 - [x] T034 [P] 🅰 后端收口:`mvnd -pl dataweave-master,dataweave-api`(禁 build-cache,grep "Cache disabled" 确认真编译)compile+test 全绿;H2 与 PG 双方言各起一遍验 DDL
-- [ ] T035 主Claude 兜底:跨轨集成验收(quickstart 全量)+ /code-review 双轨 diff + FR-019 处置闭环核对 + 070 监督席并存回归(既有 IT 不红)+ constitution IV MINOR 修订提案落 `.specify/memory/constitution.md` 议题
+- [x] T035 主Claude 兜底:跨轨集成验收(quickstart 全量)+ /code-review 双轨 diff + FR-019 处置闭环核对 + 070 监督席并存回归(既有 IT 不红)+ constitution IV MINOR 修订提案落 `.specify/memory/constitution.md` 议题
 
 ## Dependencies
 
