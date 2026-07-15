@@ -21,6 +21,21 @@ public interface LlmProtocolAdapter {
     /** 解析响应体归一为 AgentExtraction；解析失败抛 unchecked → 上层降级为空产物并留痕（FR-006）。 */
     AgentExtraction parseResponse(String body, String modelVersion);
 
+    // ===== 069：通用多轮对话通道（诊断/对话/修复提案/战况播报复用），与血缘抽取通道并列 =====
+
+    /** 构造通用对话请求（systemPrompt + 多轮 messages，无 emit_lineage 工具约束）；stream=true 时开启 SSE 增量输出。 */
+    HttpRequest buildChatRequest(LineageAgentConfig cfg, String systemPrompt,
+                                  List<LlmChatClient.ChatMessage> messages, String apiKeyPlain, boolean stream);
+
+    /** 非流式：从完整响应体中抽取全文文本。 */
+    String parseChatText(String body);
+
+    /**
+     * 流式：从一条 SSE {@code data:} 行（已去除 "data: " 前缀）中抽取增量文本片段；
+     * 非文本增量事件（心跳/元数据/结束标记）返回 null。
+     */
+    String parseChatDelta(String sseDataLine);
+
     // ===== 共享：emit_lineage 工具/响应的 JSON schema + 归一 helper =====
 
     /** 两协议共用的输出 schema（reads/writes/columnEdges/confidence）。 */

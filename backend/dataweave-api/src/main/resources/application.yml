@@ -155,6 +155,20 @@ lineage:
     enabled: ${LINEAGE_GROUNDING_ENABLED:true}
     system-schemas: ${LINEAGE_GROUNDING_SYSTEM_SCHEMAS:}
 
+# 069 任务失败智能运维：巡检开单+LLM 分型诊断+梯度处置+监督席直播流。
+# LLM 通道复用 lineage_agent_config（协议/端点/模型/密钥），本节仅调运维专属节奏/护栏/成本参数。
+ops:
+  incident:
+    sweep-interval-ms: ${OPS_INCIDENT_SWEEP_INTERVAL_MS:30000}       # IncidentSweeper 巡检周期
+    max-auto-actions: ${OPS_INCIDENT_MAX_AUTO_ACTIONS:3}             # 单事故自动处置上限，超限强制转人工（防循环红线）
+    memory-cap-mb: ${OPS_INCIDENT_MEMORY_CAP_MB:16384}                # 资源自愈单任务内存护栏上限
+    resource-step-factor-max: ${OPS_INCIDENT_RESOURCE_STEP_FACTOR_MAX:2.0}  # 单次资源调幅上限（倍数）
+    briefing-debounce-ms: ${OPS_INCIDENT_BRIEFING_DEBOUNCE_MS:60000}  # 战况播报重生成防抖窗口
+    llm-pool-size: ${OPS_INCIDENT_LLM_POOL_SIZE:2}                    # 运维 Agent 后台处理线程池大小
+    llm-rate-per-min: ${OPS_INCIDENT_LLM_RATE_PER_MIN:30}             # 独立令牌桶，与血缘富化限频分离（防互相饿死）
+    evidence-log-tail-lines: ${OPS_INCIDENT_EVIDENCE_LOG_TAIL_LINES:400}  # 诊断证据日志尾部采样行数
+    storm-max-inflight: ${OPS_INCIDENT_STORM_MAX_INFLIGHT:5}          # 失败风暴并发处理事故数上限（超出排队）
+
 ---
 # h2 profile：H2 内存库，零外部依赖（无 Docker 时用 -Dspring-boot.run.profiles=h2）
 spring:

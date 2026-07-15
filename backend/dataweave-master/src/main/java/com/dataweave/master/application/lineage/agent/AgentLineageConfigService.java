@@ -39,7 +39,7 @@ public class AgentLineageConfigService {
         return repo.findActive(tenantId);
     }
 
-    /** 057：全局配置是否启用。 */
+    /** 全局配置是否启用（血缘富化与智能运维共用此开关）。 */
     public boolean isEnabledFor(long tenantId) {
         return repo.findActive(tenantId).map(LineageAgentConfig::enabled).orElse(false);
     }

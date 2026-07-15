@@ -23,6 +23,8 @@ public class TaskDefVersion {
     private Integer priority;
     private String description;
     private String remark;
+    // 069 声明式资源快照 {"memoryMb":4096,"cpuCores":2}；NULL=引擎默认
+    private String resourcesJson;
     private Long publishedBy;
     private LocalDateTime publishedAt;
     private LocalDateTime createdAt;
@@ -76,6 +78,9 @@ public class TaskDefVersion {
 
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+
+    public String getResourcesJson() { return resourcesJson; }
+    public void setResourcesJson(String resourcesJson) { this.resourcesJson = resourcesJson; }
 
     public Long getPublishedBy() { return publishedBy; }
     public void setPublishedBy(Long publishedBy) { this.publishedBy = publishedBy; }

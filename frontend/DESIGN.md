@@ -59,6 +59,14 @@ colorsDark:
   chart5: "oklch(0.645 0.246 16.439)"
 rounded:
   base: "0.625rem"
+spacing:
+  base: "0.25rem"
+  view: "1.25rem"
+  viewCompact: "0.625rem"
+  section: "1.25rem"
+  cardGrid: "0.625rem"
+  card: "1.5rem"
+  cardSm: "1rem"
 typography:
   fontSans: "var(--font-sans)"
   fontHeading: "var(--font-sans)"
@@ -92,6 +100,23 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **正文 / 标题：无衬线 Inter（`--font-sans`）**。`@theme inline` 把 `--font-heading` 也映射到 `--font-sans`，`--font-serif` CSS 变量同样指向 Inter —— 因此**散落各处的显式 `font-serif` / `font-heading` 用法统一渲染为 sans**，无需逐个改。不再使用衬线字体（已移除 Merriweather）。
 - **`--font-mono`：Geist Mono**，代码、SQL、ID 等等宽场景。
 
+## 间距系统 —— 视图/区块/卡片/控件四级节奏
+
+**设计立场：间距不是手感，是刻度上的 token。** 全站留白基于 Tailwind 4 的 spacing 刻度（1 单位 = `0.25rem` = **4px**），**禁止裸 px / 魔法数值**（`20px`、`p-[13px]` 等）。节奏分四级，每级钉死语义 token / 取值 / 场景，新页面按级取值，不再各写 `p-4`/`p-5`/`p-2.5`：
+
+| 层级 | token / 类 | 值 | 场景 |
+|---|---|---|---|
+| **视图外边距** | `--view-spacing`（默认） | `1.25rem` = **20px**（刻度 5） | 视图根容器四周留白（`p-(--view-spacing)`，由 `ViewContainer` 承载） |
+| **视图外边距**（`data-[density=compact]`） | `--view-spacing` | `0.625rem` = **10px**（刻度 2.5） | 密集指挥台 / 满幅画布（supervision、lineage 画布），经 `density="compact"` 切换 |
+| **区块间距** | `gap-5` | 20px | 视图内主区块纵向堆叠（section 之间） |
+| **卡片栅格** | `gap-2.5` | 10px | 卡片网格间距（沿用 034 约定） |
+| **卡片内边距** | `--card-spacing` | 24 / 16px | Card 内容留白（见[卡片内容内边距](#卡片内容内边距--单一-token---card-spacing)） |
+| **控件微间距** | `gap-1`..`gap-2` | ≤8px | 工具条 / 按钮组 / 徽章内部，**明确豁免**卡片级 token |
+
+**真相源**：`--view-spacing` 定义在 `app/globals.css`（`:root` 默认 20px，`[data-density="compact"]` 覆盖为 10px），与 Card 的 `--card-spacing` 对称。级联可用：token 在任意作用域内 `p-(--view-spacing)` 都可解析，`data-density="compact"` 挂在任意祖先即向下切紧凑。
+
+**硬规则**（对齐 reuse-first）：**新增视图根容器一律用 `ViewContainer`（`p-(--view-spacing)`），禁止手填 `p-4`/`p-5`/`p-2.5` 字面值**；密集视图通过 `density="compact"`（而非另写数值）切紧凑变体。根为滚动区（`DwScroll`）的视图，把 `p-(--view-spacing)` 写在 `innerClassName` 上，紧凑时于外层加 `data-density="compact"`。为什么设 default+compact 两档而非单值：常规管理视图（fleet/freshness/metrics/settings）需要 20px 呼吸感，密集指挥台（supervision）与满幅画布信息密度高、留白应收到 10px，两类诉求不同，用一个 token 的两档变体统一表达，避免各页私造数值。
+
 ## 布局：无分割线（项目偏好）
 
 页面采用 **header / content(body) / footer** 结构。**header 与 content、content 与 footer 之间不放任何分割线**——不要 `border-b` / `border-t` / 横向 `<Separator>` / `<hr>`。靠留白（padding/间距）和背景层次区分区域，不靠线。
@@ -104,7 +129,7 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 
 - 用语义 token，不写裸色值：`bg-primary` 而非 `bg-[#...]`。
 - 暗色靠 `.dark` 下的变量覆盖，不手写 `dark:` 颜色覆盖。
-- 间距用 `gap-*`，等宽高用 `size-*`。
+- 间距用 `gap-*`，等宽高用 `size-*`；页面/区块/卡片/控件的留白按[间距系统](#间距系统--视图区块卡片控件四级节奏)四级取值，视图根走 `ViewContainer`，禁裸 px 与手填 `p-4`/`p-5`。
 
 ## 公共组件目录（先查此处 · reuse-first）
 
@@ -143,6 +168,21 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 | 段控（互斥分段切换） | `Segmented` | `components/ui/segmented.tsx` | 见下方段控条目 |
 | 数值步进 | `Stepper` | `components/ui/stepper.tsx` | 见下方步进器条目 |
 | 卡片容器 | `Card` | `components/ui/card.tsx` | 见 [卡片内容内边距](#卡片内容内边距--单一-token---card-spacing) |
+| 视图根容器（外边距节奏） | `ViewContainer` | `components/ui/view-container.tsx` | 见下方视图根容器条目 · [间距系统](#间距系统--视图区块卡片控件四级节奏) |
+| 监督席直播原语（069/070） | `StateBadge`/`ClassificationBadge`/`ToolChip`/`ThinkingDots`/`LiveDot`/`PendingIcon`/`MessageAvatar`/`DateSeparator` | `components/workspace/views/supervision/incident-visuals.tsx` | 见下方监督席条目 |
+| 事故线程消息气泡（069/070） | `MessageBubble`/`LeftMessage`/`CopyButton` | `components/workspace/views/supervision/incident-thread.tsx` | 见下方监督席条目 |
+| 对话富文本渲染（070） | `ChatMarkdown` | `components/workspace/shared/chat-markdown.tsx` | 见下方 [监督席 AI 对话排版](#监督席-ai-对话排版规范070) |
+| 对话输入框（070） | `ChatComposer` | `components/workspace/views/supervision/chat-composer.tsx` | auto-grow / IME 组字保护 / 发送-停止状态机 |
+| 分栏（可拖拽） | `ResizablePanelGroup`/`ResizablePanel`/`ResizableHandle` | `components/ui/resizable.tsx` | react-resizable-panels v4；`useDefaultLayout` 持久化 |
+
+### 监督席直播原语（069 指挥中心）
+
+- **用途/何时用**：`supervision` 视图的事故直播 feed 与下钻线程；任何需要「Agent 处理态智能感」的场景可复用这组原语。
+- **何时不用**：普通静态状态展示用 `Badge` 即可，无需引入直播动效原语。
+- **构成**：`StateBadge`（事故状态→语义 `Badge` variant）·`ClassificationBadge`（分型标签，null 不渲染）·`ToolChip`（工具动作点亮：RUNNING 旋转/DONE 打勾/FAILED 打叉）·`ThinkingDots`（三点错峰呼吸=思考态）·`LiveDot`（SSE 连接脉冲）·`MessageBubble`（六类线程消息形态）·`MessageAvatar`（070：human 首字母 / agent 品牌图标）·`DateSeparator`（070：跨日居中胶囊）。
+- **动画与降级**：全部动效走 `motion-safe:`（`animate-spin`/`animate-bounce`/`animate-ping`/`animate-pulse`）；`prefers-reduced-motion` 时自动静止，仅保留静态状态点 + 文本表意（`ThinkingDots`/`LiveDot` 均带 `role="status"` 语义）。
+- **token 引用**：状态色走功能色 token（`text-destructive`/`text-warning`/`text-success`/`text-link`），承载走 `bg-card`/`bg-muted`；无裸色值。i18n 命名空间 `supervision.*`。
+- **面板容器的 surface 惯例（070 写明）**：监督席的战况横幅 / feed 卡 / 线程容器用轻量 surface 惯例 `rounded-[var(--radius)] bg-card`（+ `p-[var(--card-spacing)]`），**有意不套 `Card` 组件**——`Card` 自带 `shadow-lg` + `rounded-[var(--radius-lg)]` + 强制 gap/py 结构，与监督席「密排、无阴影、贴近直播密度」的视觉语言冲突。这是对 reuse-first 的一处**书面豁免**（Design Contract Gate 选项③）：结构性面板 ≠ 内容卡，套 `Card` 会引入不合此场景的阴影与更大圆角。交互输入原语（`Input`/`Textarea`/`Button`）仍一律复用组件，不手写。
 
 ### 滚动条/滚动区 —— `DwScroll`
 
@@ -157,6 +197,13 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **何时不用/禁写**：**禁止**页面级手写内边距（`p-5`/`20px`/`px-4 py-3` 等）；必须走 `--card-spacing` token。卡片间网格间距统一 `gap-2.5`。
 - **关键 props/变体**：`size="default"`（24px 内边距）/ `size="sm"`（16px）; 子组件 = `CardHeader` / `CardContent` / `CardFooter` / `CardTitle` / `CardDescription` / `CardAction`。
 - **token/间距引用**：`--card-spacing`（见上方卡片内边距小节）。注：034 面包屑已撤回，本特性不恢复。
+
+### 视图根容器 —— `ViewContainer`
+
+- **用途/何时用**：每个 workspace 视图的**最外层根容器**，统一「视图外边距」节奏。承载 [间距系统](#间距系统--视图区块卡片控件四级节奏) 的 `--view-spacing` token（default 20px / compact 10px）。
+- **何时不用/禁写**：**禁止**在视图根手填 `p-4`/`p-5`/`p-2.5` 等字面值内边距；紧凑靠 `density="compact"` 而非另写数值。根为滚动区（`DwScroll`）时不套本组件，改在 `innerClassName` 写 `p-(--view-spacing)`，紧凑时于外层加 `data-density="compact"`。
+- **关键 props/变体**：`density="default"`（20px，默认）/ `density="compact"`（10px，密集指挥台/满幅画布）；内建 `flex min-h-0 min-w-0 flex-1 flex-col`，直接作三段式布局的外壳；`className` 透传。
+- **token/间距引用**：`--view-spacing`（`app/globals.css`，与 Card 的 `--card-spacing` 对称）。区块间距用 `gap-5`、卡片栅格 `gap-2.5`，见间距系统四级表。
 
 ### 表格 —— `DataTable` + `DataTableToolbar`
 
@@ -229,32 +276,25 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 - **关键 props/变体**：`value` / `onChange` / `min` / `max` / `step`（默认 1）；可选 `ariaLabel`、`valueClassName`（数值展示宽度，默认 `w-6`）、`disabled`。
 - **外观**：与 `Segmented` 同款胶囊容器（h-8、`border border-input`）；两端 `−/+` 按钮（hugeicons `MinusSignIcon`/`Add01Icon`，size-3.5），中间数值 `tabular-nums` 等宽对齐；到 `min`/`max` 边界禁用对应按钮（`disabled:opacity-40`）。
 
-## CopilotKit 主题对齐（`/agent` 对话）
+## 监督席 AI 对话排版规范（070）
 
-CopilotKit v2 在自身作用域 `[data-copilotkit]` 内用一套**零彩度中性灰**重定义了整套 shadcn 变量。本应用已是 neutral 黑白主题、与 cpk 自带中性阶同家族，故 `app/globals.css` 仅做**最小对齐**：
+> 历史注：早期 `/agent` 对话曾用 CopilotKit + Streamdown，该栈已随去中台化移除（章程原则 IV）。监督席（`supervision`）的 Agent 对话是当前唯一的 AI 对话面，排版规范如下。
 
-- **对话面填充 `--background` / `--card` / `--popover` 对齐 `var(--sidebar)`**——让 Agent 悬浮面板的消息区与外层卡片、侧栏品牌区**同底色**，避免「标题条 sidebar 色、消息区却是页面底色」的割裂。其余语义 token 一律 `inherit` 跟随 app 主题。
-- **发送按钮**对齐 `--primary`（cpk 烤死 `cpk:bg-black cpk:dark:bg-white`，覆盖为 token）；输入框小药丸用略深 `--muted` 底。
-- ⚠️ dev 调试坑：globals.css 编译后的 CSS chunk 文件名**不带 hash**，浏览器会缓存旧版；改完用**硬刷新**（Ctrl+Shift+R / DevTools Disable cache）确认。
+Agent 回复（`AGENT_SAY` / delta 流式缓冲 / 接班报告）统一经 **`ChatMarkdown`**（`components/workspace/shared/chat-markdown.tsx`）渲染：
 
-### AI 回复的 Markdown 排版
-
-AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内置）渲染，元素带 `data-streamdown="…"`。在 `globals.css` 统一接管：
-
-- **字体**：正文走 sans，代码（行内 + 代码块）走 `--font-mono`（Geist Mono）。
-- **配色映射到主题 token**（改 `--tw-prose-*`，一套规则覆盖亮/暗）：正文/标题/加粗 = `--foreground`；**链接 / 行内代码 = `--link`（钴蓝）**；行内代码加 `--muted` 淡底；代码块底 = `--muted`。
-- **代码块高亮**：chat 代码块与 **Monaco 编辑器**共用同一套 Shiki 主题对象（`lib/syntax-palette.ts`），两端高亮一致。`globals.css` 仅保留暗色 token 前景/底色切到 `--shiki-dark` / `--shiki-dark-bg` 的 swap 规则。
-- **对话紧致节奏**：Streamdown 的 prose 是长文基线（16px / 行高 1.75、段落上下各 20px，再叠 `.space-y-4` 16px → 段间约 36px），窄对话栏偏松。`globals.css` 把它收成对话节奏（**仅排版量，零颜色改动**）：正文 **13.5px / 行高 1.6**；段落与块级元素**只留下间距 ~10px、清零上间距**（消除 prose margin 与 `space-y-4` 的双重叠加），容器**首/末子元素纵向 margin 清零**；列表项 ~2px、`ul/ol` 左缩进 1rem；标题 h1/h2/h3 = 15/14/13px、字重 600；代码块顶栏 padding 收至 6/12px、表格单元格 6×10px / 12.5px。
-  - ⚠️ **间距必须用元素规则直接覆盖**（作用域 `[data-copilotkit] [class*="prose"] <元素>`）：Tailwind 的间距是硬编码进 `prose` 元素规则的，**不走** `--tw-prose-*` 变量（该组变量只控制颜色）。
-- **代码块/表格做减法**：Streamdown 默认渲染顶栏（语言标签 + 复制按钮，套 `bg-muted` / `border` token）。对话场景**隐藏下载按钮、保留复制**——Streamdown `controls.code/table` 是整条顶栏开关、无「留复制/关下载」子粒度，故经 `globals.css` 对 `[data-streamdown="code-block-download-button"]` 与表格 `button[title="Download table"]` 置 `display:none`（不动 `agent-chat.tsx` 的 `controls`）。
+- **引擎**：`react-markdown` + `remark-gfm`（GFM 表格/删除线等）。**刻意不引入自带 mermaid/katex/第二套 Shiki 的重型流式库**——那会与本仓既有 Shiki 双主题体系冲突并显著增重；流式安全（未闭合代码围栏）由内置 `completePartialMarkdown` 处理（奇数 ``` 补闭合），避免 delta 途中版式塌陷。
+- **代码块**：桥接既有 `CodeBlock`（`components/workspace/shared/code-block.tsx`）+ `lib/highlighter.ts` 的 `dataweave-light/dark` **Shiki 双主题**（`defaultColor:false` 发 `--shiki-light/--shiki-dark` CSS 变量，主题切换零重高亮）。`ChatMarkdown` 外覆一层 chrome：语言标签 + 复制按钮（2s 对勾确认、幂等）。
+- **排版节奏**：正文 `text-sm`、紧致行距；段落/列表/标题经 `components` 覆盖成对话密度（h1-h3 统一 `text-sm font-semibold`、`p my-1`、列表 `ml-4` + `space-y-0.5`），首/末子元素纵向 margin 清零。行内代码 `bg-muted` 淡底 + `text-link`。
+- **配色**：全走语义 token（`text-foreground`/`text-muted-foreground`/`text-link`/`border-border`/`bg-muted`），无裸色值，亮/暗自适应。
+- **容错**：单条消息渲染崩溃由 `ChatMarkdown` 内 ErrorBoundary 隔离降级为纯文本原文，不拖垮整个线程。
 
 ## 代码语法主题（编辑器 + chat 共用）
 
-代码高亮有两个消费者 —— **Monaco 编辑器**（`tasks` 的 SQL 工作台）与 **chat 代码块**（Streamdown）。两者共用 **同一套 Shiki 主题对象**，因此高亮像素级一致。
+代码高亮有两个消费者 —— **Monaco 编辑器**（`tasks` 的 SQL 工作台）与 **chat 代码块**（`ChatMarkdown` → `CodeBlock`）。两者共用 **同一套 Shiki 主题对象**，因此高亮像素级一致。
 
 - **真相源：`lib/syntax-palette.ts`（具体色，非 CSS 变量）**。`buildSyntaxTheme(mode)` 由调色板生成一套 Shiki 主题（VSCode 主题形态）：
   - Monaco 端 `lib/code-highlighter.ts` 起单例 highlighter → `shikiToMonaco` 接管 tokenizer（`components/code-editor.tsx`）。
-  - chat 端把 `[light, dark]` 两套主题对象经 slot 透传给 Streamdown 的 Shiki dual-theme（`components/agent-chat.tsx`）。
+  - chat 端 `lib/highlighter.ts` 起单例 highlighter，`highlightCode(lang, code)` 发 `--shiki-light/--shiki-dark` 双主题变量，`CodeBlock` 消费（`components/workspace/shared/code-block.tsx`）。
 - 调色板分两类槽：**结构槽**（`bg`/`fg`/`comment`/`operator`/`variable` 及 `editor.background`/`editor.foreground`/`editor.lineHighlightBackground`/括号高亮）跟随 `globals.css` 的**中性灰阶**（零彩度），与 app 灰主题无可见色温差，暗色底色凹陷一档于 `card`；**语义槽**（`keyword`/`string`/`number`/`func`/`type`/`constant`/`regexp`）作为**功能性语法着色**保留彩色（标准编辑器即便在黑白 UI 主题下也彩色高亮），不随 UI 主题转黑白。亮/暗各一套，暗色语义色提亮避免刺眼。
 - **刻意偏离（对早期设想）**：① 编辑器选 Monaco（非 CodeMirror）—— 要完整 IDE 体感；② 调色板放 TS 具体色（非 CSS 变量）—— Monaco 主题只吃具体十六进制色，且两个消费者都在 JS 侧，放 TS 让两端共用同一个 `buildSyntaxTheme()`。
 
@@ -281,9 +321,9 @@ AI 回复用 **Streamdown**（react-markdown + Tailwind `prose`，CopilotKit 内
 - **封装**：`components/ui/dw-scroll.tsx`（`DwScroll`）。外层传 `className` 控尺寸，内层布局 class 传 `innerClassName`；方向默认垂直，水平传 `direction="horizontal"`。
 - **不要用原生 `overflow-auto / overflow-x-auto`** 替代 `DwScroll`——会退回带箭头的原生滚动条。
 
-### AI 输入框（自绘指示条）
+### AI 输入框（`ChatComposer`）
 
-`textarea` 被 CopilotKit 强制进入 WebKit 自定义滚动条模式。解法：① `scrollbar-width: none` + `::-webkit-scrollbar { display: none }` **完全隐藏**原生条；② `agent-chat.tsx` 用 JS 自绘 `.dw-textarea-thumb`（绝对定位 div）反映滚动位置——同款 4px 圆角中性灰条，`pointer-events: none`，仅做视觉提示。
+监督席对话输入框（`components/workspace/views/supervision/chat-composer.tsx`）是外层 `bg-muted` 容器 + 透明 `textarea`：`focus-within:ring` 光环在容器、auto-grow（1→8 行后内滚、原生 `overflow-y`）、底部工具条右侧发送/停止键。无需自绘滚动条（原生 `textarea` 内滚即可，量小）。
 
 ### 颜色对照表
 

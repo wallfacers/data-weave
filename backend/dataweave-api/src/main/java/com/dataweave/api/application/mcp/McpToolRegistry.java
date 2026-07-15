@@ -67,6 +67,7 @@ public class McpToolRegistry {
     private final ProjectSyncService projectSyncService;
     private final DataOpsBridge dataOpsBridge;
     private final OpsMessages opsMessages;
+    private final com.dataweave.master.application.incident.IncidentQueryService incidentQueryService;
     private final ObjectMapper objectMapper;
     private final int outputThreshold;
     private final Path archiveDir;
@@ -86,6 +87,7 @@ public class McpToolRegistry {
                            ProjectSyncService projectSyncService,
                            DataOpsBridge dataOpsBridge,
                            OpsMessages opsMessages,
+                           com.dataweave.master.application.incident.IncidentQueryService incidentQueryService,
                            ObjectMapper objectMapper,
                            @Value("${mcp.output-threshold:8000}") int outputThreshold,
                            @Value("${mcp.archive-dir:${java.io.tmpdir}/dataweave-tool-outputs}") String archiveDir) {
@@ -102,6 +104,7 @@ public class McpToolRegistry {
         this.projectSyncService = projectSyncService;
         this.dataOpsBridge = dataOpsBridge;
         this.opsMessages = opsMessages;
+        this.incidentQueryService = incidentQueryService;
         this.objectMapper = objectMapper;
         this.outputThreshold = outputThreshold;
         this.archiveDir = Path.of(archiveDir);
@@ -329,6 +332,43 @@ public class McpToolRegistry {
                     Long pid = TenantContext.projectId(); // MCP 身份可能未绑项目→0=租户域
                     return authoringContextService.taskDependencies(
                             TenantContext.tenantId(), pid != null ? pid : 0L, taskDefId);
+                });
+
+        // ---- 069 智能运维事故域（query 只读 + reverify 经闸门写）----
+        register("query_incidents",
+                "返回本项目未收口事故列表（可按状态过滤，如 NEEDS_HUMAN/AWAITING_APPROVAL；纯读，租户+项目隔离）",
+                schema(prop("state", "string", "按状态过滤；缺省=全部"),
+                        prop("limit", "integer", "返回条数上限，默认 50")),
+                ctx -> {
+                    requireTenant(ctx);
+                    Long pid = TenantContext.projectId();
+                    String stateFilter = str(ctx.args(), "state");
+                    Long limit = lng(ctx.args(), "limit");
+                    List<String> states = stateFilter != null && !stateFilter.isBlank()
+                            ? List.of(stateFilter) : null;
+                    var page = incidentQueryService.list(TenantContext.tenantId(), pid != null ? pid : 0L,
+                            states, null, 1, limit != null ? Math.toIntExact(limit) : 50);
+                    return Map.of("incidents", page.items(), "total", page.total());
+                });
+
+        register("incident_reverify",
+                "对指定事故触发复验（人工修复后重跑核验；经策略闸门，租户+项目隔离）",
+                schema(req("incidentId", "string", "事故 id（UUID）")),
+                ctx -> {
+                    requireTenant(ctx);
+                    Long pid = TenantContext.projectId();
+                    String incidentId = required(ctx.args(), "incidentId");
+                    // 归属核验（非本项目事故一律 not_found）+ 取最新实例作复验目标
+                    var detail = incidentQueryService.detail(TenantContext.tenantId(), pid != null ? pid : 0L,
+                            java.util.UUID.fromString(incidentId));
+                    ActionRequest req = ActionRequest.builder()
+                            .toolName("incident_reverify").actionType("INCIDENT_REVERIFY")
+                            .targetType("TASK_INSTANCE")
+                            .targetId(detail.incident().latestInstanceId().toString())
+                            .actor("agent").actorSource("AGENT")
+                            .summary("MCP 触发事故复验：" + incidentId)
+                            .build();
+                    return gateText(gatedActionService.submit(req, ctx.locale()));
                 });
 
         // ---- 只读日志工具（E 新增，租户隔离）----

@@ -93,6 +93,8 @@ public class SchedulerMetrics {
     private final Counter reconcileReplayed;
     private final Counter reconcileSkipped;
     private final Counter reconcileDead;
+    /** 069: cron_fire DEAD 修复次数（master 重启残骸自动清理）。 */
+    private final Counter cronTriggerRepair;
     private final AtomicLong fireQueueSize = new AtomicLong(0);
     // 046 dispatch 并行化：claim/dispatch 解耦(队列 + 异步 executor)背压观测
     private final Counter dispatchQueueFull;
@@ -204,6 +206,9 @@ public class SchedulerMetrics {
         this.reconcileDead = Counter.builder("dw.cron.reconcile.count")
                 .tag("outcome", "dead")
                 .description("Reconciler marked fire DEAD (timeout exceeded, gave up)")
+                .register(registry);
+        this.cronTriggerRepair = Counter.builder("dw.cron.trigger.repair.count")
+                .description("069: cron_fire DEAD entries cleaned and retried (master restart debris auto-repaired)")
                 .register(registry);
         // 046 dispatch 并行化：dispatchExecutor 有界队列满 → 降级同步下发(背压信号)
         this.dispatchQueueFull = Counter.builder("dw.dispatch.queue.full.count")
@@ -421,6 +426,11 @@ public class SchedulerMetrics {
     /** reconciler 标 DEAD（超时放弃）。 */
     public void markReconcileDead() {
         reconcileDead.increment();
+    }
+
+    /** 069: cron_fire DEAD 条目自动修复重试计数（master 重启残骸自愈）。 */
+    public void markCronTriggerRepair() {
+        cronTriggerRepair.increment();
     }
 
     public Timer.Sample startRound() {

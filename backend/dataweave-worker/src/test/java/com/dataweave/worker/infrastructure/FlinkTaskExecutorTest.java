@@ -92,6 +92,30 @@ class FlinkTaskExecutorTest {
         assertThat(ten.savepointRestorePath()).isEqualTo("file:///savepoints/sp-1");
     }
 
+    // ---- 069 T018: 资源提示（taskmanager memory/slots）----
+
+    @Test
+    void buildCommand_withResourceHints_addsTaskManagerDynamicProps() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "jar", "/tmp/app.jar",
+                "com.example.Main", false, null, 4096, 2);
+        assertThat(cmd).contains("-D", "taskmanager.memory.process.size=4096m");
+        assertThat(cmd).contains("taskmanager.numberOfTaskSlots=2");
+    }
+
+    @Test
+    void buildCommand_noResourceHints_omitsDynamicProps() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "jar", "/tmp/app.jar",
+                "com.example.Main", false, null, null, null);
+        assertThat(cmd).doesNotContain("-D");
+    }
+
+    @Test
+    void buildCommand_sqlModeWithResourceHints_alsoAppliesDynamicProps() {
+        List<String> cmd = FlinkTaskExecutor.buildCommand("/opt/flink", "sql", "/tmp/q.sql",
+                null, false, null, 2048, 1);
+        assertThat(cmd).contains("-D", "taskmanager.memory.process.size=2048m", "taskmanager.numberOfTaskSlots=1");
+    }
+
     // ---- SKIPPED 判定 ----
 
     @Test

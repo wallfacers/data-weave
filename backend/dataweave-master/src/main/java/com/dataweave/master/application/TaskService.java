@@ -200,6 +200,7 @@ public class TaskService {
             t.setDatasourceId(rs.getObject("datasource_id") != null ? rs.getLong("datasource_id") : null);
             t.setTargetDatasourceId(rs.getObject("target_datasource_id") != null ? rs.getLong("target_datasource_id") : null);
             t.setParamsJson(rs.getString("params_json"));
+            t.setResourcesJson(rs.getString("resources_json"));
             t.setTimeoutSec(rs.getObject("timeout_sec") != null ? rs.getInt("timeout_sec") : null);
             t.setRetryMax(rs.getObject("retry_max") != null ? rs.getInt("retry_max") : null);
             t.setStatus(rs.getString("status"));
@@ -255,6 +256,7 @@ public class TaskService {
         if (patch.getDatasourceId() != null) task.setDatasourceId(patch.getDatasourceId());
         if (patch.getTargetDatasourceId() != null) task.setTargetDatasourceId(patch.getTargetDatasourceId());
         if (patch.getParamsJson() != null) task.setParamsJson(patch.getParamsJson());
+        if (patch.getResourcesJson() != null) task.setResourcesJson(patch.getResourcesJson());
         if (patch.getTimeoutSec() != null) task.setTimeoutSec(patch.getTimeoutSec());
         if (patch.getRetryMax() != null) task.setRetryMax(patch.getRetryMax());
         if (patch.getPriority() != null) task.setPriority(patch.getPriority());
@@ -307,6 +309,7 @@ public class TaskService {
         ver.setDatasourceId(task.getDatasourceId());
         ver.setTargetDatasourceId(task.getTargetDatasourceId());
         ver.setParamsJson(task.getParamsJson());
+        ver.setResourcesJson(task.getResourcesJson());
         ver.setTimeoutSec(task.getTimeoutSec());
         ver.setRetryMax(task.getRetryMax());
         ver.setPriority(task.getPriority());
@@ -381,6 +384,7 @@ public class TaskService {
         task.setDatasourceId(ver.getDatasourceId());
         task.setTargetDatasourceId(ver.getTargetDatasourceId());
         task.setParamsJson(ver.getParamsJson());
+        task.setResourcesJson(ver.getResourcesJson());
         task.setTimeoutSec(ver.getTimeoutSec());
         task.setRetryMax(ver.getRetryMax());
         task.setPriority(ver.getPriority());

@@ -160,7 +160,8 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 }
             }
 
-            List<String> command = buildCommand(resolveEngineHome(ref), mode, submitTarget, ref.mainClass(), false);
+            List<String> command = buildCommand(resolveEngineHome(ref), mode, submitTarget, ref.mainClass(), false,
+                    null, ref.memoryMb(), ref.cpuCores());
             return runSubprocess(command, ctx, onLine);
         } finally {
             if (sqlFile != null) {
@@ -227,7 +228,8 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
 
             // detached 提交：flink run -d [-s <savepoint>] ...（jar 模式经 -s 恢复；sql 模式经会话变量）
             List<String> command = buildCommand(resolveEngineHome(ref), mode, submitTarget,
-                    ref.mainClass(), true, "jar".equals(mode) ? savepointRestorePath : null);
+                    ref.mainClass(), true, "jar".equals(mode) ? savepointRestorePath : null,
+                    ref.memoryMb(), ref.cpuCores());
 
             emit(onLine, "[FLINK] long_running detached 提交: " + String.join(" ", command));
 
@@ -441,6 +443,19 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
      */
     static List<String> buildCommand(String engineHome, String mode, String submitTarget,
                                       String mainClass, boolean detached, String savepointRestorePath) {
+        return buildCommand(engineHome, mode, submitTarget, mainClass, detached, savepointRestorePath, null, null);
+    }
+
+    /**
+     * 构造 Flink 提交命令（069：声明式资源提示 → {@code -D taskmanager.memory.process.size}/
+     * {@code -D taskmanager.numberOfTaskSlots}，jar/sql 两形态通用）。
+     *
+     * @param memoryMb TaskManager 进程内存（MB）；null=引擎默认
+     * @param cpuCores TaskManager slot 数参考；null=引擎默认
+     */
+    static List<String> buildCommand(String engineHome, String mode, String submitTarget,
+                                      String mainClass, boolean detached, String savepointRestorePath,
+                                      Integer memoryMb, Integer cpuCores) {
         List<String> cmd = new ArrayList<>();
         switch (mode != null ? mode : "sql") {
             case "jar" -> {
@@ -449,6 +464,7 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 if (detached) {
                     cmd.add("-d");
                 }
+                addResourceProps(cmd, memoryMb, cpuCores);
                 // D2：从 savepoint 恢复状态（须在 jar 之前）；-n 允许非受限状态跳过（拓扑变更容错）。
                 if (savepointRestorePath != null && !savepointRestorePath.isBlank()) {
                     cmd.add("-s");
@@ -467,11 +483,24 @@ public class FlinkTaskExecutor extends AbstractTaskExecutor {
                 // 而非 detached（仅 flink run 支持 -d）。sql-client.sh -f 本身对
                 // streaming query 提交后即返回，JobID 在 stdout 中可解析（061 真跑验证）。
                 // savepoint 恢复经内容前置 SET 'execution.savepoint.path'（见 executeLongRunning）。
+                addResourceProps(cmd, memoryMb, cpuCores);
                 cmd.add("-f");
                 cmd.add(submitTarget);
             }
         }
         return cmd;
+    }
+
+    /** 069：追加 {@code -D taskmanager.memory.process.size}/{@code -D taskmanager.numberOfTaskSlots}（非空才写）。 */
+    private static void addResourceProps(List<String> cmd, Integer memoryMb, Integer cpuCores) {
+        if (memoryMb != null) {
+            cmd.add("-D");
+            cmd.add("taskmanager.memory.process.size=" + memoryMb + "m");
+        }
+        if (cpuCores != null) {
+            cmd.add("-D");
+            cmd.add("taskmanager.numberOfTaskSlots=" + cpuCores);
+        }
     }
 
     /** 向后兼容：不带 detached 参数的 buildCommand（有界/批 Flink，语义不变）。 */

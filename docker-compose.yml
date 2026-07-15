@@ -200,6 +200,7 @@ services:
       DATAWEAVE_WORKER_NODE_CODE: worker-1
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+      SCHEDULER_WORKER_SELF_FENCE_GRACE_MS: "120000"   # 容忍 master 重启窗口（默认 20s 太短，master 重启 30-40s 会触发 worker 误自杀）
     restart: unless-stopped
 
   worker-2:
@@ -217,6 +218,7 @@ services:
       DATAWEAVE_WORKER_NODE_CODE: worker-2
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
+      SCHEDULER_WORKER_SELF_FENCE_GRACE_MS: "120000"   # 容忍 master 重启窗口（默认 20s 太短，master 重启 30-40s 会触发 worker 误自杀）
     restart: unless-stopped
 
 volumes:

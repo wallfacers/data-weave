@@ -121,17 +121,20 @@ public class WorkerExecController {
         boolean longRunning = Boolean.TRUE.equals(body.get("longRunning"));
         String externalJobHandle = (String) body.get("externalJobHandle");
         String resumeSavepointPath = (String) body.get("resumeSavepointPath");  // D2：续跑 savepoint 恢复路径
+        Integer[] resources = parseResourceHints((String) body.get("resourcesJson"));  // 069：memoryMb/cpuCores
 
         Object dsObj = body.get("datasource");
         if (!(dsObj instanceof Map)) {
             // 无数据源：SPARK 任务仍须带 sparkMode（sparkHome/master 缺 → 执行器判 SKIPPED，不丢形态）
             ExecutionContext.SparkSubmitRef sparkNoDs = "SPARK".equals(taskType)
-                    ? new ExecutionContext.SparkSubmitRef(null, null, null, null, null, sparkMode, jarRef, mainClass)
+                    ? new ExecutionContext.SparkSubmitRef(null, null, null, null, null, sparkMode, jarRef, mainClass,
+                            resources[0], resources[1])
                     : null;
             // 无数据源：引擎任务仍须带 kind/engineMode（engineHome 缺 → 执行器判 SKIPPED）；062 传播 longRunning/句柄
             ExecutionContext.EngineSubmitRef engineNoDs = isEngineTask(taskType)
                     ? new ExecutionContext.EngineSubmitRef(taskType, null, engineMode, engineJarRef,
-                            engineMainClass, null, null, longRunning, externalJobHandle, resumeSavepointPath)
+                            engineMainClass, null, null, longRunning, externalJobHandle, resumeSavepointPath,
+                            resources[0], resources[1])
                     : null;
             return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
                     null, null, null, sparkNoDs, engineNoDs);
@@ -160,13 +163,15 @@ public class WorkerExecController {
             case "SPARK" -> spark = new ExecutionContext.SparkSubmitRef(
                     (String) dsInfo.get("sparkHome"), (String) dsInfo.get("master"),
                     (String) dsInfo.get("deployMode"), (String) dsInfo.get("queue"),
-                    toStringMap(dsInfo.get("conf")), sparkMode, jarRef, mainClass);
+                    toStringMap(dsInfo.get("conf")), sparkMode, jarRef, mainClass,
+                    resources[0], resources[1]);  // 069：memoryMb/cpuCores
             case "FLINK", "DATAX", "SEATUNNEL" -> engine = new ExecutionContext.EngineSubmitRef(
                     (String) dsInfo.getOrDefault("engineKind", dsType),
                     (String) dsInfo.get("engineHome"),
                     engineMode, engineJarRef, engineMainClass, null,
                     toStringMap(dsInfo.get("engineProps")),
-                    longRunning, externalJobHandle, resumeSavepointPath);  // 062 detached/reattach + D2 savepoint 恢复
+                    longRunning, externalJobHandle, resumeSavepointPath,  // 062 detached/reattach + D2 savepoint 恢复
+                    resources[0], resources[1]);  // 069：memoryMb/cpuCores
             default -> { /* 未知 dsType：留空，执行器侧判 SKIPPED/失败 */ }
         }
         return new ExecutionContext(content, bizDate, attempt, timeoutSeconds, null, taskType,
@@ -176,6 +181,21 @@ public class WorkerExecController {
     /** 通用引擎任务类型判定（FLINK/DATAX/SEATUNNEL）。 */
     private static boolean isEngineTask(String taskType) {
         return "FLINK".equals(taskType) || "DATAX".equals(taskType) || "SEATUNNEL".equals(taskType);
+    }
+
+    /** 069：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
+    private static Integer[] parseResourceHints(String resourcesJson) {
+        if (resourcesJson == null || resourcesJson.isBlank()) {
+            return new Integer[]{null, null};
+        }
+        try {
+            var node = new tools.jackson.databind.ObjectMapper().readTree(resourcesJson);
+            Integer memoryMb = node.hasNonNull("memoryMb") ? node.get("memoryMb").asInt() : null;
+            Integer cpuCores = node.hasNonNull("cpuCores") ? node.get("cpuCores").asInt() : null;
+            return new Integer[]{memoryMb, cpuCores};
+        } catch (Exception e) {
+            return new Integer[]{null, null};
+        }
     }
 
     /** PYTHON over-wire：把 master 序列化的配置 JSON 落盘为 worker 本地 DW_DATASOURCE_CONFIG 文件（600 权限）。 */

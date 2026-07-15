@@ -273,7 +273,22 @@ public class DefaultTriggerEngine implements TriggerEngine {
             try {
                 cronFireId = cronFireRepository.save(guard).getId();
             } catch (DataIntegrityViolationException dup) {
-                return;  // 别的 master 已触发本点
+                // 069: 已存在的 cron_fire 可能是 DEAD（master 重启致 fireExecute 未完成）
+                // → 删掉 DEAD 后重试 INSERT，恢复推进；否则 next_trigger_time 永久卡在此点
+                CronFire existing = cronFireRepository
+                        .findByWorkflowIdAndScheduledFireTime(wfId, due).orElse(null);
+                if (existing != null && "DEAD".equals(existing.getStatus())) {
+                    log.info("[TriggerEngine] 清理 DEAD cron_fire 并重试 wfId={} due={}", wfId, due);
+                    cronFireRepository.delete(existing);
+                    guard = new CronFire(wfId, due);
+                    guard.setCreatedAt(fireNow);
+                    guard.setStatus("PENDING");
+                    cronFireId = cronFireRepository.save(guard).getId();
+                    metrics.markCronTriggerRepair();
+                    // fall through to fireExecute below
+                } else {
+                    return;  // 别的 master 已触发本点（PENDING），或已完成（FIRED）
+                }
             }
 
             // 045 提交物化到 worker 池（异步）；满则拒绝策略在 timer 线程同步跑 fireExecute（降级，不丢）

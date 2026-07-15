@@ -59,7 +59,7 @@ public class DataXTaskExecutor extends AbstractTaskExecutor {
         Path jobFile = null;
         try {
             jobFile = writeTempFile(content, ".json");
-            List<String> command = buildCommand(ref.engineHome(), jobFile.toString());
+            List<String> command = buildCommand(ref.engineHome(), jobFile.toString(), ref.memoryMb());
             return runSubprocess(command, ctx, onLine);
         } finally {
             if (jobFile != null) {
@@ -92,8 +92,21 @@ public class DataXTaskExecutor extends AbstractTaskExecutor {
      * @param jobPath    job JSON 文件路径
      */
     static List<String> buildCommand(String engineHome, String jobPath) {
+        return buildCommand(engineHome, jobPath, null);
+    }
+
+    /**
+     * 构造 datax.py 命令（069：声明式内存提示 → {@code -j "-Xms<N>m -Xmx<N>m"}，datax.py 官方 JVM 透传 flag）。
+     *
+     * @param memoryMb 子进程 JVM 堆内存（MB）；null=引擎默认
+     */
+    static List<String> buildCommand(String engineHome, String jobPath, Integer memoryMb) {
         List<String> cmd = new ArrayList<>();
         cmd.add(Path.of(engineHome, "bin", "datax.py").toString());
+        if (memoryMb != null) {
+            cmd.add("-j");
+            cmd.add("-Xms" + memoryMb + "m -Xmx" + memoryMb + "m");
+        }
         cmd.add(jobPath);
         return cmd;
     }

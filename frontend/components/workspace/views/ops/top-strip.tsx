@@ -76,9 +76,13 @@ export function OpsTopStrip({ active }: { active?: boolean }) {
   const [autoEnabled, setAutoEnabled] = useState(true)
   const projectId = useProjectContext((s) => s.currentProjectId) ?? 1
 
-  // 040: 默认选中今天的 bizDate
-  const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), [])
-  const [bizDate, setBizDate] = useState<string>(todayStr)
+  // 040: 默认选中昨天的 bizDate（T-1）
+  const yesterdayStr = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    return format(d, "yyyy-MM-dd")
+  }, [])
+  const [bizDate, setBizDate] = useState<string>(yesterdayStr)
 
   const summaryUrl = `/api/ops/summary?projectId=${projectId}&bizDate=${bizDate}`
   const { data: summary, refreshing: r1, stale: s1, lastUpdatedAt: lu1, refresh: ref1 } = useLiveData<DashboardSummary>(summaryUrl, { active, enabled: autoEnabled })

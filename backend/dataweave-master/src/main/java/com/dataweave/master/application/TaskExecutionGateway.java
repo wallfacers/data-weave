@@ -37,6 +37,7 @@ public interface TaskExecutionGateway {
      * @param engineMainClass 通用引擎 jar 形态的 --class 主类（FLINK jar 用）；其它形态 null
      * @param longRunning       062：外部托管长驻作业标记（task_instance.long_running 快照）；true → 引擎执行器走 detached 长驻分支
      * @param externalJobHandle 062：已有外部作业句柄（task_instance.external_job_handle）；非空 → 引擎执行器 reattach 重连而非重复提交
+     * @param resourcesJson     069：任务声明式资源提示（task_def/task_def_version 快照，JSON 如 {"memoryMb":4096,"cpuCores":2}）；null=引擎默认
      */
     record DispatchCommand(UUID taskInstanceId, int attempt, String workerNodeCode, Long taskId,
                            Integer taskVersionNo, String runMode, String bizDate, String content,
@@ -44,6 +45,6 @@ public interface TaskExecutionGateway {
                            String sparkMode, String jarRef, String mainClass,
                            String engineMode, String engineJarRef, String engineMainClass,
                            boolean longRunning, String externalJobHandle,
-                           String resumeSavepointPath) {
+                           String resumeSavepointPath, String resourcesJson) {
     }
 }

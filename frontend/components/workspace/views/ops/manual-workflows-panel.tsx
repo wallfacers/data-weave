@@ -108,17 +108,27 @@ export function ManualWorkflowsPanel() {
       {
         key: "name",
         header: t("colWorkflowName"),
-        widthPct: 22,
+        widthPct: 14,
         cell: (w) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium" title={w.name}>{w.name}</div>
-            {w.description && (
-              <div className="truncate text-xs text-muted-foreground" title={w.description}>
-                {w.description}
-              </div>
-            )}
-          </div>
+          <Tooltip>
+            <TooltipTrigger render={<div className="truncate font-medium">{w.name}</div>} />
+            <TooltipContent>{w.name}</TooltipContent>
+          </Tooltip>
         ),
+      },
+      {
+        key: "description",
+        header: t("colDescription"),
+        widthPct: 16,
+        cell: (w) =>
+          w.description ? (
+            <Tooltip>
+              <TooltipTrigger render={<div className="truncate text-xs text-muted-foreground">{w.description}</div>} />
+              <TooltipContent className="max-w-sm">{w.description}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
       },
       {
         key: "recentTriggerResult",
@@ -171,6 +181,22 @@ export function ManualWorkflowsPanel() {
         widthPct: 24,
         cell: (w) => (
           <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7"
+                    disabled={busyId === w.id}
+                    onClick={() => runOnce(w)}
+                  >
+                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>{t("runOnce")}</TooltipContent>
+            </Tooltip>
             {w.status === "ONLINE" && (
               <Tooltip>
                 <TooltipTrigger
@@ -188,22 +214,6 @@ export function ManualWorkflowsPanel() {
                 <TooltipContent>{t("viewDag")}</TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7"
-                    disabled={busyId === w.id}
-                    onClick={() => runOnce(w)}
-                  >
-                    <HugeiconsIcon icon={PlayIcon} className="size-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>{t("runOnce")}</TooltipContent>
-            </Tooltip>
           </div>
         ),
       },

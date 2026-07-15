@@ -37,7 +37,7 @@ const DEFAULT_RATE_LIMIT = 60
 const DEFAULT_MAX_COLUMNS = 2000
 
 export function AiAgentConfigSection() {
-  const t = useTranslations("lineageAgent")
+  const t = useTranslations("aiAgent")
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

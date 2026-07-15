@@ -220,13 +220,15 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             return null;
         }
         ResolvedConnection.SparkClusterRef s = resolved != null ? resolved.spark() : null;
+        Integer[] resources = parseResourceHints(cmd.resourcesJson());
         return new ExecutionContext.SparkSubmitRef(
                 s != null ? s.sparkHome() : null,
                 s != null ? s.master() : null,
                 s != null ? s.deployMode() : null,
                 s != null ? s.queue() : null,
                 s != null ? s.conf() : null,
-                cmd.sparkMode(), cmd.jarRef(), cmd.mainClass());
+                cmd.sparkMode(), cmd.jarRef(), cmd.mainClass(),
+                resources[0], resources[1]);  // 069：memoryMb/cpuCores 声明式提示
     }
 
     /**
@@ -240,6 +242,7 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
             return null;
         }
         ResolvedConnection.EngineClusterRef e = resolved != null ? resolved.engine() : null;
+        Integer[] resources = parseResourceHints(cmd.resourcesJson());
         return new ExecutionContext.EngineSubmitRef(
                 type,  // kind = task type
                 e != null ? e.engineHome() : null,
@@ -250,7 +253,23 @@ public class InProcessTaskExecutionGateway implements TaskExecutionGateway {
                 e != null ? e.props() : null,
                 cmd.longRunning(),            // 062：detached 长驻分支
                 cmd.externalJobHandle(),      // 062：reattach 句柄（非空则重连不重复提交）
-                cmd.resumeSavepointPath());   // D2：savepoint 恢复路径（优先于 reattach，全新提交 -s 恢复）
+                cmd.resumeSavepointPath(),    // D2：savepoint 恢复路径（优先于 reattach，全新提交 -s 恢复）
+                resources[0], resources[1]);  // 069：memoryMb/cpuCores 声明式提示
+    }
+
+    /** 069：解析 resources_json（{"memoryMb":N,"cpuCores":N}）为 [memoryMb, cpuCores]；null/解析失败→[null,null]。 */
+    private static Integer[] parseResourceHints(String resourcesJson) {
+        if (resourcesJson == null || resourcesJson.isBlank()) {
+            return new Integer[]{null, null};
+        }
+        try {
+            var node = new tools.jackson.databind.ObjectMapper().readTree(resourcesJson);
+            Integer memoryMb = node.hasNonNull("memoryMb") ? node.get("memoryMb").asInt() : null;
+            Integer cpuCores = node.hasNonNull("cpuCores") ? node.get("cpuCores").asInt() : null;
+            return new Integer[]{memoryMb, cpuCores};
+        } catch (Exception e) {
+            return new Integer[]{null, null};
+        }
     }
 
     /** DataWorks 风启动 banner：运行模式 / 类型 / 数据源 / 开始时间（按触发者 locale 渲染）。 */

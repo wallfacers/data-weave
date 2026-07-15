@@ -842,6 +842,7 @@ public class ProjectSyncService {
                 String targetDsName = taskTargetDsCodes.get(syn);
                 srv.setTargetDatasourceId(targetDsName != null ? dsNameToId.get(targetDsName) : null);
                 srv.setParamsJson(localTask.getParamsJson());
+                srv.setResourcesJson(localTask.getResourcesJson());
                 srv.setTimeoutSec(localTask.getTimeoutSec());
                 srv.setRetryMax(localTask.getRetryMax());
                 srv.setPriority(localTask.getPriority());

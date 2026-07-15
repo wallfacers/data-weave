@@ -202,17 +202,27 @@ export function PeriodicWorkflowsPanel() {
       {
         key: "name",
         header: t("colWorkflowName"),
-        widthPct: 20,
+        widthPct: 14,
         cell: (w) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium" title={w.name}>{w.name}</div>
-            {w.description && (
-              <div className="truncate text-xs text-muted-foreground" title={w.description}>
-                {w.description}
-              </div>
-            )}
-          </div>
+          <Tooltip>
+            <TooltipTrigger render={<div className="truncate font-medium">{w.name}</div>} />
+            <TooltipContent>{w.name}</TooltipContent>
+          </Tooltip>
         ),
+      },
+      {
+        key: "description",
+        header: t("colDescription"),
+        widthPct: 14,
+        cell: (w) =>
+          w.description ? (
+            <Tooltip>
+              <TooltipTrigger render={<div className="truncate text-xs text-muted-foreground">{w.description}</div>} />
+              <TooltipContent className="max-w-sm">{w.description}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
       },
       {
         key: "nextTriggerTime",

@@ -61,7 +61,7 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
         try {
             configFile = writeTempFile(content, ".conf");
             List<String> command = buildCommand(ref.engineHome(), configFile.toString());
-            return runSubprocess(command, ctx, onLine);
+            return runSubprocess(command, ctx, onLine, ref.memoryMb());
         } finally {
             if (configFile != null) {
                 cleanup(configFile);
@@ -113,7 +113,8 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
 
     // ---- 子进程执行（复用 Spark/Shell/Python 范式）----
 
-    private ExecutionResult runSubprocess(List<String> command, ExecutionContext ctx, Consumer<String> onLine)
+    private ExecutionResult runSubprocess(List<String> command, ExecutionContext ctx, Consumer<String> onLine,
+                                           Integer memoryMb)
             throws Exception {
         int timeout = ctx.timeoutSeconds() > 0 ? ctx.timeoutSeconds() : DEFAULT_TIMEOUT_SECONDS;
 
@@ -121,6 +122,10 @@ public class SeaTunnelTaskExecutor extends AbstractTaskExecutor {
         pb.environment().put("DW_ATTEMPT", String.valueOf(ctx.attempt()));
         if (ctx.bizDate() != null) {
             pb.environment().put("DW_BIZ_DATE", ctx.bizDate());
+        }
+        // 069：声明式内存提示——seatunnel.sh 从 JVM_ARGS 环境变量读取 JVM 堆配置（无 CLI flag）
+        if (memoryMb != null) {
+            pb.environment().put("JVM_ARGS", "-Xms" + memoryMb + "m -Xmx" + memoryMb + "m");
         }
         // SeaTunnel 2.3.x requires JDK 17/21 (JDK 25+ removes javax.security.auth.Subject.getSubject
         // causing Hazelcast NPE in CheckpointService init). If caller sets JAVA_HOME to a compatible JDK,

@@ -61,6 +61,10 @@ public class TaskMapper {
         String sparkMode = sparkMeta(paramsMap, "_sparkMode");
         String jarRef = sparkMeta(paramsMap, "_jarRef");
         String mainClass = sparkMeta(paramsMap, "_mainClass");
+        Map<String, Object> resourcesMap = null;
+        if (task.getResourcesJson() != null && !task.getResourcesJson().isBlank()) {
+            resourcesMap = parseJsonToMap(task.getResourcesJson());
+        }
         return new TaskDoc(
                 TaskDoc.CURRENT_FORMAT_VERSION,
                 task.getName(),
@@ -79,7 +83,8 @@ public class TaskMapper {
                 mainClass,
                 Boolean.TRUE.equals(task.getLongRunning()) ? Boolean.TRUE : null,  // 062：长驻标记（false 时不落 yaml）
                 null,   // declaredSchema — TaskDef 不存声明，仅反序列化时设
-                null    // declaredColumnLineage
+                null,   // declaredColumnLineage
+                resourcesMap
         );
     }
 
@@ -110,6 +115,10 @@ public class TaskMapper {
         }
         if (doc.params() != null && !doc.params().isEmpty()) {
             DeterministicYaml.put(map, "params", toOrderedParamsMap(doc.params()));
+        }
+        // 069 声明式资源（非空才写，保持 .task.yaml 清洁，与 params 同风格）
+        if (doc.resources() != null && !doc.resources().isEmpty()) {
+            DeterministicYaml.put(map, "resources", toOrderedParamsMap(doc.resources()));
         }
         if (doc.tags() != null && !doc.tags().isEmpty()) {
             DeterministicYaml.put(map, "tags", doc.tags().stream().sorted().toList());
@@ -172,6 +181,7 @@ public class TaskMapper {
         String datasource = optionalString(raw, "datasource", filePath);
         String targetDatasource = optionalString(raw, "targetDatasource", filePath);
         Map<String, Object> paramsMap = optionalMap(raw, "params", filePath);
+        Map<String, Object> resourcesMap = optionalMap(raw, "resources", filePath);
         List<String> tags = optionalStringList(raw, "tags", filePath);
         // SPARK 子模式字段（F1 file contract）
         String sparkMode = optionalString(raw, "sparkMode", filePath);
@@ -185,7 +195,8 @@ public class TaskMapper {
                 parseDeclaredColumnLineage(raw, filePath);
         return new TaskDoc(formatVersion, name, type, description, priority,
                 timeoutSec, retryMax, frozen, datasource, targetDatasource, paramsMap, tags,
-                sparkMode, jarRef, mainClass, longRunning, declaredSchema, declaredColumnLineage);
+                sparkMode, jarRef, mainClass, longRunning, declaredSchema, declaredColumnLineage,
+                resourcesMap);
     }
 
     /**
@@ -215,6 +226,9 @@ public class TaskMapper {
         }
         if (!params.isEmpty()) {
             task.setParamsJson(mapToCanonicalJson(params));
+        }
+        if (doc.resources() != null && !doc.resources().isEmpty()) {
+            task.setResourcesJson(mapToCanonicalJson(doc.resources()));
         }
         return task;
     }
