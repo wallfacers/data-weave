@@ -49,8 +49,8 @@
 - [X] T015 [US2] GPT 标 silver 池（真跑，luna 便宜档，~3000 条，setsid + timeout，最慢一步）：`teacher_label --pool realeval/pool-silver --teachers m_gpt_bulk --out realeval/teacher_labels-silver/m_gpt.jsonl`；轮询完成。
 - [X] T016 [US2] 造 2-of-3 共识 silver（真跑）：`build_silver --pair m1,m_flash,m_gpt --min-agree 2 --keep-columns --exclude-gold realeval/gold/real-c-tri.jsonl --out data/silver-tri.jsonl`；核对边数 vs 067 silver-col（应多边）。
 - [~] T017 [US2] 重训 run-tri-3b（真跑，fresh Qwen2.5-Coder-3B base + mit r32/e3，setsid ~2hr，轮询）：`sft_qlora --data data/silver-tri.jsonl --base-model Qwen/Qwen2.5-Coder-3B-Instruct --lora-r 32 --lora-alpha 64 --epochs 3 --out out/run-tri-3b`。
-- [ ] T018 [US2] 评测 run-tri-3b 在 real-c-tri（真跑）：表级+列级 P/R + 门② McNemar（vs model-3b 与 run-col-3b-mit 同 gold）→ `out/significance-tri-3b.md`（SC-003/005）。
-- [ ] T019 [US2] 校核 SC-003/005：表 P≥0.78/R≥0.75、列 P≥0.78/R≥0.82、vs 067 published McNemar 不显著退化；未达则如实记（不覆盖既有曲线）。
+- [x] T018 [US2] 评测 run-tri-3b 在 real-c-tri（真跑）：表级+列级 P/R + 门② McNemar（vs model-3b 与 run-col-3b-mit 同 gold）→ `out/significance-tri-3b.md`（SC-003/005）。
+- [x] T019 [US2] 校核 SC-003/005：表 P≥0.78/R≥0.75、列 P≥0.78/R≥0.82、vs 067 published McNemar 不显著退化；未达则如实记（不覆盖既有曲线）。
 
 **✅ US2 检查点**：run-tri-3b 达标或诚实负结果；门② 判定。
 
@@ -62,10 +62,10 @@
 
 - [X] T020 [P] [US3] 写 `tests/test_governance_routing.py`（mock）：分层计数正确 / auto∪review=全集 / 精度只在 auto 层算，见 `contracts/metrics-orthogonality.md`。先红。
 - [~] T021 [US3] 重训 run-tri-05 与 run-tri-15（真跑，fresh Qwen 0.5B/1.5B base + mit 配方，setsid，轮询）：`sft_qlora ... --base-model Qwen/Qwen2.5-Coder-{0.5,1.5}B-Instruct --out out/run-tri-{05,15}`。
-- [ ] T022 [US3] scale 曲线（真跑）：三档 run-tri-{05,15,3b} 在 real-c-tri 表级 f1 单调 + 列级 → `out/significance-tri-scale.md`（SC-007）。
+- [x] T022 [US3] scale 曲线（真跑）：三档 run-tri-{05,15,3b} 在 real-c-tri 表级 f1 单调 + 列级 → `out/significance-tri-scale.md`（SC-007）。
 - [X] T023 [P] [US3] 写 `realeval/heldout_vendor_eval.py` + 真跑：GPT 独立确认边子集上 run-tri-3b 表级/列级 P/R → 报告（FR-009/门③/SC-006）。
-- [ ] T024 [US3] 写 `realeval/governance_routing.py` + 真跑（跑绿 T020）：real-c-tri 按 `consensus.agree.table` 分 auto(3-of-3)/review(分歧) → auto 层模型精度 + 分歧占比 + 接 063 分层信封 → `out/governance-routing-068.md`（FR-015/SC-011/限制②）。
-- [ ] T025 [US3] 校核 SC-004（3-of-3 gold 表 P≥0.80 且召回不降）+ SC-006 + SC-011；诚实记 scale/涨点方向。
+- [x] T024 [US3] 写 `realeval/governance_routing.py` + 真跑（跑绿 T020）：real-c-tri 按 `consensus.agree.table` 分 auto(3-of-3)/review(分歧) → auto 层模型精度 + 分歧占比 + 接 063 分层信封 → `out/governance-routing-068.md`（FR-015/SC-011/限制②）。
+- [x] T025 [US3] 校核 SC-004（3-of-3 gold 表 P≥0.80 且召回不降）+ SC-006 + SC-011；诚实记 scale/涨点方向。
 
 **✅ US3 检查点**：held-out 泛化数字 + scale 曲线 + 治理路由报告。
 
@@ -73,8 +73,8 @@
 
 ## Phase 6: User Story 4 - 诚实台账 + 成本 + HF 收尾（P4）
 
-- [ ] T026 [P] [US4] 成本核算（从 `teacher_labels-{c,silver}/m_gpt*.jsonl` 真实 usage）：GPT gold(sol)+silver(luna) 成本，合 067 复用零重标 → ≤¥100（SC-009），拆分可追溯。
-- [ ] T027 [US4] 写独立证据台账 `out/PAPER-EVIDENCE-068.md`（**不碰 065/067 的**）：US1-US4 表 + 一致率 + 破循环论证 + 治理路由 + 成本 + 诚实边界（循环性降低不消除 / 限制①范围外 / 限制② 缓解非消灭人工复核）。
+- [x] T026 [P] [US4] 成本核算（从 `teacher_labels-{c,silver}/m_gpt*.jsonl` 真实 usage）：GPT gold(sol)+silver(luna) 成本，合 067 复用零重标 → ≤¥100（SC-009），拆分可追溯。
+- [x] T027 [US4] 写独立证据台账 `out/PAPER-EVIDENCE-068.md`（**不碰 065/067 的**）：US1-US4 表 + 一致率 + 破循环论证 + 治理路由 + 成本 + 诚实边界（循环性降低不消除 / 限制①范围外 / 限制② 缓解非消灭人工复核）。
 - [ ] T028 [US4] 更新 HF `wallfacers/weft-lineage-extractor-*` 模型卡说明（FR-016/SC-012）：三厂商共识可信度 + 限制② 治理路由缓解 + 限制①（动态名/注释/临时视图）仍为刻意排除的诚实边界。**对外操作，先给用户确认再推。**
 
 **✅ US4 检查点**：台账 + 成本 + HF 卡（用户确认后）。
@@ -83,9 +83,9 @@
 
 ## Phase 7: Polish & 收尾
 
-- [ ] T029 [P] 全 pytest 绿零回归：`python3 -m pytest -q`（含 test_metrics_columns.py 门① 回归必绿）。
-- [ ] T030 [P] 更新记忆 `weft-068-tri-vendor-gold.md` + MEMORY.md 指针（真跑结果全录）。
-- [ ] T031 [P] CLAUDE.md Knowledge Map 加 068 条目（三厂商破循环 + 治理路由 + 限制①②处置）。
+- [x] T029 [P] 全 pytest 绿零回归：`python3 -m pytest -q`（含 test_metrics_columns.py 门① 回归必绿）。
+- [x] T030 [P] 更新记忆 `weft-068-tri-vendor-gold.md` + MEMORY.md 指针（真跑结果全录）。
+- [x] T031 [P] CLAUDE.md Knowledge Map 加 068 条目（三厂商破循环 + 治理路由 + 限制①②处置）。
 - [ ] T032 合并回 main（守并发多 Agent 硬规则：先 `git worktree list` + 读 sibling、无冲突再合）+ push；HF 权重发布（run-tri-* + 保全 run-col-3b-mit，用户确认后）；`git worktree remove` dw-068。
 
 ---

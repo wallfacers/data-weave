@@ -127,4 +127,6 @@ ml/lineage-extractor/data/out/train-tblonly.jsonl
 ml/lineage-extractor/out/run-tblonly-*/
 ml/lineage-extractor/out/preds/run-tblonly-*.jsonl
 ml/lineage-extractor/out/preds-tri/
-ml/lineage-extractor/data/out/train-tri.jsonl
+# 068 三厂商：训练数据（含列密度扫描 col70/col50 变体）+ 列增强新家族权重（走 HF）
+ml/lineage-extractor/data/out/train-tri*.jsonl
+ml/lineage-extractor/out/run-tri-*/
