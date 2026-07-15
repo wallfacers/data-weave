@@ -83,6 +83,17 @@ public class JdbcCompanionMessageRepository {
         return jdbc.query(sql.toString(), (rs, n) -> map(rs), args.toArray());
     }
 
+    /**
+     * SSE Last-Event-ID 续传：项目内全部消息（全局+锚定）中 id &gt; afterId 的，按 id 升序。
+     * 配合 snapshot（重连即全量状态/汇报），补齐离线期间落库的会话消息。
+     */
+    public List<CompanionMessage> findAfterId(long tenantId, long projectId, long afterId, int limit) {
+        return jdbc.query(
+                "SELECT * FROM companion_message WHERE tenant_id = ? AND project_id = ? AND id > ? " +
+                "ORDER BY id ASC LIMIT ?",
+                (rs, n) -> map(rs), tenantId, projectId, afterId, limit);
+    }
+
     /** 最近一条 AGENT 消息的 brain_session_id（同会话续聊复用 workhorse session）；无则 empty。 */
     public Optional<String> findLatestBrainSession(long tenantId, long projectId, Long reportId) {
         String filter = reportId == null ? " AND report_id IS NULL" : " AND report_id = ?";

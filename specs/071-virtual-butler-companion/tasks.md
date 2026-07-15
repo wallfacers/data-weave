@@ -25,7 +25,7 @@
 - [x] T003 🅰 `backend/dataweave-api/src/main/resources/schema.sql` 升 **0.21.0**:+`patrol_routine`/`patrol_run`/`patrol_report`/`companion_message` 4 表(列/约束/索引严格按 data-model.md;UNIQUE(routine_id, scheduled_fire_time) 幂等;隔离列+索引)+ seed 四领域默认例程(research R7 频率)+ 文件头与 `schema_version` INSERT 同步;PG/H2 双方言兼容(IF NOT EXISTS、无 `||` 拼接)
 - [x] T004 [P] 🅰 领域对象与仓储:`backend/dataweave-master/src/main/java/com/dataweave/master/companion/domain/`(PatrolRoutine/PatrolRun/PatrolReport/CompanionMessage + 状态枚举)+ `infrastructure/`(Jdbc 四仓储,自增主键用 GeneratedKeyHolder——CALL IDENTITY 跨方言坑)+ H2 仓储 IT(`@TestPropertySource` 独立库名防串台)
 - [x] T005 [P] 🅰 大脑端口与适配器:`domain/CompanionBrain.java`(openChat/runPatrol/healthy,契约见 companion-api.md 内部端口节)+ `infrastructure/WorkhorseBrainClient.java`(HTTP 8300:POST /v1/sessions、GET/POST stream SSE 消费、cancel;JDK HttpClient)+ `infrastructure/MockBrain.java`(降级固定话术/未完成产出)+ 健康探测选择逻辑 + 单测
-- [ ] T006 🅰 SSE 通道骨架:`backend/dataweave-api/.../interfaces/companion/CompanionStreamHandler.java`(`GET /api/companion/stream?projectId&token`:鉴权、snapshot 事件、心跳、Last-Event-ID)+ `master/companion/infrastructure/CompanionEventPublisher.java`(Redis EventBus 扇出,套 incident stream 骨架);依赖 T003/T004
+- [x] T006 🅰 SSE 通道骨架:`backend/dataweave-api/.../interfaces/companion/CompanionStreamHandler.java`(`GET /api/companion/stream?projectId&token`:鉴权、snapshot 事件、心跳、Last-Event-ID)+ `master/companion/infrastructure/CompanionEventPublisher.java`(Redis EventBus 扇出,套 incident stream 骨架);依赖 T003/T004
 - [ ] T007 [P] 🅱 视图注册三处:`frontend/lib/workspace/views.ts`(ViewType `companion` + VIEW_META,复用监督席权限 key)、`registry.tsx`(VIEW_RENDER + hugeicons 图标)、`nav-groups.ts`(导航分组,过 nav-groups.test.ts 全集不变量)+ `messages/{zh-CN,en-US}.json` 补 `views.companion` 与 `companion.*` 命名空间(双 bundle key 齐全)+ 空视图壳 `components/workspace/views/companion-view.tsx`(ViewContainer)
 - [ ] T008 [P] 🅱 数据层:`frontend/lib/companion/types.ts`(ReportView/MessageView/CompanionState/Briefing,严格对齐契约)+ `api.ts`(authFetch + X-Project-Id,close/read/chat/cancel/messages/routines 全端点)+ `store.ts`(reports/state/briefing/messages 归约)+ `use-companion-stream.ts`(EventSource 直连 SSE_BASE,7 类事件,断线不清数据)
 - [ ] T009 🅱 设计契约先行:`frontend/DESIGN.md` 登记 companion 沉浸式 surface 豁免条目(全出血 canvas/字幕气泡;Input/Button/severity 色仍强制复用)+ 定义 `--companion-*` 五状态色 token;`app/globals.css` 亮/暗两套值同步;`pnpm design:lint` 通过
@@ -38,8 +38,8 @@
 
 **Independent Test**: quickstart US1 六步(首屏 3s/异常→警觉/回落/主题切换/权限/WebGL 降级)。
 
-- [ ] T010 🅰 [US1] 状态归一:`master/companion/domain/CompanionStateResolver.java`(alert/patrol/think/speak/idle 优先级规则,data-model.md 派生状态节)+ 状态变更时经 EventPublisher 发 `state` 事件;单测覆盖优先级矩阵
-- [ ] T011 [P] 🅰 [US1] 概况统计:`application/CompanionBriefingService.java`(今日 run 数/未关闭 DANGER+WARN 数/启用例程最近下次触发时间)接入 snapshot 与 `briefing` 事件
+- [x] T010 🅰 [US1] 状态归一:`master/companion/domain/CompanionStateResolver.java`(alert/patrol/think/speak/idle 优先级规则,data-model.md 派生状态节)+ 状态变更时经 EventPublisher 发 `state` 事件;单测覆盖优先级矩阵
+- [x] T011 [P] 🅰 [US1] 概况统计:`application/CompanionBriefingService.java`(今日 run 数/未关闭 DANGER+WARN 数/启用例程最近下次触发时间)接入 snapshot 与 `briefing` 事件
 - [ ] T012 [P] 🅱 [US1] 形象移植:`components/workspace/views/companion/bot-model.ts`(程序化机器人构建+五状态动画,自 `tmp/companion-prototype/index.html` 移植,顶部注版权说明源自 NOTICE.md)+ `face-screen.ts`(CanvasTexture 表情:眨眼/微笑/警觉/思考/波形嘴)
 - [ ] T013 🅱 [US1] 场景组件:`companion-stage.tsx`("use client" + next/dynamic ssr:false;three 场景生命周期含 dispose;**token 取色**:getComputedStyle 读 `--companion-*`/语义 token → THREE.Color,`useTheme().resolvedTheme` 变化重取色不重建;WebGL 探测失败切 T014)
 - [ ] T014 [P] 🅱 [US1] 降级形象:`companion/orb-fallback.tsx`(CSS 能量球,同一状态机换色/脉动)+ `prefers-reduced-motion` 停粒子摆动
