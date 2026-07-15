@@ -65,6 +65,9 @@ public class JdbcCompanionMessageRepository {
     /**
      * 历史消息（全局或锚定会话）。{@code reportId=null}→全局（report_id IS NULL）；非空→锚定。
      * {@code before}（可空）=游标（created_at &lt; before），向前翻页。
+     *
+     * <p>M5：先 {@code DESC LIMIT} 取<b>最新</b> N 条（此前 ASC+LIMIT 取最老 N 条，超 limit 后最新消息永远取不到），
+     * 再内存反转为升序返回，对外仍呈现时间正序。
      */
     public List<CompanionMessage> findByProject(long tenantId, long projectId, Long reportId,
                                                 LocalDateTime before, int limit) {
@@ -83,9 +86,11 @@ public class JdbcCompanionMessageRepository {
             sql.append(" AND created_at < ?");
             args.add(before);
         }
-        sql.append(" ORDER BY created_at ASC, id ASC LIMIT ?");
+        sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");   // M5：最新 N 条
         args.add(limit);
-        return jdbc.query(sql.toString(), (rs, n) -> map(rs), args.toArray());
+        List<CompanionMessage> rows = jdbc.query(sql.toString(), (rs, n) -> map(rs), args.toArray());
+        java.util.Collections.reverse(rows);   // 反转为升序，对外时间正序
+        return rows;
     }
 
     /**

@@ -308,6 +308,19 @@ class CompanionRepositoryIT {
         assertThat(messageRepo.findLatestBrainSession(TENANT, PROJECT, 999L)).isEmpty();
     }
 
+    @Test
+    void messages_returnsNewestWhenOverLimit() {
+        // M5：超 limit 后必须取最新 N 条（此前 ASC+LIMIT 取最老 N，最新消息永远取不到）
+        List<Long> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            ids.add(messageRepo.insert(TENANT, PROJECT, null, CompanionRoles.USER, "admin", "管理员", "m" + i, null));
+        }
+        List<CompanionMessage> page = messageRepo.findByProject(TENANT, PROJECT, null, null, 3);
+        // 最新 3 条（id 最大者），升序返回
+        assertThat(page).extracting(CompanionMessage::id)
+                .containsExactly(ids.get(2), ids.get(3), ids.get(4));
+    }
+
     private long routineIdOf(String domain) {
         return routineRepo.findByProjectAndDomain(TENANT, PROJECT, domain)
                 .orElseThrow(() -> new IllegalStateException("缺例程: " + domain)).id();
