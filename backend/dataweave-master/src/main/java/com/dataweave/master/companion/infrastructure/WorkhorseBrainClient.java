@@ -1,6 +1,7 @@
 package com.dataweave.master.companion.infrastructure;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,6 +9,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.dataweave.master.companion.domain.ChatCallbacks;
@@ -86,9 +89,9 @@ public class WorkhorseBrainClient implements CompanionBrain {
         String sessionId = null;
         try {
             sessionId = createSession(prompt, true);
-            String text = streamTurn(sessionId, "请立即执行本轮巡检并只输出约定的 JSON 对象，不要任何额外文字。",
+            TurnOutcome out = streamTurn(sessionId, "请立即执行本轮巡检并只输出约定的 JSON 对象，不要任何额外文字。",
                     timeoutSeconds, null);
-            return parsePatrolJson(text);
+            return parsePatrolJson(out.text());
         } catch (Exception e) {
             log.warn("[CompanionBrain] runPatrol domain={} 失败: {}", routine.domain(), e.toString());
             return PatrolResult.failed("巡检失败: " + e.getMessage());
@@ -173,12 +176,19 @@ public class WorkhorseBrainClient implements CompanionBrain {
     }
 
     /**
-     * 消费单轮 SSE：开 GET 订阅 → POST 消息 → 逐行读取，累积 assistant_text_delta 直至
-     * {@code assistant_text_done}（turn 终结）/ interrupted / error / 超时。
+     * 消费单轮 SSE：开 GET 订阅 → POST 消息 → 读事件直至 {@code assistant_text_done}（turn 终结）/ interrupted / error / 超时。
      *
-     * @param onDelta 可空；非空时每个增量片段回调（对话直播用）。返回本轮完整文本。
+     * <p><b>interrupted 语义保真（B1）</b>：被用户打断（cancel）时 workhorse 发 {@code interrupted} 事件，
+     * 本方法据此返回 {@code TurnOutcome.interrupted=true}，调用方据此标记半截输出（非静默吃掉）。
+     * <p><b>error 不吞（B1，070 同款前科）</b>：{@code error} 事件解析 {@code data.message} 后经 {@link Fail} 抛
+     * {@link BrainErrorException} 终止本轮（不再落入 default 被静默吞成空白）。
+     * <p><b>读超时（M2）</b>：读 SSE 在独立 daemon reader 线程，主线程 {@code poll(timeout)}；
+     * {@code readLine} 永久阻塞（brain 卡住/连接半开）只困住 daemon reader，不耗尽调用方线程池，
+     * 主线程 {@code timeoutSeconds} 内无信号即抛 {@link BrainTimeoutException}。
+     *
+     * @param onDelta 可空；非空时每个增量片段回调（在调用方线程上，对话直播用）。返回本轮文本 + 是否被打断。
      */
-    String streamTurn(String sessionId, String message, int timeoutSeconds, java.util.function.Consumer<String> onDelta)
+    TurnOutcome streamTurn(String sessionId, String message, int timeoutSeconds, java.util.function.Consumer<String> onDelta)
             throws Exception {
         // 1. 开 GET 订阅（ofInputStream：headers 到达即返回，body 惰性流式）
         HttpRequest getReq = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/sessions/" + sessionId + "/stream"))
@@ -190,47 +200,88 @@ public class WorkhorseBrainClient implements CompanionBrain {
         }
         // 2. POST 触发本轮（workhorse 在 GET 流上推送事件）
         postMessage(sessionId, message);
-        // 3. 读 SSE
+        // 3. reader 线程逐行解析 + 推信号到队列；主线程按 deadline 轮询，超时即抛（不阻塞调用方线程）
+        LinkedBlockingQueue<Signal> queue = new LinkedBlockingQueue<>();
+        Thread reader = new Thread(() -> readSse(resp.body(), queue), "companion-brain-reader");
+        reader.setDaemon(true);
+        reader.start();
+
+        long deadlineNs = System.nanoTime() + Math.max(1, timeoutSeconds) * 1_000_000_000L;
+        try {
+            while (true) {
+                long remainingMs = (deadlineNs - System.nanoTime()) / 1_000_000;
+                if (remainingMs <= 0) throw new BrainTimeoutException(timeoutSeconds);   // 读超时（M2）
+                Signal sig = queue.poll(remainingMs, TimeUnit.MILLISECONDS);
+                if (sig == null) continue;   // 窗口内无信号，重检 deadline
+                if (sig instanceof Signal.Delta d) {
+                    if (onDelta != null) onDelta.accept(d.chunk());   // delta 回调在调用方线程
+                } else if (sig instanceof Signal.Term t) {
+                    return new TurnOutcome(t.text(), t.interrupted());
+                } else if (sig instanceof Signal.Fail f) {
+                    throw new BrainErrorException(f.message());   // error 事件/IO 异常（B1：不吞）
+                }
+            }
+        } finally {
+            // 超时/正常结束都关响应流，帮 daemon reader 解除阻塞退出（reader 即便残留也不阻止 JVM 退出）
+            try { resp.body().close(); } catch (Exception ignore) { /* 忽略 */ }
+        }
+    }
+
+    /** 在 daemon reader 线程上逐行解析 SSE，把信号（delta/终结/失败）推入队列。worker 独占 text 累积，无竞态。 */
+    private void readSse(java.io.InputStream body, LinkedBlockingQueue<Signal> queue) {
         StringBuilder text = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
+        String event = null;
+        StringBuilder data = new StringBuilder();
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
             String line;
-            String event = null;
-            StringBuilder data = new StringBuilder();
-            while ((line = reader.readLine()) != null) {
+            while ((line = r.readLine()) != null) {
                 if (line.startsWith("event:")) {
                     event = line.substring(6).trim();
                 } else if (line.startsWith("data:")) {
                     data.append(line.substring(5));
                 } else if (line.isEmpty()) {
-                    String ev = event;
-                    if (ev != null) {
-                        String ret = handleEvent(ev, data.toString(), text, onDelta);
-                        if (ret != null) return ret;
+                    if (event != null) {
+                        switch (event) {
+                            case "assistant_text_delta" -> {
+                                String delta = extractText(data.toString());
+                                if (delta != null && !delta.isEmpty()) { text.append(delta); queue.offer(new Signal.Delta(delta)); }
+                            }
+                            case "assistant_text_done" -> { queue.offer(new Signal.Term(text.toString(), false)); return; }
+                            case "interrupted" -> { queue.offer(new Signal.Term(text.toString(), true)); return; }   // B1
+                            case "error" -> { queue.offer(new Signal.Fail(extractErrorMessage(data.toString()))); return; }   // B1 不吞
+                            default -> { /* tool/permission/reasoning 等忽略 */ }
+                        }
                     }
                     event = null;
                     data.setLength(0);
                 }
             }
+            queue.offer(new Signal.Term(text.toString(), false));   // 流自然结束，无终结事件
+        } catch (IOException e) {
+            queue.offer(new Signal.Fail("流读取异常: " + e.getMessage()));
         }
-        return text.toString();
     }
 
-    /** 处理一个 SSE 事件边界。返回非 null = 终止本轮（值=完整文本）；null = 继续。 */
-    private static String handleEvent(String event, String data, StringBuilder text,
-                                      java.util.function.Consumer<String> onDelta) {
-        return switch (event) {
-            case "assistant_text_delta" -> {
-                String delta = extractText(data);
-                if (delta != null && !delta.isEmpty()) {
-                    text.append(delta);
-                    if (onDelta != null) onDelta.accept(delta);
-                }
-                yield null;
-            }
-            case "assistant_text_done" -> text.toString();   // turn 终结
-            case "interrupted" -> text.toString();            // 被打断，半截文本
-            default -> null;                                  // tool/permission/reasoning 等忽略
-        };
+    /** 单轮 SSE 的完整产出：文本 + 是否被打断（interrupted=true 表示半截输出）。 */
+    record TurnOutcome(String text, boolean interrupted) {}
+
+    /** reader→主线程的队列信号。 */
+    private sealed interface Signal permits Signal.Delta, Signal.Term, Signal.Fail {
+        record Delta(String chunk) implements Signal {}
+        record Term(String text, boolean interrupted) implements Signal {}
+        record Fail(String message) implements Signal {}
+    }
+
+    /** 从 {@code error} 事件 data JSON 取 message 字段；无则回退原始 data。 */
+    static String extractErrorMessage(String dataJson) {
+        if (dataJson == null || dataJson.isBlank()) return "brain 返回未知错误";
+        try {
+            JsonNode node = MAPPER.readTree(dataJson);
+            String msg = node.path("message").asString(null);
+            return (msg == null || msg.isBlank()) ? "brain 返回错误: " + truncate(dataJson) : msg;
+        } catch (Exception e) {
+            return "brain 返回错误: " + truncate(dataJson);
+        }
     }
 
     /** 从 assistant_text_delta 的 data JSON 取 text 字段；解析失败返回 null。 */
@@ -331,9 +382,9 @@ public class WorkhorseBrainClient implements CompanionBrain {
         public String send(String userText) {
             currentMessage.set(userText);
             try {
-                String full = streamTurn(sessionId, userText, chatTurnTimeoutSeconds, callbacks::onDelta);
-                callbacks.onEnd(full, false);
-                return full;
+                TurnOutcome out = streamTurn(sessionId, userText, chatTurnTimeoutSeconds, callbacks::onDelta);
+                callbacks.onEnd(out.text(), out.interrupted());   // 据实：done→false / interrupted→true（B1）
+                return out.text();
             } catch (Exception e) {
                 callbacks.onError(e);
                 return "";
@@ -345,6 +396,18 @@ public class WorkhorseBrainClient implements CompanionBrain {
         @Override
         public void cancel() {
             postCancel(sessionId);   // workhorse 收到 cancel → 流上发 interrupted → send 随即返回半截
+        }
+    }
+
+    /** brain 流式 {@code error} 事件（B1）：解析 message 后抛出，由 send 的 catch → onError 透出。 */
+    static class BrainErrorException extends RuntimeException {
+        BrainErrorException(String message) { super(message); }
+    }
+
+    /** brain 轮次读超时（M2）：watchdog 关流强制解除 readLine 阻塞后抛出。 */
+    static class BrainTimeoutException extends RuntimeException {
+        BrainTimeoutException(int timeoutSeconds) {
+            super("brain 轮次读超时（" + timeoutSeconds + "s）");
         }
     }
 }
