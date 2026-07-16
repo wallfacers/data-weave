@@ -1,0 +1,51 @@
+# workhorse-agent 容器化配置模板（无敏感，进 git）。
+# secret（auth bearer / DeepSeek key）经 env 注入，不写此文件：
+#   WORKHORSE_AGENT_AUTH_BEARER_TOKEN / WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY
+server:
+  host: 0.0.0.0             # 容器内绑所有接口（同 docker network 内 master 经服务名寻址）
+  port: 8300
+  default_workdir: /var/lib/workhorse/agent-workdir
+  allowed_origins:          # 白名单收紧（替代 allow_null_origin）：master 服务名 origin
+    - http://dataweave-master:8000
+    - http://dataweave-master-2:8200
+
+providers:
+  default: anthropic
+  anthropic:
+    api_key: REPLACE_WITH_DEEPSEEK_KEY   # 占位；env WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY 覆盖
+    base_url: https://api.deepseek.com/anthropic
+    fast_model: deepseek-v4-flash
+
+models:
+  default: "anthropic:deepseek-v4-pro"
+  fast: "anthropic:deepseek-v4-flash"
+
+agent:
+  max_tokens: 8192
+  thinking:
+    enabled: true
+    budget_tokens: 4096
+
+# 双闸门（design D2）：粗闸对 dataweave__* allow_permanent；细闸由平台 PolicyEngine 守。
+# default_permission=deny_permanent：headless 无人应答 permission_request，非白名单工具自动拒（防 turn 挂死）。
+tools:
+  default_permission: "deny_permanent"
+  default_allowed_tools:
+    - Read
+    - Grep
+    - ToolSearch
+    - "dataweave__*"
+  preset_rules:
+    - tool: "dataweave__*"
+      pattern: "**"
+      decision: allow_permanent
+
+store:
+  path: /app/store.db          # 072 容器化:sqlite store 放可写 WORKDIR（原 default_workdir /var/lib 在容器不存在，致 CANTOPEN）
+mcp:
+  config_path: /app/mcp.json   # 容器内 mcp 配置（挂载或 COPY）
+agents:
+  dir: /app/agents             # companion.yaml 加载目录
+
+auth:
+  enabled: true                # bearer_token 经 env 注入，不写此文件

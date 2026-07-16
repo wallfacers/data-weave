@@ -45,7 +45,7 @@ class WorkhorseBrainClientStreamTest {
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));   // 多线程：GET 句柄挂起时不饿死 POST
         server.start();
         String base = "http://127.0.0.1:" + server.getAddress().getPort();
-        client = new WorkhorseBrainClient(base, "companion", 120, "");
+        client = new WorkhorseBrainClient(base, "companion", 120, "", "");
     }
 
     @AfterAll
@@ -124,7 +124,7 @@ class WorkhorseBrainClientStreamTest {
             Thread srv = new Thread(() -> rawHoldServer(ss), "raw-hold");
             srv.setDaemon(true);
             srv.start();
-            WorkhorseBrainClient c = new WorkhorseBrainClient("http://127.0.0.1:" + port, "companion", 120, "");
+            WorkhorseBrainClient c = new WorkhorseBrainClient("http://127.0.0.1:" + port, "companion", 120, "", "");
             long t0 = System.currentTimeMillis();
             assertThatThrownBy(() -> c.streamTurn("s5", "hi", 1, null))
                     .isInstanceOf(BrainTimeoutException.class);

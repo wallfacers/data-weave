@@ -136,10 +136,9 @@ services:
       SCHEDULER_DISPATCH_EXECUTOR_THREADS: "64"        # dispatchExecutor fan-out 下发(去 invokeAll 屏障)
       SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
       SCHEDULER_READINESS_MATERIALIZED: "true"         # 051 O(1) 认领路径门（测试集群；生产默认 false 待 no-loss 验完）
-      COMPANION_BRAIN_BASE_URL: http://host.docker.internal:8300   # 071 companion 大脑：宿主 workhorse sidecar（真 DeepSeek 推理）
-      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}                # bearer 认证 secret,值在项目根 .env(gitignored),与 workhorse auth.bearer_token 同值
-    extra_hosts:                                                    # Linux 必需：容器解析 host.docker.internal → 宿主网关，否则连不到宿主 8300 sidecar
-      - "host.docker.internal:host-gateway"
+      COMPANION_BRAIN_BASE_URL: http://workhorse:8300            # 072 容器化:workhorse 受管服务(服务名寻址,去 host.docker.internal 回连)
+      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}              # bearer 认证 secret,.env(gitignored),与 workhorse auth.bearer_token 同值
+      COMPANION_BRAIN_ORIGIN: http://dataweave-master:8000         # 072 origin 白名单:master 发服务名 origin,workhorse allowed_origins 匹配
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/api/health || exit 1"]
       interval: 5s
@@ -184,10 +183,9 @@ services:
       SCHEDULER_DISPATCH_EXECUTOR_THREADS: "64"        # dispatchExecutor fan-out 下发(去 invokeAll 屏障)
       SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
       SCHEDULER_READINESS_MATERIALIZED: "true"         # 051 O(1) 认领路径门（测试集群；生产默认 false 待 no-loss 验完）
-      COMPANION_BRAIN_BASE_URL: http://host.docker.internal:8300   # 071 companion 大脑：宿主 workhorse sidecar
-      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}                # bearer 认证 secret,见 .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      COMPANION_BRAIN_BASE_URL: http://workhorse:8300            # 072 容器化:workhorse 受管服务
+      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}              # bearer 认证 secret,见 .env
+      COMPANION_BRAIN_ORIGIN: http://dataweave-master-2:8200       # 072 origin 白名单(master-2 服务名)
     restart: unless-stopped
 
   # worker-1 / worker-2：服务名即 node-code（master 按 http://<node-code>:8100 下发）。
@@ -227,6 +225,26 @@ services:
       DATAWEAVE_WORKER_HEARTBEAT_ENABLED: "true"
       CLUSTER_AUTH_TOKEN: dataweave-local-cluster-token
       SCHEDULER_WORKER_SELF_FENCE_GRACE_MS: "120000"   # 容忍 master 重启窗口（默认 20s 太短，master 重启 30-40s 会触发 worker 误自杀）
+    restart: unless-stopped
+
+  # workhorse：071 运行态 companion 大脑 sidecar（072 容器化）。DeepSeek 推理在 sidecar，服务端零推理（constitution IV）。
+  # master 经服务名 http://workhorse:8300 寻址；auth bearer + origin 白名单见 deploy/workhorse/config.yaml。
+  # secret 经 env 注入（.env），镜像/config 模板无敏感。mcp.json/agents 挂载（US3 补 dataweave server 不需 rebuild）。
+  workhorse:
+    build:
+      context: ./deploy/workhorse
+    container_name: dataweave-workhorse
+    profiles: ["distributed"]
+    depends_on:
+      dataweave-master:
+        condition: service_healthy
+    ports:
+      - "8300:8300"
+    environment:
+      WORKHORSE_AGENT_AUTH_BEARER_TOKEN: ${COMPANION_BRAIN_TOKEN:-}
+      WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY: ${DEEPSEEK_API_KEY:-}
+    volumes:
+      - ./deploy/workhorse/agents:/app/agents:ro
     restart: unless-stopped
 
 volumes:
