@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { SSE_BASE } from "@/lib/types"
 import { readProjectId } from "@/lib/project-header"
 import { useCompanionStore } from "./store"
+import { fetchMessages } from "./api"
 import type {
   SnapshotData,
   StateEvent,
@@ -51,6 +52,11 @@ export function useCompanionStream() {
       useCompanionStore.getState().setBriefing(d.briefing)
       useCompanionStore.getState().setReports(d.reports ?? [])
       useCompanionStore.getState().setConnection("live")
+      // 会话历史加载：snapshot 只带 reports 不带消息，另拉历史合并进线程（按 id 去重，
+      // 与实时 message/delta 不冲突；重连重复调用由 setMessages 幂等吸收）。
+      fetchMessages({ limit: 100 })
+        .then((list) => useCompanionStore.getState().setMessages(list))
+        .catch(() => {})
     })
 
     es.addEventListener("state", (e: MessageEvent) => {

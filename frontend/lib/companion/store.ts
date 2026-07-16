@@ -29,6 +29,9 @@ interface CompanionStore {
 
   /** 全局消息 */
   messages: MessageView[]
+  /** 整表合并写入并按 id 去重（历史加载用）；在途流（较长 content）不被历史短快照覆盖 */
+  setMessages: (list: MessageView[]) => void
+  /** 幂等追加：已存在 id 则覆盖（在途流优先），否则追加 */
   addMessage: (m: MessageView) => void
   /** 追加流式 chunk 到最新一条消息 */
   appendDelta: (messageId: string, chunk: string) => void
@@ -36,6 +39,10 @@ interface CompanionStore {
   endMessage: (messageId: string, interrupted: boolean) => void
   /** 进行中的流式消息 id(turnId);null=无在途流(驱动发送-停止状态机与播报) */
   streamingId: string | null
+
+  /** 当前锚定的问题 id（null=全局对话）；驱动 sendChat 是否带 reportId 与线程锚定头 */
+  anchorReportId: string | null
+  setAnchor: (reportId: string | null) => void
 
   /** SSE 连接状态 */
   connection: ConnectionStatus
@@ -62,11 +69,36 @@ export const useCompanionStore = create<CompanionStore>((set) => ({
       return { reports: [r, ...s.reports] }
     }),
   removeReport: (id) =>
-    set((s) => ({ reports: s.reports.filter((r) => r.id !== id) })),
+    set((s) => ({
+      reports: s.reports.filter((r) => r.id !== id),
+      // 当前锚定问题被（他人）关闭 → 回落全局对话
+      anchorReportId: s.anchorReportId === id ? null : s.anchorReportId,
+    })),
 
   messages: [],
+  setMessages: (list) =>
+    set((s) => {
+      // 合并 union by id：保留在途流（较长 content）不被历史短快照覆盖
+      const byId = new Map<string, MessageView>()
+      for (const m of s.messages) byId.set(m.id, m)
+      for (const m of list) {
+        const prev = byId.get(m.id)
+        if (prev && prev.content.length > m.content.length) continue
+        byId.set(m.id, m)
+      }
+      return { messages: Array.from(byId.values()) }
+    }),
   addMessage: (m) =>
-    set((s) => ({ messages: [...s.messages, m] })),
+    set((s) => {
+      const idx = s.messages.findIndex((x) => x.id === m.id)
+      if (idx < 0) return { messages: [...s.messages, m] }
+      // 幂等：已存在（如历史已载入）则覆盖，但在途流较长 content 优先
+      const prev = s.messages[idx]
+      if (prev.content.length > m.content.length) return { messages: s.messages }
+      const next = [...s.messages]
+      next[idx] = m
+      return { messages: next }
+    }),
   appendDelta: (messageId, chunk) =>
     set((s) => {
       const idx = s.messages.findIndex((m) => m.id === messageId)
@@ -97,6 +129,9 @@ export const useCompanionStore = create<CompanionStore>((set) => ({
       return { messages: next, streamingId: null }
     }),
   streamingId: null,
+
+  anchorReportId: null,
+  setAnchor: (reportId) => set({ anchorReportId: reportId }),
 
   connection: "disconnected",
   setConnection: (c) => set({ connection: c }),

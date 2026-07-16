@@ -34,6 +34,7 @@ describe("useCompanionStore", () => {
       briefing: { todayRuns: 0, openAnomalies: 0, nextPatrolAt: null },
       reports: [],
       messages: [],
+      anchorReportId: null,
       connection: "disconnected",
     })
   })
@@ -140,5 +141,58 @@ describe("useCompanionStore", () => {
     expect(msgs).toHaveLength(1)
     expect(msgs[0].id).toBe("early")
     expect(msgs[0].content).toBe("chunk")
+  })
+
+  /* ── 073 US1/US3 Foundational：历史合并去重 + 幂等 + 锚定 ── */
+
+  it("setMessages 合并历史并按 id 去重（实时+历史不重复）", () => {
+    // 已有一条实时消息
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m1", content: "live" }))
+    // 历史加载返回 m1（重复）+ m2（新）
+    useCompanionStore.getState().setMessages([
+      makeMessage({ id: "m1", content: "live" }),
+      makeMessage({ id: "m2", content: "history" }),
+    ])
+    const msgs = useCompanionStore.getState().messages
+    expect(msgs).toHaveLength(2)
+    expect(msgs.map((m) => m.id).sort()).toEqual(["m1", "m2"])
+  })
+
+  it("setMessages 不用历史短快照覆盖在途流的较长 content", () => {
+    // 在途流已累积较长内容
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m1", content: "streamed long content" }))
+    // 历史返回同 id 的较短（旧）快照
+    useCompanionStore.getState().setMessages([makeMessage({ id: "m1", content: "short" })])
+    expect(useCompanionStore.getState().messages[0].content).toBe("streamed long content")
+  })
+
+  it("addMessage 幂等：重复 id 覆盖而非新增", () => {
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m1", content: "v1" }))
+    useCompanionStore.getState().addMessage(makeMessage({ id: "m1", content: "v2 longer" }))
+    const msgs = useCompanionStore.getState().messages
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0].content).toBe("v2 longer")
+  })
+
+  it("setAnchor 设/清锚定问题", () => {
+    useCompanionStore.getState().setAnchor("r1")
+    expect(useCompanionStore.getState().anchorReportId).toBe("r1")
+    useCompanionStore.getState().setAnchor(null)
+    expect(useCompanionStore.getState().anchorReportId).toBeNull()
+  })
+
+  it("removeReport 命中当前锚定 → 回落全局（anchorReportId=null）", () => {
+    useCompanionStore.getState().addReport(makeReport({ id: "r1" }))
+    useCompanionStore.getState().setAnchor("r1")
+    useCompanionStore.getState().removeReport("r1")
+    expect(useCompanionStore.getState().anchorReportId).toBeNull()
+  })
+
+  it("removeReport 未命中锚定 → 锚定保持", () => {
+    useCompanionStore.getState().addReport(makeReport({ id: "r1" }))
+    useCompanionStore.getState().addReport(makeReport({ id: "r2" }))
+    useCompanionStore.getState().setAnchor("r1")
+    useCompanionStore.getState().removeReport("r2")
+    expect(useCompanionStore.getState().anchorReportId).toBe("r1")
   })
 })
