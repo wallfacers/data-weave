@@ -175,6 +175,10 @@ public class WorkhorseBrainClient implements CompanionBrain {
         return HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
+                // workhorse non-loopback bind（0.0.0.0）对 /v1/* 强制 Origin 校验防 CSRF；master 是服务端调用
+                // 无浏览器 Origin，缺失会被 origin_forbidden 403。发 "null"(opaque origin)，配 workhorse
+                // allow_null_origin: true 放行。本地联调；生产应改 allowed_origins 白名单收紧。
+                .header("Origin", "null")
                 .method(method, HttpRequest.BodyPublishers.noBody());
     }
 
@@ -200,7 +204,9 @@ public class WorkhorseBrainClient implements CompanionBrain {
         // 1. 开 GET 订阅（ofInputStream：headers 到达即返回，body 惰性流式）
         HttpRequest getReq = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/sessions/" + sessionId + "/stream"))
                 .timeout(Duration.ofSeconds(Math.max(5, timeoutSeconds)))
-                .header("Accept", "text/event-stream").GET().build();
+                .header("Accept", "text/event-stream")
+                .header("Origin", "null")   // 同 jsonRequest：non-loopback /v1/* Origin 校验
+                .GET().build();
         HttpResponse<java.io.InputStream> resp = http.send(getReq, HttpResponse.BodyHandlers.ofInputStream());
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
             throw new IllegalStateException("stream http " + resp.statusCode());
