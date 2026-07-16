@@ -16,8 +16,8 @@
 
 **Purpose**: secret 与构建素材就位
 
-- [ ] T001 配置项目根 `.env`(gitignored)加 `DEEPSEEK_API_KEY=<deepseek-key>` 与 `COMPANION_BRAIN_ORIGIN=http://dataweave-master:8000`
-- [ ] T002 [P] 确认 `deploy/workhorse/bin/workhorse-agent-linux-amd64` 存在(否则跑 fetch-bin.sh 获取)
+- [x] T001 配置项目根 `.env`(gitignored)加 `DEEPSEEK_API_KEY=<deepseek-key>` 与 `COMPANION_BRAIN_ORIGIN=http://dataweave-master:8000`
+- [x] T002 [P] 确认 `deploy/workhorse/bin/workhorse-agent-linux-amd64` 存在(否则跑 fetch-bin.sh 获取)
 
 ---
 
@@ -27,8 +27,8 @@
 
 **⚠️ CRITICAL**: 未完成则 US1/US2/US3 不能开始
 
-- [ ] T003 创建 `deploy/workhorse/config.yaml` 模板(无敏感):`server.host: 0.0.0.0` + `port: 8300`、`providers.anthropic.{base_url: https://api.deepseek.com/anthropic, fast_model: deepseek-v4-flash, api_key: REPLACE}`、`models.default: anthropic:deepseek-v4-pro`、`allowed_origins: [http://dataweave-master:8000, http://dataweave-master-2:8200]`、`mcp.config_path: /app/mcp.json`、`agents.dir: /app/agents`、`auth.enabled: true`(bearer_token 走 env 不写文件)
-- [ ] T004 创建 `deploy/workhorse/Dockerfile`:`FROM alpine:3` + `apk add bash ca-certificates` + `COPY bin/workhorse-agent-linux-amd64 /app/workhorse-agent` + `COPY config.yaml mcp.json /app/` + `COPY agents /app/agents` + `chmod +x` + `ENTRYPOINT ["/app/workhorse-agent"]` + `CMD ["serve","--config","/app/config.yaml","--host","0.0.0.0","--port","8300"]`(依赖 T003 的 config.yaml)
+- [x] T003 创建 `deploy/workhorse/config.yaml` 模板(无敏感):`server.host: 0.0.0.0` + `port: 8300`、`providers.anthropic.{base_url: https://api.deepseek.com/anthropic, fast_model: deepseek-v4-flash, api_key: REPLACE}`、`models.default: anthropic:deepseek-v4-pro`、`allowed_origins: [http://dataweave-master:8000, http://dataweave-master-2:8200]`、`mcp.config_path: /app/mcp.json`、`agents.dir: /app/agents`、`auth.enabled: true`(bearer_token 走 env 不写文件)
+- [x] T004 创建 `deploy/workhorse/Dockerfile`:`FROM alpine:3` + `apk add bash ca-certificates` + `COPY bin/workhorse-agent-linux-amd64 /app/workhorse-agent` + `COPY config.yaml mcp.json /app/` + `COPY agents /app/agents` + `chmod +x` + `ENTRYPOINT ["/app/workhorse-agent"]` + `CMD ["serve","--config","/app/config.yaml","--host","0.0.0.0","--port","8300"]`(依赖 T003 的 config.yaml)
 
 **Checkpoint**: 镜像可构建、配置模板无敏感,US 可开始
 
@@ -42,9 +42,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] `docker-compose.yml` 加 `workhorse` 服务:`profiles: ["distributed"]`、`build: ./deploy/workhorse`、`depends_on: dataweave-master(service_healthy)`、`environment: {WORKHORSE_AGENT_AUTH_BEARER_TOKEN: ${COMPANION_BRAIN_TOKEN:-}, WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY: ${DEEPSEEK_API_KEY:-}}`、`volumes: [./deploy/workhorse/mcp.json:/app/mcp.json:ro, ./deploy/workhorse/agents:/app/agents:ro]`、可选 `ports: ["8300:8300"]`
-- [ ] T006 [US1] `docker-compose.yml` 两 master(`dataweave-master` / `dataweave-master-2`):`COMPANION_BRAIN_BASE_URL` 改 `http://workhorse:8300`,**删 `extra_hosts: host.docker.internal:host-gateway`**
-- [ ] T007 [US1] 验证:`docker compose --profile distributed build workhorse` + `up -d`;workhorse healthy;容器内服务名寻址通;grep 确认 docker-compose 无 `host.docker.internal`
+- [x] T005 [US1] `docker-compose.yml` 加 `workhorse` 服务:`profiles: ["distributed"]`、`build: ./deploy/workhorse`、`depends_on: dataweave-master(service_healthy)`、`environment: {WORKHORSE_AGENT_AUTH_BEARER_TOKEN: ${COMPANION_BRAIN_TOKEN:-}, WORKHORSE_AGENT_PROVIDERS_ANTHROPIC_API_KEY: ${DEEPSEEK_API_KEY:-}}`、`volumes: [./deploy/workhorse/mcp.json:/app/mcp.json:ro, ./deploy/workhorse/agents:/app/agents:ro]`、可选 `ports: ["8300:8300"]`
+- [x] T006 [US1] `docker-compose.yml` 两 master(`dataweave-master` / `dataweave-master-2`):`COMPANION_BRAIN_BASE_URL` 改 `http://workhorse:8300`,**删 `extra_hosts: host.docker.internal:host-gateway`**
+- [x] T007 [US1] 验证:`docker compose --profile distributed build workhorse` + `up -d`;workhorse healthy;容器内服务名寻址通;grep 确认 docker-compose 无 `host.docker.internal`
 
 **Checkpoint**: US1 完成 —— 单命令起全栈(含 workhorse 受管服务),服务名寻址
 
@@ -60,11 +60,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T008 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/companion/infrastructure/WorkhorseBrainClient.java`:`Origin` 头从硬编码 `"null"` 改读 `@Value("${companion.brain.origin:}")`(空则不发头,本地 h2/IT 零影响),`jsonRequest()` 与 `streamTurn` 的 GET 两处
-- [ ] T009 [P] [US2] `docker-compose.yml` 两 master 加 `COMPANION_BRAIN_ORIGIN: http://dataweave-master:8000`(master-2 用 `:8200`)
-- [ ] T010 [US2] `deploy/workhorse/config.yaml` 与 `deploy/workhorse/config.runtime.yaml`(gitignored,serve-local 用):确认 `allowed_origins: [http://dataweave-master:8000, http://dataweave-master-2:8200]`,**删 `allow_null_origin: true`**
-- [ ] T011 [US2] 重打 backend:`mvnd -pl dataweave-api -am clean package -DskipTests -Dmaven.build.cache.enabled=false`(禁 build-cache 防 repackage 假绿)→ `docker compose --profile distributed build dataweave-master` → `up -d`(依赖 T008 代码改完)
-- [ ] T012 [US2] 验证:无 token 401 / 无 Origin 403 / 带过 201;审查镜像与代码库无可读 secret
+- [x] T008 [US2] `backend/dataweave-master/src/main/java/com/dataweave/master/companion/infrastructure/WorkhorseBrainClient.java`:`Origin` 头从硬编码 `"null"` 改读 `@Value("${companion.brain.origin:}")`(空则不发头,本地 h2/IT 零影响),`jsonRequest()` 与 `streamTurn` 的 GET 两处
+- [x] T009 [P] [US2] `docker-compose.yml` 两 master 加 `COMPANION_BRAIN_ORIGIN: http://dataweave-master:8000`(master-2 用 `:8200`)
+- [x] T010 [US2] `deploy/workhorse/config.yaml` 与 `deploy/workhorse/config.runtime.yaml`(gitignored,serve-local 用):确认 `allowed_origins: [http://dataweave-master:8000, http://dataweave-master-2:8200]`,**删 `allow_null_origin: true`**
+- [x] T011 [US2] 重打 backend:`mvnd -pl dataweave-api -am clean package -DskipTests -Dmaven.build.cache.enabled=false`(禁 build-cache 防 repackage 假绿)→ `docker compose --profile distributed build dataweave-master` → `up -d`(依赖 T008 代码改完)
+- [x] T012 [US2] 验证:无 token 401 / 无 Origin 403 / 带过 201;审查镜像与代码库无可读 secret
 
 **Checkpoint**: US2 完成 —— 未授权 100% 拒,凭据不出后端
 
@@ -80,8 +80,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] `deploy/workhorse/mcp.json`(gitignored)加 dataweave server:对照 `workhorse-agent init` 产物确认格式,填 `{type:http, url:http://dataweave-master:8000/mcp, headers:{Authorization:"Bearer dataweave-local-mcp-token"}}`;后端 `mcp.auth.token` 本地默认值,生产覆盖
-- [ ] T014 [US3] 验证:workhorse 日志见 `dataweave` MCP server 已加载;触发一轮巡检,workhorse 经 `dataweave__query_*` 查真实数据,汇报引用真实对象(非兜底);写动作经 PolicyEngine(发诱发写的消息验证审批/直执)
+- [x] T013 [US3] `deploy/workhorse/mcp.json`(gitignored)加 dataweave server:对照 `workhorse-agent init` 产物确认格式,填 `{type:http, url:http://dataweave-master:8000/mcp, headers:{Authorization:"Bearer dataweave-local-mcp-token"}}`;后端 `mcp.auth.token` 本地默认值,生产覆盖
+- [x] T014 [US3] 验证:workhorse 日志见 `dataweave` MCP server 已加载;触发一轮巡检,workhorse 经 `dataweave__query_*` 查真实数据,汇报引用真实对象(非兜底);写动作经 PolicyEngine(发诱发写的消息验证审批/直执)
 
 **Checkpoint**: US3 完成 —— 巡检基于真实数据
 

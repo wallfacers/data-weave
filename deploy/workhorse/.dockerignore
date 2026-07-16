@@ -1,0 +1,6 @@
+# 排除含真 secret 的本地配置（不进 docker build context，防泄露）
+config.runtime.yaml
+config.local.yaml
+.env*
+serve-local.sh
+*.log
