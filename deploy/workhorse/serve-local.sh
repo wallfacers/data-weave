@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # 启动真 workhorse sidecar —— DataWeave 071 companion 大脑(DeepSeek 推理)。
-# 可重入:先杀占用 8300 的旧进程(用 ss 取 pid,避免 pkill -f 自杀),再 setsid 脱离启动。
-# 日志 → 项目根 tmp/wh.log。bind 0.0.0.0 让 docker 内 master 经 host.docker.internal 回连。
 #
-# 前置(已固化,见 config.runtime.yaml)：
-#   - providers: DeepSeek /anthropic 端点 + key
-#   - server.host: 0.0.0.0  +  allow_null_origin: true（non-loopback Origin 校验）
-#   - mcp.json: 空 servers（巡检无平台只读工具→兜底 INFO「未完成」；对话不受影响）
-# 配套(master 侧)：WorkhorseBrainClient 发 Origin:null + docker-compose COMPANION_BRAIN_BASE_URL + extra_hosts host-gateway。
+# 【两种部署形态(072 收口后)】
+#   - 标准/生产:docker compose(distributed profile)的 workhorse 受管服务(见 docker-compose.yml),
+#     master 经服务名 http://workhorse:8300 寻址。优先用此。
+#   - 本脚本(serve-local.sh):裸机本地调试备选,非容器(快速改 config.runtime 重启,不走 docker)。
+#     容器化部署时勿启动本脚本(与 workhorse 容器争 8300)。二者配置对齐(allowed_origins 白名单 + bearer + mcp servers)。
+#
+# 可重入:先杀占用 8300 的旧进程(用 ss 取 pid,避免 pkill -f 自杀),再 setsid 脱离启动。
+# 日志 → 项目根 tmp/wh.log。bind 0.0.0.0(non-loopback,配 allowed_origins 白名单收紧)。
+#
+# 前置(见 config.runtime.yaml):providers DeepSeek + allowed_origins 白名单 + auth.enabled + mcp servers(dataweave→/mcp)。
+# 配套(master 侧):WorkhorseBrainClient 发 Origin(白名单)+ Bearer + docker-compose COMPANION_BRAIN_BASE_URL/COMPANION_BRAIN_ORIGIN。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WH_ROOT="$(cd "$DIR/../.." && pwd)"   # data-weave 根

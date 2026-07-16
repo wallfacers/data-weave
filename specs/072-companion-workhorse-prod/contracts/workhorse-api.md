@@ -33,3 +33,14 @@
 - workhorse 启动时连 `/mcp`,加载 `dataweave__*` 工具注册表。
 - 巡检:`WorkhorseBrainClient.buildPatrolPrompt` 把 `project_id` 注入提示;workhorse 调 `dataweave__query_*` 时 `project_id` 作工具参数传;tenant 由 mcp-token 绑定(=1)。
 - 写动作:workhorse 调 `dataweave__` 写工具 → 后端 PolicyEngine 裁决(L1 直执 / L2·L3 审批 / L4 拒)+ `agent_action` 审计;sidecar 不绕闸门。
+
+### mcp.json 格式(workhorse 特有,非 standard mcpServers)
+
+workhorse mcp.json 顶层是 `{"servers":[ServerConfig]}` **数组**(非 standard MCP `{"mcpServers":{name:...}}` map);认证用 `auth_header` **单字符串**(Authorization header 的**值**,如 `"Bearer xxx"`,**不带** `Authorization:` 前缀 —— `transport_http.go:84 Header.Set("Authorization", authHeader)`)。来源:`workhorse-agent/internal/mcp/host.go` ServerConfig/HostConfig。填 standard 格式会静默空加载(不报错)或 401。
+
+```json
+{ "servers": [ { "name":"dataweave", "enabled":true, "transport":"http",
+  "url":"http://dataweave-master:8000/mcp", "auth_header":"Bearer dataweave-local-mcp-token",
+  "always_load":true } ] }
+```
+

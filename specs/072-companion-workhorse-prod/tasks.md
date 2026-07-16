@@ -91,9 +91,9 @@
 
 **Purpose**: 降级、文档、全场景验证
 
-- [ ] T015 验证降级(SC-005 / constitution IV ③):停 workhorse(`docker compose stop workhorse`),平台任务调度照常、运行态观测面板不报错、companion 优雅降级
-- [ ] T016 [P] `deploy/workhorse/serve-local.sh` 顶部注释补两种部署形态说明(容器 = 标准/生产;裸机 serve-local.sh = 本地快速调试)
-- [ ] T017 跑 `specs/072-companion-workhorse-prod/quickstart.md` 全 5 场景验证(P1 部署 / P2 收紧 / 对话 / P3 真实数据 / 降级)
+- [x] T015 验证降级(SC-005 / constitution IV ③):停 workhorse(`docker compose stop workhorse`),平台任务调度照常、运行态观测面板不报错、companion 优雅降级
+- [x] T016 [P] `deploy/workhorse/serve-local.sh` 顶部注释补两种部署形态说明(容器 = 标准/生产;裸机 serve-local.sh = 本地快速调试)
+- [x] T017 跑 `specs/072-companion-workhorse-prod/quickstart.md` 全 5 场景验证(P1 部署 / P2 收紧 / 对话 / P3 真实数据 / 降级)
 
 ---
 
