@@ -26,6 +26,10 @@
 
 **Constraints**: 复用既有后端契约零改动；管家视图为 DESIGN.md 071 书面豁免沉浸式表面（会话面板复用半透明玻璃容器，不套标准 `Card`）；文案双语键集一致、时间走 `useFormatDateTime`、进行中态禁用省略号 `…`；亮/暗双主题即时切换。
 
+**设计合规（硬约束，用户明确要求）**：
+- **所有滚动区一律用 `DwScroll`（`components/ui/dw-scroll.tsx`，OverlayScrollbars）——禁止手写 `overflow-y:auto` / WebKit 滚动条伪元素**。会话线程、问题列表两处滚动区必须 `<DwScroll>…</DwScroll>` 包裹。现状 `report-stack.tsx` / `report-card.tsx` 的裸 `overflow-y-auto` 随其退役一并消除。
+- 前端原语一律复用 DESIGN.md 目录既有规范组件：`Button`（base-style，`render` 而非 `asChild`）、`Input`、图标走 hugeicons（`HugeiconsIcon` + `@hugeicons/core-free-icons`，非 lucide）、语义 token（`bg-primary`/`text-muted-foreground`）、`gap-*` 间距、`size-*` 等宽高，无手写 `dark:` 覆盖。实现前先查 DESIGN.md 目录，缺能力才新建并回填目录条目。
+
 **Scale/Scope**: 单个 Tab 视图；新增约 4 个前端组件 + store 3 处扩展 + i18n 双语键；退役 `report-stack.tsx`/`report-card.tsx`（迷你对话卡片）。
 
 ## Constitution Check
