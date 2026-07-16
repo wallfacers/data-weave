@@ -1,6 +1,5 @@
 package com.dataweave.master.application;
 
-import com.dataweave.master.application.incident.IncidentEventPublisher;
 import com.dataweave.master.domain.AgentAction;
 import com.dataweave.master.domain.TaskDef;
 import com.dataweave.master.domain.TaskDefRepository;
@@ -9,18 +8,9 @@ import com.dataweave.master.domain.TaskInstanceRepository;
 import com.dataweave.master.domain.WorkerNode;
 import com.dataweave.master.domain.WorkflowDef;
 import com.dataweave.master.domain.WorkflowDefRepository;
-import com.dataweave.master.domain.incident.Incident;
-import com.dataweave.master.domain.incident.IncidentEvent;
-import com.dataweave.master.domain.incident.IncidentProposal;
-import com.dataweave.master.domain.incident.IncidentStates;
-import com.dataweave.master.domain.incident.MessageKinds;
-import com.dataweave.master.domain.incident.ProposalStatuses;
 import com.dataweave.master.i18n.BizException;
 import com.dataweave.master.i18n.Messages;
 import com.dataweave.master.infrastructure.CheckpointRepository;
-import com.dataweave.master.infrastructure.incident.IncidentMessageRepository;
-import com.dataweave.master.infrastructure.incident.IncidentProposalRepository;
-import com.dataweave.master.infrastructure.incident.IncidentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
@@ -68,10 +58,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
     private final Messages messages;
     private final TaskDefRepository taskDefRepository;
     private final CheckpointRepository checkpointRepository;
-    private final IncidentRepository incidentRepository;
-    private final IncidentProposalRepository incidentProposalRepository;
-    private final IncidentMessageRepository incidentMessageRepository;
-    private final IncidentEventPublisher incidentEventPublisher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DefaultPlatformActionExecutor(TaskInstanceRepository instanceRepository,
@@ -89,11 +75,7 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                                          ObjectProvider<BackfillService> backfillService,
                                          Messages messages,
                                          TaskDefRepository taskDefRepository,
-                                         CheckpointRepository checkpointRepository,
-                                         IncidentRepository incidentRepository,
-                                         IncidentProposalRepository incidentProposalRepository,
-                                         IncidentMessageRepository incidentMessageRepository,
-                                         IncidentEventPublisher incidentEventPublisher) {
+                                         CheckpointRepository checkpointRepository) {
         this.instanceRepository = instanceRepository;
         this.fleetService = fleetService;
         this.taskService = taskService;
@@ -110,10 +92,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
         this.messages = messages;
         this.taskDefRepository = taskDefRepository;
         this.checkpointRepository = checkpointRepository;
-        this.incidentRepository = incidentRepository;
-        this.incidentProposalRepository = incidentProposalRepository;
-        this.incidentMessageRepository = incidentMessageRepository;
-        this.incidentEventPublisher = incidentEventPublisher;
     }
 
     @Override
@@ -143,17 +121,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
             case "LINEAGE_EDGE_REMOVE" -> lineageCorrection(action, "REMOVE", locale);
             case "LINEAGE_CORRECTION_REVOKE" -> lineageCorrection(action, "REVOKE", locale);
             case "BACKFILL" -> backfill(action, locale);
-            // 069 运维 Agent 自愈动作：targetType=TASK_INSTANCE（rerun/resume-checkpoint/reverify）
-            // 或 TASK（adjust-resources 改 task_def）；command 携带结构化参数（同 backfill/lineage 惯例）。
-            case "INCIDENT_RERUN", "INCIDENT_REVERIFY" -> incidentRerun(action, locale);
-            case "INCIDENT_ADJUST_RESOURCES" -> incidentAdjustResources(action, locale);
-            case "INCIDENT_RESUME_CHECKPOINT" -> incidentResumeCheckpoint(action, locale);
-            case "INCIDENT_PUBLISH_FIX" -> incidentPublishFix(action, locale);
-            // 070 打断 Agent 输出轮次：闸门此处仅留痕+L0 裁决（真正置位取消标志在 ConversationService，
-            // 因其持有进程内轮次注册表）。故此处为确认性 ack，避免落入 unsupported-action。
-            case "INCIDENT_AGENT_CANCEL" -> new ExecOutcome(true,
-                    messages.get("executor.incident.cancel.done", locale),
-                    json(Map.of("actionType", "INCIDENT_AGENT_CANCEL")), null);
             default -> {
                 // 021-alert SPI 兜底委派：遍历业务模块注入的 handler（如 alert 的 AlertActionHandler）
                 for (PlatformActionHandler h : handlers) {
@@ -520,193 +487,6 @@ public class DefaultPlatformActionExecutor implements PlatformActionExecutor {
                     messages.get("executor.ops_task.failed", locale, op, String.valueOf(e.getMessage())),
                     json(Map.of("error", op + "_failed", "detail", String.valueOf(e.getMessage()))), null);
         }
-    }
-
-    // ---- 069 运维 Agent 自愈动作 ----
-
-    /** incident_rerun / incident_reverify：targetId=taskInstanceId，直接复用 OpsService.rerunInstance。 */
-    private ExecOutcome incidentRerun(AgentAction action, Locale locale) {
-        UUID id = parseUuid(action.getTargetId());
-        if (id == null) {
-            return new ExecOutcome(false,
-                    messages.get("executor.ops_task.bad_id", locale, action.getTargetId()),
-                    json(Map.of("error", "bad_instance_id", "actionType", action.getActionType())), null);
-        }
-        try {
-            TaskInstance ti = opsService.getObject().rerunInstance(id);
-            return new ExecOutcome(true,
-                    messages.get("executor.ops_task.rerun", locale, ti.getState()),
-                    json(Map.of("taskInstanceId", id.toString(), "state", String.valueOf(ti.getState()))), id);
-        } catch (RuntimeException e) {
-            return new ExecOutcome(false,
-                    messages.get("executor.ops_task.failed", locale, "rerun", String.valueOf(e.getMessage())),
-                    json(Map.of("error", "rerun_failed", "detail", String.valueOf(e.getMessage()))), null);
-        }
-    }
-
-    /** incident_resume_checkpoint：targetId=taskInstanceId，command={"checkpointId":"..."}。 */
-    @SuppressWarnings("unchecked")
-    private ExecOutcome incidentResumeCheckpoint(AgentAction action, Locale locale) {
-        UUID instanceId = parseUuid(action.getTargetId());
-        if (instanceId == null) {
-            return new ExecOutcome(false,
-                    messages.get("executor.ops_task.bad_id", locale, action.getTargetId()),
-                    json(Map.of("error", "bad_instance_id", "actionType", action.getActionType())), null);
-        }
-        UUID checkpointId;
-        try {
-            Map<String, Object> payload = objectMapper.readValue(action.getCommand(), new TypeReference<Map<String, Object>>() {});
-            checkpointId = parseUuid(String.valueOf(payload.get("checkpointId")));
-        } catch (Exception e) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, String.valueOf(e.getMessage())),
-                    json(Map.of("error", "bad_command", "detail", String.valueOf(e.getMessage()))), null);
-        }
-        if (checkpointId == null) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, "checkpointId"),
-                    json(Map.of("error", "missing_checkpoint_id")), null);
-        }
-        try {
-            TaskInstance ti = opsService.getObject().resumeFromCheckpoint(instanceId, checkpointId);
-            return new ExecOutcome(true,
-                    messages.get("executor.ops_task.rerun", locale, ti.getState()),
-                    json(Map.of("taskInstanceId", instanceId.toString(), "checkpointId", checkpointId.toString(),
-                            "state", String.valueOf(ti.getState()))), instanceId);
-        } catch (RuntimeException e) {
-            return new ExecOutcome(false,
-                    messages.get("executor.ops_task.failed", locale, "resume_from_checkpoint", String.valueOf(e.getMessage())),
-                    json(Map.of("error", "resume_from_checkpoint_failed", "detail", String.valueOf(e.getMessage()))), null);
-        }
-    }
-
-    /**
-     * incident_adjust_resources：targetId=taskDefId，command={"instanceId","memoryMb","cpuCores"}。
-     * 改 task_def.resources_json + 落新版本快照（不上线，snapshot-only）+ 重跑最新失败实例（护栏已在
-     * RemediationPlanner 校验过，本层只负责执行）。
-     */
-    @SuppressWarnings("unchecked")
-    private ExecOutcome incidentAdjustResources(AgentAction action, Locale locale) {
-        Long taskId = parseLongOrNull(action.getTargetId());
-        if (taskId == null) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, "taskId"),
-                    json(Map.of("error", "bad_task_id", "actionType", action.getActionType())), null);
-        }
-        Map<String, Object> payload;
-        try {
-            payload = objectMapper.readValue(action.getCommand(), new TypeReference<Map<String, Object>>() {});
-        } catch (Exception e) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, String.valueOf(e.getMessage())),
-                    json(Map.of("error", "bad_command", "detail", String.valueOf(e.getMessage()))), null);
-        }
-        UUID instanceId = parseUuid(String.valueOf(payload.get("instanceId")));
-        Object memoryMbObj = payload.get("memoryMb");
-        Object cpuCoresObj = payload.get("cpuCores");
-        if (instanceId == null || !(memoryMbObj instanceof Number) || !(cpuCoresObj instanceof Number)) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, "instanceId/memoryMb/cpuCores"),
-                    json(Map.of("error", "missing_params")), null);
-        }
-        TaskDef task = taskDefRepository.findById(taskId).orElse(null);
-        if (task == null) {
-            return new ExecOutcome(false,
-                    messages.get("task.not_found", locale, taskId),
-                    json(Map.of("error", "task_not_found", "taskId", taskId)), null);
-        }
-        String resourcesJson = json(Map.of(
-                "memoryMb", ((Number) memoryMbObj).intValue(), "cpuCores", ((Number) cpuCoresObj).intValue()));
-        task.setResourcesJson(resourcesJson);
-        taskDefRepository.save(task);
-        taskService.writeTaskVersionSnapshot(task, null, "069 运维 Agent 自动调资源（护栏内自愈）");
-        try {
-            TaskInstance ti = opsService.getObject().rerunInstance(instanceId);
-            return new ExecOutcome(true,
-                    messages.get("executor.ops_task.rerun", locale, ti.getState()),
-                    json(Map.of("taskId", taskId, "taskInstanceId", instanceId.toString(),
-                            "resourcesJson", resourcesJson, "state", String.valueOf(ti.getState()))), instanceId);
-        } catch (RuntimeException e) {
-            // 资源已调整落盘（不回滚——下次运行即生效），仅重跑本身失败需如实反馈
-            return new ExecOutcome(false,
-                    messages.get("executor.ops_task.failed", locale, "adjust_resources_rerun", String.valueOf(e.getMessage())),
-                    json(Map.of("error", "rerun_after_adjust_failed", "detail", String.valueOf(e.getMessage()),
-                            "resourcesJson", resourcesJson)), null);
-        }
-    }
-
-    /**
-     * incident_publish_fix（T023，L3 批准后执行）：targetId=proposalId，command={"incidentId":"..."}。
-     * 基线陈旧校验（task_def.currentVersionNo != proposal.baseVersionNo → STALE+转人工）→ 落新版本快照 →
-     * 重跑同一 latestInstanceId 验证（{@code OpsService.rerunInstance} 原地复用实例，无需回写事故 latest_instance_id）→
-     * 事故 AWAITING_APPROVAL→ACTING（交回 {@code IncidentAgentService.actOrVerify} 的 PUBLISHED 提案验证分支收尾）。
-     */
-    @SuppressWarnings("unchecked")
-    private ExecOutcome incidentPublishFix(AgentAction action, Locale locale) {
-        UUID proposalId = parseUuid(action.getTargetId());
-        UUID incidentId;
-        try {
-            Map<String, Object> payload = objectMapper.readValue(action.getCommand(), new TypeReference<Map<String, Object>>() {});
-            incidentId = parseUuid(String.valueOf(payload.get("incidentId")));
-        } catch (Exception e) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, String.valueOf(e.getMessage())),
-                    json(Map.of("error", "bad_command", "detail", String.valueOf(e.getMessage()))), null);
-        }
-        IncidentProposal proposal = proposalId == null ? null : incidentProposalRepository.findById(proposalId).orElse(null);
-        if (proposal == null || incidentId == null) {
-            return new ExecOutcome(false,
-                    messages.get("executor.incident.bad_command", locale, "proposalId/incidentId"),
-                    json(Map.of("error", "proposal_or_incident_not_found")), null);
-        }
-        TaskDef task = taskDefRepository.findById(proposal.taskDefId()).orElse(null);
-        if (task == null) {
-            incidentRepository.casState(incidentId, IncidentStates.AWAITING_APPROVAL, IncidentStates.NEEDS_HUMAN);
-            appendIncidentMessage(incidentId, MessageKinds.SYSTEM, "任务定义已被删除，修复提案无法发布，转人工介入", null, "system");
-            return new ExecOutcome(false, messages.get("task.not_found", locale, proposal.taskDefId()),
-                    json(Map.of("error", "task_not_found")), null);
-        }
-        Integer currentVersion = task.getCurrentVersionNo();
-        if (currentVersion == null || currentVersion.intValue() != proposal.baseVersionNo()) {
-            incidentProposalRepository.casStatus(proposalId, ProposalStatuses.PENDING, ProposalStatuses.STALE);
-            incidentRepository.casState(incidentId, IncidentStates.AWAITING_APPROVAL, IncidentStates.NEEDS_HUMAN);
-            appendIncidentMessage(incidentId, MessageKinds.SYSTEM, "修复提案基线已过期（任务已被其它变更修改），转人工介入", null, "system");
-            return new ExecOutcome(false, messages.get("incident.proposal_stale", locale),
-                    json(Map.of("error", "proposal_stale")), null);
-        }
-
-        task.setContent(proposal.proposedContent());
-        taskDefRepository.save(task);
-        int newVersion = taskService.writeTaskVersionSnapshot(task, null,
-                "069 修复提案发布（事故 " + incidentId + "，提案 " + proposalId + "）");
-        incidentProposalRepository.markPublished(proposalId, newVersion);
-
-        Incident inc = incidentRepository.findById(incidentId).orElse(null);
-        boolean cas = inc != null && incidentRepository.casState(incidentId, IncidentStates.AWAITING_APPROVAL, IncidentStates.ACTING);
-        UUID resultInstanceId = null;
-        if (cas) {
-            try {
-                TaskInstance ti = opsService.getObject().rerunInstance(inc.latestInstanceId());
-                resultInstanceId = ti.getId();
-            } catch (RuntimeException e) {
-                log.warn("[incidentPublishFix] rerun after publish failed incidentId={}: {}", incidentId, e.toString());
-            }
-        }
-        appendIncidentMessage(incidentId, MessageKinds.ACTION,
-                "修复提案已发布（新版本 v" + newVersion + "），已重跑验证",
-                json(Map.of("proposalId", proposalId.toString(), "publishedVersionNo", newVersion)), "ops-agent");
-        return new ExecOutcome(true, messages.get("executor.incident.publish_fix.success", locale, newVersion),
-                json(Map.of("proposalId", proposalId.toString(), "taskId", task.getId(), "publishedVersionNo", newVersion)),
-                resultInstanceId);
-    }
-
-    /** 069 事故消息追加 + 直播广播（镜像 IncidentAgentService 同名逻辑，执行器侧独立小闭环，避免反向依赖 application.incident）。 */
-    private void appendIncidentMessage(UUID incidentId, String kind, String content, String payloadJson, String actor) {
-        var msg = incidentMessageRepository.append(incidentId, kind, content, payloadJson, actor);
-        incidentRepository.findById(incidentId).ifPresent(inc -> {
-            incidentEventPublisher.publish(inc.projectId(), new IncidentEvent.MessageAppended(incidentId, msg));
-            incidentEventPublisher.publish(inc.projectId(), new IncidentEvent.IncidentChanged(inc));
-        });
     }
 
     // ---- helpers ----

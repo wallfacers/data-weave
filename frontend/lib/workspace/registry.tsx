@@ -9,7 +9,7 @@ import type { ComponentType } from "react"
 import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
-  Alert02Icon,
+  BotIcon,
   DashboardSquare01Icon,
   Database01Icon,
   DocumentCodeIcon,
@@ -22,7 +22,6 @@ import {
   Share08Icon,
 } from "@hugeicons/core-free-icons"
 
-import { SupervisionView } from "@/components/workspace/views/supervision-view"
 import { OpsView } from "@/components/workspace/views/ops-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
@@ -33,6 +32,8 @@ import { DatasourcesView } from "@/components/workspace/views/datasources-view"
 import { LineageView } from "@/components/workspace/views/lineage-view"
 import { InstanceLogView } from "@/components/workspace/views/instance-log-view"
 import { WorkflowInstanceDetail } from "@/components/workspace/views/workflow-instance-detail"
+import { CompanionView } from "@/components/workspace/views/companion-view"
+import { CompanionRoutineView } from "@/components/workspace/views/companion-routine-view"
 import { type ViewType } from "./views"
 
 export interface ViewProps {
@@ -47,7 +48,8 @@ interface ViewRender {
 }
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
-  supervision: { icon: Alert02Icon, component: SupervisionView },
+  companion: { icon: BotIcon, component: CompanionView },
+  "companion-routine": { icon: SettingDone02Icon, component: CompanionRoutineView },
   ops: { icon: SettingDone02Icon, component: OpsView },
   "workflow-canvas": { icon: Share08Icon, component: WorkflowCanvasView },
   freshness: { icon: RefreshIcon, component: FreshnessView },

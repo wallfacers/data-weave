@@ -21,7 +21,7 @@ export interface NavGroup {
 /** 有序分组目录（决定导航显示顺序，FR-005）。 */
 export const NAV_GROUPS: NavGroup[] = [
   { id: "dev", titleKey: "groups.dev", items: ["workflow-canvas"] },
-  { id: "ops", titleKey: "groups.ops", items: ["supervision", "ops", "metrics", "fleet", "freshness"] },
+  { id: "ops", titleKey: "groups.ops", items: ["companion", "ops", "metrics", "fleet", "freshness"] },
   { id: "governance", titleKey: "groups.governance", items: ["lineage"] },
   { id: "assets", titleKey: "groups.assets", items: ["datasources"] },
   { id: "admin", titleKey: "groups.admin", items: ["settings"] },
@@ -33,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
 export const CONTEXT_DETAIL_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   "instance-log",
   "workflow-instance-detail",
+  "companion-routine",
 ])
 
 /** 所有入口功能视图集合（导航中可点击的项）。 */
@@ -52,6 +53,7 @@ export const viewToGroup: Partial<Record<ViewType, string>> = Object.fromEntries
 export const detailViewParent: Partial<Record<ViewType, { view?: ViewType; group: string }>> = {
   "instance-log": { group: "ops" },
   "workflow-instance-detail": { group: "ops" },
+  "companion-routine": { view: "companion", group: "ops" },
 }
 
 /**

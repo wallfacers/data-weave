@@ -373,7 +373,8 @@
     "datasources": "数据源管理",
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例",
-    "supervision": "监督席"
+    "companion": "虚拟管家",
+    "companionRoutine": "巡检设置"
   },
   "catalog": {
     "title": "类目",
@@ -1322,77 +1323,87 @@
     "healthCheckpointAge": "检查点时效",
     "healthRestarts": "重启次数"
   },
-  "supervision": {
+  "companion": {
+    "name": "Vega",
+    "role": "Weft 虚拟管家",
     "state": {
-      "OPEN": "待处理",
-      "ANALYZING": "诊断中",
-      "ACTING": "处置中",
-      "AWAITING_APPROVAL": "待审批",
-      "NEEDS_HUMAN": "需人工",
-      "RESOLVED": "已收口",
-      "DIAG_UNAVAILABLE": "诊断不可用"
+      "idle": "待机 · 一切正常，随时吩咐",
+      "patrol": "巡检中 · 正在核对系统状态",
+      "alert": "发现异常 · 已生成汇报",
+      "think": "思考中 · 正在分析",
+      "speak": "汇报中"
     },
-    "classification": {
-      "TRANSIENT": "瞬时故障",
-      "RESOURCE": "资源不足",
-      "CODE": "代码缺陷",
-      "UPSTREAM_DATA": "上游数据",
-      "CONFIG_CREDENTIAL": "配置/凭据",
-      "UNKNOWN": "未知"
+    "briefing": {
+      "todayRuns": "今日已巡检 {count} 轮",
+      "openAnomalies": "{count} 项异常待处理",
+      "nextPatrol": "下轮巡检 {time}",
+      "noAnomalies": "系统运行正常"
     },
-    "thinkingDefault": "正在思考",
-    "live": "直播中",
-    "disconnected": "已断开",
-    "connecting": "正在连接实时通道",
-    "reconnecting": "连接已断开，正在重连",
-    "briefingEmpty": "当前无活跃事故",
-    "briefingReport": "接班报告",
-    "stat": {
-      "active": "活跃",
-      "needsHuman": "需人工",
-      "awaitingApproval": "待审批",
-      "agentWorking": "处理中",
-      "resolvedToday": "今日收口"
+    "report": {
+      "title": "汇报",
+      "empty": "暂无汇报",
+      "close": "关闭",
+      "closed": "已关闭",
+      "chat": "继续对话",
+      "viewDetail": "查看详情",
+      "severity": {
+        "DANGER": "危险",
+        "WARN": "警告",
+        "OK": "正常",
+        "INFO": "信息"
+      },
+      "domain": {
+        "TASK_FAILURE": "任务失败巡检",
+        "MACHINE": "机器状态巡检",
+        "DATA_QUALITY": "数据质量巡检",
+        "CODE_QUALITY": "代码质量巡检"
+      }
     },
-    "needsYou": "需要你处理（{count}）",
-    "feedEmpty": "暂无事故，系统运行正常",
-    "unnamedTask": "(未命名任务)",
-    "failCount": "失败 {count} 次",
-    "autoActions": "自动处置 {count} 次",
-    "chatPlaceholder": "向运维 Agent 提问或下指令…",
-    "chatDisabled": "智能运维未启用",
+    "chat": {
+      "placeholder": "和 Vega 说说，或直接下达运维指令",
+      "send": "发送",
+      "stop": "停止",
+      "voiceDisabled": "语音输入（规划中）",
+      "interrupted": "已打断",
+      "brainUnavailable": "管家大脑暂不可用，请稍后重试",
+      "sendFailed": "发送失败"
+    },
+    "routine": {
+      "title": "巡检设置",
+      "subtitle": "配置四领域巡检的启停、频率与手动触发",
+      "enabled": "已启用",
+      "disabled": "已停用",
+      "cronLabel": "巡检频率",
+      "trigger": "手动触发",
+      "triggering": "触发中",
+      "history": "执行历史",
+      "runColTime": "触发时间",
+      "runColDuration": "耗时",
+      "runColResult": "结论",
+      "noHistory": "暂无执行记录"
+    },
+    "connect": {
+      "connecting": "正在连接实时通道",
+      "disconnected": "连接已断开",
+      "live": "实时"
+    },
+    "conversation": {
+      "empty": "暂无对话，在下方输入框和 Vega 聊聊吧",
+      "interrupted": "已中断",
+      "anchorHeader": "已锚定",
+      "cancelAnchor": "取消锚定",
+      "anchorClosed": "该问题已处置",
+      "loadFailed": "历史加载失败，请重试"
+    }
+  },
+  "chat": {
+    "chatPlaceholder": "向 Agent 提问或下达指令",
+    "chatDisabled": "未启用",
     "chatSend": "发送",
-    "openLog": "查看日志",
-    "markHandled": "标记已处理",
-    "reverify": "触发复验",
-    "closeManual": "直接收口",
-    "closeReasonPlaceholder": "收口原因（必填）",
-    "closeConfirm": "确认收口",
-    "closeReasonRequired": "请填写收口原因",
-    "cancel": "取消",
-    "proposalTitle": "修复提案待审批",
-    "proposalBaseVersion": "基线版本 v{v}",
-    "proposalConfirmHint": "发布后将重跑验证，确认？",
-    "proposalConfirm": "确认发布",
-    "approve": "批准",
-    "reject": "驳回",
-    "markHandledOk": "已标记处理，正在复验",
-    "reverifyOk": "已触发复验",
-    "closeOk": "事故已收口",
-    "approveOk": "提案已批准发布",
-    "rejectOk": "提案已驳回",
-    "actionFailed": "操作失败",
-    "copyCode": "复制",
-    "copied": "已复制",
-    "copyMessage": "复制原文",
-    "agentName": "运维 Agent",
-    "fallbackOperator": "操作员",
-    "interrupted": "已打断",
-    "dateToday": "今天",
-    "dateYesterday": "昨天",
     "chatStop": "停止",
     "chatSendFailed": "发送失败",
     "cancelFailed": "打断失败，请重试",
-    "backToBottom": "回到底部"
+    "copyCode": "复制",
+    "copied": "已复制"
   }
 }

@@ -1,29 +1,35 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.2.0
-Bump rationale (MINOR): Amend Principle IV to broaden agent operating surface from
-"through MCP" to "through MCP and/or the dw CLI" and document Skill as the local
-agent's knowledge layer. The non-negotiable kernel (no server-side AI brain, AI
-lives in local agent, teardown must not damage observability/scheduling) is unchanged.
-This is a governance sync to reflect the Skill-first authoring reality (015-agent-authoring-skill).
+Version change: 1.2.0 → 1.3.0
+Bump rationale (MINOR): Amend Principle IV to add an explicit carve-out for the
+**runtime ops agent sidecar** (运行态运维伴随 agent，071-virtual-butler-companion)：
+the server MAY orchestrate patrol loops (scheduling, prompt assembly, result
+persistence) and proxy conversations to an external agent process (workhorse sidecar)
+over HTTP/SSE — provided the server itself performs ZERO inference. All reasoning
+stays in the external agent process; the server holds only orchestration state.
+The non-negotiable kernel (no server-side AI brain, AI lives in an agent process
+outside the server, teardown must not damage observability/scheduling) is unchanged —
+this codifies the justified deviation recorded in specs/071-virtual-butler-companion/plan.md.
 
 Modified principles:
-  IV. AI Lives in the Local Agent — operative clause broadened ("through MCP" →
-       "through MCP and/or the dw CLI"); Skill documented as agent knowledge layer;
-       non-negotiable kernel (3 items) preserved unchanged.
+  IV. AI Lives in the Local Agent — added "运行态运维 sidecar 例外面" paragraph:
+       server-side orchestration of an external agent sidecar is permitted for
+       run-time operations (patrol/companion), zero server-side inference required;
+       sidecar credentials never leave the backend; every sidecar-initiated write
+       still passes the PolicyEngine gate. Non-negotiable kernel (3 items) preserved.
 Added principles: (none)
 Removed principles/sections: (none)
 
 Templates requiring updates:
   ✅ .specify/memory/constitution.md (this file)
-  ✅ plan-template.md — Constitution Check for IV now accepts Skill+dw as valid
-     agent operating surface; no structural template change required.
+  ✅ plan-template.md — Constitution Check for IV now also accepts "server orchestrates /
+     sidecar reasons" for runtime ops surfaces; no structural template change required.
   ✅ spec-template.md — unaffected
   ✅ tasks-template.md — unaffected
 
 Follow-up TODOs: none deferred. RATIFICATION_DATE unchanged (2026-06-26).
-Prior 1.1.0 report: amended Principle III (phased runtime clause).
+Prior 1.2.0 report: amended Principle IV (Skill+dw operating surface).
 -->
 
 # Weft Constitution
@@ -100,6 +106,15 @@ agent operating the platform through MCP and/or the dw CLI.
 形态随仓库分发——渐进披露（仅 `description` 常驻上下文，正文按需加载），Skill 正文即 golden path
 单一真相；Skill 不绑定特定 agent 二进制（BYO-agent）。
 
+**运行态运维 sidecar 例外面**（1.3.0 增补，源自 071-virtual-butler-companion）：对**运行态
+运维**场景（巡检 patrol / 虚拟管家 companion），服务端 MAY 编排一个**外部 agent sidecar 进程**
+（如 workhorse，HTTP/SSE 对接）——编排 = 调度触发、提示词组装、结果持久化、会话代理转发；
+**推理必须全部发生在 sidecar 进程内，服务端自身零推理**（不嵌入模型调用、不做决策逻辑）。
+约束：① sidecar 凭据只存在于后端配置，绝不下发前端或出库；② sidecar 发起的一切写操作仍走
+PolicyEngine 写闸门并留 `agent_action` 审计；③ sidecar 不可用时平台观测与调度内核不受损
+（降级为无汇报，不阻塞）。此例外不改变不可让渡内核：服务端依然没有 AI 大脑，AI 住在服务端
+之外的 agent 进程里。
+
 **不可让渡内核**（修订不改以下三条）：
 1. 服务端无 AI 大脑（不嵌入推理/决策/agent 逻辑）。
 2. AI 能力由开发者本地 agent 提供（Claude Code / Codex 或兼容者）。
@@ -166,4 +181,4 @@ guidance; PATCH for clarifications and non-semantic refinements.
 Compliance is reviewed at plan time (Constitution Check) and before merge (cross-feature
 boundary and seam-closure check). Runtime development guidance lives in `CLAUDE.md`.
 
-**Version**: 1.2.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-06-29
+**Version**: 1.3.0 | **Ratified**: 2026-06-26 | **Last Amended**: 2026-07-15

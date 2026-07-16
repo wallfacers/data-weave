@@ -7,7 +7,8 @@
  */
 
 export type ViewType =
-  | "supervision"
+  | "companion"
+  | "companion-routine"
   | "ops"
   | "workflow-canvas"
   | "freshness"
@@ -33,7 +34,8 @@ export interface ViewMeta {
 }
 
 export const VIEW_META: Record<ViewType, ViewMeta> = {
-  supervision: { title: "views.supervision" },
+  companion: { title: "views.companion" },
+  "companion-routine": { title: "views.companionRoutine" },
   ops: { title: "views.ops" },
   "workflow-canvas": { title: "views.workflowCanvas", requirePermission: "workflow:manage" },
   freshness: { title: "views.freshness" },
@@ -50,8 +52,8 @@ export const PINNED_VIEWS = (Object.keys(VIEW_META) as ViewType[]).filter(
   (v) => VIEW_META[v].defaultPinned,
 )
 
-/** 首次启动默认打开的视图（首屏=监督席指挥中心，US4）。 */
-export const DEFAULT_VIEWS: ViewType[] = ["supervision", "metrics"]
+/** 首次启动默认打开的视图（首屏=虚拟管家 companion）。 */
+export const DEFAULT_VIEWS: ViewType[] = ["companion", "metrics"]
 
 export function isKnownView(view: string): view is ViewType {
   return view in VIEW_META

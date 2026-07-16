@@ -373,7 +373,8 @@
     "datasources": "Datasources",
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance",
-    "supervision": "Supervision"
+    "companion": "Virtual Butler",
+    "companionRoutine": "Patrol Settings"
   },
   "catalog": {
     "title": "Catalog",
@@ -1322,77 +1323,87 @@
     "healthCheckpointAge": "Checkpoint Age",
     "healthRestarts": "Restarts"
   },
-  "supervision": {
+  "companion": {
+    "name": "Vega",
+    "role": "Weft Virtual Butler",
     "state": {
-      "OPEN": "Open",
-      "ANALYZING": "Analyzing",
-      "ACTING": "Acting",
-      "AWAITING_APPROVAL": "Awaiting Approval",
-      "NEEDS_HUMAN": "Needs Human",
-      "RESOLVED": "Resolved",
-      "DIAG_UNAVAILABLE": "Diagnosis Unavailable"
+      "idle": "Idle · All systems normal",
+      "patrol": "Patrolling · Checking system status",
+      "alert": "Alert · Anomalies detected",
+      "think": "Thinking · Analyzing",
+      "speak": "Reporting"
     },
-    "classification": {
-      "TRANSIENT": "Transient",
-      "RESOURCE": "Resource",
-      "CODE": "Code Defect",
-      "UPSTREAM_DATA": "Upstream Data",
-      "CONFIG_CREDENTIAL": "Config/Credential",
-      "UNKNOWN": "Unknown"
+    "briefing": {
+      "todayRuns": "{count} patrols today",
+      "openAnomalies": "{count} open anomalies",
+      "nextPatrol": "Next patrol {time}",
+      "noAnomalies": "All systems normal"
     },
-    "thinkingDefault": "Thinking",
-    "live": "Live",
-    "disconnected": "Disconnected",
-    "connecting": "Connecting to live channel",
-    "reconnecting": "Disconnected, reconnecting",
-    "briefingEmpty": "No active incidents",
-    "briefingReport": "Handover Report",
-    "stat": {
-      "active": "Active",
-      "needsHuman": "Needs Human",
-      "awaitingApproval": "Awaiting",
-      "agentWorking": "Working",
-      "resolvedToday": "Resolved Today"
+    "report": {
+      "title": "Reports",
+      "empty": "No reports",
+      "close": "Close",
+      "closed": "Closed",
+      "chat": "Continue Chat",
+      "viewDetail": "View Details",
+      "severity": {
+        "DANGER": "Danger",
+        "WARN": "Warning",
+        "OK": "OK",
+        "INFO": "Info"
+      },
+      "domain": {
+        "TASK_FAILURE": "Task Failure Patrol",
+        "MACHINE": "Machine Status Patrol",
+        "DATA_QUALITY": "Data Quality Patrol",
+        "CODE_QUALITY": "Code Quality Patrol"
+      }
     },
-    "needsYou": "Needs your attention ({count})",
-    "feedEmpty": "No incidents, all systems normal",
-    "unnamedTask": "(unnamed task)",
-    "failCount": "{count} failures",
-    "autoActions": "{count} auto actions",
-    "chatPlaceholder": "Ask the ops agent or give a command…",
-    "chatDisabled": "Agent ops disabled",
+    "chat": {
+      "placeholder": "Talk to Vega, or give an ops command",
+      "send": "Send",
+      "stop": "Stop",
+      "voiceDisabled": "Voice input (planned)",
+      "interrupted": "Interrupted",
+      "brainUnavailable": "Butler brain is unavailable, please retry later",
+      "sendFailed": "Send failed"
+    },
+    "routine": {
+      "title": "Patrol Settings",
+      "subtitle": "Configure schedules, toggles and manual triggers for the four patrol domains",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "cronLabel": "Patrol frequency",
+      "trigger": "Trigger Now",
+      "triggering": "Triggering",
+      "history": "Run History",
+      "runColTime": "Trigger Time",
+      "runColDuration": "Duration",
+      "runColResult": "Result",
+      "noHistory": "No run history"
+    },
+    "connect": {
+      "connecting": "Connecting to live channel",
+      "disconnected": "Connection lost",
+      "live": "Live"
+    },
+    "conversation": {
+      "empty": "No conversation yet. Start chatting with Vega below.",
+      "interrupted": "Interrupted",
+      "anchorHeader": "Anchored",
+      "cancelAnchor": "Cancel Anchor",
+      "anchorClosed": "This issue has been resolved",
+      "loadFailed": "Failed to load history, tap to retry"
+    }
+  },
+  "chat": {
+    "chatPlaceholder": "Ask the agent or give a command",
+    "chatDisabled": "Disabled",
     "chatSend": "Send",
-    "openLog": "View Log",
-    "markHandled": "Mark Handled",
-    "reverify": "Reverify",
-    "closeManual": "Close",
-    "closeReasonPlaceholder": "Close reason (required)",
-    "closeConfirm": "Confirm Close",
-    "closeReasonRequired": "A close reason is required",
-    "cancel": "Cancel",
-    "proposalTitle": "Fix proposal awaiting approval",
-    "proposalBaseVersion": "Baseline v{v}",
-    "proposalConfirmHint": "Publishing will rerun to verify. Confirm?",
-    "proposalConfirm": "Confirm Publish",
-    "approve": "Approve",
-    "reject": "Reject",
-    "markHandledOk": "Marked handled, reverifying",
-    "reverifyOk": "Reverify triggered",
-    "closeOk": "Incident closed",
-    "approveOk": "Proposal approved & published",
-    "rejectOk": "Proposal rejected",
-    "actionFailed": "Action failed",
-    "copyCode": "Copy",
-    "copied": "Copied",
-    "copyMessage": "Copy text",
-    "agentName": "Ops Agent",
-    "fallbackOperator": "Operator",
-    "interrupted": "Interrupted",
-    "dateToday": "Today",
-    "dateYesterday": "Yesterday",
     "chatStop": "Stop",
     "chatSendFailed": "Send failed",
     "cancelFailed": "Interrupt failed, please retry",
-    "backToBottom": "Back to bottom"
+    "copyCode": "Copy",
+    "copied": "Copied"
   }
 }

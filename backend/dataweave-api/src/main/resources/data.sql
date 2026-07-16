@@ -481,16 +481,23 @@ INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, d
 (53, 'TOOL', 'LINEAGE_EDGE_CONFIRM',      NULL, 'L1', '血缘推断边人工确认（可撤销）',          1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (54, 'TOOL', 'LINEAGE_EDGE_REMOVE',       NULL, 'L1', '血缘推断边人工剔除（抑制展示，可撤销）', 1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 (55, 'TOOL', 'LINEAGE_CORRECTION_REVOKE', NULL, 'L1', '血缘修正裁决撤销',                    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
--- 069 智能运维 Agent 动作（低风险自动执行 L1；改代码类默认人审 L3）
-(56, 'TOOL', 'incident_rerun',             NULL, 'L1', '智能运维自动重跑（瞬态故障自愈）',      1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(57, 'TOOL', 'incident_adjust_resources',  NULL, 'L1', '智能运维调资源后重跑（护栏内自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(58, 'TOOL', 'incident_resume_checkpoint', NULL, 'L1', '智能运维检查点续跑（实时任务自愈）',    1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(59, 'TOOL', 'incident_reverify',          NULL, 'L1', '智能运维复验（人工处理后触发）',        1, 20, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-(61, 'TOOL', 'incident_agent_cancel',      NULL, 'L0', '打断当前事故 Agent 输出轮次（低风险防护性操作，直执行+留痕）', 1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
 -- 不可逆 MCP 工具（L3，需二次确认）
 	(40, 'TOOL', 'drop_table',              NULL, 'L3', '删表（不可逆）',             1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
-	(60, 'TOOL', 'incident_publish_fix',    NULL, 'L3', '智能运维发布代码修复（需人审确认）', 1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+	(41, 'TOOL', 'delete_topic',            NULL, 'L3', '删 topic（不可逆）',         1, 30, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+-- 071 管家对话打断：L0 直执行+留痕（对齐 incident_agent_cancel 先例，打断用户当前会话的 brain 流式输出）
+INSERT INTO policy_rules (id, match_type, pattern, condition_expr, base_level, description, enabled, sort_order, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(62, 'TOOL', 'companion_chat_cancel', NULL, 'L0', '打断管家当前会话的流式输出（低风险防护性操作，直执行+留痕）', 1, 10, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
+
+-- ============================================================
+-- 域 · 虚拟管家监督席种子（companion：071）
+-- 四领域默认巡检例程（R7 频率），项目 1 默认全启用；管理员可经 US4 治理接口改 cron / 停用。
+-- cron 用 Spring CronExpression（6 字段含秒，无 ?）；超时 120s（R7）。
+-- ============================================================
+INSERT INTO patrol_routine (id, tenant_id, project_id, domain, enabled, cron_expression, scope_json, timeout_seconds, created_by, updated_by, created_at, updated_at, deleted, version) VALUES
+(1, 1, 1, 'TASK_FAILURE',  1, '0 */15 * * * *', NULL, 120, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(2, 1, 1, 'MACHINE',       1, '0 */30 * * * *', NULL, 120, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(3, 1, 1, 'DATA_QUALITY',  1, '0 0 * * * *',   NULL, 120, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0),
+(4, 1, 1, 'CODE_QUALITY',  1, '0 0 2 * * *',   NULL, 120, 1, 1, TIMESTAMP '2026-06-01 00:00:00', TIMESTAMP '2026-06-01 00:00:00', 0, 0);
 
 INSERT INTO orders (id, order_amount, city, created_at) VALUES
 (1, 120.50, '上海', TIMESTAMP '2026-06-01 09:12:00'),
@@ -528,6 +535,10 @@ ALTER TABLE worker_nodes ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE audit_log ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE policy_rules ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE agent_action ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE patrol_routine ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE patrol_run ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE patrol_report ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE companion_message ALTER COLUMN id RESTART WITH 100;
 
 -- ============================================================
 -- 域 F · 表级血缘种子（table-lineage）：一条 ODS→DWD→DWS→ADS 数据流，供态势驾驶舱开屏即见

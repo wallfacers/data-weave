@@ -35,7 +35,7 @@ public class SchemaVersionGuard implements CommandLineRunner {
      * 代码预期的 schema 版本。必须与 {@code schema.sql} 中 {@code schema_version} 表的最新
      * INSERT 值保持一致，否则应用拒绝启动。
      */
-    static final String EXPECTED_VERSION = "0.20.0";
+    static final String EXPECTED_VERSION = "0.22.0";
 
     private final JdbcTemplate jdbc;
 
@@ -43,27 +43,28 @@ public class SchemaVersionGuard implements CommandLineRunner {
         this.jdbc = jdbc;
     }
 
-    // semver 感知排序：string_to_array 把 0.20.0 → {0,20,0}，整数数组比较 20 > 8
-    static final String LATEST_VERSION_SQL =
-            "SELECT version FROM schema_version "
-            + "ORDER BY string_to_array(version, '.')::int[] DESC LIMIT 1";
+    // 全部版本行（跨方言：H2 无 string_to_array，semver 取最大改在 Java 侧做，PG/H2 通用）
+    static final String ALL_VERSIONS_SQL = "SELECT version FROM schema_version";
 
     @Override
     public void run(String... args) {
-        String dbVersion;
+        java.util.List<String> rows;
         try {
-            dbVersion = jdbc.queryForObject(LATEST_VERSION_SQL, String.class);
+            rows = jdbc.queryForList(ALL_VERSIONS_SQL, String.class);
         } catch (Exception e) {
             throw new IllegalStateException(
                     "[SchemaVersionGuard] 无法读取 schema_version 表——数据库可能未初始化。"
                     + "请确认 PostgreSQL 已运行且 schema.sql 已执行。", e);
         }
 
-        if (dbVersion == null) {
+        if (rows == null || rows.isEmpty()) {
             throw new IllegalStateException(
                     "[SchemaVersionGuard] schema_version 表为空——数据库未完成 schema 初始化。"
                     + "请执行 schema.sql 或临时设置 spring.sql.init.mode=always。");
         }
+
+        // semver 感知取最大：0.20.0 > 0.8.0（整数数组比较，20 > 8）；非 semver 行跳过
+        String dbVersion = maxSemver(rows);
 
         if (!EXPECTED_VERSION.equals(dbVersion)) {
             String msg = String.format(
@@ -77,5 +78,50 @@ public class SchemaVersionGuard implements CommandLineRunner {
         }
 
         log.info("[SchemaVersionGuard] schema 版本校验通过：DB={}", dbVersion);
+    }
+
+    /**
+     * semver 感知取最大版本（跨方言，替代 PG 专用的 string_to_array 排序）。把 "0.21.0" 拆成整数数组比较：
+     * 0.20.0 > 0.8.0（20 > 8）。解析失败的行跳过；全部失败时回退字符串字典序最大值（保降级不抛）。
+     */
+    static String maxSemver(java.util.List<String> versions) {
+        String bestStr = null;
+        int[] best = null;
+        for (String v : versions) {
+            int[] parts = parseSemver(v);
+            if (parts == null) continue;
+            if (best == null || compare(parts, best) > 0) {
+                best = parts;
+                bestStr = v;
+            }
+        }
+        if (bestStr != null) return bestStr;
+        // 回退：无 semver 行时取字典序最大（避免空指针）
+        return versions.stream().max(String::compareTo).orElse(null);
+    }
+
+    private static int[] parseSemver(String v) {
+        if (v == null) return null;
+        String[] segs = v.trim().split("\\.");
+        if (segs.length < 2) return null;
+        int[] parts = new int[segs.length];
+        for (int i = 0; i < segs.length; i++) {
+            try {
+                parts[i] = Integer.parseInt(segs[i]);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return parts;
+    }
+
+    private static int compare(int[] a, int[] b) {
+        int len = Math.max(a.length, b.length);
+        for (int i = 0; i < len; i++) {
+            int ai = i < a.length ? a[i] : 0;
+            int bi = i < b.length ? b[i] : 0;
+            if (ai != bi) return Integer.compare(ai, bi);
+        }
+        return 0;
     }
 }

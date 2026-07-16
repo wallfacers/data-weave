@@ -29,7 +29,7 @@ export function completePartialMarkdown(text: string): string {
 
 /** 代码块 chrome：语言标签 + 复制按钮（2s 对勾确认，幂等），主体走既有 Shiki CodeBlock。 */
 function CodeBlockChrome({ code, lang }: { code: string; lang: string }) {
-  const t = useTranslations("supervision")
+  const t = useTranslations("chat")
   const [copied, setCopied] = React.useState(false)
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
