@@ -35,6 +35,8 @@ deploy/workhorse/.env.workhorse
 **/config.local.yaml
 # serve-local.sh 合并产出的 runtime 配置（含真 key），禁止提交
 deploy/workhorse/config.runtime.yaml
+# 平台 MCP 接入配置（后续连后端 /mcp 会含 mcp.auth.token，部署机特定，禁止提交）
+deploy/workhorse/mcp.json
 
 # workhorse-agent 预编译二进制（六平台，由 fetch-bin.sh 产出；交付物非源码，不入 git）
 deploy/workhorse/bin/
