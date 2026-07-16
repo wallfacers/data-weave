@@ -59,6 +59,21 @@ const STATE_COLOR_KEY: Record<CompanionState, keyof CompanionTokens> = {
   idle: "idle", patrol: "patrol", alert: "alert", think: "think", speak: "speak",
 }
 
+/**
+ * 问题②：亮色主题下状态色偏浅（如 idle 青 oklch(0.65 …)），小粒子/地面光环在白底被冲淡看不清。
+ * 这里把颜色压深、提饱和，仅用于粒子/光环等「白底上的细线元素」；机器人自发光（core/thrust/emissive）
+ * 仍用原亮色，因其贴在深色机身上、越亮越清晰。暗色主题不变（直接返回原色）。
+ */
+function toVisibleColor(hex: number, isLight: boolean): THREE.Color {
+  const c = new THREE.Color(hex)
+  if (isLight) {
+    const hsl = { h: 0, s: 0, l: 0 }
+    c.getHSL(hsl)
+    c.setHSL(hsl.h, Math.min(1, hsl.s * 1.2 + 0.08), Math.min(hsl.l, 0.42))
+  }
+  return c
+}
+
 export function detectWebGL(): boolean {
   try {
     const c = document.createElement("canvas")
@@ -93,6 +108,7 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     blinkRef: { t: number; next: number }
     alertShakeT: number
     currentStateHex: number
+    isLight: boolean
     glowTex: THREE.CanvasTexture
   } | null>(null)
   const rafRef = useRef(0)
@@ -105,10 +121,12 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     if (!s) return
     s.currentStateHex = hex
     s.bot.tintedMaterials.forEach((m) => { m.color.setHex(hex); m.emissive?.setHex(hex) })
-    s.ringMat.color.setHex(hex)
-    s.ringMat2.color.setHex(hex)
-    s.discMat.color.setHex(hex)
-    s.pMat.color.setHex(hex)
+    // 粒子/地面光环用「白底可见色」（亮色主题压深提饱和），机身自发光仍用原亮色
+    const vis = toVisibleColor(hex, s.isLight)
+    s.ringMat.color.copy(vis)
+    s.ringMat2.color.copy(vis)
+    s.discMat.color.copy(vis)
+    s.pMat.color.copy(vis)
     s.bot.thrustMat.color.setHex(hex)
     ;(s.bot.coreGlow.material as THREE.SpriteMaterial).color.setHex(hex)
     ;(s.bot.hoverGlow.material as THREE.SpriteMaterial).color.setHex(hex)
@@ -120,11 +138,15 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     if (!s) return
     const tokens = readTokens()
     const isLight = resolvedTheme === "light"
+    s.isLight = isLight
     // 壳色：亮=暖白，暗=深蓝灰
     s.shellMat.color.set(isLight ? 0xeef2f7 : 0x1a1a2e)
     // 面屏恒深
     s.visorMat.color.set(0x0a1120)
-    // 装饰/发光色随当前状态
+    // 问题②：亮色主题下加大加实粒子，抵消白底冲淡
+    s.pMat.size = isLight ? 0.02 : 0.012
+    s.pMat.opacity = isLight ? 0.95 : 0.75
+    // 装饰/发光色随当前状态（applyStateColor 内按 s.isLight 取白底可见色）
     const st = useCompanionStore.getState().state
     const key = STATE_COLOR_KEY[st]
     const hex = parseCssColor(tokens[key]).getHex()
@@ -195,8 +217,10 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     /* Ground rings + particles */
     const ringGroup = new THREE.Group()
     scene.add(ringGroup)
+    // 白底可见色（亮色主题压深）：粒子/光环初值即用，避免挂载首帧闪一下浅色
+    const trimVis = toVisibleColor(defaultTrim.getHex(), isLight)
     const ringMat = new THREE.MeshBasicMaterial({
-      color: defaultTrim, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+      color: trimVis, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
     })
     const ring1 = new THREE.Mesh(new THREE.RingGeometry(0.52, 0.545, 80), ringMat)
     ring1.rotation.x = -Math.PI / 2; ringGroup.add(ring1)
@@ -204,7 +228,7 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     const ring2 = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.672, 80), ringMat2)
     ring2.rotation.x = -Math.PI / 2; ringGroup.add(ring2)
     const discMat = new THREE.MeshBasicMaterial({
-      color: defaultTrim, transparent: true, opacity: 0.05, side: THREE.DoubleSide,
+      color: trimVis, transparent: true, opacity: 0.05, side: THREE.DoubleSide,
     })
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.52, 64), discMat)
     disc.rotation.x = -Math.PI / 2; disc.position.y = 0.001; ringGroup.add(disc)
@@ -221,7 +245,7 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
     }
     pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3))
     const pMat = new THREE.PointsMaterial({
-      color: defaultTrim, size: 0.012, transparent: true, opacity: 0.75,
+      color: trimVis, size: isLight ? 0.02 : 0.012, transparent: true, opacity: isLight ? 0.95 : 0.75,
     })
     const particles = new THREE.Points(pGeo, pMat)
     scene.add(particles)
@@ -236,6 +260,7 @@ export default function CompanionStage({ onWebGLUnavailable }: CompanionStagePro
       ringMat, ringMat2, discMat, pMat, ringGroup, particles, clock,
       mouseX: 0, mouseY: 0, blinkRef, alertShakeT: 0,
       currentStateHex,
+      isLight,
       glowTex: (bot.coreGlow.material as THREE.SpriteMaterial).map as THREE.CanvasTexture,
     }
 

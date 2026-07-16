@@ -163,9 +163,22 @@ public class CompanionChatService {
                 handle.send(userText);   // 阻塞至本轮结束；期间经 cb 回调 delta
             } catch (RuntimeException e) {
                 if (!reused) throw e;   // 非复用句柄的失败由外层兜底
-                // 复用 session 失效(404/过期) → 新建重试一次
+                // 复用 session 同步抛错(404/过期) → 新建重试一次
                 log.debug("[CompanionChat] 复用 session={} 失效，新建重试: {}", existing.orElse("?"), e.toString());
+                reused = false;
                 activeHandles.remove(sessionKey, handle);
+                brainError.set(false); interrupted.set(false); full.setLength(0);
+                handle = brain.openChat(projectId, contextPrompt, cb);
+                activeHandles.put(sessionKey, handle);
+                handle.send(userText);
+            }
+            // M4b：复用句柄的流经**异步 onError** 失效时 send 并不抛（如 workhorse 重启致旧 session 404，
+            // 走 cb.onError 而非同步异常）——此处按「brain 报错且零输出」补一次新建重试。否则旧 session
+            // 永久 404、chat 永远落系统兜底错误，且因失败不写 AGENT 消息、DB 里陈旧 brain_session_id 无法自愈。
+            if (reused && brainError.get() && full.length() == 0) {
+                log.info("[CompanionChat] 复用 session={} 流异步失效，新建重试", existing.orElse("?"));
+                activeHandles.remove(sessionKey, handle);
+                brainError.set(false); interrupted.set(false); full.setLength(0);
                 handle = brain.openChat(projectId, contextPrompt, cb);
                 activeHandles.put(sessionKey, handle);
                 handle.send(userText);

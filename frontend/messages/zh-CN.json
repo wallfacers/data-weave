@@ -374,7 +374,8 @@
     "instanceLog": "实例日志",
     "workflowInstanceDetail": "工作流实例",
     "supervision": "监督席",
-    "companion": "虚拟管家"
+    "companion": "虚拟管家",
+    "companionRoutine": "巡检设置"
   },
   "catalog": {
     "title": "类目",
@@ -1360,7 +1361,7 @@
       }
     },
     "chat": {
-      "placeholder": "对 Vega 说点什么，让它替你干活…",
+      "placeholder": "和 Vega 说说，或直接下达运维指令",
       "send": "发送",
       "stop": "停止",
       "voiceDisabled": "语音输入（规划中）",
@@ -1370,6 +1371,7 @@
     },
     "routine": {
       "title": "巡检设置",
+      "subtitle": "配置四领域巡检的启停、频率与手动触发",
       "enabled": "已启用",
       "disabled": "已停用",
       "cronLabel": "巡检频率",
@@ -1424,7 +1426,7 @@
     "unnamedTask": "(未命名任务)",
     "failCount": "失败 {count} 次",
     "autoActions": "自动处置 {count} 次",
-    "chatPlaceholder": "向运维 Agent 提问或下指令…",
+    "chatPlaceholder": "向运维 Agent 提问或下达指令",
     "chatDisabled": "智能运维未启用",
     "chatSend": "发送",
     "openLog": "查看日志",

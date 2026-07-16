@@ -21,11 +21,14 @@ export function ChatComposer({
   onCancel,
   streaming = false,
   disabled,
+  placeholder,
 }: {
   onSend: (text: string) => Promise<void>
   onCancel?: () => Promise<void>
   streaming?: boolean
   disabled?: boolean
+  /** 自定义输入占位符（虚拟管家等复用方按语境覆盖）；缺省用监督席文案。 */
+  placeholder?: string
 }) {
   const t = useTranslations("supervision")
   const [text, setText] = useState("")
@@ -92,8 +95,8 @@ export function ChatComposer({
         }}
         rows={1}
         disabled={disabled || sending}
-        aria-label={t("chatPlaceholder")}
-        placeholder={disabled ? t("chatDisabled") : t("chatPlaceholder")}
+        aria-label={placeholder ?? t("chatPlaceholder")}
+        placeholder={disabled ? t("chatDisabled") : (placeholder ?? t("chatPlaceholder"))}
         className={cn(
           "max-h-40 min-h-9 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm leading-relaxed",
           "outline-none placeholder:text-muted-foreground",

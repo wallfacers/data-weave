@@ -374,7 +374,8 @@
     "instanceLog": "Instance Log",
     "workflowInstanceDetail": "Workflow Instance",
     "supervision": "Supervision",
-    "companion": "Virtual Butler"
+    "companion": "Virtual Butler",
+    "companionRoutine": "Patrol Settings"
   },
   "catalog": {
     "title": "Catalog",
@@ -1360,7 +1361,7 @@
       }
     },
     "chat": {
-      "placeholder": "Ask Vega to do something…",
+      "placeholder": "Talk to Vega, or give an ops command",
       "send": "Send",
       "stop": "Stop",
       "voiceDisabled": "Voice input (planned)",
@@ -1370,6 +1371,7 @@
     },
     "routine": {
       "title": "Patrol Settings",
+      "subtitle": "Configure schedules, toggles and manual triggers for the four patrol domains",
       "enabled": "Enabled",
       "disabled": "Disabled",
       "cronLabel": "Patrol frequency",
@@ -1424,7 +1426,7 @@
     "unnamedTask": "(unnamed task)",
     "failCount": "{count} failures",
     "autoActions": "{count} auto actions",
-    "chatPlaceholder": "Ask the ops agent or give a command…",
+    "chatPlaceholder": "Ask the ops agent or give a command",
     "chatDisabled": "Agent ops disabled",
     "chatSend": "Send",
     "openLog": "View Log",

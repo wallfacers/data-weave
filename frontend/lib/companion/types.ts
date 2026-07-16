@@ -33,7 +33,7 @@ export interface ReportView {
 }
 
 /** 消息角色 */
-export type MessageRole = "USER" | "AGENT"
+export type MessageRole = "USER" | "AGENT" | "SYSTEM"
 
 /** 消息视图 */
 export interface MessageView {

@@ -15,13 +15,14 @@ import { Button } from "@/components/ui/button"
 import { ViewContainer } from "@/components/ui/view-container"
 import { LoadingState } from "@/components/workspace/shared/loading-state"
 import { ChatComposer } from "@/components/workspace/views/supervision/chat-composer"
+import { useFormatDateTime } from "@/hooks/use-format-date-time"
 import { useCompanionStream } from "@/lib/companion/use-companion-stream"
 import { useCompanionStore } from "@/lib/companion/store"
+import { useWorkspaceStore } from "@/lib/workspace/store"
 import { sendChat, cancelChat } from "@/lib/companion/api"
 import { OrbFallback } from "./companion/orb-fallback"
 import { ReportStack } from "./companion/report-stack"
 import { SpeechBubble } from "./companion/speech-bubble"
-import { RoutinePanel } from "./companion/routine-panel"
 
 const CompanionStage = dynamic(
   () => import("./companion/companion-stage"),
@@ -31,6 +32,7 @@ const CompanionStage = dynamic(
 export function CompanionView() {
   const t = useTranslations("companion")
   const tc = useTranslations("common")
+  const formatDateTime = useFormatDateTime()
   const state = useCompanionStore((s) => s.state)
   const briefing = useCompanionStore((s) => s.briefing)
   const connection = useCompanionStore((s) => s.connection)
@@ -40,7 +42,7 @@ export function CompanionView() {
   const [webglFailed, setWebglFailed] = useState(false)
   const [speechText, setSpeechText] = useState<string | null>(null)
   const [streaming, setStreaming] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const openView = useWorkspaceStore((s) => s.open)
   const speechTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const { reconnect } = useCompanionStream()
@@ -54,11 +56,12 @@ export function CompanionView() {
     speechTimerRef.current = setTimeout(() => setSpeechText(null), Math.max(2400, text.length * 130))
   }, [])
 
-  /* 管家最新一条(流式中的)回复 → 字幕实时播报;流结束后按长度停留再隐藏 */
+  /* 管家最新一条(流式中的)回复 → 字幕实时播报;流结束后按长度停留再隐藏。
+     SYSTEM 也纳入——大脑失败的兜底报错必须让用户看见,不能静默(否则「零反应」)。 */
   const latestAgentReply = useMemo(() => {
     for (let i = allMessages.length - 1; i >= 0; i--) {
       const m = allMessages[i]
-      if (m.role === "AGENT" && !m.reportId && m.content) return m
+      if ((m.role === "AGENT" || m.role === "SYSTEM") && !m.reportId && m.content) return m
     }
     return null
   }, [allMessages])
@@ -175,7 +178,7 @@ export function CompanionView() {
               )}
               {briefing.nextPatrolAt && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card/70 px-2.5 py-1 backdrop-blur-sm">
-                  {t("briefing.nextPatrol", { time: briefing.nextPatrolAt })}
+                  {t("briefing.nextPatrol", { time: formatDateTime(briefing.nextPatrolAt) })}
                 </span>
               )}
             </div>
@@ -191,7 +194,7 @@ export function CompanionView() {
           <Button
             size="sm" variant="outline"
             className="pointer-events-auto"
-            onClick={() => setSettingsOpen(!settingsOpen)}
+            onClick={() => openView("companion-routine")}
           >
             {t("routine.title")}
           </Button>
@@ -215,6 +218,7 @@ export function CompanionView() {
                 onSend={handleSend}
                 onCancel={handleCancel}
                 streaming={streaming || streamingId != null}
+                placeholder={t("chat.placeholder")}
               />
             </div>
             {/* 语音输入占位 T027 */}
@@ -228,9 +232,6 @@ export function CompanionView() {
           </div>
         </div>
       </div>
-
-      {/* 巡检设置抽屉 */}
-      <RoutinePanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </ViewContainer>
   )
 }
