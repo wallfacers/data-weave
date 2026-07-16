@@ -26,7 +26,10 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:dataweave-companion-us3-071;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE",
-        "companion.patrol.enabled=false"
+        "companion.patrol.enabled=false",
+        // 契约=「无 brain」：必须钉死到必死端口。默认 127.0.0.1:8300 上若恰有真 workhorse 在跑,
+        // chat 会真成功导致断言反转(部署收口实测踩坑)
+        "companion.brain.base-url=http://127.0.0.1:9"
 })
 @DisplayName("Companion US3 对话/降级/打断 契约（071）")
 class CompanionUs3IT {

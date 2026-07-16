@@ -30,7 +30,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:dataweave-companion-us2-071;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE",
-        "companion.patrol.enabled=false"
+        "companion.patrol.enabled=false",
+        // 契约=「无真 workhorse,兜底链路」：钉死必死端口。默认 8300 上若有真 brain,
+        // DeepSeek 推理耗时超出 10s 轮询窗口致 trigger_producesReport 假红(部署收口实测踩坑)
+        "companion.brain.base-url=http://127.0.0.1:9"
 })
 @DisplayName("Companion US2 巡检/汇报 契约（071）")
 class CompanionUs2IT {
