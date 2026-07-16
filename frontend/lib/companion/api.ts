@@ -14,7 +14,7 @@ const BASE = "/api/companion"
 
 async function unwrap<T>(res: Response): Promise<T> {
   const json = (await res.json()) as ApiResponse<T>
-  if (json.code !== 0) throw new Error(json.message || "请求失败")
+  if (json.code !== 0) throw new Error(json.message || "API error")
   return json.data as T
 }
 
