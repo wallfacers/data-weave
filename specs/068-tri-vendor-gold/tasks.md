@@ -81,6 +81,18 @@
 
 ---
 
+## Phase 6b: US5 表结构 loss 加权（P5，单模型表列两全）— TDD
+
+- [x] T033 [P] [US5] TDD 先行：`tests/test_table_loss_weighting.py`（列区间识别 / 权重装配 / W=1.0 可复现门 / 加权 CE 数学 / collator / 门①训练侧零 eval 耦合），先红。
+- [x] T034 [US5] 实测 tri 训练集 列名:表名 高熵 token 比值（4.39:1）→ 原理化定 W=3.0（对齐 col50 1.99:1 + 软性折扣）。
+- [x] T035 [US5] `train/sft_qlora.py` 加 `answer_col_spans`/`build_weighted_row`/`weighted_lm_loss`/`WeightedCollator`/`WeightedSFTTrainer` + `--table-loss-weight`（默认 1.0 bit 级向后兼容），测试转绿。
+- [x] T036 [US5] 真跑冒烟（0.5B W3 端到端训通）+ 全量 `run-tri-3b-lw3`（r32/alpha64/e3/W3，唯一变量）真跑。
+- [x] T037 [US5] dump@1024 + 同 nonempty-gold 口径评测 + 表精度 McNemar parity（`out/sig-lw3.md`）。
+- [x] T038 [US5] r64 容量叠加验证 `run-tri-3b-lw3-r64`（判断能否顶过严格两全）→ 负结果如实（两次逃逸双证 3B 容量墙）。
+- [x] T039 [P] [US5] PAPER-EVIDENCE-068.md §8 收口（诊断/W推导/结果/两全负结果/门②/交付）+ spec US5/FR-017..020/SC-013..016。
+
+---
+
 ## Phase 7: Polish & 收尾
 
 - [x] T029 [P] 全 pytest 绿零回归：`python3 -m pytest -q`（含 test_metrics_columns.py 门① 回归必绿）。
