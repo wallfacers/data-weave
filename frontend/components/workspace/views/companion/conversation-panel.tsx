@@ -35,6 +35,14 @@ export function ConversationPanel() {
     ? reports.find((r) => r.id === anchorReportId)
     : undefined
 
+  /* 挂载即经 REST 加载会话历史（FR-004）——不依赖 SSE snapshot，SSE 慢/断也能回看历史；
+     与 SSE 实时消息按 id 合并去重（store.setMessages）。 */
+  useEffect(() => {
+    fetchMessages({ limit: 100 })
+      .then((list) => setMessages(list))
+      .catch(() => {})
+  }, [setMessages])
+
   /* 锚定切换 → 加载该问题往来历史并入统一线程（setMessages 合并去重，不替换全局） */
   useEffect(() => {
     if (!anchorReportId) return
