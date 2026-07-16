@@ -1387,6 +1387,14 @@
       "connecting": "正在连接实时通道",
       "disconnected": "连接已断开",
       "live": "实时"
+    },
+    "conversation": {
+      "empty": "暂无对话，在下方输入框和 Vega 聊聊吧",
+      "interrupted": "已中断",
+      "anchorHeader": "已锚定",
+      "cancelAnchor": "取消锚定",
+      "anchorClosed": "该问题已处置",
+      "loadFailed": "历史加载失败，请重试"
     }
   },
   "supervision": {

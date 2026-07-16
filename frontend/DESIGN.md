@@ -188,7 +188,7 @@ DataWeave 的设计系统。本文件是**主题真相源**：颜色、圆角、
 
 管家视图（`companion`）是全屏沉浸式表面，与监督席同样适用 DESIGN.md 的书面豁免（Design Contract Gate 选项③）：
 
-- **豁免范围**：3D canvas 全出血背景、CSS 氛围层（网格地板/径向光晕）、字幕气泡（speech bubble）、汇报卡片栈容器。这些为管家视图独有原语，不套 `Card` 组件。
+- **豁免范围**：3D canvas 全出血背景、CSS 氛围层（网格地板/径向光晕）、字幕气泡（speech bubble）、会话列表面板容器（073 起：上=待处理问题列表行、下=统一会话线程，退役原汇报卡片栈）。这些为管家视图独有原语，不套 `Card` 组件；**面板内滚动区仍一律用 `DwScroll`**（问题列表、会话线程均已遵循），豁免仅针对玻璃容器外观，不豁免滚动条规范。
 - **不退让范围**：交互输入原语（`Input`/`Button`/`Textarea`）仍复用既有组件；严重度色（DANGER/WARN/OK/INFO）复用平台功能色 token（`--destructive`/`--warning`/`--success`/`--info`）；间距走 `gap-*`/`p-(--view-spacing)` 刻度，禁裸 px。
 - **3D 场景颜色策略**：状态相关材质颜色（装饰/发光/光环/粒子/尾焰）通过 `getComputedStyle` 读取 `--companion-*` 语义 token 转为 `THREE.Color`；主题切换时 `resolvedTheme` 变化触发重取色（材质 `.color.set()`），无需重建场景。**灯光颜色（AmbientLight/DirectionalLight）与壳体/面屏色为场景常量（暖白壳 `#eef2f7`/深蓝灰壳 `#1a1a2e`/面屏恒深 `#0a1120`），不映射 CSS token**——通过亮/暗主题二分选择。
 - **`--companion-*` 五状态色 token**（定义在 `app/globals.css` 亮/暗两套值）：

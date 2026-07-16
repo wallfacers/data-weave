@@ -1387,6 +1387,14 @@
       "connecting": "Connecting to live channel",
       "disconnected": "Connection lost",
       "live": "Live"
+    },
+    "conversation": {
+      "empty": "No conversation yet. Start chatting with Vega below.",
+      "interrupted": "Interrupted",
+      "anchorHeader": "Anchored",
+      "cancelAnchor": "Cancel Anchor",
+      "anchorClosed": "This issue has been resolved",
+      "loadFailed": "Failed to load history, tap to retry"
     }
   },
   "supervision": {

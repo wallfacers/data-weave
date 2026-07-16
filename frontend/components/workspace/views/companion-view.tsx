@@ -21,7 +21,7 @@ import { useCompanionStore } from "@/lib/companion/store"
 import { useWorkspaceStore } from "@/lib/workspace/store"
 import { sendChat, cancelChat } from "@/lib/companion/api"
 import { OrbFallback } from "./companion/orb-fallback"
-import { ReportStack } from "./companion/report-stack"
+import { ConversationPanel } from "./companion/conversation-panel"
 import { SpeechBubble } from "./companion/speech-bubble"
 
 const CompanionStage = dynamic(
@@ -38,6 +38,8 @@ export function CompanionView() {
   const connection = useCompanionStore((s) => s.connection)
   const streamingId = useCompanionStore((s) => s.streamingId)
   const allMessages = useCompanionStore((s) => s.messages)
+  const reports = useCompanionStore((s) => s.reports)
+  const anchorReportId = useCompanionStore((s) => s.anchorReportId)
 
   const [webglFailed, setWebglFailed] = useState(false)
   const [speechText, setSpeechText] = useState<string | null>(null)
@@ -70,18 +72,29 @@ export function CompanionView() {
     // speak 自带隐藏 timer;依赖 content 使流式增量持续刷新字幕
   }, [latestAgentReply?.id, latestAgentReply?.content, speak])
 
-  /* 发送消息 */
+  /* 发送消息 — US3：带上当前锚定问题 reportId（无锚定=全局对话） */
   const handleSend = useCallback(async (text: string) => {
     setStreaming(true)
     try {
-      await sendChat({ content: text })
+      await sendChat({ content: text, reportId: anchorReportId ?? undefined })
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("chat.sendFailed")
       toast.error(msg)
     } finally {
       setStreaming(false)
     }
-  }, [t])
+  }, [t, anchorReportId])
+
+  /* US3：当前锚定问题被（他人）关闭 → store 已回落 anchorReportId=null；
+     此处补一句"该问题已处置"提示（仅当锚定问题从 reports 中消失，非用户手动取消）。 */
+  const prevAnchorRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prev = prevAnchorRef.current
+    if (prev && !anchorReportId && !reports.some((r) => r.id === prev)) {
+      toast.info(t("conversation.anchorClosed"))
+    }
+    prevAnchorRef.current = anchorReportId
+  }, [anchorReportId, reports, t])
 
   /* 停止 */
   const handleCancel = useCallback(async () => {
@@ -205,9 +218,9 @@ export function CompanionView() {
           <SpeechBubble text={speechText} />
         </div>
 
-        {/* 右侧汇报卡片栈 */}
+        {/* 右侧会话列表面板（上问题列表 + 下统一会话线程） */}
         <div className="pointer-events-auto absolute right-4 top-16 bottom-24 w-[372px]">
-          <ReportStack />
+          <ConversationPanel />
         </div>
 
         {/* 底部全局输入框 — 复用 ChatComposer（auto-grow/IME 组字保护/发送-停止状态机） */}
