@@ -137,6 +137,7 @@ services:
       SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
       SCHEDULER_READINESS_MATERIALIZED: "true"         # 051 O(1) 认领路径门（测试集群；生产默认 false 待 no-loss 验完）
       COMPANION_BRAIN_BASE_URL: http://host.docker.internal:8300   # 071 companion 大脑：宿主 workhorse sidecar（真 DeepSeek 推理）
+      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}                # bearer 认证 secret,值在项目根 .env(gitignored),与 workhorse auth.bearer_token 同值
     extra_hosts:                                                    # Linux 必需：容器解析 host.docker.internal → 宿主网关，否则连不到宿主 8300 sidecar
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -184,6 +185,7 @@ services:
       SCHEDULER_DISPATCH_WEBCLIENT_TIMEOUT_MS: "3000"  # 慢 worker 超时,防挂 dispatchExecutor 线程
       SCHEDULER_READINESS_MATERIALIZED: "true"         # 051 O(1) 认领路径门（测试集群；生产默认 false 待 no-loss 验完）
       COMPANION_BRAIN_BASE_URL: http://host.docker.internal:8300   # 071 companion 大脑：宿主 workhorse sidecar
+      COMPANION_BRAIN_TOKEN: ${COMPANION_BRAIN_TOKEN:-}                # bearer 认证 secret,见 .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

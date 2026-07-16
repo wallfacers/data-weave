@@ -54,13 +54,16 @@ public class WorkhorseBrainClient implements CompanionBrain {
     private final String baseUrl;
     private final String agentType;
     private final int chatTurnTimeoutSeconds;
+    private final String token;
 
     public WorkhorseBrainClient(@Value("${companion.brain.base-url:http://127.0.0.1:8300}") String baseUrl,
                                 @Value("${companion.brain.agent-type:companion}") String agentType,
-                                @Value("${companion.brain.chat-turn-timeout-seconds:120}") int chatTurnTimeoutSeconds) {
+                                @Value("${companion.brain.chat-turn-timeout-seconds:120}") int chatTurnTimeoutSeconds,
+                                @Value("${companion.brain.token:}") String token) {
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.agentType = agentType;
         this.chatTurnTimeoutSeconds = chatTurnTimeoutSeconds;
+        this.token = token == null ? "" : token.trim();
     }
 
     @Override
@@ -172,14 +175,18 @@ public class WorkhorseBrainClient implements CompanionBrain {
     }
 
     private HttpRequest.Builder jsonRequest(String method, String path) {
-        return HttpRequest.newBuilder(URI.create(baseUrl + path))
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 // workhorse non-loopback bind（0.0.0.0）对 /v1/* 强制 Origin 校验防 CSRF；master 是服务端调用
                 // 无浏览器 Origin，缺失会被 origin_forbidden 403。发 "null"(opaque origin)，配 workhorse
-                // allow_null_origin: true 放行。本地联调；生产应改 allowed_origins 白名单收紧。
+                // allow_null_origin: true 放行。Origin 校验与 bearer 认证是两个独立中间件，都要过。
                 .header("Origin", "null")
                 .method(method, HttpRequest.BodyPublishers.noBody());
+        // server-to-server 真认证：workhorse auth.bearer_token（Origin 可伪造只防浏览器 CSRF）。
+        // 空 token 不发头 —— 本地 h2 / IT 无 auth 场景照常。
+        if (!token.isEmpty()) b.header("Authorization", "Bearer " + token);
+        return b;
     }
 
     private static String body(HttpResponse<String> resp) {
@@ -202,11 +209,12 @@ public class WorkhorseBrainClient implements CompanionBrain {
     TurnOutcome streamTurn(String sessionId, String message, int timeoutSeconds, java.util.function.Consumer<String> onDelta)
             throws Exception {
         // 1. 开 GET 订阅（ofInputStream：headers 到达即返回，body 惰性流式）
-        HttpRequest getReq = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/sessions/" + sessionId + "/stream"))
+        HttpRequest.Builder getBuilder = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/sessions/" + sessionId + "/stream"))
                 .timeout(Duration.ofSeconds(Math.max(5, timeoutSeconds)))
                 .header("Accept", "text/event-stream")
-                .header("Origin", "null")   // 同 jsonRequest：non-loopback /v1/* Origin 校验
-                .GET().build();
+                .header("Origin", "null");   // 同 jsonRequest：non-loopback /v1/* Origin 校验
+        if (!token.isEmpty()) getBuilder.header("Authorization", "Bearer " + token);   // 同 jsonRequest：bearer 认证
+        HttpRequest getReq = getBuilder.GET().build();
         HttpResponse<java.io.InputStream> resp = http.send(getReq, HttpResponse.BodyHandlers.ofInputStream());
         if (resp.statusCode() < 200 || resp.statusCode() >= 300) {
             throw new IllegalStateException("stream http " + resp.statusCode());

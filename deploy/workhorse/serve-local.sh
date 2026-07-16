@@ -15,9 +15,17 @@ LOG="$WH_ROOT/tmp/wh.log"
 BIN="$DIR/bin/workhorse-agent-linux-amd64"
 CONFIG="$DIR/config.runtime.yaml"
 
-# 1. 释放 8300(杀占用者,用 ss 取 pid)
+# 1. 释放 8300(用 ss 取 pid;打印占用者进程名供审计——脚本语义是清端口让位 workhorse,
+#    非 workhorse 占用者如联调假 workhorse 也清,但显式标记透明可追溯)
 pid8300=$(ss -ltnp 2>/dev/null | grep ':8300' | grep -oP 'pid=\K[0-9]+' | head -1 || true)
-if [ -n "$pid8300" ]; then echo "释放 8300(kill 旧进程 $pid8300)"; kill "$pid8300" 2>/dev/null || true; sleep 1; fi
+if [ -n "$pid8300" ]; then
+  comm=$(ps -p "$pid8300" -o comm= 2>/dev/null | tr -d ' \n' || echo "?")
+  case "$comm" in
+    *workhorse*) echo "释放 8300(kill 旧 workhorse pid=$pid8300)" ;;
+    *) echo "释放 8300(kill 占用者 pid=$pid8300 comm=$comm —— 非 workhorse,仍清以让位)" ;;
+  esac
+  kill "$pid8300" 2>/dev/null || true; sleep 1
+fi
 
 # 2. setsid 脱离启动(WSL2 防后台被杀 + 日志不挂管道)
 setsid bash -c "cd '$DIR' && '$BIN' serve --config '$CONFIG' --host 0.0.0.0 --port 8300 > '$LOG' 2>&1" </dev/null >/dev/null 2>&1 & disown

@@ -27,7 +27,7 @@ class CompanionBrainSelectorTest {
         HttpServer server = newServer200();
         try {
             String base = "http://localhost:" + server.getAddress().getPort();
-            WorkhorseBrainClient wh = new WorkhorseBrainClient(base, "companion", 120);
+            WorkhorseBrainClient wh = new WorkhorseBrainClient(base, "companion", 120, "");
             MockBrain mock = new MockBrain();
             CompanionBrainSelector sel = new CompanionBrainSelector(wh, mock);
 
@@ -39,7 +39,7 @@ class CompanionBrainSelectorTest {
         }
 
         // 死 URL → workhorse 不可用
-        WorkhorseBrainClient dead = new WorkhorseBrainClient("http://127.0.0.1:1", "companion", 120);
+        WorkhorseBrainClient dead = new WorkhorseBrainClient("http://127.0.0.1:1", "companion", 120, "");
         MockBrain mock = new MockBrain();
         CompanionBrainSelector sel = new CompanionBrainSelector(dead, mock);
         assertThat(sel.healthy()).isFalse();
