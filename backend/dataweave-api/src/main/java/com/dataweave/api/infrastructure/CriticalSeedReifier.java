@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
  * 启动时幂等补灌「关键 seed」——修复 docker 旧库缺 data.sql 后续新增 seed 的隐蔽故障。
  *
  * <p>背景：distributed 部署 PG 持久卷 {@code spring.sql.init.mode=never}，schema.sql 靠
- * IF NOT EXISTS 升级表结构，但 data.sql 的 seed 不会在旧库重灌。069/071 等 feature 后续在
- * data.sql 新增的 seed（incident 处置 policy、巡检例程）在旧库上缺失，导致：
+ * IF NOT EXISTS 升级表结构，但 data.sql 的 seed 不会在旧库重灌。071 管家 feature 后续在
+ * data.sql 新增的 seed（管家打断 policy、巡检例程）在旧库上缺失，导致：
  * <ul>
- *   <li>巡检自动处置工具（incident_rerun 等）落入 PolicyEngine 默认 L2 闸门 → 全部 PENDING 不执行，
- *       自动处置闭环被静默阻断（巡检表面在工作，实际没解决问题，最终转人工）；</li>
+ *   <li>管家打断工具（companion_chat_cancel）落入 PolicyEngine 默认 L2 闸门 → 全部 PENDING 不执行，
+ *       管家会话打断被静默阻断；</li>
  *   <li>管家巡检例程表空 → PatrolScheduler 无例程可跑，管家从不履职。</li>
  * </ul>
  *
@@ -47,17 +47,11 @@ public class CriticalSeedReifier implements CommandLineRunner {
     }
 
     /**
-     * 069 智能运维处置工具 + 071 管家打断工具的 policy 级别（对应 data.sql id 56-62）。
-     * 缺失会导致 incident 自动处置被默认 L2 闸门阻断。按 (match_type, pattern) 幂等。
+     * 071 管家打断工具的 policy 级别（对应 data.sql id 62）。
+     * 缺失会导致管家会话打断被默认 L2 闸门阻断。按 (match_type, pattern) 幂等。
      */
     private int reifyPolicyRules() {
         int n = 0;
-        n += reifyRule("TOOL", "incident_rerun",             "L1", "智能运维自动重跑（瞬态故障自愈）",        20); // data.sql 56
-        n += reifyRule("TOOL", "incident_adjust_resources",  "L1", "智能运维调资源后重跑（护栏内自愈）",      20); // 57
-        n += reifyRule("TOOL", "incident_resume_checkpoint", "L1", "智能运维检查点续跑（实时任务自愈）",      20); // 58
-        n += reifyRule("TOOL", "incident_reverify",          "L1", "智能运维复验（人工处理后触发）",          20); // 59
-        n += reifyRule("TOOL", "incident_publish_fix",       "L3", "智能运维发布代码修复（需人审确认）",      30); // 60
-        n += reifyRule("TOOL", "incident_agent_cancel",      "L0", "打断事故 Agent 输出轮次（直执行+留痕）",  10); // 61
         n += reifyRule("TOOL", "companion_chat_cancel",      "L0", "打断管家会话流式输出（直执行+留痕）",    10); // 62
         return n;
     }

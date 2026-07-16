@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl"
 
 import { ChatMarkdown, completePartialMarkdown } from "./chat-markdown"
 
-const messages = { supervision: { copyCode: "Copy", copied: "Copied" } }
+const messages = { chat: { copyCode: "Copy", copied: "Copied" } }
 
 function renderMd(content: string, streaming = false) {
   return render(

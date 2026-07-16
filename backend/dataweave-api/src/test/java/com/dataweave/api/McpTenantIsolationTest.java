@@ -106,32 +106,4 @@ class McpTenantIsolationTest {
                 .expectBody()
                 .jsonPath("$.result.isError").isEqualTo(true);
     }
-
-    @Test
-    void queryIncidents_returnsTenantScoped_noError() {
-        post().bodyValue(Map.of("jsonrpc", "2.0", "id", 8, "method", "tools/call",
-                        "params", Map.of("name", "query_incidents", "arguments", Map.of())))
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.result.isError").isEqualTo(false);
-    }
-
-    @Test
-    void incidentReverify_unknownIncident_rejected() {
-        post().bodyValue(Map.of("jsonrpc", "2.0", "id", 9, "method", "tools/call",
-                        "params", Map.of("name", "incident_reverify", "arguments",
-                                Map.of("incidentId", "00000000-0000-0000-0000-000000000000"))))
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.result.isError").isEqualTo(true);
-    }
-
-    @Test
-    void toolsList_includesIncidentTools() {
-        post().bodyValue(Map.of("jsonrpc", "2.0", "id", 10, "method", "tools/list", "params", Map.of()))
-                .exchange().expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.result.tools[?(@.name=='query_incidents')].name").isEqualTo("query_incidents")
-                .jsonPath("$.result.tools[?(@.name=='incident_reverify')].name").isEqualTo("incident_reverify");
-    }
 }

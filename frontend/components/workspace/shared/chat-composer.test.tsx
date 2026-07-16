@@ -5,9 +5,9 @@ import { NextIntlClientProvider } from "next-intl"
 import { ChatComposer } from "./chat-composer"
 
 const messages = {
-  supervision: {
-    chatPlaceholder: "向运维 Agent 提问或下指令",
-    chatDisabled: "智能运维未启用",
+  chat: {
+    chatPlaceholder: "向 Agent 提问或下指令",
+    chatDisabled: "未启用",
     chatSend: "发送",
     chatStop: "停止",
     chatSendFailed: "发送失败",

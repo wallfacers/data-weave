@@ -1,5 +1,5 @@
 -- DataWeave 企业级 schema。兼容 PostgreSQL / H2 的通用 DDL。
--- Schema Version: 0.21.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
+-- Schema Version: 0.22.0（= 项目发布版本，严格 SemVer；改结构必升版本，见 docs/architecture.md）
 --   · 累计 MINOR：021 告警=0.1.0 → 022 数据质量=0.2.0 → 023 资产目录+指标市场=0.3.0（+4 表，已于 0.8.0 下线）
 --     → 036 项目隔离收口=0.5.0（alert_* 补 project_id + 索引 + 回填）。
 --     → 038 实例定时时间快照=0.6.0（workflow_instance +scheduled_fire_time；cron/fixed_rate 触发时刻落库，与 cron_expression 同源快照）。
@@ -26,6 +26,7 @@
 --     → 070 监督席对话体验=0.20.0（incident_message +actor_name 显示名列；+incident_agent_cancel L0 policy 种子——打断 Agent 输出轮次）。
 --     → 071 虚拟管家监督席=0.21.0（+patrol_routine/patrol_run/patrol_report/companion_message 4 表：
 --       巡检例程/执行历史/项目级共享汇报/管家会话；+patrol_run UNIQUE(routine_id,scheduled_fire_time) 幂等；seed 四领域默认例程）。
+--     → 删除 incident 监督席=0.22.0（删除 incident/incident_instance/incident_message/incident_proposal/incident_briefing 5 表 + incident_* policy_rule 种子；保留虚拟管家 companion 域）。
 -- 设计真相源：docs/architecture.md（权威 schema 即结构真相源，改结构必同步更新本文）
 -- 公共审计列：tenant_id, project_id, created_by, updated_by, created_at, updated_at, deleted, version
 --   · 全局表（tenants/permissions/datasource_types/worker_nodes）无 tenant_id/project_id
@@ -93,7 +94,7 @@ DROP TABLE IF EXISTS incident_event;
 DROP TABLE IF EXISTS incident;
 DROP TABLE IF EXISTS health_event;
 DROP TABLE IF EXISTS event_subscription;
--- 069 智能运维事故域（与 065 已移除的旧 incident/incident_event 同名重建，结构全新，见下方 CREATE）。
+-- incident 域已于 0.22.0 删除：下列 DROP 清理旧库（≤0.21.0）升级残留，全新库 no-op。
 DROP TABLE IF EXISTS incident_instance;
 DROP TABLE IF EXISTS incident_message;
 DROP TABLE IF EXISTS incident_proposal;
@@ -167,6 +168,8 @@ INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.20.0', CURRENT_TIMESTAMP, '070 监督席对话体验：incident_message +actor_name 显示名列；+incident_agent_cancel L0 policy 种子（打断 Agent 输出轮次）');
 INSERT INTO schema_version (version, applied_at, description)
 VALUES ('0.21.0', CURRENT_TIMESTAMP, '071 虚拟管家监督席：+patrol_routine/patrol_run/patrol_report/companion_message 4 表（巡检例程/执行历史/项目级共享汇报/管家会话）；patrol_run UNIQUE(routine_id,scheduled_fire_time) 幂等防重；seed 四领域默认例程');
+INSERT INTO schema_version (version, applied_at, description)
+VALUES ('0.22.0', CURRENT_TIMESTAMP, '删除 incident 监督席：删除 incident/incident_instance/incident_message/incident_proposal/incident_briefing 5 表 + incident_* policy_rule 种子（保留虚拟管家 companion 域）');
 
 -- ============================================================
 -- 域 A · 租户与 RBAC
@@ -1125,107 +1128,6 @@ CREATE TABLE lineage_grounding_disposition (
     CONSTRAINT ck_grounding_direction CHECK (direction IN ('READS','WRITES'))
 );
 CREATE INDEX idx_grounding_disp_task ON lineage_grounding_disposition (tenant_id, project_id, task_def_id);
-
--- ============================================================
--- 域 G · 069 任务失败智能运维（事故域）
--- Incident 是一次故障响应的一等载体：巡检开单 → 采证 → LLM 分型诊断 → 梯度处置 → 验证收口/升级人工。
--- open_key = task_def_id（开着时）/ NULL（收口后）；UNIQUE(tenant_id, open_key) 靠 NULL 不参与唯一冲突的标准语义
--- 实现"同一任务至多一个未收口事故"，插入冲突即视为归并（H2/PG 均遵循 ANSI NULL-distinct 语义，无需 partial index）。
--- ============================================================
-CREATE TABLE incident (
-    id                  UUID PRIMARY KEY,                 -- UUIDv7，应用层生成
-    tenant_id           BIGINT NOT NULL,
-    project_id          BIGINT NOT NULL,
-    task_def_id         BIGINT NOT NULL,
-    task_def_name       VARCHAR(255),                     -- 快照冗余，防任务删后线程失名
-    first_instance_id   UUID NOT NULL,                    -- 开单实例
-    latest_instance_id  UUID NOT NULL,                     -- 最近关联实例（归并/重跑后更新）
-    instance_count      INTEGER NOT NULL DEFAULT 1,        -- 归并的失败实例数
-    trigger_source      VARCHAR(16),                       -- CRON | MANUAL | STREAMING
-    classification      VARCHAR(24),                       -- TRANSIENT|RESOURCE|CODE|UPSTREAM_DATA|CONFIG_CREDENTIAL|UNKNOWN；NULL=未诊断
-    confidence          VARCHAR(8),                        -- HIGH | MEDIUM | LOW
-    state               VARCHAR(24) NOT NULL,              -- OPEN|ANALYZING|ACTING|AWAITING_APPROVAL|NEEDS_HUMAN|RESOLVED|DIAG_UNAVAILABLE
-    open_key            BIGINT,                            -- 开着=task_def_id；收口=NULL（唯一约束靠此列实现单事故不变量）
-    auto_action_count   INTEGER NOT NULL DEFAULT 0,        -- 防循环计数，只增不减
-    summary             VARCHAR(512),                      -- 一句话事故摘要（feed 列表用）
-    suggestion          TEXT,                              -- 升级人工时的操作建议
-    close_kind          VARCHAR(16),                        -- AUTO | HUMAN_ASSISTED | MANUAL
-    opened_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    closed_at           TIMESTAMP,
-    version             INTEGER NOT NULL DEFAULT 0,        -- 乐观锁
-    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_incident_open UNIQUE (tenant_id, open_key),
-    CONSTRAINT ck_incident_state CHECK (state IN ('OPEN','ANALYZING','ACTING','AWAITING_APPROVAL','NEEDS_HUMAN','RESOLVED','DIAG_UNAVAILABLE')),
-    CONSTRAINT ck_incident_classification CHECK (classification IS NULL OR classification IN ('TRANSIENT','RESOURCE','CODE','UPSTREAM_DATA','CONFIG_CREDENTIAL','UNKNOWN')),
-    CONSTRAINT ck_incident_trigger CHECK (trigger_source IS NULL OR trigger_source IN ('CRON','MANUAL','STREAMING')),
-    CONSTRAINT ck_incident_close_kind CHECK (close_kind IS NULL OR close_kind IN ('AUTO','HUMAN_ASSISTED','MANUAL'))
-);
-CREATE INDEX idx_incident_project ON incident (project_id, state, opened_at DESC);
-CREATE INDEX idx_incident_task ON incident (task_def_id, opened_at DESC);
-
--- 事故-实例关联（幂等归并的正确性地基）：巡检器每轮重扫全部 FAILED/SUSPENDED 实例，
--- 仅凭 incident.latest_instance_id 判断"是否已归并"在同一事故累计 ≥3 次失败时会误判（旧实例被重复计入）；
--- 本表以 PK(incident_id, instance_id) 天然幂等——insert 冲突即视为"此实例已归并过"，跳过重复处理。
-CREATE TABLE incident_instance (
-    incident_id UUID NOT NULL,
-    instance_id UUID NOT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_incident_instance PRIMARY KEY (incident_id, instance_id)
-);
-CREATE INDEX idx_incident_instance_incident ON incident_instance (incident_id);
-
--- 事故会话线程消息（持久化粒度）。思考态/流式分片/工具点亮为瞬态直播事件，只走 EventBus 不落此表；
--- 语义完整后落一条消息（AGENT_STEP/AGENT_SAY/HUMAN_SAY/ACTION/PROPOSAL/SYSTEM）。
-CREATE TABLE incident_message (
-    id            UUID PRIMARY KEY,
-    incident_id   UUID NOT NULL,
-    seq           BIGINT NOT NULL,                        -- 事故内递增序（SSE Last-Event-ID 续传锚点）
-    kind          VARCHAR(16) NOT NULL,
-    content       TEXT,                                    -- 面向人的正文（LLM 叙述按 agent locale 原文存储）
-    payload_json  TEXT,                                    -- 结构化载荷：chips/证据引用/agent_action_id/proposal_id/分型
-    actor         VARCHAR(64),                             -- ops-agent | 用户名(服务端认定) | system
-    actor_name    VARCHAR(128),                            -- 070：发言者显示名(displayName)；Agent/system/存量为空
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_incident_message_seq UNIQUE (incident_id, seq),
-    CONSTRAINT ck_incident_message_kind CHECK (kind IN ('AGENT_STEP','AGENT_SAY','HUMAN_SAY','ACTION','PROPOSAL','SYSTEM'))
-);
-CREATE INDEX idx_incident_msg ON incident_message (incident_id, seq);
-
--- 修复提案（代码缺陷类的谨慎处置载体）：全量新内容而非 diff，与 push 幂等覆盖语义一致。
--- base_version_no 陈旧性防护——发布前必须仍等于 task_def.current_version_no，否则作废（防止批准期间任务已被改动）。
-CREATE TABLE incident_proposal (
-    id                    UUID PRIMARY KEY,
-    incident_id           UUID NOT NULL,
-    task_def_id           BIGINT NOT NULL,
-    base_version_no       INTEGER NOT NULL,
-    proposed_content      VARCHAR(1048576) NOT NULL,        -- 全量新脚本内容（与 task_def.content 同一 1MB 安全上限）
-    change_summary        VARCHAR(1024),
-    evidence_json         TEXT,                              -- 证据包：诊断依据/关键日志行/预期效果
-    status                VARCHAR(16) NOT NULL DEFAULT 'PENDING',  -- PENDING→APPROVED/REJECTED/STALE；APPROVED→PUBLISHED→VERIFIED/VERIFY_FAILED→ROLLED_BACK
-    agent_action_id       BIGINT,                            -- 关联 agent_action（闸门/审批单）
-    published_version_no  INTEGER,
-    rollback_version_no   INTEGER,                           -- 回滚也是新快照，版本只进不退
-    approved_by           BIGINT,
-    approved_at           TIMESTAMP,
-    created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_incident_proposal_status CHECK (status IN ('PENDING','APPROVED','REJECTED','STALE','PUBLISHED','VERIFIED','VERIFY_FAILED','ROLLED_BACK'))
-);
-CREATE INDEX idx_incident_proposal_incident ON incident_proposal (incident_id);
-
--- 战况播报（每项目最新一行）：数字（stats_json）仅作报告佐证快照，接口实时数字永远另由 SQL 现算（SC-010 一致性契约）。
-CREATE TABLE incident_briefing (
-    id             BIGINT GENERATED BY DEFAULT AS IDENTITY,
-    tenant_id      BIGINT NOT NULL,
-    project_id     BIGINT NOT NULL,
-    summary_line   VARCHAR(512),                            -- LLM 一句话综述
-    report_md      TEXT,                                     -- 完整接班报告（Markdown）
-    stats_json     VARCHAR(512),                             -- 生成时点计数快照（佐证用，非权威）
-    generated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_incident_briefing PRIMARY KEY (id),
-    CONSTRAINT uk_incident_briefing_project UNIQUE (tenant_id, project_id)
-);
 
 -- ============================================================
 -- 域 · 虚拟管家监督席（companion：071）

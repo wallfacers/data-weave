@@ -76,23 +76,21 @@ class CriticalSeedReifierTest {
         CriticalSeedReifier reifier = new CriticalSeedReifier(jdbc);
 
         reifier.run();
-        assertThat(ruleCount(jdbc)).isEqualTo(7);     // 6 incident + 1 companion
+        assertThat(ruleCount(jdbc)).isEqualTo(1);     // 1 companion_chat_cancel
         assertThat(routineCount(jdbc)).isEqualTo(4);  // 四领域
 
         // 幂等：再跑不重复补
         reifier.run();
-        assertThat(ruleCount(jdbc)).isEqualTo(7);
+        assertThat(ruleCount(jdbc)).isEqualTo(1);
         assertThat(routineCount(jdbc)).isEqualTo(4);
     }
 
     @Test
     void onlyReifiesMissing_whenPartiallyPrefilled() {
         JdbcTemplate jdbc = freshDb();
-        // 模拟旧库：已有 incident_rerun + incident_publish_fix + TASK_FAILURE 例程（其余缺）
+        // 模拟旧库：已有 companion_chat_cancel + TASK_FAILURE 例程（其余缺）
         jdbc.update("INSERT INTO policy_rules (match_type, pattern, base_level, enabled, sort_order, deleted, version) "
-                + "VALUES ('TOOL','incident_rerun','L1',1,20,0,0)");
-        jdbc.update("INSERT INTO policy_rules (match_type, pattern, base_level, enabled, sort_order, deleted, version) "
-                + "VALUES ('TOOL','incident_publish_fix','L3',1,30,0,0)");
+                + "VALUES ('TOOL','companion_chat_cancel','L0',1,10,0,0)");
         jdbc.update("INSERT INTO patrol_routine (tenant_id, project_id, domain, enabled, cron_expression, timeout_seconds, deleted, version) "
                 + "VALUES (1,1,'TASK_FAILURE',1,'0 */15 * * * *',120,0,0)");
 
@@ -100,25 +98,23 @@ class CriticalSeedReifierTest {
 
         // 已有的不重复
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM policy_rules WHERE pattern='incident_rerun' AND deleted=0", Integer.class)).isEqualTo(1);
-        assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM policy_rules WHERE pattern='incident_publish_fix' AND deleted=0", Integer.class)).isEqualTo(1);
-        // 缺的补齐到 7 / 4
-        assertThat(ruleCount(jdbc)).isEqualTo(7);
+                "SELECT count(*) FROM policy_rules WHERE pattern='companion_chat_cancel' AND deleted=0", Integer.class)).isEqualTo(1);
+        // 缺的补齐到 1 / 4
+        assertThat(ruleCount(jdbc)).isEqualTo(1);
         assertThat(routineCount(jdbc)).isEqualTo(4);
     }
 
     @Test
     void softDeletedDoesNotBlockActiveReify() {
         JdbcTemplate jdbc = freshDb();
-        // incident_rerun 被 soft-delete（deleted=1）——旧库可能的历史状态
+        // companion_chat_cancel 被 soft-delete（deleted=1）——旧库可能的历史状态
         jdbc.update("INSERT INTO policy_rules (match_type, pattern, base_level, enabled, sort_order, deleted, version) "
-                + "VALUES ('TOOL','incident_rerun','L1',1,20,1,0)");
+                + "VALUES ('TOOL','companion_chat_cancel','L0',1,10,1,0)");
 
         new CriticalSeedReifier(jdbc).run();
 
         // reifier 查 deleted=0，soft-deleted 不算存在 → 补一条 active 的
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM policy_rules WHERE pattern='incident_rerun' AND deleted=0", Integer.class)).isEqualTo(1);
+                "SELECT count(*) FROM policy_rules WHERE pattern='companion_chat_cancel' AND deleted=0", Integer.class)).isEqualTo(1);
     }
 }
