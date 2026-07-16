@@ -10,7 +10,6 @@ import type { IconSvgElement } from "@hugeicons/react"
 import {
   Activity02Icon,
   BotIcon,
-  Alert02Icon,
   DashboardSquare01Icon,
   Database01Icon,
   DocumentCodeIcon,
@@ -23,7 +22,6 @@ import {
   Share08Icon,
 } from "@hugeicons/core-free-icons"
 
-import { SupervisionView } from "@/components/workspace/views/supervision-view"
 import { OpsView } from "@/components/workspace/views/ops-view"
 import { FreshnessView } from "@/components/workspace/views/freshness-view"
 import { WorkflowCanvasView } from "@/components/workspace/views/workflow-canvas-view"
@@ -50,7 +48,6 @@ interface ViewRender {
 }
 
 export const VIEW_RENDER: Record<ViewType, ViewRender> = {
-  supervision: { icon: Alert02Icon, component: SupervisionView },
   companion: { icon: BotIcon, component: CompanionView },
   "companion-routine": { icon: SettingDone02Icon, component: CompanionRoutineView },
   ops: { icon: SettingDone02Icon, component: OpsView },

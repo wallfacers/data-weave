@@ -1,8 +1,9 @@
 "use client"
 
 /**
- * 070 US3 对话输入框：auto-grow（1→8 行后内滚）、中文输入法组字保护（isComposing 时 Enter 不发送）、
- * 发送/停止状态机（Agent 流式中切停止键→打断本轮）。Agent 回复经 SSE 直播流回显（不在此等待）。
+ * 通用对话输入框：auto-grow（1→8 行后内滚）、中文输入法组字保护（isComposing 时 Enter 不发送）、
+ * 发送/停止状态机（流式中切停止键→打断本轮）。回复经 SSE 直播流回显（不在此等待）。
+ * 复用方：虚拟管家 companion 等。i18n 走 `chat` 命名空间。
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
@@ -27,10 +28,10 @@ export function ChatComposer({
   onCancel?: () => Promise<void>
   streaming?: boolean
   disabled?: boolean
-  /** 自定义输入占位符（虚拟管家等复用方按语境覆盖）；缺省用监督席文案。 */
+  /** 自定义输入占位符（复用方按语境覆盖）；缺省用 chat 命名空间文案。 */
   placeholder?: string
 }) {
-  const t = useTranslations("supervision")
+  const t = useTranslations("chat")
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [cancelling, setCancelling] = useState(false)

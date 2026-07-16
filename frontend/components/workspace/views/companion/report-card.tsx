@@ -14,12 +14,11 @@ import { toast } from "sonner"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
-import { ChatComposer } from "@/components/workspace/views/supervision/chat-composer"
+import { ChatComposer } from "@/components/workspace/shared/chat-composer"
 import { ChatMarkdown } from "@/components/workspace/shared/chat-markdown"
 import type { ReportView } from "@/lib/companion/types"
 import { closeReport, sendChat, cancelChat } from "@/lib/companion/api"
 import { useCompanionStore } from "@/lib/companion/store"
-import { useWorkspaceStore } from "@/lib/workspace/store"
 
 const SEVERITY_STYLE: Record<string, string> = {
   DANGER: "bg-destructive shadow-[0_0_8px_var(--destructive)]",
@@ -63,12 +62,6 @@ export function ReportCard({ report }: ReportCardProps) {
     }
     setStreaming(false)
   }, [t])
-
-  /* M7: 查看详情跳转（FR-019：跳监督席或对象详情） */
-  const openView = useWorkspaceStore((s) => s.open)
-  const handleViewDetail = useCallback(() => {
-    openView("supervision", { reportId: report.id })
-  }, [openView, report.id])
 
   /* 此汇报的 SSE 消息（filter by reportId）。
      selector 只取原始数组引用,filter 放 useMemo——selector 内 filter 每渲染返回新数组
@@ -120,9 +113,6 @@ export function ReportCard({ report }: ReportCardProps) {
       <div className="mt-2.5 flex gap-2">
         <Button size="sm" variant="outline" onClick={() => setChatOpen(!chatOpen)}>
           {t("report.chat")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={handleViewDetail}>
-          {t("report.viewDetail")}
         </Button>
       </div>
 

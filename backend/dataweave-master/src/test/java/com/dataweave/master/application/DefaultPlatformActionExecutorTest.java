@@ -60,14 +60,6 @@ class DefaultPlatformActionExecutorTest {
     private com.dataweave.master.domain.TaskDefRepository taskDefRepository;
     @Mock
     private com.dataweave.master.infrastructure.CheckpointRepository checkpointRepository;
-    @Mock
-    private com.dataweave.master.infrastructure.incident.IncidentRepository incidentRepository;
-    @Mock
-    private com.dataweave.master.infrastructure.incident.IncidentProposalRepository incidentProposalRepository;
-    @Mock
-    private com.dataweave.master.infrastructure.incident.IncidentMessageRepository incidentMessageRepository;
-    @Mock
-    private com.dataweave.master.application.incident.IncidentEventPublisher incidentEventPublisher;
 
     private DefaultPlatformActionExecutor executor;
 
@@ -86,8 +78,7 @@ class DefaultPlatformActionExecutorTest {
                 fleetService, taskService, workflowService, nodeExecGateway, triggerService, recoveryService, workflowDefRepository,
                 opsServiceProvider, projectSyncServiceProvider, java.util.List.of(),
                 lineageCorrectionServiceProvider, backfillServiceProvider, realMessages(),
-                taskDefRepository, checkpointRepository, incidentRepository, incidentProposalRepository,
-                incidentMessageRepository, incidentEventPublisher);
+                taskDefRepository, checkpointRepository);
         when(instanceRepository.save(any(TaskInstance.class))).thenAnswer(inv -> {
             TaskInstance t = inv.getArgument(0);
             t.setId(java.util.UUID.fromString("01910000-0010-7000-8000-000000000088"));
@@ -207,97 +198,5 @@ class DefaultPlatformActionExecutorTest {
         var out = executor.execute(instanceAction("KILL_INSTANCE", "not-a-uuid"));
         assertThat(out.success()).isFalse();
         assertThat(out.message()).contains("非法");
-    }
-
-    // ---- 069 T023: incident_publish_fix ----
-
-    private com.dataweave.master.domain.incident.IncidentProposal proposal(
-            java.util.UUID id, java.util.UUID incidentId, long taskDefId, int baseVersionNo, Long agentActionId, String status) {
-        return new com.dataweave.master.domain.incident.IncidentProposal(
-                id, incidentId, taskDefId, baseVersionNo, "select 2 -- fixed", "fixed typo", "{}",
-                status, agentActionId, null, null, null, null, null, null);
-    }
-
-    private com.dataweave.master.domain.TaskDef taskDef(long id, int currentVersionNo) {
-        com.dataweave.master.domain.TaskDef t = new com.dataweave.master.domain.TaskDef();
-        t.setId(id);
-        t.setName("demo-task");
-        t.setType("SQL");
-        t.setContent("select 1");
-        t.setCurrentVersionNo(currentVersionNo);
-        return t;
-    }
-
-    private AgentAction publishFixAction(java.util.UUID proposalId, java.util.UUID incidentId) {
-        AgentAction a = new AgentAction();
-        a.setId(900L);
-        a.setActionType("INCIDENT_PUBLISH_FIX");
-        a.setTargetType("INCIDENT_PROPOSAL");
-        a.setTargetId(proposalId.toString());
-        a.setCommand("{\"incidentId\":\"" + incidentId + "\"}");
-        return a;
-    }
-
-    @Test
-    void incidentPublishFix_staleBaseline_marksStaleAndEscalates() {
-        java.util.UUID proposalId = java.util.UUID.randomUUID();
-        java.util.UUID incidentId = java.util.UUID.randomUUID();
-        when(incidentProposalRepository.findById(proposalId))
-                .thenReturn(Optional.of(proposal(proposalId, incidentId, 42L, 1, 900L, "PENDING")));
-        when(taskDefRepository.findById(42L)).thenReturn(Optional.of(taskDef(42L, 2))); // 当前 v2 != baseline v1
-
-        var out = executor.execute(publishFixAction(proposalId, incidentId));
-
-        assertThat(out.success()).isFalse();
-        verify(incidentProposalRepository).casStatus(proposalId, "PENDING", "STALE");
-        verify(incidentRepository).casState(incidentId, "AWAITING_APPROVAL", "NEEDS_HUMAN");
-        verify(taskDefRepository, org.mockito.Mockito.never()).save(any());
-    }
-
-    @Test
-    void incidentPublishFix_taskDeleted_escalates() {
-        java.util.UUID proposalId = java.util.UUID.randomUUID();
-        java.util.UUID incidentId = java.util.UUID.randomUUID();
-        when(incidentProposalRepository.findById(proposalId))
-                .thenReturn(Optional.of(proposal(proposalId, incidentId, 42L, 1, 900L, "PENDING")));
-        when(taskDefRepository.findById(42L)).thenReturn(Optional.empty());
-
-        var out = executor.execute(publishFixAction(proposalId, incidentId));
-
-        assertThat(out.success()).isFalse();
-        verify(incidentRepository).casState(incidentId, "AWAITING_APPROVAL", "NEEDS_HUMAN");
-    }
-
-    @Test
-    void incidentPublishFix_success_publishesSnapshotAndReruns() {
-        java.util.UUID proposalId = java.util.UUID.randomUUID();
-        java.util.UUID incidentId = java.util.UUID.randomUUID();
-        java.util.UUID latestInstanceId = java.util.UUID.randomUUID();
-        com.dataweave.master.domain.TaskDef task = taskDef(42L, 1);
-        when(incidentProposalRepository.findById(proposalId))
-                .thenReturn(Optional.of(proposal(proposalId, incidentId, 42L, 1, 900L, "PENDING")));
-        when(taskDefRepository.findById(42L)).thenReturn(Optional.of(task));
-        when(taskService.writeTaskVersionSnapshot(eq(task), org.mockito.ArgumentMatchers.isNull(), any())).thenReturn(2);
-
-        com.dataweave.master.domain.incident.Incident inc = new com.dataweave.master.domain.incident.Incident(
-                incidentId, 1L, 1L, 42L, "demo-task", latestInstanceId, latestInstanceId, 1,
-                "CRON", "CODE", "HIGH", "AWAITING_APPROVAL", null, 1, "summary", null, null,
-                null, null, 0, null, null);
-        when(incidentRepository.findById(incidentId)).thenReturn(Optional.of(inc));
-        when(incidentRepository.casState(incidentId, "AWAITING_APPROVAL", "ACTING")).thenReturn(true);
-        TaskInstance rerun = new TaskInstance();
-        rerun.setId(latestInstanceId);
-        rerun.setState("WAITING");
-        when(opsService.rerunInstance(latestInstanceId)).thenReturn(rerun);
-
-        var out = executor.execute(publishFixAction(proposalId, incidentId));
-
-        assertThat(out.success()).isTrue();
-        assertThat(out.resultInstanceId()).isEqualTo(latestInstanceId);
-        assertThat(task.getContent()).isEqualTo("select 2 -- fixed");
-        verify(taskDefRepository).save(task);
-        verify(incidentProposalRepository).markPublished(proposalId, 2);
-        verify(incidentRepository).casState(incidentId, "AWAITING_APPROVAL", "ACTING");
-        verify(opsService).rerunInstance(latestInstanceId);
     }
 }
