@@ -21,10 +21,19 @@ from pydantic import BaseModel
 
 from realeval.dir_fix import apply_dir_fix
 from realeval.semantic_grounding import filter_pred_semantic
+from realeval.specialist_fusion import fuse
 from realeval.tier_classify import classify_tiers
 
 MODEL_DIR = os.environ.get("MODEL_DIR", "out/run1/merged")
 MODEL_VERSION = os.environ.get("MODEL_VERSION", "wallfacers/weft-lineage-extractor-1.5b@v1")
+# 068 US6 双专家融合：绕开 3B/LoRA 表↔列容量墙。置 LINEAGE_FUSION=1 开——加载表专家
+# (MODEL_DIR_TABLE, 表召回天花板) + 列专家(MODEL_DIR_COLUMN, 列 F1 天花板)，两趟确定性解码后
+# 由 specialist_fusion.fuse 组合(表集取表专家/并集，列从列专家嫁接)，再走同一 postprocess。
+# 关时逐字节等价单模型现状。默认策略 table(A，精度稳、表 R 已过门)；union(B) 冲召回。
+FUSION_ENABLED = os.environ.get("LINEAGE_FUSION", "0") == "1"
+MODEL_DIR_TABLE = os.environ.get("MODEL_DIR_TABLE", "")
+MODEL_DIR_COLUMN = os.environ.get("MODEL_DIR_COLUMN", "")
+FUSION_STRATEGY = os.environ.get("LINEAGE_FUSION_STRATEGY", "table")
 # 语义 grounding 后处理默认开（gold C 实测 ALL-p +4.2pt、零召回损）；置 0 回滚到旧行为。
 GROUND_DEFAULT = os.environ.get("LINEAGE_SEMANTIC_GROUNDING", "1") != "0"
 # 置信度分层默认开（063）：reads/writes=自动采纳层（治理安全），reviewReads/Writes=复核候选层。
@@ -49,9 +58,19 @@ state: dict = {}
 async def lifespan(app: FastAPI):
     from transformers import AutoModelForCausalLM, AutoTokenizer
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    state["tok"] = AutoTokenizer.from_pretrained(MODEL_DIR)
-    state["model"] = AutoModelForCausalLM.from_pretrained(
-        MODEL_DIR, dtype=torch.bfloat16, device_map=device).eval()
+
+    def _load(d):
+        return AutoModelForCausalLM.from_pretrained(
+            d, dtype=torch.bfloat16, device_map=device).eval()
+
+    if FUSION_ENABLED:
+        # 双专家共享 base 分词器；两模型各自加载(12G 显存偏紧时可换 4bit 或 base+双 adapter)。
+        state["tok"] = AutoTokenizer.from_pretrained(MODEL_DIR_TABLE)
+        state["model_table"] = _load(MODEL_DIR_TABLE)
+        state["model_col"] = _load(MODEL_DIR_COLUMN)
+    else:
+        state["tok"] = AutoTokenizer.from_pretrained(MODEL_DIR)
+        state["model"] = _load(MODEL_DIR)
     yield
     state.clear()
 
@@ -145,9 +164,9 @@ def health():
     return {"status": "UP", "modelVersion": MODEL_VERSION}
 
 
-@app.post("/extract", response_model=ExtractResponse)
-def extract(req: ExtractRequest) -> ExtractResponse:
-    tok, model = state["tok"], state["model"]
+def _generate_pred(model, req: ExtractRequest) -> dict:
+    """单模型确定性解码 → 解析出 {reads, writes}（融合前的原始逐表预测）。"""
+    tok = state["tok"]
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"task_type: {req.taskType}\nscript:\n{req.content[:4000]}"},
@@ -158,7 +177,20 @@ def extract(req: ExtractRequest) -> ExtractResponse:
         out = model.generate(**inputs, max_new_tokens=256, do_sample=False,
                              pad_token_id=tok.pad_token_id or tok.eos_token_id)
     text = tok.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-    fixed = postprocess(text, req.content)  # grounding + dir_fix + 置信度分层（063）
+    return _parse_model_json(text)
+
+
+@app.post("/extract", response_model=ExtractResponse)
+def extract(req: ExtractRequest) -> ExtractResponse:
+    if FUSION_ENABLED:
+        # 068 US6：表专家定表集、列专家嫁接列 → 绕开容量墙拿两全（表 R + 列 F1 同高）。
+        table_pred = _generate_pred(state["model_table"], req)
+        col_pred = _generate_pred(state["model_col"], req)
+        pred = fuse(table_pred, col_pred, strategy=FUSION_STRATEGY)
+        fixed = postprocess(json.dumps(pred), req.content)
+    else:
+        pred = _generate_pred(state["model"], req)
+        fixed = postprocess(json.dumps(pred), req.content)  # grounding + dir_fix + 分层（063）
     return ExtractResponse(modelVersion=MODEL_VERSION,
                            reads=_to_io(fixed["reads"]), writes=_to_io(fixed["writes"]),
                            reviewReads=_to_io(fixed["review_reads"]),
