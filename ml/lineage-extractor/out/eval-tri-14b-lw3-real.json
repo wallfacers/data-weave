@@ -1,0 +1,31 @@
+{
+  "all": {
+    "precision": 0.6825396825396826,
+    "recall": 0.7272727272727273,
+    "f1": 0.7041965199590584,
+    "hallucination": 0.06746031746031746,
+    "direction_acc": 0.7272727272727273,
+    "invalid": 6,
+    "col_precision": 0.9362292051756007,
+    "col_recall": 0.7889408099688473,
+    "col_f1": 0.8562975486052409,
+    "col_hallucination": 0.036044362292051754,
+    "col_eval_tables": 266
+  },
+  "nonempty": {
+    "precision": 0.8865979381443299,
+    "recall": 0.7272727272727273,
+    "f1": 0.7990708478513356,
+    "hallucination": 0.01804123711340206,
+    "direction_acc": 0.7272727272727273,
+    "invalid": 5,
+    "col_precision": 0.9362292051756007,
+    "col_recall": 0.7889408099688473,
+    "col_f1": 0.8562975486052409,
+    "col_hallucination": 0.036044362292051754,
+    "col_eval_tables": 266
+  },
+  "n": 399,
+  "n_nonempty": 129,
+  "model": "out/run-tri-14b-lw3/merged"
+}
