@@ -1,0 +1,31 @@
+{
+  "all": {
+    "precision": 0.6471774193548387,
+    "recall": 0.678646934460888,
+    "f1": 0.6625386996904025,
+    "hallucination": 0.05040322580645161,
+    "direction_acc": 0.6765327695560254,
+    "invalid": 6,
+    "col_precision": 0.9233333333333333,
+    "col_recall": 0.9187396351575456,
+    "col_f1": 0.9210307564422278,
+    "col_hallucination": 0.0325,
+    "col_eval_tables": 246
+  },
+  "nonempty": {
+    "precision": 0.8794520547945206,
+    "recall": 0.678646934460888,
+    "f1": 0.766109785202864,
+    "hallucination": 0.0136986301369863,
+    "direction_acc": 0.6765327695560254,
+    "invalid": 5,
+    "col_precision": 0.9233333333333333,
+    "col_recall": 0.9187396351575456,
+    "col_f1": 0.9210307564422278,
+    "col_hallucination": 0.0325,
+    "col_eval_tables": 246
+  },
+  "n": 399,
+  "n_nonempty": 129,
+  "model": "out/run-tri-14b/merged"
+}

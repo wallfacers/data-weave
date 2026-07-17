@@ -1,0 +1,31 @@
+{
+  "all": {
+    "precision": 0.5608365019011406,
+    "recall": 0.6236786469344608,
+    "f1": 0.5905905905905906,
+    "hallucination": 0.049429657794676805,
+    "direction_acc": 0.6194503171247357,
+    "invalid": 10,
+    "col_precision": 0.9341438703140831,
+    "col_recall": 0.9137760158572844,
+    "col_f1": 0.9238476953907815,
+    "col_hallucination": 0.02634245187436677,
+    "col_eval_tables": 215
+  },
+  "nonempty": {
+    "precision": 0.8126721763085399,
+    "recall": 0.6236786469344608,
+    "f1": 0.7057416267942583,
+    "hallucination": 0.03305785123966942,
+    "direction_acc": 0.6194503171247357,
+    "invalid": 7,
+    "col_precision": 0.9341438703140831,
+    "col_recall": 0.9137760158572844,
+    "col_f1": 0.9238476953907815,
+    "col_hallucination": 0.02634245187436677,
+    "col_eval_tables": 215
+  },
+  "n": 399,
+  "n_nonempty": 129,
+  "model": "out/run-tri-7b/merged"
+}
