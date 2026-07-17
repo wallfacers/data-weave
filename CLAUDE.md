@@ -34,7 +34,7 @@ docker-compose.yml   # PostgreSQL + Redis
 cd backend
 docker compose up -d                     # PostgreSQL + Redis (localhost:5432)
 ./dev-install.sh                         # fast local build (mvnd + cache, skip tests/fat jar)
-./mvnw -pl dataweave-api spring-boot:run # port 8000; health: GET /api/health
+./mvnw -pl dataweave-api spring-boot:run # port 8000; health: GET /actuator/health
 # Zero external deps: append -Dspring-boot.run.profiles=h2 (skip docker compose)
 
 # Frontend
