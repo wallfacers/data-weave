@@ -1,0 +1,31 @@
+{
+  "all": {
+    "precision": 0.5598591549295775,
+    "recall": 0.3361522198731501,
+    "f1": 0.4200792602377807,
+    "hallucination": 0.11267605633802817,
+    "direction_acc": 0.3171247357293869,
+    "invalid": 2,
+    "col_precision": 0.9871244635193133,
+    "col_recall": 0.4703476482617587,
+    "col_f1": 0.6371191135734071,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 119
+  },
+  "nonempty": {
+    "precision": 0.7644230769230769,
+    "recall": 0.3361522198731501,
+    "f1": 0.4669603524229074,
+    "hallucination": 0.07692307692307693,
+    "direction_acc": 0.3171247357293869,
+    "invalid": 1,
+    "col_precision": 0.9871244635193133,
+    "col_recall": 0.4703476482617587,
+    "col_f1": 0.6371191135734071,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 119
+  },
+  "n": 399,
+  "n_nonempty": 129,
+  "model": "out/run-7b/merged"
+}

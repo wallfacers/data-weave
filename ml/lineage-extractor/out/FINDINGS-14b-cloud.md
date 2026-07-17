@@ -71,7 +71,26 @@ base `Qwen/Qwen2.5-Coder-7B-Instruct`,**同 14B 干净配方**(plain LoRA r16/α
 
 - **关键发现:合成 heldout 对 7B/14B 已双双触顶**(表 ~0.99+,列 1.000),7B 甚至微超 14B —— 差异在噪声内,**合成集对规模无区分力**。这正是负结果叙事的又一实证:合成饱和分不能用来判定「更大模型更好」。要分出 7B vs 14B 高下(尤其 068 关切的真实表列两全),**只能靠真实 tri gold**(见下 blocker)。
 
-## ⚠️ 真实集评测 blocker + HF 推送闸(2026-07-17)
+## ★ 真实 tri gold 评测(2026-07-17 晚,blocker 解除)
+
+gold 意外在本地找到:068 worktree(`dw-068-tri-vendor-gold`,未 remove)的 `realeval/gold/` 完整保有 `real-c-tri.jsonl`(399 条,非空 129)——无需等家里机器。已复制回 main 的 `realeval/gold/`(gitignored)。云机被更换(host/port 变),paramiko 重推公钥后数据盘完好(merged 权重都在),`realeval/eval_model_c.py`(main 与 068 worktree 逐字节一致)在云机跑通两个规模:
+
+| 规模(synth-only 训练) | 表 P(非空) | 表 R | 表 F1 | 方向 | 幻觉 | 列 P | 列 R | 列 F1 |
+|---|---|---|---|---|---|---|---|---|
+| **14B** | 0.8382 | 0.3615 | **0.5052** | 0.3298 | 0.0196 | 0.9657 | 0.5788 | **0.7238** |
+| **7B** | 0.7644 | 0.3362 | 0.4670 | 0.3171 | 0.0769 | 0.9871 | 0.4703 | 0.6371 |
+| 3B tri-lw3(真实银标训练,068) | — | — | **0.781** | — | — | — | — | **0.825** |
+| 3B 融合B(068 US6) | — | 0.801 | — | 0.780 | — | — | — | 0.828 |
+
+三个结论(全部强化负结果叙事):
+
+1. **规模不能修复 domain shift**:synth-only 14B 真实表 F1 0.505,被真实银标训练的 3B(0.781)碾压;合成 heldout 0.9958 → 真实 0.505 即卡片头条 *the misleading number* 的 14B 版本。严格双门(表 R≥0.75 且 列 F1≥0.85)synth-only 14B 在真实集上**两门全挂**(表 R 仅 0.36)——「14B 单模型打穿两门」只在合成集成立,真实集上被证伪。
+2. **真实集恢复规模区分力**:合成 heldout 上 7B≈14B(双双触顶),真实集上 14B 全面优于 7B(表 F1 0.505>0.467,列 F1 0.724>0.637,幻觉 0.020<0.077)——印证「合成饱和分无区分力,规模判定只能靠真实集」。
+3. **崩塌轴是召回,不是精度**:14B 真实表 P 0.838、列 P 0.966、列幻觉 0——synth 训练教会了「不瞎编」,但真实脚本形态见不着导致漏抽(R 0.36)。方向 0.33 同崩(synth 模板方向线索与真实脚本不同构)。
+
+报告:`out/eval-{14b,7b}-real-tri.{md,json}`(已拉回本地)。**下一步若要真两全**:用 068 tri 真实银标语料在云机重训 7B/14B(数据盘已有基座+配方,`train.jsonl` 换成 tri 语料即可)。
+
+## ⚠️ 真实集评测 blocker + HF 推送闸(2026-07-17)——已解除,留档
 
 - **合成 0.995/1.000 不可单独发布**:publish.py/MODEL_CARD 的既定叙事=负结果研究,头条「合成 held-out 0.995(*the misleading number*) vs 真实 GitHub 0.27 崩塌」。14B 只有合成数字 → 诚实卡片写不出 → **14B 暂不推 HF,推送闸卡在真实数字上**。
 - **真实 tri gold 三处皆无**:`realeval/gold/real-c-tri.jsonl`(带列,nonempty~129)+ `real-c.jsonl`(表级,153)均 **gitignored**;本地工作树已删、云端 GPU 未传、HF 数据集 repo(`weft-script-lineage-synth`)确认只有合成 train/heldout + 报告(历史发布未带 `--include-real-gold`)。**gold 仅存于用户家里另一台机器**,当前不可达。
@@ -81,7 +100,7 @@ base `Qwen/Qwen2.5-Coder-7B-Instruct`,**同 14B 干净配方**(plain LoRA r16/α
 ## 待办
 
 1. ~~全量合成 heldout 评测~~ ✅ 已完成(上表)。
-2. **[blocked]** 14B 真实 tri gold 复评 + HF 推送 —— 等家里机器 gold。
+2. ~~14B/7B 真实 tri gold 复评~~ ✅ 已完成(见「★ 真实 tri gold 评测」);HF 推送闸的两数已齐(合成 0.9958/真实 0.505),推送本身待用户确认。
 3. **7B 训练**(2026-07-17 起):补 3B→7B→14B 逐规模曲线中间点,定位「表列两全」最小规模。base 已下 `/root/autodl-tmp/models/Qwen2.5-Coder-7B-Instruct`,同配方(plain r16/α32,epochs 2,max-len 2048);真实评测同样延后。✅ 训练+合成评测已完成(见上「7B 规模点」)。
 
 ## 回家续跑 checklist(给接手的 AI)
