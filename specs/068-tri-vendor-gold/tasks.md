@@ -91,6 +91,14 @@
 - [x] T038 [US5] r64 容量叠加验证 `run-tri-3b-lw3-r64`（判断能否顶过严格两全）→ 负结果如实（两次逃逸双证 3B 容量墙）。
 - [x] T039 [P] [US5] PAPER-EVIDENCE-068.md §8 收口（诊断/W推导/结果/两全负结果/门②/交付）+ spec US5/FR-017..020/SC-013..016。
 
+## Phase 6c: US6 双专家 serving 融合（P6，推理期两全·容量墙工程解）— TDD
+
+- [x] T040 [P] [US6] TDD 先行：`tests/test_specialist_fusion.py`（策略表集/列嫁接/回退/canon 限定名匹配/幂等自反/确定性/门①表级 counts 不变/真实 preds 端到端），先红。
+- [x] T041 [US6] 实现 `realeval/specialist_fusion.py`（`fuse` 表/并集策略 + 列专家嫁接 + `fuse_pairs` 对齐），测试转绿；不改 `eval/metrics.py`（门①）。
+- [x] T042 [US6] `realeval/eval_fusion.py` 离线真跑评测（表专家/列专家/lw3/融合A/融合B × canon 双口径）→ `out/fusion-068.{md,json}`：融合严格支配 lw3、融合B 表 R 0.801>单专家天花板。
+- [x] T043 [US6] serving 接线 `serve/app.py`：`LINEAGE_FUSION`/`MODEL_DIR_TABLE`/`MODEL_DIR_COLUMN`/`LINEAGE_FUSION_STRATEGY` + `_generate_pred` 提取，双专家各一趟解码 → fuse → 同 postprocess；关时逐字节等价。`tests/test_fusion_serve.py`（接线 + 非融合等价 + postprocess 幂等）绿。
+- [x] T044 [P] [US6] PAPER-EVIDENCE-068.md §9 收口（机制/融合A/B结果/破单专家天花板/诚实残差列F1 0.83/部署默认）+ spec US6/FR-021/SC-017 + 全 pytest 337 绿零回归。
+
 ---
 
 ## Phase 7: Polish & 收尾

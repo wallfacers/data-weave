@@ -1,0 +1,138 @@
+{
+  "gold_n": 399,
+  "nonempty_n": 129,
+  "canon_false": {
+    "表专家 run-tri-3b-col50": {
+      "precision": 0.8247191011235955,
+      "recall": 0.7758985200845666,
+      "f1": 0.7995642701525055,
+      "hallucination": 0.020224719101123594,
+      "direction_acc": 0.758985200845666,
+      "invalid": 0,
+      "col_precision": 0.9118589743589743,
+      "col_recall": 0.42336309523809523,
+      "col_f1": 0.5782520325203252,
+      "col_hallucination": 0.04006410256410257,
+      "col_eval_tables": 266
+    },
+    "列专家 run-tri-3b": {
+      "precision": 0.8153409090909091,
+      "recall": 0.6067653276955602,
+      "f1": 0.6957575757575757,
+      "hallucination": 0.036931818181818184,
+      "direction_acc": 0.5898520084566596,
+      "invalid": 0,
+      "col_precision": 0.918111753371869,
+      "col_recall": 0.9463753723932473,
+      "col_f1": 0.9320293398533008,
+      "col_hallucination": 0.03275529865125241,
+      "col_eval_tables": 217
+    },
+    "均衡 lw3 run-tri-3b-lw3": {
+      "precision": 0.8341346153846154,
+      "recall": 0.733615221987315,
+      "f1": 0.7806524184476941,
+      "hallucination": 0.026442307692307692,
+      "direction_acc": 0.7293868921775899,
+      "invalid": 0,
+      "col_precision": 0.9101019462465245,
+      "col_recall": 0.754803996925442,
+      "col_f1": 0.8252100840336135,
+      "col_hallucination": 0.03521779425393883,
+      "col_eval_tables": 262
+    },
+    "融合A fuse-table": {
+      "precision": 0.8247191011235955,
+      "recall": 0.7758985200845666,
+      "f1": 0.7995642701525055,
+      "hallucination": 0.020224719101123594,
+      "direction_acc": 0.758985200845666,
+      "invalid": 0,
+      "col_precision": 0.921747042766151,
+      "col_recall": 0.7537202380952381,
+      "col_f1": 0.8293082275890299,
+      "col_hallucination": 0.03002729754322111,
+      "col_eval_tables": 266
+    },
+    "融合B fuse-union": {
+      "precision": 0.8115631691648822,
+      "recall": 0.8012684989429175,
+      "f1": 0.8063829787234043,
+      "hallucination": 0.029978586723768737,
+      "direction_acc": 0.7801268498942917,
+      "invalid": 0,
+      "col_precision": 0.9096437880104257,
+      "col_recall": 0.7597968069666183,
+      "col_f1": 0.8279952550415185,
+      "col_hallucination": 0.04170286707211121,
+      "col_eval_tables": 274
+    }
+  },
+  "canon_true": {
+    "表专家 run-tri-3b-col50": {
+      "precision": 0.8382022471910112,
+      "recall": 0.7885835095137421,
+      "f1": 0.8126361655773421,
+      "hallucination": 0.020224719101123594,
+      "direction_acc": 0.7674418604651163,
+      "invalid": 0,
+      "col_precision": 0.9093799682034976,
+      "col_recall": 0.4178232286340394,
+      "col_f1": 0.5725725725725725,
+      "col_hallucination": 0.0397456279809221,
+      "col_eval_tables": 272
+    },
+    "列专家 run-tri-3b": {
+      "precision": 0.8181818181818182,
+      "recall": 0.6088794926004228,
+      "f1": 0.6981818181818182,
+      "hallucination": 0.036931818181818184,
+      "direction_acc": 0.5919661733615222,
+      "invalid": 0,
+      "col_precision": 0.9173076923076923,
+      "col_recall": 0.9464285714285714,
+      "col_f1": 0.931640625,
+      "col_hallucination": 0.032692307692307694,
+      "col_eval_tables": 218
+    },
+    "均衡 lw3 run-tri-3b-lw3": {
+      "precision": 0.8365384615384616,
+      "recall": 0.7357293868921776,
+      "f1": 0.7829021372328459,
+      "hallucination": 0.026442307692307692,
+      "direction_acc": 0.7315010570824524,
+      "invalid": 0,
+      "col_precision": 0.9093432007400555,
+      "col_recall": 0.7549923195084486,
+      "col_f1": 0.8250104909777591,
+      "col_hallucination": 0.03515263644773358,
+      "col_eval_tables": 263
+    },
+    "融合A fuse-table": {
+      "precision": 0.8382022471910112,
+      "recall": 0.7885835095137421,
+      "f1": 0.8126361655773421,
+      "hallucination": 0.020224719101123594,
+      "direction_acc": 0.7674418604651163,
+      "invalid": 0,
+      "col_precision": 0.9202898550724637,
+      "col_recall": 0.7421475529583638,
+      "col_f1": 0.8216740800646988,
+      "col_hallucination": 0.029891304347826088,
+      "col_eval_tables": 272
+    },
+    "融合B fuse-union": {
+      "precision": 0.8244111349036403,
+      "recall": 0.813953488372093,
+      "f1": 0.8191489361702128,
+      "hallucination": 0.029978586723768737,
+      "direction_acc": 0.7885835095137421,
+      "invalid": 0,
+      "col_precision": 0.9083044982698962,
+      "col_recall": 0.7483962936564504,
+      "col_f1": 0.8206330597889802,
+      "col_hallucination": 0.04152249134948097,
+      "col_eval_tables": 280
+    }
+  }
+}

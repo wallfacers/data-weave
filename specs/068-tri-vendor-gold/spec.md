@@ -94,6 +94,20 @@
 2. **Given** W>1.0，**When** 装配 per-token 权重，**Then** 答案内 `"columns":[...]` 数组值 token 权重=1.0、表名/骨架 token 权重=W、脚本/prompt token 权重=1.0；且评测侧表/列 counts 逐字节不受影响（门①）。
 3. **Given** run-tri-3b-lw3（W=3）与密度稀释 frontier（col70/col50），**When** 同表召回处比列 F1，**Then** lw3 严格高出（外推 frontier）；两次独立逃逸（调 W、r64 容量叠加）如实记录是否达严格两全。
 
+### User Story 6 - 双专家 serving 融合（推理期两全，绕开容量墙）(Priority: P6)
+
+作为血缘抽取器的**部署方/论文作者**，我要在**推理期**把 US2 的两个专家（表专家 `run-tri-3b-col50` 表召回天花板、列专家 `run-tri-3b` 列 F1 天花板）组合出一个"表列都高"的输出，作为 US5 揭示的 3B/LoRA 容量墙的**工程解**——不训练、可直接部署。
+
+**Why this priority**: US5 证实单权重两全受容量墙限制（列 F1 卡 0.83）；本 story 换赛道——既然两个专家各占 frontier 一端，推理期融合可同时吃到两端，回答"不加训练能否再涨点"。可独立交付（一个纯函数 + serving 开关），不改既有交付、不改 metrics。
+
+**Independent Test**: 复用 US2 已 dump 的 `out/preds-tri/{run-tri-3b-col50,run-tri-3b}.jsonl`，离线融合（表专家定表集 / 列专家嫁接列）后同 nonempty-gold 口径评测，判融合是否严格支配 US5 均衡单模型 lw3（表 R 与 列 F1 双不劣且至少一项显著升）。
+
+**Acceptance Scenarios**:
+
+1. **Given** 表专家与列专家逐例预测，**When** `fuse(strategy="table")`，**Then** 表集逐字节 = 表专家（表级 P/R/F1 = 表专家 solo，门① 不受融合扰动），每个表的列从列专家嫁接（命中则，含 canon 限定名匹配）、缺则回退表专家、皆无 → null。
+2. **Given** 融合A（表策略）与融合B（并集策略），**When** 同 nonempty-gold 评测，**Then** 融合A 表 R 0.776 + 列 F1 0.829、融合B 表 R **0.801（>单表专家天花板 0.776）** + 列 F1 0.828，两者表 F1/列 F1/方向**均严格支配 lw3 均衡单模型**（表 R +0.04~0.07、列 F1 持平 0.83、方向升）。
+3. **Given** serving `LINEAGE_FUSION=1`，**When** `/extract`，**Then** 两专家各确定性解码一趟 → `fuse` → 同一 `postprocess`（grounding/dir_fix/分层照旧）；`LINEAGE_FUSION=0` 时逐字节等价单模型现状。
+
 ### Edge Cases
 
 - GPT-5.6 某条脚本返回非法/空 JSON（解析失败）→ 该 teacher 对该条弃权，不阻断共识（其余两家仍可 2-of-2 成 gold）。
@@ -126,6 +140,7 @@
 - **FR-018**（W 原理化）: W 取值 MUST 由实测 tri 训练集"列名值:表名值"高熵 token 比值推导（实测 4.39:1），对齐 col50 已证 1.99:1 平衡 + loss 加权比删列更软的折扣 → W=3.0。
 - **FR-019**（评测）: 系统 MUST 在同一 nonempty-gold 口径评测 `run-tri-3b-lw3`（及容量叠加 `run-tri-3b-lw3-r64`），报告表/列 P/R/F1、frontier 相对密度稀释的支配关系（同表召回处列 F1 增量）、表精度 McNemar parity。
 - **FR-020**（测试）: 所有新增代码 MUST 有单测（列区间识别 / 权重装配 / W=1.0 可复现门 / 加权 CE 数学 / collator pad / 门①训练侧零 eval 耦合），全 pytest 绿零回归。
+- **FR-021**（US6·双专家融合）: 系统 MUST 提供纯函数 `specialist_fusion.fuse(table_pred, col_pred, strategy)`：`strategy='table'` 表集取表专家（表级指标不受融合扰动）、`'union'` 取两专家并集；两策略下每表列一律从列专家嫁接（精确或 canon 尾段匹配），缺则回退表专家、皆无 → null；MUST 确定性（表名升序）、幂等自反（`fuse(X,X)` 还原 X）。serving MUST 提供 `LINEAGE_FUSION` 开关（两专家各一趟确定性解码 → fuse → 同一 postprocess），关时逐字节等价单模型。MUST NOT 改 `eval/metrics.py`（门① 正交由评测侧保证，融合只发生在打分前）。新增代码 MUST 有单测（策略表集/列嫁接/回退/canon 匹配/幂等/门①表级 counts 不变/serving 接线）+ 真跑离线评测取证。
 
 ### Key Entities
 
@@ -155,6 +170,7 @@
 - **SC-014**（US5·frontier 外推）：同表召回处 lw3 列 F1 高于密度稀释 frontier **≥+0.13**（实测 +0.146@r32 / +0.138@r64）→ loss 加权**严格支配密度稀释**作为表列权衡机制（删列丢掉的列技能被加权保住）。
 - **SC-015**（US5·严格两全负结果如实）：单个 3B/LoRA 权重 表 R≥0.75 **且** 列 F1≥0.85 严格两门同过 **不可达**——经**两次独立逃逸**双重证实：① 调 W 沿 frontier 只拿一门换一门；② r64 容量叠加与加权同向（沿同一 frontier 滑向表：0.734/0.825→0.742/0.797），不外推 frontier。改进后 frontier 从目标角内侧擦过；诚实记 7B（本机 12G defer）为严格两全出路。
 - **SC-016**（US5·交付）：交付 `run-tri-3b-lw3`（r32,W3）作**最佳均衡单模型**——表 F1 0.781 + 列 F1 0.825 双强，点估计仅差目标角 ~0.02 且在 bootstrap CI 内，碾压所有其它单模型（列专家 0.723/0.931、表专家 0.800/0.578）。回答用户"列和表能否一起训练"=**能，loss 加权是当前最佳单模型两全手段**，严格阈值受 3B 容量所限。
+- **SC-017**（US6·融合破天花板）：双专家推理期融合**严格支配 US5 均衡单模型**——融合A（表策略）表 R 0.776/列 F1 0.829、融合B（并集）表 R **0.801 > 单表专家天花板 0.776**/列 F1 0.828/表 F1 0.806/方向 0.780，全部不劣于 lw3（0.734/0.825/0.781/0.729）且表召回显著升。严格两门（列 F1≥0.85）仍差 ~0.02（列召回受表专家独有表无法嫁接列所限），**如实记为诚实残差**——融合把可部署 frontier 明显外推、给出容量墙的工程解，但严格阈值出路仍是 7B。零训练、无 GPU 复算取证。
 
 ## Assumptions
 
