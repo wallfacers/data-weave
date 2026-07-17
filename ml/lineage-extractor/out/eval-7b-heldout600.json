@@ -1,0 +1,166 @@
+{
+  "overall": {
+    "precision": 0.9990714948932219,
+    "recall": 0.9990714948932219,
+    "f1": 0.9990714948932219,
+    "hallucination": 0.0009285051067780873,
+    "direction_acc": 0.9990714948932219,
+    "invalid": 0,
+    "col_precision": 1.0,
+    "col_recall": 1.0,
+    "col_f1": 1.0,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 481
+  },
+  "n": 600,
+  "by_family": {
+    "h": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 270
+    },
+    "py": {
+      "precision": 0.9943181818181818,
+      "recall": 0.9943181818181818,
+      "f1": 0.9943181818181818,
+      "hallucination": 0.005681818181818182,
+      "direction_acc": 0.9943181818181818,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 95
+    },
+    "sh": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 88
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "orm": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "cli": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 28
+    },
+    "config": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9990714948932219,
+      "recall": 0.9990714948932219,
+      "f1": 0.9990714948932219,
+      "hallucination": 0.0009285051067780873,
+      "direction_acc": 0.9990714948932219,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 481
+    }
+  },
+  "uncovered": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "hallucination": 0.0,
+    "direction_acc": 1.0,
+    "invalid": 0,
+    "col_precision": 1.0,
+    "col_recall": 1.0,
+    "col_f1": 1.0,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 270
+  },
+  "failures": [
+    "[py-multi-statement#55] W gold=['lanthanummines'] got=['lanthaniummines']"
+  ]
+}

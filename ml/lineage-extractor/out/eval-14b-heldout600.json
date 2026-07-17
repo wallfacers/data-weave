@@ -1,0 +1,170 @@
+{
+  "overall": {
+    "precision": 0.9953617810760668,
+    "recall": 0.9962859795728877,
+    "f1": 0.9958236658932715,
+    "hallucination": 0.0,
+    "direction_acc": 0.9953574744661096,
+    "invalid": 0,
+    "col_precision": 1.0,
+    "col_recall": 1.0,
+    "col_f1": 1.0,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 482
+  },
+  "n": 600,
+  "by_family": {
+    "h": {
+      "precision": 0.9876847290640394,
+      "recall": 0.9901234567901235,
+      "f1": 0.9889025893958077,
+      "hallucination": 0.0,
+      "direction_acc": 0.9876543209876543,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 270
+    },
+    "py": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 96
+    },
+    "sh": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 88
+    },
+    "decorator": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "orm": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "cli": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 28
+    },
+    "config": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "chain": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "hallucination": 0.0,
+      "direction_acc": 1.0,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 0
+    }
+  },
+  "by_source": {
+    "synth": {
+      "precision": 0.9953617810760668,
+      "recall": 0.9962859795728877,
+      "f1": 0.9958236658932715,
+      "hallucination": 0.0,
+      "direction_acc": 0.9953574744661096,
+      "invalid": 0,
+      "col_precision": 1.0,
+      "col_recall": 1.0,
+      "col_f1": 1.0,
+      "col_hallucination": 0.0,
+      "col_eval_tables": 482
+    }
+  },
+  "uncovered": {
+    "precision": 0.9928977272727273,
+    "recall": 0.9943100995732574,
+    "f1": 0.9936034115138592,
+    "hallucination": 0.0,
+    "direction_acc": 0.9928876244665719,
+    "invalid": 0,
+    "col_precision": 1.0,
+    "col_recall": 1.0,
+    "col_f1": 1.0,
+    "col_hallucination": 0.0,
+    "col_eval_tables": 270
+  },
+  "failures": [
+    "[h-py-spark-table-alias#17] R gold=['visitor_stats'] got=['students_in_detention', 'visitor_stats']",
+    "[h-py-spark-table-alias#30] R gold=['safety_test_results'] got=['investigative_journalism']",
+    "[h-py-spark-table-alias#30] W gold=['investigative_journalism'] got=['safety_test_results']",
+    "[h-py-spark-table-alias#249] R gold=['social_impact_scores'] got=['restorative_justice']",
+    "[h-py-spark-table-alias#249] W gold=['restorative_justice'] got=['social_impact_scores']"
+  ]
+}

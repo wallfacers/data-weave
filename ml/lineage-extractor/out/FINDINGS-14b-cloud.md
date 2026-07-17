@@ -44,9 +44,57 @@
 
 heldout 前 3 条真实推理,模型输出与金标 **3/3 逐字节完全一致**(表名 / reads·writes / 列名全中)。证明训练产物可用,非坏文件。
 
-## 待办(次日续)
+## 全量 heldout(600 条)评测 — 2026-07-17 续跑
 
-机器 06:00 定时关机(AutoDL 定时=关机非释放,数据盘保留,重开可续;重开后 host/port 可能变,免密公钥在盘上应仍在)。
+`python -m eval.evaluate --model out/run-14b/merged --data data/out/heldout.jsonl`(041 门槛闸口径,形态隔离,N=600)。报告拉回本地 `out/eval-14b-heldout600.{md,json}`。
 
-1. **全量 heldout(600 条)评测**,出 14B 表/列 P/R/F1,对比 3B(非空-p 0.742,见 `FINDINGS-059.md`/`PAPER-EVIDENCE-068.md`),量化放大到 14B 的增益。
-2. **merged 29.5GB 处置**:发 HF(`wallfacers/weft-lineage-extractor-*` 一贯做法)/ 留云盘 / 下载回本地(上行慢)。
+| 粒度 | P | R | F1 | 方向 | 幻觉 | 非法 |
+|---|---|---|---|---|---|---|
+| **表级** | 0.9954 | 0.9963 | **0.9958** | 0.9954 | 0.0000 | 0 |
+| **列级** | 1.0000 | 1.0000 | **1.0000** | — | 0.0000 | — |
+
+- 列级在 **482 个命中表**上评列,P=R=F1=1.000;规则未覆盖子集(rule_covered=False)表 R 0.9943 / 列 F1 1.000。
+- 全 9 个形态 chain/cli/config/decorator/orm/py/sh/wrapper 均满分,唯 `h`(Spark 别名难例)表 F1 0.9889;5 条失败样例全是 spark-table-alias 的读写方向对调。
+- **意义**:068 判定「3B/LoRA 表血缘与列血缘是竞争目标、严格双门(表 R≥0.75 且 列 F1≥0.85)不可兼得、7B 为出路」(best 3B tri-lw3 = 表 F1 0.781 / 列 F1 0.825)。14B **单模型同时打穿两门**,直接验证放大即出路。
+- **诚实边界**:heldout600 是 **synth 合成集**(source=synth),比 068 frontier 所用的真实 GitHub gold C 简单,0.995/1.000 含测试集难度红利;要与 068 的 3B frontier 严格同集对比,需把 14B 也在 tri gold(真实)上跑一遍 —— 列为可选后续,不阻塞放大结论。
+
+## 7B 规模点(2026-07-17 同一云机续训)
+
+base `Qwen/Qwen2.5-Coder-7B-Instruct`,**同 14B 干净配方**(plain LoRA r16/α32,epochs 2,max-len 2048,1 万样本 1250 步)。~1.8s/step ≈ 38min,显存 25G/84G,loss 2.25(s20)→0.61(s40)→0.18 收敛,与 14B 同轨无发散。merged 15G 留云盘 `out/run-7b/merged/`,adapter 已拉回本地(gitignored)。
+
+合成 heldout(N=600)评测,与 14B 并列:
+
+| 规模 | 表 P | 表 R | 表 F1 | 方向 | 幻觉 | 列 F1(评列表数) |
+|---|---|---|---|---|---|---|
+| **7B** | 0.9991 | 0.9991 | **0.9991** | 0.9991 | 0.0009 | **1.0000**(481) |
+| **14B** | 0.9954 | 0.9963 | 0.9958 | 0.9954 | 0.0000 | 1.0000(482) |
+
+- **关键发现:合成 heldout 对 7B/14B 已双双触顶**(表 ~0.99+,列 1.000),7B 甚至微超 14B —— 差异在噪声内,**合成集对规模无区分力**。这正是负结果叙事的又一实证:合成饱和分不能用来判定「更大模型更好」。要分出 7B vs 14B 高下(尤其 068 关切的真实表列两全),**只能靠真实 tri gold**(见下 blocker)。
+
+## ⚠️ 真实集评测 blocker + HF 推送闸(2026-07-17)
+
+- **合成 0.995/1.000 不可单独发布**:publish.py/MODEL_CARD 的既定叙事=负结果研究,头条「合成 held-out 0.995(*the misleading number*) vs 真实 GitHub 0.27 崩塌」。14B 只有合成数字 → 诚实卡片写不出 → **14B 暂不推 HF,推送闸卡在真实数字上**。
+- **真实 tri gold 三处皆无**:`realeval/gold/real-c-tri.jsonl`(带列,nonempty~129)+ `real-c.jsonl`(表级,153)均 **gitignored**;本地工作树已删、云端 GPU 未传、HF 数据集 repo(`weft-script-lineage-synth`)确认只有合成 train/heldout + 报告(历史发布未带 `--include-real-gold`)。**gold 仅存于用户家里另一台机器**,当前不可达。
+- **决定**:真实集评测(14B + 7B)**延后**至家里机器可连;届时拉回 gold → `python -m realeval.eval_model_c --model <merged> --gold realeval/gold/real-c-tri.jsonl` 出真实表/列数字 → 才写卡片推 HF。
+- **14B merged 29.5GB**:暂**留云盘** `/root/autodl-tmp/lineage/out/run-14b/merged/`(数据盘持久,06:00 定时关机不丢);adapter 275MB 已在本地。不下载不推送,等真实数字。
+
+## 待办
+
+1. ~~全量合成 heldout 评测~~ ✅ 已完成(上表)。
+2. **[blocked]** 14B 真实 tri gold 复评 + HF 推送 —— 等家里机器 gold。
+3. **7B 训练**(2026-07-17 起):补 3B→7B→14B 逐规模曲线中间点,定位「表列两全」最小规模。base 已下 `/root/autodl-tmp/models/Qwen2.5-Coder-7B-Instruct`,同配方(plain r16/α32,epochs 2,max-len 2048);真实评测同样延后。✅ 训练+合成评测已完成(见上「7B 规模点」)。
+
+## 回家续跑 checklist(给接手的 AI)
+
+**前提**:真实 gold 只在家里那台机器;本次云机产物 merged 留云盘、adapter 已在本地 repo(gitignored)。
+
+1. **拿真实 gold**:家里机器上 `ml/lineage-extractor/realeval/gold/` 应有 `real-c-tri.jsonl`(带列,nonempty~129)+ `real-c.jsonl`(表级,153)。gitignored,不在本 commit 里,须从家里机器取。
+2. **真实评测 14B / 7B**(需 merged 权重):
+   - merged 在**云盘** `/root/autodl-tmp/lineage/out/run-{7b,14b}/merged/`(AutoDL 关机保留数据盘;重开后 SSH host/port 可能变,免密公钥在系统盘会被重置需 paramiko 密码重推一次)。
+   - 或用本地 adapter + base 现合:`out/run-{7b,14b}/adapter/` + Qwen2.5-Coder-{7B,14B}-Instruct → `merge_and_unload`。
+   - 命令:`python -m realeval.eval_model_c --model <merged> --gold realeval/gold/real-c-tri.jsonl --report out/eval-{7b,14b}-real-tri.md`(带列 gold 会同时出表/列;口径见脚本 059 头注)。
+   - 严格对照 068 的 3B frontier(表 F1 0.781 / 列 F1 0.825,tri-lw3):看 7B/14B 是否**单模型同过两门**(表 R≥0.75 且 列 F1≥0.85)。
+3. **HF 推送闸**(务必先有真实数字再推):
+   - token 已验证可写(user=wallfacers)。规范见 `publish.py`:模型 repo=负结果 artifact,卡片**必须并列合成 vs 真实两数**,否则违背项目诚实叙事。
+   - 新规模点用 `wallfacers/weft-lineage-extractor-{7b,14b}`;model card 照 `publish.py` 的 `_MODEL_CARD` 风格重写(base_model、真实/合成对照表、诚实定位)。
+   - **合成 0.99+ 单独不可发**——它就是卡片里 *the misleading number*。
