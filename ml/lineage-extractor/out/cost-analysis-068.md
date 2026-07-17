@@ -16,9 +16,15 @@
 | 平均输出 | ~22 token/req（血缘 JSON 短，**prefill 受限非 decode 受限**） |
 
 ### 1.2 vLLM 连续批处理（`realeval/bench_vllm.py`）
-> ⏳ **本机实测待补**：vLLM（sm_120/Blackwell）安装受当时外网降速（~0.5MB/s）阻塞，脚本已就绪，
-> 待带宽恢复真跑填入。机理：连续批处理消除静态批的 straggler 浪费，同类 3B 工作负载单卡吞吐
-> 通常较 transformers eager 有数倍提升——本台账不提前写未实测的具体倍数（诚实边界）。
+> ⚠️ **本机（WSL2 + RTX 5070）跑不起来，环境硬限制，非脚本问题**：vLLM 0.25.1 **安装成功**
+> （`import vllm` 正常、能加载 Qwen2 模型），但启动 GPU worker 分配 KV cache 时走 `UvaBuffer`，
+> 要求 UVA（统一虚拟寻址）——实测本机 `is_uva_available() == False`（`pin_memory` 可用但 UVA
+> host 指针映射不可用），**WSL2 的 GPU 半虚拟化不暴露 UVA** → `RuntimeError: UVA is not available`。
+> v0 引擎在 0.25.1 已删除（`VLLM_USE_V1=0` 被忽略仍走 UvaBuffer），换任何 env/flag 均绕不过；
+> 换老版 vLLM 又缺 sm_120（Blackwell）kernel。**真跑 vLLM 需原生 Linux 显卡机**（脚本 `bench_vllm.py`
+> 已就绪，含 `if __name__=="__main__"` 守卫，换机即可跑）。
+> 机理（文献既定）：连续批处理消除静态批的 straggler 浪费，同类 3B 工作负载单卡吞吐通常较
+> transformers eager 有数倍提升——本台账**不写未实测的具体倍数**（诚实边界），部署方式见 HF 模型卡。
 
 ## 2. 成本对比（真实 token 画像：~1200 input / 22 output）
 
