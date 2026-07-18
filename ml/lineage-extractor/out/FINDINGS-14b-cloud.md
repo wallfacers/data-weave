@@ -157,6 +157,14 @@ tri 真实银标训练 → 真实 tri gold 评测(非空 129),全部规模×loss
 
 产物:merged 全留云盘 `/root/autodl-tmp/lineage/out/run-tri-{7b,14b}{,-lw3,-lw4}/merged/`;评测报告 `out/eval-tri-*-real.{md,json}` 已全部拉回本地入库。
 
+## HF 发布(2026-07-18,用户拍板)
+
+- **权重全部上云 HF**(云机直传,~90MB/s,单文件 29.5G safetensors 未分 shard 但 transformers/vLLM 可加载):
+  - `wallfacers/weft-lineage-extractor-14b`:main=**lw3**(最佳均衡 0.799/0.856)· `tri-table-specialist`=lw4 · `tri-column-specialist`=plain;
+  - `wallfacers/weft-lineage-extractor-7b`:main=**plain**(7B 最佳)· `tri-lw3`=lw3(「loss 加权在 7B 失效」证据分支)。
+- **全系列文档统一英文企业规范**:3b 主卡(原全中文)+ 3b 两个专家分支卡(原中文)全部英文重写;14b/7b 主卡+分支卡新建(含 synth 0.996 vs real 0.505 诚实对照、pareto frontier、容量门槛负结果);1.5b/0.5b/jvm/dataset 审查确认原本已是英文规范未动。卡片副本存档 `out/MODEL_CARD-{3b,7b,14b}-en.md`。
+- 14b 卡如实标注:严格双门无单模型通过,`main` 差表 R 0.023;工程解=双专家融合(表=lw4 分支,列=plain 分支)。
+
 ## ⚠️ 真实集评测 blocker + HF 推送闸(2026-07-17)——已解除,留档
 
 - **合成 0.995/1.000 不可单独发布**:publish.py/MODEL_CARD 的既定叙事=负结果研究,头条「合成 held-out 0.995(*the misleading number*) vs 真实 GitHub 0.27 崩塌」。14B 只有合成数字 → 诚实卡片写不出 → **14B 暂不推 HF,推送闸卡在真实数字上**。
