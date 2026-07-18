@@ -165,6 +165,29 @@ tri 真实银标训练 → 真实 tri gold 评测(非空 129),全部规模×loss
 - **全系列文档统一英文企业规范**:3b 主卡(原全中文)+ 3b 两个专家分支卡(原中文)全部英文重写;14b/7b 主卡+分支卡新建(含 synth 0.996 vs real 0.505 诚实对照、pareto frontier、容量门槛负结果);1.5b/0.5b/jvm/dataset 审查确认原本已是英文规范未动。卡片副本存档 `out/MODEL_CARD-{3b,7b,14b}-en.md`。
 - 14b 卡如实标注:严格双门无单模型通过,`main` 差表 R 0.023;工程解=双专家融合(表=lw4 分支,列=plain 分支)。
 
+## ★ vLLM 评测并发验证(2026-07-18,云机 RTX6000D,关机前收口)
+
+WSL2 本机 vLLM 因 UVA 硬限制跑不了(见 068 cost-analysis §1.2),在云机(原生 Linux)首次真跑验证。`vllm==0.25.1`(拖 torch 2.11.0+cu130,覆盖训练用 2.8——训练已全收口无影响)。
+
+**RTX 6000D(sm_120 Blackwell)三个必须的环境修正**,缺一引擎起不来或推理中途崩:
+
+| 症状 | 修正 |
+|---|---|
+| flashinfer `RuntimeError: FlashInfer requires GPUs with sm75 or higher`(sm_120 误判,warmup 采样阶段触发) | `VLLM_USE_FLASHINFER_SAMPLER=0` + `VLLM_ATTENTION_BACKEND=TRITON_ATTN` |
+| `libnvrtc.so.13: cannot open shared object file`(cu13 wheel 装在 `nvidia/cu13/lib` 不在默认加载路径) | `LD_LIBRARY_PATH=…/site-packages/nvidia/cu13/lib` |
+| prompt 超长 `maximum context length is 2048`(个别真实脚本 4000 字符截断后仍 >2048 tok) | `--max-model-len 4096`(transformers eval 无此限因底座 32k) |
+
+**结果**(真实 tri gold 全 399 条一次性喂入,temperature=0,gpu_util 0.85;脚本 `bench_vllm_remote.py` 与本地 `realeval/bench_vllm.py` 同口径;日志 `out/bench-vllm-{14b-lw3,7b}.log`):
+
+| 模型 | 全量 399 条 | req/s | output-tok/s | 峰值 decode(128×64 等长) | transformers 串行对照 | 加速比 |
+|---|---|---|---|---|---|---|
+| **14B lw3(HF main)** | **59.8s** | 6.67 | 208 | 1828 tok/s | ~645s(mtime 推算,含加载) | **~10.8×** |
+| **7B plain(HF main)** | **29.5s** | 13.5 | 509 | 3980 tok/s | ~360s | **~12×** |
+
+- 均输入 776 tok/条、输出 31-38 tok/条 → 全量吞吐被 prefill 主导,208 tok/s 远低于 1828 峰值属正常形态(输出短)。
+- KV cache 富余巨大(84G 卡,2048 ctx 下并发容量 109×),评测并发瓶颈不在显存在算力。
+- **结论:vLLM 连续批处理把整套真实 gold 评测从 ~11 分钟压到 1 分钟,并发度验证通过**;若未来做 serving/批量重评,同样环境三件套直接复用。
+
 ## ⚠️ 真实集评测 blocker + HF 推送闸(2026-07-17)——已解除,留档
 
 - **合成 0.995/1.000 不可单独发布**:publish.py/MODEL_CARD 的既定叙事=负结果研究,头条「合成 held-out 0.995(*the misleading number*) vs 真实 GitHub 0.27 崩塌」。14B 只有合成数字 → 诚实卡片写不出 → **14B 暂不推 HF,推送闸卡在真实数字上**。
